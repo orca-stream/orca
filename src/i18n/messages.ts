@@ -10,6 +10,21 @@ const es = {
     password: "Contraseña",
     submit: "Entrar",
     connecting: "Conectando…",
+    addTitle: "Agrega un perfil",
+    back: "Volver",
+    expired: (name: string) => `La sesión de ${name} caducó. Vuelve a entrar.`,
+  },
+  profiles: {
+    title: "¿Quién está viendo ahora?",
+    manageTitle: "Administrar perfiles",
+    add: "Agregar perfil",
+    manage: "Administrar perfiles",
+    done: "Listo",
+    removeLabel: (name: string) => `Quitar a ${name}`,
+    confirmRemove: (name: string) => `¿Quitar a ${name} de este dispositivo?`,
+    removeHint: "Podrá volver a entrar con su usuario y contraseña.",
+    remove: "Quitar",
+    cancel: "Cancelar",
   },
   errors: {
     invalidAddress: "Esa dirección no parece válida.",
@@ -22,6 +37,7 @@ const es = {
     greeting: (name: string) => `Hola, ${name}`,
     connectedTo: (server: string) => `Conectado a ${server}`,
     signOut: "Cerrar sesión",
+    switchProfile: "Cambiar de perfil",
   },
 };
 
@@ -36,6 +52,21 @@ const en: Messages = {
     password: "Password",
     submit: "Sign in",
     connecting: "Connecting…",
+    addTitle: "Add a profile",
+    back: "Back",
+    expired: (name: string) => `${name}'s session expired. Please sign in again.`,
+  },
+  profiles: {
+    title: "Who's watching?",
+    manageTitle: "Manage profiles",
+    add: "Add profile",
+    manage: "Manage profiles",
+    done: "Done",
+    removeLabel: (name: string) => `Remove ${name}`,
+    confirmRemove: (name: string) => `Remove ${name} from this device?`,
+    removeHint: "They can sign in again with their username and password.",
+    remove: "Remove",
+    cancel: "Cancel",
   },
   errors: {
     invalidAddress: "That address doesn't look valid.",
@@ -48,6 +79,7 @@ const en: Messages = {
     greeting: (name: string) => `Hi, ${name}`,
     connectedTo: (server: string) => `Connected to ${server}`,
     signOut: "Sign out",
+    switchProfile: "Switch profile",
   },
 };
 

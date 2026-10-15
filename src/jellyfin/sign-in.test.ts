@@ -1,43 +1,12 @@
-import { Jellyfin } from "@jellyfin/sdk";
-import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 import { describe, expect, it } from "vite-plus/test";
+import { fakeServer, testJellyfin as jellyfin } from "./fake-server";
 import { signIn, SignInError, type SignInFailure } from "./sign-in";
 
-const jellyfin = new Jellyfin({
-  clientInfo: { name: "orca", version: "test" },
-  deviceInfo: { name: "Test", id: "device-1" },
-});
-
-type Route = (config: InternalAxiosRequestConfig) => { status: number; data: unknown } | "offline";
-
-/** An axios instance whose adapter answers from `route` instead of the network. */
-function fakeServer(route: Route) {
-  const requests: InternalAxiosRequestConfig[] = [];
-  const instance = axios.create({
-    adapter: async (config) => {
-      requests.push(config);
-      const answer = route(config);
-      if (answer === "offline") {
-        throw new AxiosError("Network Error", AxiosError.ERR_NETWORK, config);
-      }
-      const response: AxiosResponse = {
-        data: answer.data,
-        status: answer.status,
-        statusText: String(answer.status),
-        headers: {},
-        config,
-      };
-      if (answer.status >= 400) {
-        throw new AxiosError("Request failed", AxiosError.ERR_BAD_REQUEST, config, null, response);
-      }
-      return response;
-    },
-  });
-  return { instance, requests };
-}
-
 const PUBLIC_INFO = { Id: "srv-1", Version: "12.2.0", ServerName: "Casa" };
-const AUTH_RESULT = { AccessToken: "token-1", User: { Id: "user-1", Name: "Sam" } };
+const AUTH_RESULT = {
+  AccessToken: "token-1",
+  User: { Id: "user-1", Name: "Sam", PrimaryImageTag: "tag-1" },
+};
 
 function healthyServer(
   auth: { status: number; data: unknown } = { status: 200, data: AUTH_RESULT },
@@ -72,6 +41,7 @@ describe("signIn", () => {
       accessToken: "token-1",
       userId: "user-1",
       userName: "Sam",
+      imageTag: "tag-1",
     });
     expect(api.accessToken).toBe("token-1");
     expect(requests.map((config) => config.url)).toEqual([

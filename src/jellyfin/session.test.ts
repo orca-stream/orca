@@ -1,41 +1,64 @@
 import { describe, expect, it } from "vite-plus/test";
 import { memoryStore } from "../storage";
 import { getOrCreateDeviceId, detectDeviceName } from "./device";
-import { clearSession, loadSession, saveSession, type Session } from "./session";
+import { loadSessions, removeSession, saveSession, sessionId, type Session } from "./session";
 
-const session: Session = {
+const sam: Session = {
   serverUrl: "https://jf.example.com",
   serverName: "Casa",
   accessToken: "token-1",
   userId: "user-1",
   userName: "Sam",
 };
+const alexa: Session = { ...sam, accessToken: "token-2", userId: "user-2", userName: "Alexa" };
 
 describe("session storage", () => {
-  it("round-trips a session and clears it", () => {
+  it("keeps one profile per user and server, in sign-in order", () => {
     const store = memoryStore();
-    expect(loadSession(store)).toBeNull();
+    expect(loadSessions(store)).toEqual([]);
 
-    saveSession(store, session);
-    expect(loadSession(store)).toEqual(session);
+    saveSession(store, sam);
+    saveSession(store, alexa);
+    expect(loadSessions(store).map((session) => session.userName)).toEqual(["Sam", "Alexa"]);
 
-    clearSession(store);
-    expect(loadSession(store)).toBeNull();
+    // Signing in again as Sam replaces his profile where it was.
+    saveSession(store, { ...sam, accessToken: "token-3", imageTag: "tag-1" });
+    expect(loadSessions(store)).toEqual([
+      { ...sam, accessToken: "token-3", imageTag: "tag-1" },
+      alexa,
+    ]);
+
+    // The same user id on another server is another profile.
+    saveSession(store, { ...sam, serverUrl: "http://192.168.1.100:8096" });
+    expect(loadSessions(store)).toHaveLength(3);
+
+    expect(removeSession(store, sam).map(sessionId)).toEqual([
+      "user-2@https://jf.example.com",
+      "user-1@http://192.168.1.100:8096",
+    ]);
   });
 
   it("only persists the known fields", () => {
     const store = memoryStore();
-    saveSession(store, { ...session, password: "pw" } as Session);
-    expect(store.getItem("orca.session")).not.toContain("pw");
+    saveSession(store, { ...sam, password: "pw" } as Session);
+    expect(store.getItem("orca.sessions")).not.toContain("pw");
   });
 
-  it("ignores corrupted or outdated data instead of throwing", () => {
+  it("migrates the single session stored before profiles existed", () => {
     const store = memoryStore();
-    store.setItem("orca.session", "{not json");
-    expect(loadSession(store)).toBeNull();
+    store.setItem("orca.session", JSON.stringify(sam));
+    expect(loadSessions(store)).toEqual([sam]);
+    expect(store.getItem("orca.session")).toBeNull();
+    expect(loadSessions(store)).toEqual([sam]);
+  });
 
-    store.setItem("orca.session", JSON.stringify({ ...session, accessToken: "" }));
-    expect(loadSession(store)).toBeNull();
+  it("drops corrupted or outdated data instead of throwing", () => {
+    const store = memoryStore();
+    store.setItem("orca.sessions", "{not json");
+    expect(loadSessions(store)).toEqual([]);
+
+    store.setItem("orca.sessions", JSON.stringify([{ ...sam, accessToken: "" }, alexa, 42]));
+    expect(loadSessions(store)).toEqual([alexa]);
   });
 
   it("survives a store that throws", () => {
@@ -50,8 +73,8 @@ describe("session storage", () => {
         throw new Error("SecurityError");
       },
     };
-    expect(() => saveSession(broken, session)).not.toThrow();
-    expect(loadSession(broken)).toBeNull();
+    expect(() => saveSession(broken, sam)).not.toThrow();
+    expect(loadSessions(broken)).toEqual([]);
   });
 });
 

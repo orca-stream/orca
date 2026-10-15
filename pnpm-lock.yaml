@@ -181,6 +181,12 @@ importers:
       '@jellyfin/sdk':
         specifier: 1.0.0
         version: 1.0.0(axios@1.20.0(debug@4.4.3))
+      '@noriginmedia/norigin-spatial-navigation-core':
+        specifier: 4.1.2
+        version: 4.1.2
+      '@noriginmedia/norigin-spatial-navigation-react':
+        specifier: 3.3.0
+        version: 3.3.0(react@19.3.0)
       axios:
         specifier: 1.20.0
         version: 1.20.0(debug@4.4.3)
@@ -347,6 +353,14 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@noriginmedia/norigin-spatial-navigation-core@4.1.2':
+    resolution: {integrity: sha512-+SMXSilyBd5M3iP0UqXatY2s4ealKaPKqt6SFef5xsqB64Ijzkww+YxsYHgOtr871lSHIei8o3sbKjb5uDuxwA==}
+
+  '@noriginmedia/norigin-spatial-navigation-react@3.3.0':
+    resolution: {integrity: sha512-YmiXFkczmfRTz6vmVmQoNhryi0j/09Ez77RPdCM2/VmXo7XcTVIYhrrQIqXkslLe2BzM2/k6ITqwTGhl2B/GTg==}
+    peerDependencies:
+      react: '>=16.8.0'
 
   '@oxc-project/runtime@0.153.0':
     resolution: {integrity: sha512-rXJvtlsVG4xJNq64hiaUTIatE7jbBgpa6l4QgmEa2jLgT3ULH9scUBkpsC9N1DfmqixLEyT6DuK6OSXozziIlw==}
@@ -1674,6 +1688,9 @@ packages:
   lines-and-columns@1.2.4:
     resolution: {integrity: sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==}
 
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
+
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
     hasBin: true
@@ -2128,6 +2145,16 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@noriginmedia/norigin-spatial-navigation-core@4.1.2':
+    dependencies:
+      lodash-es: 4.18.1
+
+  '@noriginmedia/norigin-spatial-navigation-react@3.3.0(react@19.3.0)':
+    dependencies:
+      '@noriginmedia/norigin-spatial-navigation-core': 4.1.2
+      lodash-es: 4.18.1
+      react: 19.3.0
 
   '@oxc-project/runtime@0.153.0': {}
 
@@ -2989,6 +3016,8 @@ snapshots:
       lightningcss-win32-x64-msvc: 1.33.0
 
   lines-and-columns@1.2.4: {}
+
+  lodash-es@4.18.1: {}
 
   lz-string@1.5.0: {}
 

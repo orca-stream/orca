@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@jellyfin/sdk": "1.0.0",
+    "@noriginmedia/norigin-spatial-navigation-core": "4.1.2",
+    "@noriginmedia/norigin-spatial-navigation-react": "3.3.0",
     "axios": "1.20.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

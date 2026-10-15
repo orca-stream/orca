@@ -73,6 +73,7 @@ export async function signIn(
         accessToken: data.AccessToken,
         userId: data.User.Id,
         userName: data.User.Name || request.username,
+        ...(data.User.PrimaryImageTag ? { imageTag: data.User.PrimaryImageTag } : {}),
       },
     };
   } catch (error) {

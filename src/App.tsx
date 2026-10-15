@@ -1,44 +1,116 @@
 import { useState } from "react";
-import { SignInScreen } from "./auth/SignInScreen";
+import { SignInScreen, type SignInPrefill } from "./auth/SignInScreen";
 import { HomeScreen } from "./home/HomeScreen";
-import { endSession, resumeSession, type Connection } from "./jellyfin/client";
-import { clearSession, loadSession, saveSession, type Session } from "./jellyfin/session";
+import { t } from "./i18n/locale";
+import {
+  endSession,
+  refreshSession,
+  resumeSession,
+  SessionExpiredError,
+  type Connection,
+} from "./jellyfin/client";
+import {
+  loadSessions,
+  removeSession,
+  saveSession,
+  sessionId,
+  type Session,
+} from "./jellyfin/session";
+import { ProfileGate } from "./profiles/ProfileGate";
 import { browserStore } from "./storage";
 
-interface SignedIn {
-  connection: Connection;
-  session: Session;
+type Screen =
+  | { kind: "profiles" }
+  | { kind: "signIn"; prefill?: SignInPrefill }
+  | { kind: "home"; connection: Connection; session: Session };
+
+function homeFor(session: Session): Screen {
+  return { kind: "home", connection: resumeSession(session), session };
 }
 
-function restore(): SignedIn | null {
-  const session = loadSession(browserStore());
-  return session && { connection: resumeSession(session), session };
+/** No profiles: sign in. One: straight in, like Netflix. Several: ask who's watching. */
+function initialScreen(sessions: Session[]): Screen {
+  if (sessions.length === 0) return { kind: "signIn" };
+  if (sessions.length === 1) return homeFor(sessions[0]!);
+  return { kind: "profiles" };
 }
 
 function App() {
-  const [signedIn, setSignedIn] = useState<SignedIn | null>(restore);
+  const [sessions, setSessions] = useState(() => loadSessions(browserStore()));
+  const [screen, setScreen] = useState<Screen>(() => initialScreen(sessions));
 
-  if (!signedIn) {
-    return (
-      <SignInScreen
-        onSignedIn={(connection, session) => {
-          saveSession(browserStore(), session);
-          setSignedIn({ connection, session });
-        }}
-      />
+  function enter(session: Session, connection = resumeSession(session)) {
+    setScreen({ kind: "home", connection, session });
+    // Refresh name and avatar in the background; a revoked token sends the user to sign in again.
+    refreshSession(connection, session).then(
+      (fresh) => {
+        setSessions(saveSession(browserStore(), fresh));
+        setScreen((current) =>
+          current.kind === "home" && sessionId(current.session) === sessionId(fresh)
+            ? { ...current, session: fresh }
+            : current,
+        );
+      },
+      (error: unknown) => {
+        if (!(error instanceof SessionExpiredError)) return;
+        setScreen({
+          kind: "signIn",
+          prefill: {
+            server: session.serverUrl,
+            username: session.userName,
+            notice: t.login.expired(session.userName),
+          },
+        });
+      },
     );
   }
 
-  return (
-    <HomeScreen
-      session={signedIn.session}
-      onSignOut={() => {
-        void endSession(signedIn.connection);
-        clearSession(browserStore());
-        setSignedIn(null);
-      }}
-    />
-  );
+  function remove(session: Session, connection = resumeSession(session)) {
+    void endSession(connection);
+    const remaining = removeSession(browserStore(), session);
+    setSessions(remaining);
+    return remaining;
+  }
+
+  switch (screen.kind) {
+    case "signIn":
+      return (
+        <SignInScreen
+          // A new key resets the form when the prefill changes (expired session vs add profile).
+          key={JSON.stringify(screen.prefill ?? null)}
+          prefill={screen.prefill}
+          onCancel={sessions.length > 0 ? () => setScreen({ kind: "profiles" }) : undefined}
+          onSignedIn={(connection, session) => {
+            setSessions(saveSession(browserStore(), session));
+            setScreen({ kind: "home", connection, session });
+          }}
+        />
+      );
+    case "profiles":
+      return (
+        <ProfileGate
+          sessions={sessions}
+          onPick={(session) => enter(session)}
+          onAdd={() =>
+            setScreen({ kind: "signIn", prefill: { server: sessions.at(-1)?.serverUrl } })
+          }
+          onRemove={(session) => {
+            if (remove(session).length === 0) setScreen({ kind: "signIn" });
+          }}
+        />
+      );
+    case "home":
+      return (
+        <HomeScreen
+          session={screen.session}
+          onSwitchProfile={() => setScreen({ kind: "profiles" })}
+          onSignOut={() => {
+            const remaining = remove(screen.session, screen.connection);
+            setScreen(remaining.length === 0 ? { kind: "signIn" } : { kind: "profiles" });
+          }}
+        />
+      );
+  }
 }
 
 export default App;
