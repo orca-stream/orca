@@ -20,6 +20,7 @@ interface Props {
   wide: boolean;
   onClose: () => void;
   onOpen: (item: MediaItem) => void;
+  onPlay: (item: MediaItem) => void;
   onExpired: () => void;
 }
 
@@ -33,7 +34,7 @@ type State =
  * over the featured title's tint, a billboard, then shelves of the genre's titles.
  */
 export function GenrePage(props: Props) {
-  const { connection, userId, genre, libraryId, wide, onOpen } = props;
+  const { connection, userId, genre, libraryId, wide, onOpen, onPlay } = props;
   const [state, setState] = useState<State>({ kind: "loading" });
   const [scrolled, setScrolled] = useState(false);
   const { ref, focusKey, focusSelf } = useFocusable({
@@ -128,6 +129,7 @@ export function GenrePage(props: Props) {
                 item={featured}
                 wide={wide}
                 offset={offset}
+                onPlay={() => onPlay(featured)}
                 onOpen={() => onOpen(featured)}
                 onToggleList={() => toggleList(featured)}
               />

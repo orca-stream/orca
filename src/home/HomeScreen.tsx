@@ -7,6 +7,7 @@ import { loadHome, type Home, type Library, type MediaItem } from "../jellyfin/l
 import { setFavorite } from "../jellyfin/title";
 import { FocusButton } from "../navigation/Focusable";
 import { SearchPage } from "../search/SearchPage";
+import { Player } from "../player/Player";
 import { SearchResults } from "../search/SearchResults";
 import { TitlePage } from "../title/TitlePage";
 import { useWideScreen } from "../ui/use-wide-screen";
@@ -76,6 +77,16 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   }
 
   const openTitle = (item: MediaItem) => open({ kind: "title", id: item.id });
+  const play = (itemId: string) => open({ kind: "player", id: itemId });
+
+  // Back from the player, "Continue watching" and the progress bars catch up, quietly: the home
+  // stays on screen while it reloads.
+  const playing = overlays.some((overlay) => overlay.kind === "player");
+  const [wasPlaying, setWasPlaying] = useState(false);
+  if (playing !== wasPlaying) {
+    setWasPlaying(playing);
+    if (!playing) setAttempt((count) => count + 1);
+  }
 
   /** "My list" on the billboard: flips at once, flips back if the server says no. */
   function toggleList(item: MediaItem) {
@@ -103,6 +114,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
             wide={wide}
             onClose={close}
             onOpen={openTitle}
+            onPlay={play}
             onExpired={onExpired}
           />
         );
@@ -139,6 +151,18 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
             wide={wide}
             onClose={close}
             onOpen={openTitle}
+            onPlay={(item) => play(item.id)}
+            onExpired={onExpired}
+          />
+        );
+      case "player":
+        return (
+          <Player
+            connection={connection}
+            userId={userId}
+            itemId={overlay.id}
+            wide={wide}
+            onClose={close}
             onExpired={onExpired}
           />
         );
@@ -148,8 +172,9 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   // Land on Play, as Netflix does; without a billboard, on the first card; meanwhile, the header.
   // A phone is touched, not driven by arrows: a ring on Play would only look stuck.
   // Read when the home changes, not a dependency: closing an overlay restores focus on its own.
+  // A quiet reload (back from the player) changes the home but not its kind: focus stays put.
   const overlayOpen = useEffectEvent(() => overlays.length > 0);
-  useEffect(() => {
+  const land = useEffectEvent(() => {
     if (!wide || overlayOpen()) return;
     if (state.kind !== "ready") {
       void setFocus(state.kind === "error" ? "HOME_RETRY" : "HEADER");
@@ -159,7 +184,8 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
     if (featured) void setFocus(BILLBOARD_PLAY);
     else if (shelves[0]) void setFocus(firstCardKey(shelves[0]));
     else void setFocus("HEADER");
-  }, [state, wide]);
+  });
+  useEffect(() => land(), [state.kind, libraryId, wide]);
 
   const featured = state.kind === "ready" ? state.home.featured : null;
 
@@ -222,6 +248,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
                 <Billboard
                   item={featured}
                   wide={wide}
+                  onPlay={() => play(featured.id)}
                   onOpen={() => openTitle(featured)}
                   onToggleList={() => toggleList(featured)}
                   offset={wide ? WIDE_OFFSET : HOME_OFFSET}

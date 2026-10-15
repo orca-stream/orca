@@ -35,6 +35,7 @@ interface Props {
   item: MediaItem;
   /** Wide screens frame the backdrop like Netflix web; phones show the poster, as the app does. */
   wide: boolean;
+  onPlay: () => void;
   onOpen: () => void;
   onToggleList: () => void;
   /** How far below the top bar the billboard starts, which depends on the page's bar. */
@@ -42,7 +43,7 @@ interface Props {
 }
 
 /** The big featured title on top of the home screen. */
-export function Billboard({ item, wide, onOpen, onToggleList, offset }: Props) {
+export function Billboard({ item, wide, onPlay, onOpen, onToggleList, offset }: Props) {
   const { ref, focusKey } = useFocusable({
     focusKey: "BILLBOARD",
     preferredChildFocusKey: BILLBOARD_PLAY,
@@ -56,9 +57,9 @@ export function Billboard({ item, wide, onOpen, onToggleList, offset }: Props) {
         className={`${wide ? FRAME : POSTER_FRAME} ${offset}`}
       >
         {wide ? (
-          <WideContent item={item} onOpen={onOpen} />
+          <WideContent item={item} onPlay={onPlay} onOpen={onOpen} />
         ) : (
-          <PosterContent item={item} onOpen={onOpen} onToggleList={onToggleList} />
+          <PosterContent item={item} onPlay={onPlay} onOpen={onOpen} onToggleList={onToggleList} />
         )}
       </section>
     </FocusContext.Provider>
@@ -77,7 +78,15 @@ function Title({ item, className }: { item: MediaItem; className: string }) {
   );
 }
 
-function WideContent({ item, onOpen }: { item: MediaItem; onOpen: () => void }) {
+function WideContent({
+  item,
+  onPlay,
+  onOpen,
+}: {
+  item: MediaItem;
+  onPlay: () => void;
+  onOpen: () => void;
+}) {
   const pill =
     "inline-flex items-center justify-center gap-2 rounded-[4px] px-7 py-3 text-lg font-bold whitespace-nowrap outline-none transition";
   return (
@@ -101,6 +110,7 @@ function WideContent({ item, onOpen }: { item: MediaItem; onOpen: () => void }) 
           <FocusButton
             focusKey={BILLBOARD_PLAY}
             onFocused={scrollToTop}
+            onPress={onPlay}
             className={`${pill} bg-white text-black hover:bg-white/80 focused:ring-4 focused:ring-white/50`}
           >
             <PlayIcon className="size-7 flex-none" />
@@ -144,10 +154,12 @@ const PHONE_BUTTON =
 
 function PosterContent({
   item,
+  onPlay,
   onOpen,
   onToggleList,
 }: {
   item: MediaItem;
+  onPlay: () => void;
   onOpen: () => void;
   onToggleList: () => void;
 }) {
@@ -173,6 +185,7 @@ function PosterContent({
           <FocusButton
             focusKey={BILLBOARD_PLAY}
             onFocused={scrollToTop}
+            onPress={onPlay}
             className={`${PHONE_BUTTON} bg-white text-black focused:ring-4 focused:ring-white/50`}
           >
             <PlayIcon className="size-6 flex-none" />

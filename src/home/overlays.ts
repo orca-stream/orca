@@ -6,7 +6,8 @@ export type Overlay =
   | { kind: "title"; id: string }
   | { kind: "search" }
   | { kind: "categories" }
-  | { kind: "genre"; name: string };
+  | { kind: "genre"; name: string }
+  | { kind: "player"; id: string };
 
 interface Entry {
   overlay: Overlay;

@@ -151,3 +151,87 @@ export function CaretIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function PauseIcon(props: IconProps) {
+  return (
+    <Icon fill="currentColor" stroke="none" {...props}>
+      <rect x="5.5" y="4" width="4.5" height="16" rx="1" />
+      <rect x="14" y="4" width="4.5" height="16" rx="1" />
+    </Icon>
+  );
+}
+
+/** A circular arrow with the 10 seconds it jumps written inside, as on Netflix's player. */
+function Skip10Icon({ forward, ...props }: IconProps & { forward: boolean }) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <g transform={forward ? undefined : "matrix(-1 0 0 1 24 0)"}>
+        <path d="M19.5 12A7.5 7.5 0 1 1 12 4.5h3" />
+        <path d="m13 1.8 2.7 2.7-2.7 2.7" />
+      </g>
+      <text
+        x="12"
+        y="15.6"
+        textAnchor="middle"
+        fontSize="8.5"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+      >
+        10
+      </text>
+    </Icon>
+  );
+}
+
+export function RewindIcon(props: IconProps) {
+  return <Skip10Icon forward={false} {...props} />;
+}
+
+export function ForwardIcon(props: IconProps) {
+  return <Skip10Icon forward {...props} />;
+}
+
+export function VolumeIcon({ muted, ...props }: IconProps & { muted: boolean }) {
+  return (
+    <Icon {...props}>
+      <path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4Z" fill="currentColor" />
+      {muted ? (
+        <path d="m16 9.5 5 5M21 9.5l-5 5" />
+      ) : (
+        <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />
+      )}
+    </Icon>
+  );
+}
+
+/** Netflix's "Audio & subtitles": a speech bubble with lines of text. */
+export function SubtitlesIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M3.5 5.5h17v11H10l-4.5 3.5v-3.5h-2Z" />
+      <path d="M7 10h4M13.5 10H17M7 13h7" />
+    </Icon>
+  );
+}
+
+export function NextEpisodeIcon(props: IconProps) {
+  return (
+    <Icon fill="currentColor" stroke="none" {...props}>
+      <path d="M4 5.2v13.6a.8.8 0 0 0 1.25.66L15 12.66a.8.8 0 0 0 0-1.32L5.25 4.54A.8.8 0 0 0 4 5.2Z" />
+      <rect x="17" y="4.5" width="3" height="15" rx=".8" />
+    </Icon>
+  );
+}
+
+export function FullscreenIcon({ exit, ...props }: IconProps & { exit: boolean }) {
+  return (
+    <Icon {...props}>
+      {exit ? (
+        <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+      ) : (
+        <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+      )}
+    </Icon>
+  );
+}

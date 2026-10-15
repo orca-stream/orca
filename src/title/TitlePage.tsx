@@ -34,6 +34,8 @@ interface Props {
   wide: boolean;
   onClose: () => void;
   onOpen: (item: MediaItem) => void;
+  /** Plays a movie, an episode, or a series' next episode. */
+  onPlay: (itemId: string) => void;
   onExpired: () => void;
 }
 
@@ -42,7 +44,8 @@ type Tab = "episodes" | "similar";
 
 const PLAY = "TITLE_PLAY";
 
-export function TitlePage({ connection, userId, itemId, wide, onClose, onOpen, onExpired }: Props) {
+export function TitlePage(props: Props) {
+  const { connection, userId, itemId, wide, onClose, onOpen, onPlay, onExpired } = props;
   const [state, setState] = useState<State>({ kind: "loading" });
   const { ref, focusKey, focusSelf } = useFocusable({
     focusKey: "TITLE_PAGE",
@@ -82,6 +85,7 @@ export function TitlePage({ connection, userId, itemId, wide, onClose, onOpen, o
         userId={userId}
         wide={wide}
         onOpen={onOpen}
+        onPlay={onPlay}
         onExpired={onExpired}
       />
     ) : state.kind === "error" ? (
@@ -140,10 +144,12 @@ interface DetailsProps {
   userId: string;
   wide: boolean;
   onOpen: (item: MediaItem) => void;
+  onPlay: (itemId: string) => void;
   onExpired: () => void;
 }
 
-function Details({ title, connection, userId, wide, onOpen, onExpired }: DetailsProps) {
+function Details(props: DetailsProps) {
+  const { title, connection, userId, wide, onOpen, onPlay, onExpired } = props;
   const { item } = title;
   const series = item.kind === "series";
   const [tab, setTab] = useState<Tab>(series ? "episodes" : "similar");
@@ -220,6 +226,7 @@ function Details({ title, connection, userId, wide, onOpen, onExpired }: Details
         connection={connection}
         userId={userId}
         wide={wide}
+        onPlay={onPlay}
         onHd={setEpisodesHd}
         onExpired={onExpired}
       />
@@ -256,6 +263,7 @@ function Details({ title, connection, userId, wide, onOpen, onExpired }: Details
             <div className="flex items-center gap-3">
               <FocusButton
                 focusKey={PLAY}
+                onPress={() => onPlay(item.id)}
                 className="inline-flex h-11 items-center gap-2 rounded-[4px] bg-white px-7 text-lg font-bold text-black outline-none hover:bg-white/80 focused:ring-4 focused:ring-white/50"
               >
                 <PlayIcon className="size-7 flex-none" />
@@ -299,15 +307,23 @@ function Details({ title, connection, userId, wide, onOpen, onExpired }: Details
         {item.backdropUrl && (
           <img src={item.backdropUrl} alt="" className="size-full object-cover" />
         )}
-        <span className="absolute inset-0 grid place-items-center">
+        {/* A tap on the picture plays too; the keys reach "Play" below instead. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={t.home.play}
+          onClick={() => onPlay(item.id)}
+          className="absolute inset-0 grid place-items-center outline-none"
+        >
           <PlayCircleIcon className="size-[47px] rounded-full bg-black/35 text-white" />
-        </span>
+        </button>
       </div>
       <div className="px-2.5">
         <h1 className="mt-3 text-[25px] leading-[30px] font-bold">{item.title}</h1>
         <div className="mt-1.5">{meta}</div>
         <FocusButton
           focusKey={PLAY}
+          onPress={() => onPlay(item.id)}
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-[4px] bg-white text-[17px] font-bold text-black outline-none focused:ring-4 focused:ring-white/50"
         >
           <PlayIcon className="size-6 flex-none" />
@@ -423,6 +439,7 @@ function Episodes({
   connection,
   userId,
   wide,
+  onPlay,
   onHd,
   onExpired,
 }: {
@@ -430,6 +447,7 @@ function Episodes({
   connection: Connection;
   userId: string;
   wide: boolean;
+  onPlay: (itemId: string) => void;
   onHd: (hd: boolean) => void;
   onExpired: () => void;
 }) {
@@ -499,14 +517,27 @@ function Episodes({
               </li>
             ))
           : episodes.map((episode) => (
-              <EpisodeRow key={episode.id} episode={episode} wide={wide} />
+              <EpisodeRow
+                key={episode.id}
+                episode={episode}
+                wide={wide}
+                onPlay={() => onPlay(episode.id)}
+              />
             ))}
       </ol>
     </div>
   );
 }
 
-function EpisodeRow({ episode, wide }: { episode: Episode; wide: boolean }) {
+function EpisodeRow({
+  episode,
+  wide,
+  onPlay,
+}: {
+  episode: Episode;
+  wide: boolean;
+  onPlay: () => void;
+}) {
   const name =
     episode.number != null ? t.title.episode(episode.number, episode.title) : episode.title;
   const duration =
@@ -514,7 +545,10 @@ function EpisodeRow({ episode, wide }: { episode: Episode; wide: boolean }) {
     t.home.duration(Math.floor(episode.runtimeMinutes / 60), episode.runtimeMinutes % 60);
   return (
     <li className={wide ? "border-b border-white/15 py-4" : "mt-[22px]"}>
-      <FocusButton className="group flex w-full items-center gap-3 rounded text-left outline-none focused:bg-white/10">
+      <FocusButton
+        onPress={onPlay}
+        className="group flex w-full items-center gap-3 rounded text-left outline-none focused:bg-white/10"
+      >
         <span
           className={`relative flex-none overflow-hidden rounded-[3px] bg-neutral-800 ${wide ? "w-[180px]" : "w-[130px]"} aspect-video`}
         >
