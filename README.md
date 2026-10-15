@@ -1,7 +1,8 @@
-# orca
+# ORCA'JP
 
 A Netflix-style client for [Jellyfin](https://jellyfin.org), built web-first so the same app runs in
-a desktop browser, on LG webOS TVs and on Xbox (Edge first, then a UWP + WebView2 shell).
+a desktop browser, on Android phones and Android TV, on LG webOS TVs and on Xbox (Edge first, then a
+UWP + WebView2 shell).
 
 > Private, early-stage project.
 

@@ -4,6 +4,7 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
+import { Logo } from "../ui/Logo";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { Avatar } from "./Avatar";
 import { PhoneProfiles } from "./PhoneProfiles";
@@ -104,9 +105,7 @@ export function ProfileGate({
         ref={ref}
         className="relative grid min-h-dvh place-content-center gap-10 bg-[radial-gradient(ellipse_at_50%_0%,#4a0d14_0%,#2a070b_45%,#0d0203_100%)] px-4 py-24 text-center"
       >
-        <p className="absolute top-8 left-4 text-3xl font-black tracking-tight text-red-600 uppercase sm:left-16">
-          orca
-        </p>
+        <Logo className="absolute top-8 left-4 sm:left-16" />
 
         <h1 className="text-3xl font-bold sm:text-4xl">
           {managing ? t.profiles.manageTitle : t.profiles.title}
