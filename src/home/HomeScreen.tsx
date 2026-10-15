@@ -24,10 +24,13 @@ import { scrollToTop } from "./scroll";
 import { Shelf, ShelfSkeleton } from "./Shelf";
 import { TabBar } from "./TabBar";
 
-/** The phone billboard sits 16 px under the 112 px header. */
-const HOME_OFFSET = "mt-[128px]";
-/** Wide screens: under the fixed 80 px header. */
-const WIDE_OFFSET = "mt-20";
+/**
+ * The phone billboard sits 16 px under the 112 px header. The header is fixed and grows by the status
+ * bar's inset in the edge-to-edge app, so the offset grows with it.
+ */
+const HOME_OFFSET = "mt-[calc(128px+env(safe-area-inset-top))]";
+/** Wide screens: under the fixed 80 px header, plus the same inset. */
+const WIDE_OFFSET = "mt-[calc(5rem+env(safe-area-inset-top))]";
 
 interface Props {
   connection: Connection;
