@@ -25,6 +25,17 @@ export function PencilIcon(props: IconProps) {
   );
 }
 
+/** A phone next to a screen: linking another device to this account. */
+export function LinkDeviceIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="4" width="14" height="10" rx="1.5" />
+      <path d="M6 18h6M9 14v4" />
+      <rect x="15" y="9" width="7" height="12" rx="1.5" />
+    </Icon>
+  );
+}
+
 export function PlusIcon(props: IconProps) {
   return (
     <Icon {...props}>

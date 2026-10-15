@@ -5,6 +5,8 @@ import { jellyfin, type Connection } from "../jellyfin/client";
 import type { Session } from "../jellyfin/session";
 import { signIn, SignInError } from "../jellyfin/sign-in";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
+import { useWideScreen } from "../ui/use-wide-screen";
+import { QuickConnectPanel } from "./QuickConnectPanel";
 
 /** What the form starts with: a known server when adding a profile, a user when re-signing in. */
 export interface SignInPrefill {
@@ -12,6 +14,8 @@ export interface SignInPrefill {
   username?: string;
   /** Shown above the form when a stored session stopped working. */
   notice?: string;
+  /** Hides "sign in with your phone": this device is the phone, signing in to approve another. */
+  noQuickConnect?: boolean;
 }
 
 interface Props {
@@ -32,6 +36,8 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A phone is what scans the code, so it only gets the form.
+  const quickConnect = useWideScreen() && !prefill?.noQuickConnect;
   const { ref, focusKey, focusSelf } = useFocusable({
     focusKey: "SIGN_IN",
     // Start where there's something to type.
@@ -63,84 +69,112 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
   return (
     <FocusContext.Provider value={focusKey}>
       <main className="grid min-h-dvh place-items-center p-4">
-        <form ref={ref} className="grid w-full max-w-md gap-4" onSubmit={handleSubmit}>
-          <h1 className="text-2xl font-semibold">{onCancel ? t.login.addTitle : t.login.title}</h1>
-
-          {prefill?.notice && (
-            <p
-              className="rounded-lg bg-amber-500/15 px-4 py-3 text-sm text-amber-200"
-              role="status"
-            >
-              {prefill.notice}
-            </p>
+        {quickConnect && <h1 className="sr-only">{onCancel ? t.login.addTitle : t.login.title}</h1>}
+        <div
+          className={
+            quickConnect
+              ? "grid w-full max-w-4xl items-center gap-10 md:grid-cols-[1fr_auto_1fr]"
+              : "contents"
+          }
+        >
+          {quickConnect && (
+            <>
+              <QuickConnectPanel server={server} onSignedIn={onSignedIn} />
+              <div
+                aria-hidden="true"
+                className="flex items-center gap-3 self-stretch text-sm text-white/50 md:flex-col"
+              >
+                <span className="h-px flex-1 bg-white/20 md:h-auto md:w-px" />
+                {t.quickConnect.or}
+                <span className="h-px flex-1 bg-white/20 md:h-auto md:w-px" />
+              </div>
+            </>
           )}
+          <form ref={ref} className="grid w-full max-w-md gap-4" onSubmit={handleSubmit}>
+            {quickConnect ? (
+              <h2 className="text-2xl font-semibold">{t.quickConnect.manual}</h2>
+            ) : (
+              <h1 className="text-2xl font-semibold">
+                {onCancel ? t.login.addTitle : t.login.title}
+              </h1>
+            )}
 
-          <label className="grid gap-1 text-sm text-white/80">
-            {t.login.server}
-            <FocusInput
-              focusKey="SIGN_IN_SERVER"
-              className={FIELD}
-              // Not type="url": the browser would reject a bare "192.168.1.100:8096".
-              inputMode="url"
-              autoComplete="url"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              value={server}
-              placeholder={t.login.serverHint}
-              onChange={(event) => setServer(event.target.value)}
-            />
-          </label>
+            {prefill?.notice && (
+              <p
+                className="rounded-lg bg-amber-500/15 px-4 py-3 text-sm text-amber-200"
+                role="status"
+              >
+                {prefill.notice}
+              </p>
+            )}
 
-          <label className="grid gap-1 text-sm text-white/80">
-            {t.login.username}
-            <FocusInput
-              focusKey="SIGN_IN_USER"
-              className={FIELD}
-              autoComplete="username"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
-          </label>
+            <label className="grid gap-1 text-sm text-white/80">
+              {t.login.server}
+              <FocusInput
+                focusKey="SIGN_IN_SERVER"
+                className={FIELD}
+                // Not type="url": the browser would reject a bare "192.168.1.100:8096".
+                inputMode="url"
+                autoComplete="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                value={server}
+                placeholder={t.login.serverHint}
+                onChange={(event) => setServer(event.target.value)}
+              />
+            </label>
 
-          <label className="grid gap-1 text-sm text-white/80">
-            {t.login.password}
-            <FocusInput
-              focusKey="SIGN_IN_PASSWORD"
-              className={FIELD}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
+            <label className="grid gap-1 text-sm text-white/80">
+              {t.login.username}
+              <FocusInput
+                focusKey="SIGN_IN_USER"
+                className={FIELD}
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+            </label>
 
-          {error && (
-            <p className="text-sm text-red-300" role="alert">
-              {error}
-            </p>
-          )}
+            <label className="grid gap-1 text-sm text-white/80">
+              {t.login.password}
+              <FocusInput
+                focusKey="SIGN_IN_PASSWORD"
+                className={FIELD}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
 
-          <FocusButton
-            type="submit"
-            disabled={pending}
-            className="rounded-lg bg-white px-4 py-3 font-semibold text-black outline-none hover:bg-white/90 focus-visible:ring-4 focus-visible:ring-white/60 disabled:opacity-60"
-          >
-            {pending ? t.login.connecting : t.login.submit}
-          </FocusButton>
+            {error && (
+              <p className="text-sm text-red-300" role="alert">
+                {error}
+              </p>
+            )}
 
-          {onCancel && (
             <FocusButton
-              onPress={onCancel}
-              className="rounded-lg px-4 py-3 text-white/70 outline-none hover:bg-white/10 hover:text-white focus-visible:ring-4 focus-visible:ring-white/60"
+              type="submit"
+              disabled={pending}
+              className="rounded-lg bg-white px-4 py-3 font-semibold text-black outline-none hover:bg-white/90 focus-visible:ring-4 focus-visible:ring-white/60 disabled:opacity-60"
             >
-              {t.login.back}
+              {pending ? t.login.connecting : t.login.submit}
             </FocusButton>
-          )}
-        </form>
+
+            {onCancel && (
+              <FocusButton
+                onPress={onCancel}
+                className="rounded-lg px-4 py-3 text-white/70 outline-none hover:bg-white/10 hover:text-white focus-visible:ring-4 focus-visible:ring-white/60"
+              >
+                {t.login.back}
+              </FocusButton>
+            )}
+          </form>
+        </div>
       </main>
     </FocusContext.Provider>
   );

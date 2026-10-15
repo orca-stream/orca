@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ApproveScreen } from "./auth/ApproveScreen";
 import { SignInScreen, type SignInPrefill } from "./auth/SignInScreen";
 import { HomeScreen } from "./home/HomeScreen";
 import { t } from "./i18n/locale";
@@ -16,13 +17,38 @@ import {
   sessionId,
   type Session,
 } from "./jellyfin/session";
+import {
+  readQuickConnectLink,
+  withoutQuickConnectLink,
+  type QuickConnectLink,
+} from "./jellyfin/quick-connect";
 import { ProfileGate } from "./profiles/ProfileGate";
 import { browserStore } from "./storage";
 
 type Screen =
   | { kind: "profiles"; managing?: boolean }
-  | { kind: "signIn"; prefill?: SignInPrefill }
-  | { kind: "home"; connection: Connection; session: Session };
+  /** `then`: where to go once signed in, instead of home (approving a scanned QR). */
+  | { kind: "signIn"; prefill?: SignInPrefill; then?: ApproveStep }
+  | { kind: "home"; connection: Connection; session: Session }
+  | ApproveStep;
+
+/** Approving another device's Quick Connect code; `back` is where Cancel returns. */
+interface ApproveStep {
+  kind: "approve";
+  link: QuickConnectLink | null;
+  only?: Session;
+  back: Screen;
+}
+
+/**
+ * A scanned QR opens the app with the TV's request in the address. It's read once and removed, so
+ * a reload or the back button doesn't ask to approve the same code again.
+ */
+function takeQuickConnectLink(): QuickConnectLink | null {
+  const link = readQuickConnectLink(location.search);
+  if (link) history.replaceState(history.state, "", withoutQuickConnectLink(location.href));
+  return link;
+}
 
 function homeFor(session: Session): Screen {
   return { kind: "home", connection: resumeSession(session), session };
@@ -37,7 +63,11 @@ function initialScreen(sessions: Session[]): Screen {
 
 function App() {
   const [sessions, setSessions] = useState(() => loadSessions(browserStore()));
-  const [screen, setScreen] = useState<Screen>(() => initialScreen(sessions));
+  const [screen, setScreen] = useState<Screen>(() => {
+    const link = takeQuickConnectLink();
+    const start = initialScreen(sessions);
+    return link ? { kind: "approve", link, back: start } : start;
+  });
   const onProfiles = screen.kind === "profiles";
 
   // An avatar changed on another device shows up on "who's watching?" too, not only after entering.
@@ -105,10 +135,16 @@ function App() {
           // A new key resets the form when the prefill changes (expired session vs add profile).
           key={JSON.stringify(screen.prefill ?? null)}
           prefill={screen.prefill}
-          onCancel={sessions.length > 0 ? () => setScreen({ kind: "profiles" }) : undefined}
+          onCancel={
+            screen.then
+              ? () => setScreen(screen.then!.back)
+              : sessions.length > 0
+                ? () => setScreen({ kind: "profiles" })
+                : undefined
+          }
           onSignedIn={(connection, session) => {
             setSessions(saveSession(browserStore(), session));
-            setScreen({ kind: "home", connection, session });
+            setScreen(screen.then ?? { kind: "home", connection, session });
           }}
         />
       );
@@ -141,10 +177,33 @@ function App() {
             profiles: sessions,
             onPickProfile: (session) => enter(session),
             onManageProfiles: () => setScreen({ kind: "profiles", managing: true }),
+            onLinkDevice: () =>
+              setScreen({ kind: "approve", link: null, only: screen.session, back: screen }),
             onSignOut: () => {
               const remaining = remove(screen.session, screen.connection);
               setScreen(remaining.length === 0 ? { kind: "signIn" } : { kind: "profiles" });
             },
+          }}
+        />
+      );
+    case "approve":
+      return (
+        <ApproveScreen
+          link={screen.link}
+          sessions={sessions}
+          only={screen.only}
+          onSignIn={(server) =>
+            setScreen({
+              kind: "signIn",
+              prefill: { server, notice: t.quickConnect.signInFirst, noQuickConnect: true },
+              then: screen,
+            })
+          }
+          onExpired={expire}
+          onCancel={() => setScreen(screen.back)}
+          onDone={(session) => {
+            if (screen.back.kind === "home") setScreen(screen.back);
+            else enter(session);
           }}
         />
       );

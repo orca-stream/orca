@@ -5,7 +5,7 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { PencilIcon } from "../ui/icons";
+import { LinkDeviceIcon, PencilIcon } from "../ui/icons";
 
 export interface Account {
   session: Session;
@@ -13,6 +13,8 @@ export interface Account {
   profiles: Session[];
   onPickProfile: (session: Session) => void;
   onManageProfiles: () => void;
+  /** Approve a TV or Xbox's Quick Connect code as this profile. */
+  onLinkDevice: () => void;
   onSignOut: () => void;
 }
 
@@ -75,6 +77,10 @@ export function AccountMenu({ account, onClose, openerKey, className }: Props) {
         <FocusButton role="menuitem" className={ITEM} onPress={account.onManageProfiles}>
           <PencilIcon className="size-[26px] flex-none" strokeWidth={1.5} />
           {t.account.manageProfiles}
+        </FocusButton>
+        <FocusButton role="menuitem" className={ITEM} onPress={account.onLinkDevice}>
+          <LinkDeviceIcon className="size-[26px] flex-none" strokeWidth={1.5} />
+          {t.account.linkDevice}
         </FocusButton>
         {/* As on Netflix: sign out last, under a rule, as plain text. */}
         <hr className="-mx-1 my-1 border-white/[0.07]" />

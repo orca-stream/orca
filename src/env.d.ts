@@ -4,6 +4,11 @@ declare const __APP_VERSION__: string;
 interface ImportMetaEnv {
   /** Server pre-filled on the sign-in screen in dev builds. */
   readonly VITE_JELLYFIN_SERVER_URL?: string;
+  /**
+   * Where phones open orca when they scan the sign-in QR. Defaults to the address this page was
+   * loaded from; needed when that's one a phone can't open (localhost, a packaged TV or Xbox app).
+   */
+  readonly VITE_PUBLIC_URL?: string;
 }
 
 // hls.js ships types for its full build only; the light one has the same API, minus DRM and
