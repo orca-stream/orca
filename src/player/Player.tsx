@@ -109,6 +109,8 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
   const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Whether the last press was a finger: a tap shows the controls instead of acting, on any screen.
+  const touch = useRef(false);
 
   const { ref, focusKey, focusSelf } = useFocusable<object, HTMLDivElement>({
     focusKey: "PLAYER",
@@ -185,17 +187,21 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     };
   }, [connection]);
 
-  // A phone plays in landscape, full screen, as the app does. Allowed while the tap on Play counts.
-  useEffect(() => {
-    if (wide) return;
+  // A phone plays in landscape, full screen, as the app does. Needs a tap that counts: the one on
+  // Play when opening, and the first one after leaving the app, which drops full screen.
+  const landscape = useCallback(() => {
     const root = ref.current;
+    if (wide || !root || document.fullscreenElement) return;
     root
-      ?.requestFullscreen?.()
-      .then(() =>
-        (screen.orientation as { lock?: (o: string) => Promise<void> }).lock?.("landscape"),
-      )
+      .requestFullscreen?.()
+      .then(() => {
+        // The tap may have closed the player meanwhile.
+        if (!root.isConnected) return document.exitFullscreen();
+        return (screen.orientation as { lock?: (o: string) => Promise<void> }).lock?.("landscape");
+      })
       .catch(() => {});
   }, [wide, ref]);
+  useEffect(() => landscape(), [landscape]);
 
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement !== null);
@@ -408,8 +414,14 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
         aria-modal="true"
         aria-label={playable?.title ?? t.player.play}
         className={`fixed inset-0 z-50 bg-black select-none ${visible ? "" : "cursor-none"}`}
-        onPointerMove={wake}
-        onPointerDown={wake}
+        // A finger only wakes controls that are already up: the tap that brings them back is the
+        // video's click, so it never lands on a button nobody could see yet.
+        onPointerMove={(event) => (event.pointerType !== "touch" || visible) && wake()}
+        onPointerDown={(event) => {
+          touch.current = event.pointerType === "touch";
+          if (!touch.current || visible) wake();
+        }}
+        onClickCapture={landscape}
       >
         <video
           ref={videoRef}
@@ -418,7 +430,7 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
           crossOrigin="anonymous"
           muted={muted}
           className="absolute inset-0 size-full"
-          onClick={wide ? togglePlay : undefined}
+          onClick={() => (wide && !touch.current ? togglePlay() : wake())}
           onTimeUpdate={onTime}
           onDurationChange={(event) => {
             const value = event.currentTarget.duration;
@@ -489,11 +501,11 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
             className={`absolute inset-0 transition-opacity duration-300 ${
               visible ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
-            // A click on the picture pauses, as on Netflix web; on a phone a tap shows or hides the
-            // controls, as in the app.
+            // A click on the picture pauses, as on Netflix web; a tap shows or hides the controls,
+            // as in the app.
             onClick={(event) => {
               if (event.target !== event.currentTarget) return;
-              if (wide) togglePlay();
+              if (wide && !touch.current) togglePlay();
               else if (controls) setControls(false);
               else wake();
             }}
