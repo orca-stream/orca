@@ -1,10 +1,18 @@
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import type { ComponentPropsWithoutRef, KeyboardEvent } from "react";
 
+/**
+ * The library moves DOM focus without scrolling (see spatial.ts), so whatever the arrows land on is
+ * brought into view here; on a 540px-tall TV page the last card of a list starts below the fold.
+ */
+function reveal(node: HTMLElement): void {
+  node.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+
 interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "onClick"> {
   /** Runs on click, tap, Enter or the gamepad's A button. Not used by submit buttons. */
   onPress?: () => void;
-  /** Runs when the arrows land on the button, e.g. to scroll it into view. */
+  /** Runs when the arrows land on the button, in place of scrolling it just into view. */
   onFocused?: (node: HTMLElement) => void;
   focusKey?: string;
 }
@@ -22,7 +30,7 @@ export function FocusButton({
 }: ButtonProps) {
   const { ref } = useFocusable<object, HTMLButtonElement>({
     focusKey,
-    onFocus: ({ node }) => onFocused?.(node),
+    onFocus: ({ node }) => (onFocused ?? reveal)(node),
     onEnterPress: () => {
       if (props.disabled) return;
       if (type === "submit") ref.current?.form?.requestSubmit();
@@ -46,7 +54,10 @@ const TEXT_KEYS = new Set(["ArrowLeft", "ArrowRight", "Enter", "Home", "End"]);
  * in the field, so the caret moves and the form submits as usual.
  */
 export function FocusInput({ focusKey, onKeyDown, ...props }: InputProps) {
-  const { ref } = useFocusable<object, HTMLInputElement>({ focusKey });
+  const { ref } = useFocusable<object, HTMLInputElement>({
+    focusKey,
+    onFocus: ({ node }) => reveal(node),
+  });
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     // React's handler runs at the root, before the library's listener on window.
     if (TEXT_KEYS.has(event.key)) event.stopPropagation();
