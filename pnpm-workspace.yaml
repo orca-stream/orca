@@ -8,3 +8,7 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+
+# Same supply-chain window CI enforces. Pinned here so a global minimumReleaseAge: 0 on a dev
+# machine cannot resolve a lockfile CI will reject.
+minimumReleaseAge: 1440
