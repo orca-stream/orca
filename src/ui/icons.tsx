@@ -251,3 +251,13 @@ export function FullscreenIcon({ exit, ...props }: IconProps & { exit: boolean }
     </Icon>
   );
 }
+
+/** Netflix's collection mark: a shelf of standing volumes. */
+export function CollectionIcon(props: IconProps) {
+  return (
+    <Icon strokeWidth={1.8} {...props}>
+      <path d="M3 4h18v16H3Z" />
+      <path d="M7 8v8M10.5 8v8M14 8l3 8" />
+    </Icon>
+  );
+}

@@ -12,6 +12,7 @@ import {
   type Episode,
   type Title,
 } from "../jellyfin/title";
+import { loadCollection, type Collection } from "../jellyfin/collections";
 import { PosterCard } from "../home/PosterCard";
 import { FocusButton } from "../navigation/Focusable";
 import {
@@ -19,6 +20,7 @@ import {
   CaretIcon,
   CheckIcon,
   ChevronDownIcon,
+  CollectionIcon,
   CloseIcon,
   PlayCircleIcon,
   PlayIcon,
@@ -41,7 +43,7 @@ interface Props {
 }
 
 type State = { kind: "loading" } | { kind: "ready"; title: Title } | { kind: "error" };
-type Tab = "episodes" | "similar";
+type Tab = "episodes" | "collection" | "similar";
 
 /** The season menu's "See all episodes": the whole series, season after season. */
 const ALL_SEASONS = "all";
@@ -161,6 +163,22 @@ function Details(props: DetailsProps) {
   const [favorite, setFavoriteState] = useState(item.favorite);
   const [liked, setLikedState] = useState(item.liked);
   const [episodesHd, setEpisodesHd] = useState(false);
+  const [collection, setCollection] = useState<Collection | null>(null);
+  const expired = useEffectEvent(onExpired);
+
+  // Netflix's "Collection": the other titles of the saga this one belongs to, when there is one.
+  useEffect(() => {
+    let current = true;
+    loadCollection(connection, userId, item.id).then(
+      (found) => current && setCollection(found),
+      (error: unknown) => {
+        if (current && error instanceof SessionExpiredError) expired();
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [connection, userId, item.id]);
 
   // Optimistic, as Netflix's buttons are: the icon flips at once and flips back if the server says no.
   function toggle(value: boolean, set: (next: boolean) => void, save: typeof setFavorite): void {
@@ -220,6 +238,7 @@ function Details(props: DetailsProps) {
       onTab={setTab}
       tabs={[
         ...(series ? [{ id: "episodes" as const, label: t.title.episodes }] : []),
+        ...(collection ? [{ id: "collection" as const, label: t.title.collectionTab }] : []),
         { id: "similar" as const, label: t.title.similar },
       ]}
     />
@@ -233,6 +252,15 @@ function Details(props: DetailsProps) {
         wide={wide}
         onPlay={onPlay}
         onHd={setEpisodesHd}
+        onExpired={onExpired}
+      />
+    ) : tab === "collection" && collection ? (
+      <TitleGrid
+        items={collection.items}
+        wide={false}
+        connection={connection}
+        userId={userId}
+        onOpen={onOpen}
         onExpired={onExpired}
       />
     ) : (
@@ -310,7 +338,23 @@ function Details(props: DetailsProps) {
               onExpired={onExpired}
             />
           )}
-          <section className={series ? "mt-12" : ""}>
+          {collection && (
+            <section className={series ? "mt-12" : ""}>
+              <h2 className="flex items-center gap-3 text-2xl font-bold">
+                <CollectionIcon className="size-8 flex-none" />
+                {collection.name}
+              </h2>
+              <TitleGrid
+                items={collection.items}
+                wide
+                connection={connection}
+                userId={userId}
+                onOpen={onOpen}
+                onExpired={onExpired}
+              />
+            </section>
+          )}
+          <section className={series || collection ? "mt-12" : ""}>
             <h2 className="text-2xl font-bold">{t.title.similarHeading}</h2>
             <Similar
               connection={connection}
@@ -750,6 +794,35 @@ function Similar({
   if (items?.length === 0) {
     return <p className="mt-6 text-white/60">{t.title.noSimilar}</p>;
   }
+  return (
+    <TitleGrid
+      items={items}
+      wide={wide}
+      connection={connection}
+      userId={userId}
+      onOpen={onOpen}
+      onExpired={onExpired}
+    />
+  );
+}
+
+/** Titles in a grid: Netflix web's cards on wide screens, the app's posters on phones. */
+function TitleGrid({
+  items,
+  wide,
+  connection,
+  userId,
+  onOpen,
+  onExpired,
+}: {
+  /** Null while loading: grey placeholders. */
+  items: MediaItem[] | null;
+  wide: boolean;
+  connection: Connection;
+  userId: string;
+  onOpen: (item: MediaItem) => void;
+  onExpired: () => void;
+}) {
   if (wide) {
     return (
       <ul className="mt-5 grid grid-cols-3 gap-4">
