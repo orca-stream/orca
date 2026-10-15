@@ -3,14 +3,17 @@ import { useEffect, useState } from "react";
 import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
-import { CheckIcon, PencilIcon, PlusIcon, TrashIcon } from "../ui/icons";
+import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
 import { Avatar } from "./Avatar";
+import { ProfileEditor } from "./ProfileEditor";
 
 interface Props {
   sessions: Session[];
   onPick: (session: Session) => void;
   onAdd: () => void;
   onRemove: (session: Session) => void;
+  /** A profile changed while editing it (a new avatar): store it on this device. */
+  onChange: (session: Session) => void;
   /** Opens straight in "manage profiles", as the account menu's entry does. */
   initiallyManaging?: boolean;
 }
@@ -29,16 +32,47 @@ export function ProfileGate({
   onPick,
   onAdd,
   onRemove,
+  onChange,
   initiallyManaging = false,
 }: Props) {
   const [managing, setManaging] = useState(initiallyManaging);
   const [removing, setRemoving] = useState<Session | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Looked up on every render, so the editor shows the avatar it just saved.
+  const editing = sessions.find((session) => sessionId(session) === editingId) ?? null;
   const { ref, focusKey, focusSelf } = useFocusable({ focusKey: "PROFILE_GATE" });
   const servers = new Set(sessions.map((session) => session.serverUrl));
 
   useEffect(() => {
-    if (!removing) focusSelf();
-  }, [focusSelf, removing]);
+    if (!removing && !editing) focusSelf();
+  }, [focusSelf, removing, editing]);
+
+  const removeDialog = removing && (
+    <RemoveDialog
+      session={removing}
+      onCancel={() => setRemoving(null)}
+      onConfirm={() => {
+        setRemoving(null);
+        setEditingId(null);
+        if (sessions.length === 1) setManaging(false);
+        onRemove(removing);
+      }}
+    />
+  );
+
+  if (editing) {
+    return (
+      <>
+        <ProfileEditor
+          session={editing}
+          onChange={onChange}
+          onRemove={() => setRemoving(editing)}
+          onBack={() => setEditingId(null)}
+        />
+        {removeDialog}
+      </>
+    );
+  }
 
   return (
     <FocusContext.Provider value={focusKey}>
@@ -60,14 +94,14 @@ export function ProfileGate({
               <FocusButton
                 focusKey={`PROFILE_${sessionId(session)}`}
                 className={TILE}
-                aria-label={managing ? t.profiles.removeLabel(session.userName) : undefined}
-                onPress={() => (managing ? setRemoving(session) : onPick(session))}
+                aria-label={managing ? t.profiles.editLabel(session.userName) : undefined}
+                onPress={() => (managing ? setEditingId(sessionId(session)) : onPick(session))}
               >
                 <span className="relative">
                   <Avatar session={session} className={TILE_IMAGE} />
                   {managing && (
                     <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/80">
-                      <TrashIcon className="size-10" />
+                      <PencilIcon className="size-10" />
                     </span>
                   )}
                 </span>
@@ -113,17 +147,7 @@ export function ProfileGate({
         </div>
       </main>
 
-      {removing && (
-        <RemoveDialog
-          session={removing}
-          onCancel={() => setRemoving(null)}
-          onConfirm={() => {
-            setRemoving(null);
-            if (sessions.length === 1) setManaging(false);
-            onRemove(removing);
-          }}
-        />
-      )}
+      {removeDialog}
     </FocusContext.Provider>
   );
 }

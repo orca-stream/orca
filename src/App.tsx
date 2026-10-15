@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SignInScreen, type SignInPrefill } from "./auth/SignInScreen";
 import { HomeScreen } from "./home/HomeScreen";
 import { t } from "./i18n/locale";
@@ -38,6 +38,28 @@ function initialScreen(sessions: Session[]): Screen {
 function App() {
   const [sessions, setSessions] = useState(() => loadSessions(browserStore()));
   const [screen, setScreen] = useState<Screen>(() => initialScreen(sessions));
+  const onProfiles = screen.kind === "profiles";
+
+  // An avatar changed on another device shows up on "who's watching?" too, not only after entering.
+  // A revoked token is left for when that profile is picked, which sends it to sign in.
+  useEffect(() => {
+    if (!onProfiles) return;
+    for (const session of loadSessions(browserStore())) {
+      refreshSession(resumeSession(session), session).then(
+        (fresh) => {
+          // Unless it was removed meanwhile: saving would bring it back.
+          const stored = loadSessions(browserStore());
+          if (
+            fresh !== session &&
+            stored.some((existing) => sessionId(existing) === sessionId(fresh))
+          ) {
+            setSessions(saveSession(browserStore(), fresh));
+          }
+        },
+        () => {},
+      );
+    }
+  }, [onProfiles]);
 
   function enter(session: Session, connection = resumeSession(session)) {
     setScreen({ kind: "home", connection, session });
@@ -104,6 +126,7 @@ function App() {
           onRemove={(session) => {
             if (remove(session).length === 0) setScreen({ kind: "signIn" });
           }}
+          onChange={(session) => setSessions(saveSession(browserStore(), session))}
         />
       );
     case "home":
