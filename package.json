@@ -1,0 +1,37 @@
+{
+  "name": "orca",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Netflix-style Jellyfin client for the browser, LG webOS and Xbox",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "tsc -b && vp build",
+    "preview": "vp preview",
+    "check": "vp check",
+    "lint": "vp lint --deny-warnings",
+    "format": "vp fmt . --write",
+    "format:check": "vp fmt . --check",
+    "typecheck": "tsc -b",
+    "test": "vp test run",
+    "test:watch": "vp test watch",
+    "prepare": "vp config"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~6.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "packageManager": "pnpm@12.11.2"
+}

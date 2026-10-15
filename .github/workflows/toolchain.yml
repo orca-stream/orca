@@ -1,0 +1,88 @@
+name: Toolchain
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays ~06:17 UTC — off the :00 mark everyone piles onto
+  workflow_dispatch:
+
+concurrency:
+  group: toolchain
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  pnpm:
+    name: Bump pnpm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve current vs latest pnpm
+        id: v
+        run: |
+          # `corepack use` writes pnpm@<v>+sha512.<hash>: cut at the '+' or `current` never
+          # equals `latest`, the job fires every week and the commit header blows past
+          # commitlint's header-max-length.
+          current=$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")
+          latest=$(npm view pnpm version)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest"   >> "$GITHUB_OUTPUT"
+          [ "$current" = "$latest" ] && echo "up_to_date=true" >> "$GITHUB_OUTPUT" || echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+
+      # Guarding on the exact branch name is not enough: every pnpm release gets a new branch,
+      # so unmerged PRs stack up. Look for any open ci/bump-pnpm-* instead.
+      - name: Skip if any bump PR is already open
+        id: existing
+        if: steps.v.outputs.up_to_date == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          open=$(gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("ci/bump-pnpm-"))] | length')
+          echo "open=$open" >> "$GITHUB_OUTPUT"
+          [ "$open" = "0" ] || echo "$open ci/bump-pnpm-* PR(s) already open — not opening another."
+
+      - name: Bump the pin and refresh the lockfile
+        if: steps.v.outputs.up_to_date == 'false' && steps.existing.outputs.open == '0'
+        run: |
+          node -e "const p=require('./package.json'); p.packageManager='pnpm@${{ steps.v.outputs.latest }}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2)+'\n')"
+          corepack enable
+          corepack use "pnpm@${{ steps.v.outputs.latest }}"
+          pnpm install --lockfile-only
+
+      # Self-check before opening the PR — a GITHUB_TOKEN PR won't trigger CI, so prove it here.
+      - name: Verify the bump builds
+        if: steps.v.outputs.up_to_date == 'false' && steps.existing.outputs.open == '0'
+        env:
+          VP_GIT_HOOKS: "0"
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm typecheck
+          pnpm build
+
+      # ⚠️ READ THIS BEFORE LEAVING IT ON GITHUB_TOKEN. A PR opened with GITHUB_TOKEN does get
+      # a workflow run, but it is parked in `action_required` waiting for a human to click
+      # "Approve and run" — so NO check ever reports, and under a ruleset that requires checks
+      # the PR is BLOCKED forever. Verified 2026-09-16 on ample: the run exists
+      # (conclusion=action_required), `gh pr checks` says "no checks reported", and the PR is
+      # mergeable=MERGEABLE + mergeStateStatus=BLOCKED. Hence 8 stacked PRs.
+      # Fix: a PAT in secrets.TOOLCHAIN_TOKEN. Otherwise each bump needs
+      # `gh api -X POST repos/{o}/{r}/actions/runs/<id>/approve` by hand.
+      - name: Open the bump PR
+        if: steps.v.outputs.up_to_date == 'false' && steps.existing.outputs.open == '0'
+        env:
+          GH_TOKEN: ${{ secrets.TOOLCHAIN_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="ci/bump-pnpm-${{ steps.v.outputs.latest }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -am "ci: bump pnpm ${{ steps.v.outputs.current }} -> ${{ steps.v.outputs.latest }}"
+          git push -u origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "ci: bump pnpm to ${{ steps.v.outputs.latest }}" \
+            --body "Weekly toolchain bump. corepack reads \`packageManager\`, so this pin move is the upgrade. Lockfile refreshed; typecheck + build verified in-job."

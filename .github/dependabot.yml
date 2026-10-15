@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Not optional: pnpm enforces minimumReleaseAge (24h) in CI, and dependabot proposes within
+    # minutes of a release — without a cooldown every bump fails its first install.
+    cooldown:
+      default-days: 2
+    # Nothing is published or released, so no commit type cuts a version: plain chore.
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    ignore:
+      # Majors need the code adapted first (React, Vite+, the Jellyfin SDK all move the API).
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 2
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns: ["*"]

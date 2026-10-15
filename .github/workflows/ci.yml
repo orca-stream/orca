@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  commitlint:
+    name: Commit messages
+    # main is rebase-only, so every commit a PR carries lands verbatim — lint each one.
+    # The local commit-msg hook can be skipped with --no-verify and never runs for a commit
+    # authored on github.com.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # needed to walk base..head
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint the commits this PR adds
+        run: >-
+          pnpm exec commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+          --verbose
+
+  build:
+    name: Lint, test & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node 24 runs the toolchain — one run, not a matrix. Nothing is published, so there is
+      # no runtime floor to smoke-test.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # pnpm from corepack, pinned by `packageManager` — not pnpm/action-setup.
+      # The second setup-node wires up the store cache: `cache: pnpm` shells out to pnpm, so
+      # pnpm has to exist by then. Deliberate, not a copy-paste slip.
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # VP_GIT_HOOKS=0: `prepare` runs `vp config`, which would install the hook dispatcher.
+      - run: pnpm install --frozen-lockfile
+        env:
+          VP_GIT_HOOKS: "0"
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
