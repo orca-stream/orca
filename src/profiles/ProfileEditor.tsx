@@ -8,6 +8,7 @@ import { FocusButton } from "../navigation/Focusable";
 import { BackIcon, PencilIcon, TrashIcon } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { photoToAvatar, pictureToAvatar } from "./avatar-image";
+import { IconRow } from "./IconRow";
 import { AVATAR_LIBRARY } from "./avatar-library";
 
 interface Props {
@@ -202,7 +203,7 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
               <h2 className="text-lg font-bold sm:text-2xl">
                 {category.title ?? t.profiles.builtInIcons}
               </h2>
-              <ul className="-mx-2 flex gap-3 overflow-x-auto px-2 py-2 [scrollbar-width:none] sm:gap-4">
+              <IconRow>
                 {category.icons.map((icon, index) => (
                   <li key={icon.id} className="flex-none">
                     <FocusButton
@@ -226,7 +227,7 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
                     </FocusButton>
                   </li>
                 ))}
-              </ul>
+              </IconRow>
             </section>
           ))}
         </div>
