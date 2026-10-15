@@ -80,18 +80,16 @@ export function ProfileGate({
               </FocusButton>
             </li>
           ))}
-          {!managing && (
-            <li>
-              <FocusButton focusKey="PROFILE_ADD" className={TILE} onPress={onAdd}>
-                <span
-                  className={`grid place-items-center bg-white/10 text-white/70 group-hover:bg-white/20 group-focused:bg-white/20 ${TILE_IMAGE}`}
-                >
-                  <PlusIcon className="size-12" />
-                </span>
-                <span className={TILE_NAME}>{t.profiles.add}</span>
-              </FocusButton>
-            </li>
-          )}
+          <li>
+            <FocusButton focusKey="PROFILE_ADD" className={TILE} onPress={onAdd}>
+              <span
+                className={`grid place-items-center bg-white/10 text-white/70 group-hover:bg-white/20 group-focused:bg-white/20 ${TILE_IMAGE}`}
+              >
+                <PlusIcon className="size-12" />
+              </span>
+              <span className={TILE_NAME}>{t.profiles.add}</span>
+            </FocusButton>
+          </li>
         </ul>
 
         <div>
