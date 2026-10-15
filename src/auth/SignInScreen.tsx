@@ -29,13 +29,14 @@ export function SignInScreen({ onSignedIn }: Props) {
   }
 
   return (
-    <main className="sign-in">
-      <form className="sign-in__form" onSubmit={handleSubmit}>
-        <h1>{t.login.title}</h1>
+    <main className="grid min-h-dvh place-items-center p-4">
+      <form className="grid w-full max-w-md gap-4" onSubmit={handleSubmit}>
+        <h1 className="text-2xl font-semibold">{t.login.title}</h1>
 
-        <label>
+        <label className="grid gap-1 text-sm text-white/80">
           {t.login.server}
           <input
+            className="rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-base outline-none placeholder:text-white/40 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60"
             // Not type="url": the browser would reject a bare "192.168.1.100:8096".
             inputMode="url"
             autoComplete="url"
@@ -48,9 +49,10 @@ export function SignInScreen({ onSignedIn }: Props) {
           />
         </label>
 
-        <label>
+        <label className="grid gap-1 text-sm text-white/80">
           {t.login.username}
           <input
+            className="rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-base outline-none placeholder:text-white/40 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60"
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
@@ -60,9 +62,10 @@ export function SignInScreen({ onSignedIn }: Props) {
           />
         </label>
 
-        <label>
+        <label className="grid gap-1 text-sm text-white/80">
           {t.login.password}
           <input
+            className="rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-base outline-none placeholder:text-white/40 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60"
             type="password"
             autoComplete="current-password"
             value={password}
@@ -71,12 +74,16 @@ export function SignInScreen({ onSignedIn }: Props) {
         </label>
 
         {error && (
-          <p className="sign-in__error" role="alert">
+          <p className="text-sm text-red-300" role="alert">
             {error}
           </p>
         )}
 
-        <button type="submit" disabled={pending}>
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-white px-4 py-3 font-semibold text-black outline-none hover:bg-white/90 focus-visible:ring-4 focus-visible:ring-white/60 disabled:opacity-60"
+        >
           {pending ? t.login.connecting : t.login.submit}
         </button>
       </form>

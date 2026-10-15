@@ -5,7 +5,7 @@ const es = {
   login: {
     title: "Conéctate a tu servidor",
     server: "Dirección del servidor",
-    serverHint: "Por ejemplo https://jf.ejemplo.com o 192.168.1.100:8096",
+    serverHint: "https://jf.ejemplo.com",
     username: "Usuario",
     password: "Contraseña",
     submit: "Entrar",
@@ -31,7 +31,7 @@ const en: Messages = {
   login: {
     title: "Connect to your server",
     server: "Server address",
-    serverHint: "For example https://jf.example.com or 192.168.1.100:8096",
+    serverHint: "https://jf.example.com",
     username: "Username",
     password: "Password",
     submit: "Sign in",

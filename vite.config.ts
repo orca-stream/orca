@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
@@ -6,15 +7,12 @@ const { version } = JSON.parse(readFileSync(new URL("package.json", import.meta.
   version: string;
 };
 
+// Build target stays at Vite's default (baseline widely available, ~Chrome 111), which is also
+// Tailwind 4's floor. Web and Xbox Edge come first; the LG TV (Chromium 94 or 120) comes later.
 // https://vite.dev/config/
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
-  },
-  build: {
-    // The LG TV (50UR7300PSA) shipped with webOS 23 = Chromium 94 and was upgraded to webOS 25
-    // (Chromium 120); whether the web engine moved with the OS is unconfirmed, so target the floor.
-    target: "chrome94",
   },
   staged: {
     "*": "vp check --fix",
@@ -43,5 +41,5 @@ export default defineConfig({
       },
     ],
   },
-  plugins: lazyPlugins(() => [react()]),
+  plugins: lazyPlugins(() => [react(), tailwindcss()]),
 });
