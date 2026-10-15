@@ -42,6 +42,9 @@ const episode = {
   ParentIndexNumber: 1,
   IndexNumber: 3,
   RunTimeTicks: 42 * 60 * 10_000_000,
+  ProductionYear: 2024,
+  OfficialRating: "TV-14",
+  Overview: "Things happen.",
   UserData: { Key: "k", Played: false, PlaybackPositionTicks: 90 * 10_000_000 },
 };
 
@@ -87,8 +90,13 @@ describe("resolvePlayable", () => {
       seriesId: "series-1",
       resumeAt: 90,
       duration: 42 * 60,
+      year: 2024,
+      rating: "TV-14",
+      overview: "Things happen.",
     });
     expect(queryOf(requests[1]).get("seriesId")).toBe("series-1");
+    // Lists leave the synopsis out unless asked, and the pause screen shows it.
+    expect(queryOf(requests[1]).get("fields")).toBe("Overview");
   });
 
   it("falls back to a series' first episode when nothing is up next", async () => {

@@ -86,7 +86,7 @@ export async function loadGenrePage(
   userId: string,
   genre: string,
   libraryId?: string,
-): Promise<Omit<Home, "libraries">> {
+): Promise<Omit<Home, "libraries" | "catalog">> {
   const base = {
     genres: [genre],
     limit: GENRE_SHELF,

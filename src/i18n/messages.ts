@@ -44,6 +44,7 @@ const es = {
     topRated: "Mejor valorados",
     moviesShelf: "Películas",
     showsShelf: "Series",
+    catalog: (library: string) => `${library} de la A a la Z`,
     play: "Reproducir",
     moreInfo: "Más información",
     episode: (season: number, episode: number, title: string) =>
@@ -107,6 +108,9 @@ const es = {
     fullscreen: "Pantalla completa",
     exitFullscreen: "Salir de pantalla completa",
     timeline: "Progreso",
+    volume: "Volumen",
+    watching: "Estás viendo",
+    paused: "Pausa",
     loadError: "No se pudo reproducir este título.",
     unsupported:
       "Este dispositivo no puede reproducir este título y el servidor no pudo convertirlo.",
@@ -165,6 +169,7 @@ const en: Messages = {
     topRated: "Top rated",
     moviesShelf: "Movies",
     showsShelf: "Shows",
+    catalog: (library: string) => `${library} A–Z`,
     play: "Play",
     moreInfo: "More info",
     episode: (season: number, episode: number, title: string) =>
@@ -228,6 +233,9 @@ const en: Messages = {
     fullscreen: "Full screen",
     exitFullscreen: "Exit full screen",
     timeline: "Progress",
+    volume: "Volume",
+    watching: "You're watching",
+    paused: "Paused",
     loadError: "This title couldn't be played.",
     unsupported: "This device can't play this title and the server couldn't convert it.",
     retry: "Try again",

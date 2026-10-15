@@ -192,15 +192,31 @@ export function ForwardIcon(props: IconProps) {
   return <Skip10Icon forward {...props} />;
 }
 
-export function VolumeIcon({ muted, ...props }: IconProps & { muted: boolean }) {
+/** The speaker with as many waves as the volume is high, and a cross when muted. */
+export function VolumeIcon({
+  muted,
+  level = 1,
+  ...props
+}: IconProps & { muted: boolean; level?: number }) {
   return (
     <Icon {...props}>
       <path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4Z" fill="currentColor" />
-      {muted ? (
+      {muted || level === 0 ? (
         <path d="m16 9.5 5 5M21 9.5l-5 5" />
       ) : (
-        <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />
+        <>
+          <path d="M15.5 9a4.2 4.2 0 0 1 0 6" />
+          {level > 0.5 && <path d="M18.5 6.5a8 8 0 0 1 0 11" />}
+        </>
       )}
+    </Icon>
+  );
+}
+
+export function ChevronIcon({ left, ...props }: IconProps & { left?: boolean }) {
+  return (
+    <Icon {...props}>
+      <path d={left ? "m15 5-7 7 7 7" : "m9 5 7 7-7 7"} />
     </Icon>
   );
 }

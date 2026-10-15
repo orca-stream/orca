@@ -12,6 +12,7 @@ import { SearchResults } from "../search/SearchResults";
 import { TitlePage } from "../title/TitlePage";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { Billboard, BillboardSkeleton, BILLBOARD_PLAY } from "./Billboard";
+import { CatalogGrid } from "./CatalogGrid";
 import { Categories } from "./Categories";
 import { GenrePage } from "./GenrePage";
 import { Glow } from "./Glow";
@@ -256,13 +257,16 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
               ) : (
                 <div className="h-[128px] sm:h-24" />
               )}
-              {state.home.shelves.length === 0 ? (
+              {state.home.shelves.length === 0 && !state.home.catalog ? (
                 <Message text={t.home.empty} />
               ) : (
                 <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-10 sm:gap-10">
                   {state.home.shelves.map((shelf) => (
                     <Shelf key={shelf.id} shelf={shelf} wide={wide} onOpen={openTitle} />
                   ))}
+                  {state.home.catalog && (
+                    <CatalogGrid catalog={state.home.catalog} wide={wide} onOpen={openTitle} />
+                  )}
                 </div>
               )}
             </>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { resumeSession, SessionExpiredError } from "./client";
 import { fakeServer, testJellyfin, type Route } from "./fake-server";
-import { loadHome, toMediaItem } from "./library";
+import { genreShelves, loadHome, toMediaItem, type MediaItem } from "./library";
 import type { Session } from "./session";
 
 const session: Session = {
@@ -173,7 +173,47 @@ describe("loadHome", () => {
     const parents = requests
       .filter((request) => pathOf(request.url) !== "/UserViews")
       .map((request) => new URL(request.url ?? "").searchParams.get("parentId"));
-    expect(parents).toEqual(["lib-shows", "lib-shows", "lib-shows"]);
+    // Continue watching, next up, recently added, and the whole library for its page.
+    expect(parents).toEqual(["lib-shows", "lib-shows", "lib-shows", "lib-shows"]);
+  });
+
+  it("lists a whole library on its own page: its genres, then A to Z", async () => {
+    const titles = ["A", "B", "C", "D"].map((name, index) => ({
+      Id: `m-${name}`,
+      Type: "Movie",
+      Name: name,
+      Genres: index < 3 ? ["Drama", "Comedia"] : ["Drama"],
+    }));
+    const { promise, requests } = homeAgainst((config) => {
+      switch (pathOf(config.url)) {
+        case "/UserViews":
+          return { status: 200, data: { Items: [movies, shows] } };
+        case "/Items":
+          return { status: 200, data: { Items: titles } };
+        default:
+          return { status: 200, data: { Items: [] } };
+      }
+    }, "lib-movies");
+    const home = await promise;
+    expect(home.shelves.map((shelf) => shelf.title)).toEqual([
+      { kind: "genre", genre: "Drama" },
+      { kind: "genre", genre: "Comedia" },
+    ]);
+    expect(home.catalog?.library).toBe("Películas");
+    expect(home.catalog?.items.map((item) => item.title)).toEqual(["A", "B", "C", "D"]);
+    const all = new URL(requests.find((r) => pathOf(r.url) === "/Items")?.url ?? "").searchParams;
+    expect(all.get("sortBy")).toBe("SortName");
+    expect(all.get("recursive")).toBe("true");
+  });
+
+  it("keeps the full home without the A to Z", async () => {
+    const { promise, requests } = homeAgainst((config) =>
+      pathOf(config.url) === "/UserViews"
+        ? { status: 200, data: { Items: [movies] } }
+        : { status: 200, data: { Items: [] } },
+    );
+    expect((await promise).catalog).toBeNull();
+    expect(requests.some((request) => pathOf(request.url) === "/Items")).toBe(false);
   });
 
   it("leaves out a shelf that fails instead of failing the screen", async () => {
@@ -205,5 +245,24 @@ describe("loadHome", () => {
   it("fails when the server can't be reached", async () => {
     const { promise } = homeAgainst(() => "offline");
     await expect(promise).rejects.not.toBeInstanceOf(SessionExpiredError);
+  });
+});
+
+describe("genreShelves", () => {
+  const movie = (id: string, genres: string[]): MediaItem =>
+    toMediaItem(connection, { Id: id, Type: "Movie", Name: id, Genres: genres });
+
+  it("leaves out thin genres and keeps the same order on every load", () => {
+    const items = Array.from({ length: 20 }, (_, index) =>
+      movie(`m${index}`, index < 2 ? ["Rare", "Action"] : ["Action"]),
+    );
+    const shelves = genreShelves(items);
+    expect(shelves.map((shelf) => shelf.id)).toEqual(["genre-Action"]);
+    // Capped like any shelf, and mixed rather than alphabetical, but stable across reloads.
+    expect(shelves[0]!.items).toHaveLength(16);
+    expect(genreShelves(items)[0]!.items).toEqual(shelves[0]!.items);
+    expect(shelves[0]!.items.map((item) => item.id)).not.toEqual(
+      items.slice(0, 16).map((item) => item.id),
+    );
   });
 });

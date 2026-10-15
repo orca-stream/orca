@@ -22,6 +22,7 @@ import {
   type PlaybackSource,
 } from "../jellyfin/playback";
 import { FocusButton } from "../navigation/Focusable";
+import { browserStore, readItem, writeItem } from "../storage";
 import {
   BackIcon,
   CheckIcon,
@@ -60,8 +61,17 @@ type Failure = "unsupported" | "error";
 
 const SKIP = 10;
 const HIDE_AFTER_MS = 3000;
+/** Paused and left alone this long, Netflix trades the controls for "You're watching". */
+const PAUSE_INFO_AFTER_MS = 6000;
+const VOLUME_KEY = "orca.volume";
+const VOLUME_STEP = 0.1;
 const REPORT_EVERY_MS = 10_000;
 const PLAY_PAUSE = "PLAYER_PLAY_PAUSE";
+
+function storedVolume(): number {
+  const value = Number.parseFloat(readItem(browserStore(), VOLUME_KEY) ?? "");
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+}
 
 let profile: ReturnType<typeof browserDeviceProfile> | null = null;
 /** Probed once: what the browser decodes doesn't change while the app runs. */
@@ -94,6 +104,7 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(storedVolume);
   const [fullscreen, setFullscreen] = useState(false);
   const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
@@ -192,12 +203,19 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
 
-  const visible = controls || paused || panel || buffering || failure !== null;
+  // A phone keeps its controls while paused, as the app does; wide screens hide them for the
+  // pause screen.
+  const visible = controls || (paused && !wide) || panel || buffering || failure !== null;
+  const pauseScreen = wide && paused && !visible;
 
   const wake = useCallback(() => {
     setControls(true);
     clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setControls(false), HIDE_AFTER_MS);
+    const pausedNow = videoRef.current?.paused ?? false;
+    hideTimer.current = setTimeout(
+      () => setControls(false),
+      pausedNow ? PAUSE_INFO_AFTER_MS : HIDE_AFTER_MS,
+    );
   }, []);
   useEffect(() => {
     hideTimer.current = setTimeout(() => setControls(false), HIDE_AFTER_MS);
@@ -222,6 +240,20 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     const end = Number.isFinite(element.duration) ? element.duration : duration;
     element.currentTime = Math.max(0, Math.min(to, Math.max(0, end - 1)));
     setPosition(element.currentTime);
+  }
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (element) element.volume = volume;
+    writeItem(browserStore(), VOLUME_KEY, String(volume));
+  }, [volume]);
+
+  /** Moving the slider up from silence also unmutes, as Netflix's does. */
+  function changeVolume(to: number) {
+    const value = Math.round(Math.min(1, Math.max(0, to)) * 100) / 100;
+    setVolume(value);
+    setMuted(value === 0);
+    wake();
   }
 
   function toggleFullscreen() {
@@ -333,6 +365,8 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     const loaded = sourceRef.current;
     if (!element) return;
     setPaused(element.paused);
+    // Pausing restarts the clock: the pause screen comes after a longer while.
+    wake();
     if (loaded) {
       lastReport.current = Date.now();
       void playbackReports.progress(connection, loaded, {
@@ -428,6 +462,8 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
             ))}
           </div>
         )}
+
+        {playable && <PauseScreen playable={playable} shown={pauseScreen && failure === null} />}
 
         {buffering && failure === null && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -527,12 +563,15 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
                   <ControlButton label={t.player.forward} onPress={() => seek(now() + SKIP)}>
                     <ForwardIcon className="size-10" />
                   </ControlButton>
-                  <ControlButton
-                    label={muted ? t.player.unmute : t.player.mute}
-                    onPress={() => setMuted((value) => !value)}
-                  >
-                    <VolumeIcon muted={muted} className="size-10" />
-                  </ControlButton>
+                  <VolumeControl
+                    volume={volume}
+                    muted={muted}
+                    onMute={() => {
+                      setMuted((value) => !value);
+                      if (volume === 0) setVolume(0.5);
+                    }}
+                    onChange={changeVolume}
+                  />
                   <div className="min-w-0 flex-1 text-center">{heading}</div>
                   {next && (
                     <ControlButton label={t.player.nextEpisode} onPress={playNext}>
@@ -806,5 +845,139 @@ function TrackList(props: {
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Netflix's speaker: the button mutes, and over it, while the pointer or the focus is on it, a
+ * vertical red slider. With keys, up and down on the button move the volume.
+ */
+function VolumeControl(props: {
+  volume: number;
+  muted: boolean;
+  onMute: () => void;
+  onChange: (to: number) => void;
+}) {
+  const { volume, muted, onMute, onChange } = props;
+  const [dragging, setDragging] = useState(false);
+  const { ref, focused } = useFocusable<object, HTMLButtonElement>({
+    onEnterPress: onMute,
+    onArrowPress: (direction) => {
+      if (direction !== "up" && direction !== "down") return true;
+      onChange((muted ? 0 : volume) + (direction === "up" ? VOLUME_STEP : -VOLUME_STEP));
+      return false;
+    },
+  });
+  const level = muted ? 0 : volume;
+  const label = muted ? t.player.unmute : t.player.mute;
+
+  function at(event: ReactPointerEvent<HTMLDivElement>) {
+    const box = event.currentTarget.getBoundingClientRect();
+    return 1 - Math.min(Math.max(event.clientY - box.top, 0), box.height) / box.height;
+  }
+
+  return (
+    <div className="group/volume relative flex-none">
+      <div
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 pb-2 transition-opacity ${
+          focused || dragging
+            ? "opacity-100"
+            : "pointer-events-none opacity-0 group-hover/volume:pointer-events-auto group-hover/volume:opacity-100"
+        }`}
+      >
+        <div className="rounded-[3px] bg-[#262626] px-4 py-5">
+          <div
+            role="slider"
+            tabIndex={-1}
+            aria-label={t.player.volume}
+            aria-orientation="vertical"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(level * 100)}
+            className="relative h-32 w-2 cursor-pointer touch-none bg-[#5b5b5b]"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setDragging(true);
+              onChange(at(event));
+            }}
+            onPointerMove={(event) => dragging && onChange(at(event))}
+            onPointerUp={() => setDragging(false)}
+            onPointerCancel={() => setDragging(false)}
+          >
+            <div
+              className="absolute inset-x-0 bottom-0 bg-[#e50914]"
+              style={{ height: `${level * 100}%` }}
+            />
+            <span
+              className="absolute left-1/2 size-4 -translate-x-1/2 translate-y-1/2 rounded-full bg-[#e50914]"
+              style={{ bottom: `${level * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+      <button
+        ref={ref}
+        type="button"
+        aria-label={label}
+        title={label}
+        onClick={onMute}
+        className={`grid size-14 place-items-center rounded-full outline-none transition-transform hover:scale-110 ${
+          focused ? "scale-110 bg-white/20" : ""
+        }`}
+      >
+        <VolumeIcon muted={muted} level={level} className="size-10" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Paused and left alone, Netflix web dims the picture and says what's on: "You're watching", the
+ * title, its year, rating and length, and the synopsis, with "Paused" in the corner.
+ */
+function PauseScreen({ playable, shown }: { playable: PlayableItem; shown: boolean }) {
+  const { episode } = playable;
+  const minutes = playable.duration ? Math.round(playable.duration / 60) : 0;
+  const facts = [
+    playable.year,
+    playable.rating,
+    minutes > 0 && t.home.duration(Math.floor(minutes / 60), minutes % 60),
+  ].filter(Boolean);
+  const detail =
+    episode &&
+    (episode.season != null && episode.number != null
+      ? t.home.episode(episode.season, episode.number, episode.title)
+      : episode.title);
+
+  return (
+    <div
+      aria-hidden={!shown}
+      className={`pointer-events-none absolute inset-0 bg-linear-to-r from-black/85 via-black/55 to-black/10 transition-opacity duration-700 ${
+        shown ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <div className="absolute top-1/2 left-[12%] w-[min(46%,720px)] -translate-y-1/2">
+        <p className="text-[clamp(16px,1.3vw,24px)] text-white/80">{t.player.watching}</p>
+        <h2 className="mt-2 text-[clamp(32px,3.6vw,64px)] leading-tight font-bold">
+          {playable.title}
+        </h2>
+        {detail && <p className="mt-2 text-[clamp(18px,1.6vw,28px)] font-bold">{detail}</p>}
+        {facts.length > 0 && (
+          <p className="mt-3 flex gap-6 text-[clamp(16px,1.5vw,26px)] font-bold">
+            {facts.map((fact) => (
+              <span key={String(fact)}>{fact}</span>
+            ))}
+          </p>
+        )}
+        {playable.overview && (
+          <p className="mt-4 line-clamp-4 text-[clamp(15px,1.2vw,22px)] leading-snug text-white/85">
+            {playable.overview}
+          </p>
+        )}
+      </div>
+      <p className="absolute right-[10%] bottom-[10%] text-[clamp(16px,1.3vw,24px)] text-white/85">
+        {t.player.paused}
+      </p>
+    </div>
   );
 }

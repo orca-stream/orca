@@ -1,6 +1,8 @@
 import type { BaseItemDto } from "@jellyfin/sdk/lib/generated-client/models/base-item-dto";
+import { BaseItemKind } from "@jellyfin/sdk/lib/generated-client/models/base-item-kind";
 import { ImageType } from "@jellyfin/sdk/lib/generated-client/models/image-type";
 import { ItemFields } from "@jellyfin/sdk/lib/generated-client/models/item-fields";
+import { ItemSortBy } from "@jellyfin/sdk/lib/generated-client/models/item-sort-by";
 import { MediaType } from "@jellyfin/sdk/lib/generated-client/models/media-type";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api";
 import { getShowApi } from "@jellyfin/sdk/lib/utils/api/show-api";
@@ -54,6 +56,8 @@ export type ShelfTitle =
   | { kind: "continueWatching" }
   | { kind: "nextUp" }
   | { kind: "latest"; library: string }
+  /** A library's genre, on the library's own page. */
+  | { kind: "genre"; genre: string }
   // A category's page.
   | { kind: "recent" }
   | { kind: "topRated" }
@@ -73,12 +77,32 @@ export interface Home {
   /** What the billboard features; null when the libraries are empty. */
   featured: MediaItem | null;
   shelves: Shelf[];
+  /** A library's page ends with everything in it, A to Z; the full home has none. */
+  catalog: Catalog | null;
+}
+
+export interface Catalog {
+  library: string;
+  items: MediaItem[];
 }
 
 export const TICKS_PER_MINUTE = 600_000_000;
 /** How long a title or an episode counts as new, as Netflix's tags do. */
 const NEW_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 const SHELF_SIZE = 16;
+/** A library's page gets a shelf for each of its biggest genres, as Netflix's "Movies" does. */
+const GENRE_SHELVES = 12;
+/** A genre with fewer titles than this makes a thin shelf: those titles stay in the A to Z. */
+const GENRE_MIN = 3;
+/** The A to Z is one request; past this the library is bigger than a living room's. */
+const CATALOG_LIMIT = 5000;
+/** What a library's page lists: titles, never single episodes. */
+const CATALOG_TYPES = [
+  BaseItemKind.Movie,
+  BaseItemKind.Series,
+  BaseItemKind.Video,
+  BaseItemKind.MusicVideo,
+];
 const CARD_WIDTH = 640;
 const POSTER_WIDTH = 480;
 const BACKDROP_WIDTH = 1920;
@@ -270,6 +294,41 @@ export function pickFeatured(shelves: Shelf[]): MediaItem | null {
   return candidates.find((item) => item.logoUrl) ?? candidates[0] ?? null;
 }
 
+/** A stable shuffle: the same order on every load, so a shelf doesn't reshuffle on a reload. */
+function scatter(seed: string, id: string): number {
+  let hash = 2166136261;
+  for (const char of seed + id) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return hash >>> 0;
+}
+
+/**
+ * Shelves of a library's biggest genres, built from its full list: the most titles first, each
+ * shelf in its own mixed order so the same titles don't open every row.
+ */
+export function genreShelves(items: MediaItem[]): Shelf[] {
+  const byGenre = new Map<string, MediaItem[]>();
+  for (const item of items) {
+    for (const genre of item.genres) {
+      const list = byGenre.get(genre);
+      if (list) list.push(item);
+      else byGenre.set(genre, [item]);
+    }
+  }
+  return [...byGenre]
+    .filter(([, list]) => list.length >= GENRE_MIN)
+    .sort(([a, first], [b, second]) => second.length - first.length || a.localeCompare(b))
+    .slice(0, GENRE_SHELVES)
+    .map(([genre, list]) => ({
+      id: `genre-${genre}`,
+      title: { kind: "genre", genre },
+      items: list
+        .map((item) => ({ item, order: scatter(genre, item.id) }))
+        .sort((a, b) => a.order - b.order)
+        .slice(0, SHELF_SIZE)
+        .map(({ item }) => item),
+    }));
+}
+
 /**
  * Everything the home screen shows, loaded in parallel: continue watching, next up, and what was
  * added recently to each video library. With `libraryId`, every shelf keeps to that library.
@@ -297,7 +356,7 @@ export async function loadHome(
   const shown = libraryId ? libraries.filter((view) => view.Id === libraryId) : libraries;
   const scope = libraryId ? { parentId: libraryId } : {};
 
-  const shelves = await Promise.all([
+  const shelves = Promise.all([
     shelf("resume", { kind: "continueWatching" }, async () => {
       const { data } = await library.getResumeItems({
         ...common,
@@ -328,8 +387,33 @@ export async function loadHome(
       }),
     ),
   ]);
+  // A library on its own also lists all of it: its genres as shelves, then A to Z.
+  const view = libraryId ? shown[0] : undefined;
+  const everything = view
+    ? library
+        .getItems({
+          ...common,
+          parentId: view.Id!,
+          recursive: true,
+          includeItemTypes: CATALOG_TYPES,
+          sortBy: [ItemSortBy.SortName],
+          limit: CATALOG_LIMIT,
+        })
+        .then(
+          (response) => toItems(connection, response.data.Items),
+          (error: unknown) => {
+            const mapped = expiredOr(error);
+            if (mapped instanceof SessionExpiredError) throw mapped;
+            return null;
+          },
+        )
+    : Promise.resolve(null);
 
-  const loaded = shelves.filter((entry) => entry !== null);
+  const [loaded, all] = await Promise.all([
+    shelves.then((list) => list.filter((entry) => entry !== null)),
+    everything,
+  ]);
+  const ready = [...loaded, ...(all ? genreShelves(all) : [])];
   return {
     libraries: libraries.map((view) => ({
       id: view.Id!,
@@ -337,6 +421,7 @@ export async function loadHome(
       type: view.CollectionType ?? "",
     })),
     featured: pickFeatured(loaded),
-    shelves: loaded,
+    shelves: ready,
+    catalog: view && all?.length ? { library: view.Name ?? "", items: all } : null,
   };
 }

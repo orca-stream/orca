@@ -2,6 +2,7 @@ import type { BaseItemDto } from "@jellyfin/sdk/lib/generated-client/models/base
 import type { DeviceProfile } from "@jellyfin/sdk/lib/generated-client/models/device-profile";
 import type { MediaSourceInfo } from "@jellyfin/sdk/lib/generated-client/models/media-source-info";
 import type { MediaStream } from "@jellyfin/sdk/lib/generated-client/models/media-stream";
+import { ItemFields } from "@jellyfin/sdk/lib/generated-client/models/item-fields";
 import { PlayMethod } from "@jellyfin/sdk/lib/generated-client/models/play-method";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api";
 import { getMediaInfoApi } from "@jellyfin/sdk/lib/utils/api/media-info-api";
@@ -12,6 +13,9 @@ import { orExpired } from "./library";
 
 /** Jellyfin counts time in ticks of 100 ns. */
 export const TICKS_PER_SECOND = 10_000_000;
+
+/** Lists leave the synopsis out unless asked; the pause screen shows it. */
+const OVERVIEW = [ItemFields.Overview];
 
 /** What "Play" lands on: the item itself, or for a series, the episode to watch next. */
 export interface PlayableItem {
@@ -24,6 +28,10 @@ export interface PlayableItem {
   resumeAt: number;
   /** Length in seconds, from the library; the video's own duration wins once it loads. */
   duration?: number;
+  /** What the pause screen says about it: the episode's own synopsis for an episode. */
+  year?: number;
+  rating?: string;
+  overview?: string;
 }
 
 export interface Track {
@@ -83,6 +91,9 @@ function toPlayable(item: BaseItemDto): PlayableItem {
       : {}),
     resumeAt: position / TICKS_PER_SECOND,
     ...(item.RunTimeTicks ? { duration: item.RunTimeTicks / TICKS_PER_SECOND } : {}),
+    ...(item.ProductionYear ? { year: item.ProductionYear } : {}),
+    ...(item.OfficialRating ? { rating: item.OfficialRating } : {}),
+    ...(item.Overview ? { overview: item.Overview } : {}),
   };
 }
 
@@ -100,12 +111,20 @@ export async function resolvePlayable(
 
   const shows = getShowApi(connection);
   const { data: next } = await orExpired(
-    shows.getNextUp({ userId, seriesId: itemId, limit: 1, enableResumable: true }),
+    shows.getNextUp({
+      userId,
+      seriesId: itemId,
+      limit: 1,
+      enableResumable: true,
+      fields: OVERVIEW,
+    }),
   );
   const upNext = next.Items?.[0];
   if (upNext?.Id) return toPlayable(upNext);
 
-  const { data: all } = await orExpired(shows.getEpisodes({ seriesId: itemId, userId, limit: 1 }));
+  const { data: all } = await orExpired(
+    shows.getEpisodes({ seriesId: itemId, userId, limit: 1, fields: OVERVIEW }),
+  );
   const first = all.Items?.[0];
   if (!first?.Id) throw new PlaybackError("NoEpisodes");
   return toPlayable(first);
@@ -124,6 +143,7 @@ export async function nextEpisode(
       userId,
       startItemId: playing.id,
       limit: 2,
+      fields: OVERVIEW,
     }),
   );
   const next = data.Items?.[1];
