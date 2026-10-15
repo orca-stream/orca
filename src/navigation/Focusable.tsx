@@ -4,6 +4,8 @@ import type { ComponentPropsWithoutRef, KeyboardEvent } from "react";
 interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "onClick"> {
   /** Runs on click, tap, Enter or the gamepad's A button. Not used by submit buttons. */
   onPress?: () => void;
+  /** Runs when the arrows land on the button, e.g. to scroll it into view. */
+  onFocused?: (node: HTMLElement) => void;
   focusKey?: string;
 }
 
@@ -11,9 +13,16 @@ interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "onClick"
  * A button reachable with arrows. Enter never reaches the native button (the library swallows it),
  * so a submit button submits its form explicitly and every other button runs `onPress`.
  */
-export function FocusButton({ onPress, focusKey, type = "button", ...props }: ButtonProps) {
+export function FocusButton({
+  onPress,
+  onFocused,
+  focusKey,
+  type = "button",
+  ...props
+}: ButtonProps) {
   const { ref } = useFocusable<object, HTMLButtonElement>({
     focusKey,
+    onFocus: ({ node }) => onFocused?.(node),
     onEnterPress: () => {
       if (props.disabled) return;
       if (type === "submit") ref.current?.form?.requestSubmit();

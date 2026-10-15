@@ -20,7 +20,7 @@ import { ProfileGate } from "./profiles/ProfileGate";
 import { browserStore } from "./storage";
 
 type Screen =
-  | { kind: "profiles" }
+  | { kind: "profiles"; managing?: boolean }
   | { kind: "signIn"; prefill?: SignInPrefill }
   | { kind: "home"; connection: Connection; session: Session };
 
@@ -52,17 +52,21 @@ function App() {
         );
       },
       (error: unknown) => {
-        if (!(error instanceof SessionExpiredError)) return;
-        setScreen({
-          kind: "signIn",
-          prefill: {
-            server: session.serverUrl,
-            username: session.userName,
-            notice: t.login.expired(session.userName),
-          },
-        });
+        if (error instanceof SessionExpiredError) expire(session);
       },
     );
+  }
+
+  /** Back to the sign-in form, filled in, saying why. */
+  function expire(session: Session) {
+    setScreen({
+      kind: "signIn",
+      prefill: {
+        server: session.serverUrl,
+        username: session.userName,
+        notice: t.login.expired(session.userName),
+      },
+    });
   }
 
   function remove(session: Session, connection = resumeSession(session)) {
@@ -89,6 +93,9 @@ function App() {
     case "profiles":
       return (
         <ProfileGate
+          // Opening "manage" from the account menu starts a fresh gate in that mode.
+          key={screen.managing ? "managing" : "picking"}
+          initiallyManaging={screen.managing}
           sessions={sessions}
           onPick={(session) => enter(session)}
           onAdd={() =>
@@ -102,11 +109,19 @@ function App() {
     case "home":
       return (
         <HomeScreen
-          session={screen.session}
-          onSwitchProfile={() => setScreen({ kind: "profiles" })}
-          onSignOut={() => {
-            const remaining = remove(screen.session, screen.connection);
-            setScreen(remaining.length === 0 ? { kind: "signIn" } : { kind: "profiles" });
+          // Another profile is another home: nothing carries over from the previous one.
+          key={sessionId(screen.session)}
+          connection={screen.connection}
+          onExpired={() => expire(screen.session)}
+          account={{
+            session: screen.session,
+            profiles: sessions,
+            onPickProfile: (session) => enter(session),
+            onManageProfiles: () => setScreen({ kind: "profiles", managing: true }),
+            onSignOut: () => {
+              const remaining = remove(screen.session, screen.connection);
+              setScreen(remaining.length === 0 ? { kind: "signIn" } : { kind: "profiles" });
+            },
           }}
         />
       );

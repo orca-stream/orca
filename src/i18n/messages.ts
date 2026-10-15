@@ -34,10 +34,24 @@ const es = {
     unknown: "Algo salió mal. Inténtalo de nuevo.",
   },
   home: {
-    greeting: (name: string) => `Hola, ${name}`,
-    connectedTo: (server: string) => `Conectado a ${server}`,
+    nav: "Inicio",
+    continueWatching: "Continuar viendo",
+    nextUp: "Siguiente episodio",
+    latest: (library: string) => `Recién agregado en ${library}`,
+    play: "Reproducir",
+    moreInfo: "Más información",
+    episode: (season: number, episode: number, title: string) =>
+      `T${season}:E${episode} «${title}»`,
+    duration: (hours: number, minutes: number) =>
+      hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`,
+    empty: "Todavía no hay nada que ver en tus bibliotecas.",
+    loadError: "No se pudo cargar el inicio. Revisa tu conexión.",
+    retry: "Reintentar",
+  },
+  account: {
+    menu: "Perfil y opciones",
+    manageProfiles: "Administrar perfiles",
     signOut: "Cerrar sesión",
-    switchProfile: "Cambiar de perfil",
   },
 };
 
@@ -76,10 +90,24 @@ const en: Messages = {
     unknown: "Something went wrong. Please try again.",
   },
   home: {
-    greeting: (name: string) => `Hi, ${name}`,
-    connectedTo: (server: string) => `Connected to ${server}`,
+    nav: "Home",
+    continueWatching: "Continue watching",
+    nextUp: "Next up",
+    latest: (library: string) => `Recently added in ${library}`,
+    play: "Play",
+    moreInfo: "More info",
+    episode: (season: number, episode: number, title: string) =>
+      `S${season}:E${episode} "${title}"`,
+    duration: (hours: number, minutes: number) =>
+      hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`,
+    empty: "There's nothing to watch in your libraries yet.",
+    loadError: "Couldn't load the home screen. Check your connection.",
+    retry: "Try again",
+  },
+  account: {
+    menu: "Profile and options",
+    manageProfiles: "Manage profiles",
     signOut: "Sign out",
-    switchProfile: "Switch profile",
   },
 };
 

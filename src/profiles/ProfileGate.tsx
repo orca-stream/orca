@@ -11,6 +11,8 @@ interface Props {
   onPick: (session: Session) => void;
   onAdd: () => void;
   onRemove: (session: Session) => void;
+  /** Opens straight in "manage profiles", as the account menu's entry does. */
+  initiallyManaging?: boolean;
 }
 
 /** Shared by profile tiles and the add tile: the panel behind the focused one, Netflix-style. */
@@ -22,8 +24,14 @@ const TILE_NAME =
 const PILL =
   "inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-semibold outline-none transition-colors";
 
-export function ProfileGate({ sessions, onPick, onAdd, onRemove }: Props) {
-  const [managing, setManaging] = useState(false);
+export function ProfileGate({
+  sessions,
+  onPick,
+  onAdd,
+  onRemove,
+  initiallyManaging = false,
+}: Props) {
+  const [managing, setManaging] = useState(initiallyManaging);
   const [removing, setRemoving] = useState<Session | null>(null);
   const { ref, focusKey, focusSelf } = useFocusable({ focusKey: "PROFILE_GATE" });
   const servers = new Set(sessions.map((session) => session.serverUrl));
