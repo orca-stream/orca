@@ -5,6 +5,7 @@ import type { Library } from "../jellyfin/library";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
 import { CaretIcon, ChevronDownIcon, CloseIcon, SearchIcon } from "../ui/icons";
+import { Logo } from "../ui/Logo";
 import { AccountMenu, type Account } from "./AccountMenu";
 import { scrollToTop } from "./scroll";
 
@@ -68,14 +69,6 @@ export function Header({ account, filter, wide, onSearch, search, onCategories }
         )}
       </header>
     </FocusContext.Provider>
-  );
-}
-
-function Logo() {
-  return (
-    <p className="text-[28px] leading-none font-black tracking-tight text-[#e50914] uppercase sm:text-[26px]">
-      orca
-    </p>
   );
 }
 

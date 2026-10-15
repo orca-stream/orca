@@ -2,11 +2,14 @@ import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-naviga
 import { useEffect, useState, type FormEvent } from "react";
 import { t } from "../i18n/locale";
 import { jellyfin, type Connection } from "../jellyfin/client";
+import { normalizeServerUrl } from "../jellyfin/server-url";
 import type { Session } from "../jellyfin/session";
 import { signIn, SignInError } from "../jellyfin/sign-in";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { useWideScreen } from "../ui/use-wide-screen";
+import { AuthPage } from "./AuthPage";
 import { QuickConnectPanel } from "./QuickConnectPanel";
+import { ServerKindIcon, ServerPicker } from "./ServerPicker";
 
 /** What the form starts with: a known server when adding a profile, a user when re-signing in. */
 export interface SignInPrefill {
@@ -20,18 +23,55 @@ export interface SignInPrefill {
 
 interface Props {
   prefill?: SignInPrefill;
+  /** Offered when no server is prefilled; see `serverChoices`. */
+  servers: string[];
   /** Whether there are profiles to go back to; shows the back button. */
   onCancel?: () => void;
   onSignedIn: (connection: Connection, session: Session) => void;
 }
 
-const FIELD =
-  "rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-base outline-none placeholder:text-white/40 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60";
-
-export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
-  const [server, setServer] = useState(
-    prefill?.server ?? import.meta.env.VITE_JELLYFIN_SERVER_URL ?? "",
+/** Picks the server first (unless it's already known), then signs in to it. */
+export function SignInScreen({ prefill, servers, onCancel, onSignedIn }: Props) {
+  const [server, setServer] = useState(() => knownServer(prefill?.server));
+  return (
+    <AuthPage>
+      {server === null ? (
+        <ServerPicker servers={servers} onPick={setServer} onCancel={onCancel} />
+      ) : (
+        <SignInForm
+          server={server}
+          prefill={prefill}
+          onChangeServer={() => setServer(null)}
+          onCancel={onCancel}
+          onSignedIn={onSignedIn}
+        />
+      )}
+    </AuthPage>
   );
+}
+
+/** The prefilled address, normalized; null (pick one) when there's none or it isn't valid. */
+function knownServer(address: string | undefined): string | null {
+  if (!address) return null;
+  try {
+    return normalizeServerUrl(address);
+  } catch {
+    return null;
+  }
+}
+
+const FIELD =
+  "w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3.5 text-base outline-none transition-colors placeholder:text-white/40 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60";
+
+interface FormProps {
+  server: string;
+  prefill?: SignInPrefill;
+  onChangeServer: () => void;
+  onCancel?: () => void;
+  onSignedIn: (connection: Connection, session: Session) => void;
+}
+
+function SignInForm({ server, prefill, onChangeServer, onCancel, onSignedIn }: FormProps) {
   const [username, setUsername] = useState(prefill?.username ?? "");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -41,11 +81,7 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
   const { ref, focusKey, focusSelf } = useFocusable({
     focusKey: "SIGN_IN",
     // Start where there's something to type.
-    preferredChildFocusKey: !server
-      ? "SIGN_IN_SERVER"
-      : !username
-        ? "SIGN_IN_USER"
-        : "SIGN_IN_PASSWORD",
+    preferredChildFocusKey: username ? "SIGN_IN_PASSWORD" : "SIGN_IN_USER",
   });
 
   // focusSelf is stable per focus key, so this runs once and never yanks the caret while typing.
@@ -66,15 +102,34 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
     }
   }
 
+  const title = onCancel ? t.login.addTitle : t.login.title;
+
   return (
     <FocusContext.Provider value={focusKey}>
-      <main className="grid min-h-dvh place-items-center p-4">
-        {quickConnect && <h1 className="sr-only">{onCancel ? t.login.addTitle : t.login.title}</h1>}
+      <div
+        ref={ref}
+        className={
+          quickConnect
+            ? "grid w-full max-w-5xl gap-8 rounded-3xl bg-black/50 p-8 shadow-2xl lg:p-10 ring-1 ring-white/10 backdrop-blur-md"
+            : "grid w-full max-w-md gap-6"
+        }
+      >
         <div
           className={
             quickConnect
-              ? "grid w-full max-w-4xl items-center gap-10 md:grid-cols-[1fr_auto_1fr]"
-              : "contents"
+              ? "flex flex-wrap items-center justify-between gap-4"
+              : "grid justify-items-center gap-4 text-center"
+          }
+        >
+          <h1 className={quickConnect ? "text-3xl font-bold" : "text-3xl font-bold sm:text-4xl"}>
+            {title}
+          </h1>
+          <ServerChip server={server} onChange={onChangeServer} />
+        </div>
+
+        <div
+          className={
+            quickConnect ? "grid items-center gap-10 md:grid-cols-[1fr_auto_1fr]" : "contents"
           }
         >
           {quickConnect && (
@@ -82,50 +137,30 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
               <QuickConnectPanel server={server} onSignedIn={onSignedIn} />
               <div
                 aria-hidden="true"
-                className="flex items-center gap-3 self-stretch text-sm text-white/50 md:flex-col"
+                className="flex items-center gap-3 self-stretch text-sm text-white/40 uppercase md:flex-col"
               >
-                <span className="h-px flex-1 bg-white/20 md:h-auto md:w-px" />
+                <span className="h-px flex-1 bg-white/15 md:h-auto md:w-px" />
                 {t.quickConnect.or}
-                <span className="h-px flex-1 bg-white/20 md:h-auto md:w-px" />
+                <span className="h-px flex-1 bg-white/15 md:h-auto md:w-px" />
               </div>
             </>
           )}
-          <form ref={ref} className="grid w-full max-w-md gap-4" onSubmit={handleSubmit}>
-            {quickConnect ? (
-              <h2 className="text-2xl font-semibold">{t.quickConnect.manual}</h2>
-            ) : (
-              <h1 className="text-2xl font-semibold">
-                {onCancel ? t.login.addTitle : t.login.title}
-              </h1>
+
+          <form className="grid w-full gap-4" onSubmit={handleSubmit}>
+            {quickConnect && (
+              <h2 className="text-xl font-semibold text-white/90">{t.quickConnect.manual}</h2>
             )}
 
             {prefill?.notice && (
               <p
-                className="rounded-lg bg-amber-500/15 px-4 py-3 text-sm text-amber-200"
+                className="rounded-xl bg-amber-500/15 px-4 py-3 text-sm text-amber-200"
                 role="status"
               >
                 {prefill.notice}
               </p>
             )}
 
-            <label className="grid gap-1 text-sm text-white/80">
-              {t.login.server}
-              <FocusInput
-                focusKey="SIGN_IN_SERVER"
-                className={FIELD}
-                // Not type="url": the browser would reject a bare "192.168.1.100:8096".
-                inputMode="url"
-                autoComplete="url"
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                value={server}
-                placeholder={t.login.serverHint}
-                onChange={(event) => setServer(event.target.value)}
-              />
-            </label>
-
-            <label className="grid gap-1 text-sm text-white/80">
+            <label className="grid gap-1.5 text-sm text-white/70">
               {t.login.username}
               <FocusInput
                 focusKey="SIGN_IN_USER"
@@ -139,7 +174,7 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
               />
             </label>
 
-            <label className="grid gap-1 text-sm text-white/80">
+            <label className="grid gap-1.5 text-sm text-white/70">
               {t.login.password}
               <FocusInput
                 focusKey="SIGN_IN_PASSWORD"
@@ -160,7 +195,7 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
             <FocusButton
               type="submit"
               disabled={pending}
-              className="rounded-lg bg-white px-4 py-3 font-semibold text-black outline-none hover:bg-white/90 focus-visible:ring-4 focus-visible:ring-white/60 disabled:opacity-60"
+              className="mt-2 rounded-xl bg-[#e50914] px-4 py-3.5 text-lg font-semibold text-white outline-none hover:bg-[#f6121d] focus-visible:ring-4 focus-visible:ring-white/70 focused:ring-4 focused:ring-white/70 disabled:opacity-60"
             >
               {pending ? t.login.connecting : t.login.submit}
             </FocusButton>
@@ -168,14 +203,31 @@ export function SignInScreen({ prefill, onCancel, onSignedIn }: Props) {
             {onCancel && (
               <FocusButton
                 onPress={onCancel}
-                className="rounded-lg px-4 py-3 text-white/70 outline-none hover:bg-white/10 hover:text-white focus-visible:ring-4 focus-visible:ring-white/60"
+                className="rounded-xl px-4 py-3 text-white/70 outline-none hover:bg-white/10 hover:text-white focus-visible:ring-4 focus-visible:ring-white/60 focused:bg-white focused:text-black"
               >
                 {t.login.back}
               </FocusButton>
             )}
           </form>
         </div>
-      </main>
+      </div>
     </FocusContext.Provider>
+  );
+}
+
+/** The chosen server, with the way back to the picker. */
+function ServerChip({ server, onChange }: { server: string; onChange: () => void }) {
+  return (
+    <FocusButton
+      onPress={onChange}
+      aria-label={`${t.login.server}: ${server}. ${t.login.change}`}
+      className="group inline-flex max-w-full items-center gap-2 rounded-full bg-white/[0.08] py-1.5 pr-1.5 pl-3 text-sm ring-1 ring-white/15 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white focused:ring-2 focused:ring-white"
+    >
+      <ServerKindIcon server={server} className="size-4 flex-none text-white/60" />
+      <span className="truncate text-white/80">{new URL(server).host}</span>
+      <span className="rounded-full bg-white/10 px-3 py-0.5 font-semibold group-hover:bg-white group-hover:text-black group-focused:bg-white group-focused:text-black">
+        {t.login.change}
+      </span>
+    </FocusButton>
   );
 }

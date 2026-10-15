@@ -2,7 +2,7 @@
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  /** Server pre-filled on the sign-in screen in dev builds. */
+  /** One more server offered on the sign-in picker, first among the defaults. */
   readonly VITE_JELLYFIN_SERVER_URL?: string;
   /**
    * Where phones open orca when they scan the sign-in QR. Defaults to the address this page was

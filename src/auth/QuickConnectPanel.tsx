@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { t } from "../i18n/locale";
 import { jellyfin, type Connection } from "../jellyfin/client";
 import { detectDeviceName } from "../jellyfin/device";
@@ -11,6 +11,7 @@ import {
 } from "../jellyfin/quick-connect";
 import type { Session } from "../jellyfin/session";
 import { SignInError, type SignInFailure } from "../jellyfin/sign-in";
+import { CodeBoxes } from "../ui/CodeInput";
 import { QrCode } from "../ui/QrCode";
 
 /** How often the TV asks whether the phone approved: quick enough to feel instant. */
@@ -81,11 +82,8 @@ export function QuickConnectPanel({ server, onSignedIn }: Props) {
         : { kind: "loading" };
 
   return (
-    <section
-      aria-labelledby="quick-connect-title"
-      className="grid content-start justify-items-center gap-4 text-center"
-    >
-      <h2 id="quick-connect-title" className="text-2xl font-semibold">
+    <section aria-labelledby="quick-connect-title" className="grid content-start gap-5">
+      <h2 id="quick-connect-title" className="text-xl font-semibold text-white/90">
         {t.quickConnect.title}
       </h2>
       <Body state={state} />
@@ -93,22 +91,29 @@ export function QuickConnectPanel({ server, onSignedIn }: Props) {
   );
 }
 
+/** The QR's white card, also its placeholder while the code loads. */
+const QR_CARD = "rounded-2xl bg-white p-3 shadow-[0_0_60px_-12px] shadow-white/25";
+
 function Body({ state }: { state: State }) {
   switch (state.kind) {
     case "idle":
-      return <p className="max-w-xs text-white/70">{t.quickConnect.needServer}</p>;
+      return <p className="text-white/70">{t.quickConnect.needServer}</p>;
     case "loading":
+      // The same layout as the code, empty: nothing moves once it arrives.
       return (
-        <>
-          <div aria-hidden="true" className="size-56 animate-pulse rounded-xl bg-white/10" />
-          <p className="text-white/70" role="status">
-            {t.quickConnect.loading}
-          </p>
-        </>
+        <Layout
+          qr={<div aria-hidden="true" className="size-40 animate-pulse rounded-lg bg-black/10" />}
+          hint={
+            <span className="animate-pulse" role="status">
+              {t.quickConnect.loading}
+            </span>
+          }
+          code=""
+        />
       );
     case "failed":
       return (
-        <p className="max-w-xs text-white/70" role="status">
+        <p className="rounded-xl bg-white/5 px-4 py-3 text-white/70" role="status">
           {t.errors[state.reason]}
         </p>
       );
@@ -127,25 +132,44 @@ function Ready({ request }: { request: QuickConnectRequest }) {
       serverId: request.server.serverId,
       device: detectDeviceName(navigator.userAgent),
     });
-  // Read in two halves, like Netflix's TV codes: "922 779".
-  const code = `${request.code.slice(0, 3)} ${request.code.slice(3)}`;
 
   return (
+    <Layout
+      qr={link && <QrCode value={link} className="size-40" />}
+      hint={link ? t.quickConnect.typeCode : t.quickConnect.codeOnly}
+      code={request.code}
+    />
+  );
+}
+
+interface LayoutProps {
+  /** The QR, its placeholder, or null when no phone could open the app (just the code then). */
+  qr: ReactNode;
+  hint: ReactNode;
+  code: string;
+}
+
+function Layout({ qr, hint, code }: LayoutProps) {
+  return (
     <>
-      {link && (
-        <>
-          <QrCode value={link} className="size-56 rounded-xl" />
-          <p className="max-w-xs text-white/70">{t.quickConnect.scan}</p>
-        </>
+      {qr && (
+        <div className="flex items-center gap-6">
+          <div className={`${QR_CARD} flex-none`}>{qr}</div>
+          <ol className="grid gap-3 text-sm text-white/70">
+            {t.quickConnect.steps.map((step, index) => (
+              <li key={step} className="flex items-center gap-3">
+                <span className="grid size-6 flex-none place-items-center rounded-full bg-white/10 text-xs font-semibold text-white">
+                  {index + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
-      <p className="max-w-xs text-sm text-white/60">
-        {link ? t.quickConnect.typeCode : t.quickConnect.codeOnly}
-      </p>
-      <p
-        className="font-mono text-4xl font-semibold tracking-[0.2em] tabular-nums"
-        aria-label={request.code.split("").join(" ")}
-      >
-        {code}
+      <p className="min-h-10 text-sm text-white/50">{hint}</p>
+      <p className="w-full" aria-label={code ? code.split("").join(" ") : undefined}>
+        <CodeBoxes value={code} />
       </p>
     </>
   );

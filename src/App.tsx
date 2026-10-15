@@ -22,6 +22,7 @@ import {
   withoutQuickConnectLink,
   type QuickConnectLink,
 } from "./jellyfin/quick-connect";
+import { DEFAULT_SERVERS, serverChoices } from "./jellyfin/servers";
 import { ProfileGate } from "./profiles/ProfileGate";
 import { browserStore } from "./storage";
 
@@ -36,7 +37,8 @@ type Screen =
 interface ApproveStep {
   kind: "approve";
   link: QuickConnectLink | null;
-  only?: Session;
+  /** The profile picked at first (its session id). */
+  preferred?: string;
   back: Screen;
 }
 
@@ -135,6 +137,10 @@ function App() {
           // A new key resets the form when the prefill changes (expired session vs add profile).
           key={JSON.stringify(screen.prefill ?? null)}
           prefill={screen.prefill}
+          servers={serverChoices(
+            sessions.map((session) => session.serverUrl),
+            [import.meta.env.VITE_JELLYFIN_SERVER_URL, ...DEFAULT_SERVERS],
+          )}
           onCancel={
             screen.then
               ? () => setScreen(screen.then!.back)
@@ -144,7 +150,12 @@ function App() {
           }
           onSignedIn={(connection, session) => {
             setSessions(saveSession(browserStore(), session));
-            setScreen(screen.then ?? { kind: "home", connection, session });
+            setScreen(
+              // Back to approving, as the account just signed in.
+              screen.then
+                ? { ...screen.then, preferred: sessionId(session) }
+                : { kind: "home", connection, session },
+            );
           }}
         />
       );
@@ -178,7 +189,12 @@ function App() {
             onPickProfile: (session) => enter(session),
             onManageProfiles: () => setScreen({ kind: "profiles", managing: true }),
             onLinkDevice: () =>
-              setScreen({ kind: "approve", link: null, only: screen.session, back: screen }),
+              setScreen({
+                kind: "approve",
+                link: null,
+                preferred: sessionId(screen.session),
+                back: screen,
+              }),
             onSignOut: () => {
               const remaining = remove(screen.session, screen.connection);
               setScreen(remaining.length === 0 ? { kind: "signIn" } : { kind: "profiles" });
@@ -191,13 +207,9 @@ function App() {
         <ApproveScreen
           link={screen.link}
           sessions={sessions}
-          only={screen.only}
-          onSignIn={(server) =>
-            setScreen({
-              kind: "signIn",
-              prefill: { server, notice: t.quickConnect.signInFirst, noQuickConnect: true },
-              then: screen,
-            })
+          preferred={screen.preferred}
+          onAddAccount={(server) =>
+            setScreen({ kind: "signIn", prefill: { server, noQuickConnect: true }, then: screen })
           }
           onExpired={expire}
           onCancel={() => setScreen(screen.back)}
