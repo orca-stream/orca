@@ -83,6 +83,11 @@ const es = {
     chooseSeason: "Elegir temporada",
     loadError: "No se pudo cargar este título.",
     noSimilar: "No hay títulos similares.",
+    similarHeading: "Más títulos similares a este",
+    allEpisodes: "Ver todos los episodios",
+    season: (number: number) => `Temporada ${number}`,
+    showMore: "Mostrar más",
+    showLess: "Mostrar menos",
   },
   search: {
     placeholder: "Buscar series y películas…",
@@ -209,6 +214,11 @@ const en: Messages = {
     chooseSeason: "Choose season",
     loadError: "Couldn't load this title.",
     noSimilar: "Nothing similar yet.",
+    similarHeading: "More like this",
+    allEpisodes: "See all episodes",
+    season: (number: number) => `Season ${number}`,
+    showMore: "Show more",
+    showLess: "Show less",
   },
   search: {
     placeholder: "Search shows and movies…",

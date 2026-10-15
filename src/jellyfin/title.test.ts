@@ -51,7 +51,7 @@ describe("loadTitle", () => {
             status: 200,
             data: {
               Items: [
-                { Id: "season-1", Name: "Temporada 1" },
+                { Id: "season-1", Name: "Temporada 1", ChildCount: 12 },
                 { Id: "season-2", Name: "Temporada 2" },
               ],
             },
@@ -63,6 +63,11 @@ describe("loadTitle", () => {
     const title = await loadTitle(connection, "user-1", "ep-4");
     expect(title.item.id).toBe("series-1");
     expect(title.initialSeasonId).toBe("season-2");
+    // Netflix's season menu says how many episodes each one holds.
+    expect(title.seasons).toEqual([
+      { id: "season-1", name: "Temporada 1", episodeCount: 12 },
+      { id: "season-2", name: "Temporada 2" },
+    ]);
     expect(title.episodeCount).toBe(20);
     // Three names, as Netflix shows; a series without creators credits its writers.
     expect(title.cast).toEqual(["Ana", "Bea", "Cris"]);
@@ -120,6 +125,16 @@ describe("loadEpisodes", () => {
     ]);
     const query = new URL(requests[0]?.url ?? "").searchParams;
     expect(query.get("seasonId")).toBe("season-2");
+  });
+
+  it('lists the whole series, each episode with its season, for "All episodes"', async () => {
+    const { connection, requests } = against(() => ({
+      status: 200,
+      data: { Items: [{ Id: "ep-9", ParentIndexNumber: 2, IndexNumber: 1, Name: "Back" }] },
+    }));
+    const episodes = await loadEpisodes(connection, "user-1", "series-1", null);
+    expect(episodes[0]).toMatchObject({ id: "ep-9", season: 2, number: 1 });
+    expect(new URL(requests[0]?.url ?? "").searchParams.has("seasonId")).toBe(false);
   });
 });
 

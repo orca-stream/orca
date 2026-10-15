@@ -33,11 +33,15 @@ export interface Title {
 export interface Season {
   id: string;
   name: string;
+  /** How many episodes it holds, when the server says. */
+  episodeCount?: number;
 }
 
 export interface Episode {
   id: string;
   number?: number;
+  /** The season number, to head each season when the whole series is listed. */
+  season?: number;
   title: string;
   overview?: string;
   runtimeMinutes?: number;
@@ -76,11 +80,19 @@ export async function loadTitle(
 
   const seasons = series
     ? await orExpired(
-        getShowApi(connection).getSeasons({ seriesId: item.Id!, userId, fields: [] }),
+        getShowApi(connection).getSeasons({
+          seriesId: item.Id!,
+          userId,
+          fields: [ItemFields.ChildCount],
+        }),
       ).then((response) =>
         (response.data.Items ?? [])
           .filter((season) => season.Id)
-          .map((season) => ({ id: season.Id!, name: season.Name ?? "" })),
+          .map((season) => ({
+            id: season.Id!,
+            name: season.Name ?? "",
+            ...(season.ChildCount != null ? { episodeCount: season.ChildCount } : {}),
+          })),
       )
     : [];
 
@@ -103,12 +115,13 @@ export async function loadEpisodes(
   connection: Connection,
   userId: string,
   seriesId: string,
-  seasonId: string,
+  /** Null lists the whole series, every season in order. */
+  seasonId: string | null,
 ): Promise<Episode[]> {
   const { data } = await orExpired(
     getShowApi(connection).getEpisodes({
       seriesId,
-      seasonId,
+      ...(seasonId ? { seasonId } : {}),
       userId,
       fields: [ItemFields.Overview, ItemFields.Width],
       enableImageTypes: [ImageType.Primary],
@@ -123,6 +136,7 @@ export async function loadEpisodes(
       return {
         id: episode.Id!,
         ...(episode.IndexNumber != null ? { number: episode.IndexNumber } : {}),
+        ...(episode.ParentIndexNumber != null ? { season: episode.ParentIndexNumber } : {}),
         title: episode.Name ?? "",
         ...(episode.Overview ? { overview: episode.Overview } : {}),
         ...(episode.RunTimeTicks

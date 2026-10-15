@@ -1,5 +1,5 @@
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
-import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { t } from "../i18n/locale";
 import { SessionExpiredError, type Connection } from "../jellyfin/client";
 import type { MediaItem } from "../jellyfin/library";
@@ -16,6 +16,7 @@ import { PosterCard } from "../home/PosterCard";
 import { FocusButton } from "../navigation/Focusable";
 import {
   BackIcon,
+  CaretIcon,
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
@@ -41,6 +42,10 @@ interface Props {
 
 type State = { kind: "loading" } | { kind: "ready"; title: Title } | { kind: "error" };
 type Tab = "episodes" | "similar";
+
+/** The season menu's "See all episodes": the whole series, season after season. */
+const ALL_SEASONS = "all";
+const COLLAPSED_EPISODES = 10;
 
 const PLAY = "TITLE_PLAY";
 
@@ -293,9 +298,29 @@ function Details(props: DetailsProps) {
           </div>
           <div className="grid content-start gap-2 text-sm">{people}</div>
         </div>
-        <div className="mt-8 px-12">
-          {tabs}
-          {panel}
+        <div className="mt-8 px-12 pb-12">
+          {series && (
+            <Episodes
+              title={title}
+              connection={connection}
+              userId={userId}
+              wide
+              onPlay={onPlay}
+              onHd={setEpisodesHd}
+              onExpired={onExpired}
+            />
+          )}
+          <section className={series ? "mt-12" : ""}>
+            <h2 className="text-2xl font-bold">{t.title.similarHeading}</h2>
+            <Similar
+              connection={connection}
+              userId={userId}
+              itemId={item.id}
+              wide
+              onOpen={onOpen}
+              onExpired={onExpired}
+            />
+          </section>
         </div>
       </>
     );
@@ -451,17 +476,26 @@ function Episodes({
   onHd: (hd: boolean) => void;
   onExpired: () => void;
 }) {
-  const [seasonId, setSeasonId] = useState(title.initialSeasonId);
+  const [seasonId, setSeasonId] = useState<string | null>(title.initialSeasonId);
+  const [expanded, setExpanded] = useState(false);
   const [episodes, setEpisodes] = useState<Episode[] | null>(null);
   const [picking, setPicking] = useState(false);
   const expired = useEffectEvent(onExpired);
   const reportHd = useEffectEvent(onHd);
   const season = title.seasons.find((entry) => entry.id === seasonId);
+  const all = seasonId === ALL_SEASONS;
+
+  function choose(id: string) {
+    if (id === seasonId) return;
+    setEpisodes(null);
+    setExpanded(false);
+    setSeasonId(id);
+  }
 
   useEffect(() => {
     if (!seasonId) return;
     let current = true;
-    loadEpisodes(connection, userId, title.item.id, seasonId).then(
+    loadEpisodes(connection, userId, title.item.id, all ? null : seasonId).then(
       (loaded) => {
         if (!current) return;
         setEpisodes(loaded);
@@ -476,7 +510,60 @@ function Episodes({
     return () => {
       current = false;
     };
-  }, [connection, userId, title.item.id, seasonId]);
+  }, [connection, userId, title.item.id, seasonId, all]);
+
+  // Netflix web lists ten episodes and a chevron for the rest.
+  const shown = wide && !expanded && episodes ? episodes.slice(0, COLLAPSED_EPISODES) : episodes;
+
+  if (wide) {
+    return (
+      <section>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold">{t.title.episodes}</h2>
+          {title.seasons.length > 1 && (
+            <SeasonMenu
+              seasons={title.seasons}
+              selected={seasonId}
+              label={all ? t.title.allEpisodes : (season?.name ?? "")}
+              onPick={choose}
+            />
+          )}
+        </div>
+        {!all && title.seasons.length <= 1 && season && (
+          <p className="mt-2 text-sm font-bold text-white/80">{season.name}</p>
+        )}
+        <ol className="mt-4 grid">
+          {shown === null
+            ? Array.from({ length: 3 }, (_, index) => (
+                <li key={index} className="flex items-center gap-4 border-b border-white/15 py-6">
+                  <span className="aspect-video w-[150px] animate-pulse rounded bg-white/10" />
+                </li>
+              ))
+            : shown.map((episode, index) => (
+                <Fragment key={episode.id}>
+                  {all && episode.season != null && shown[index - 1]?.season !== episode.season && (
+                    <li className="pt-6 pb-2 text-lg font-bold">
+                      {t.title.season(episode.season)}
+                    </li>
+                  )}
+                  <EpisodeRow episode={episode} wide onPlay={() => onPlay(episode.id)} />
+                </Fragment>
+              ))}
+        </ol>
+        {episodes && episodes.length > COLLAPSED_EPISODES && (
+          <div className="relative mt-2 flex justify-center border-b-2 border-white/25">
+            <FocusButton
+              aria-label={expanded ? t.title.showLess : t.title.showMore}
+              onPress={() => setExpanded((value) => !value)}
+              className="grid size-11 translate-y-1/2 place-items-center rounded-full border-2 border-white/50 bg-[#2a2a2a] outline-none hover:border-white focused:border-white focused:bg-white focused:text-black"
+            >
+              <ChevronDownIcon className={`size-6 ${expanded ? "rotate-180" : ""}`} />
+            </FocusButton>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div className="mt-[22px]">
@@ -501,10 +588,7 @@ function Episodes({
           selected={seasonId}
           onPick={(id) => {
             setPicking(false);
-            if (id !== seasonId) {
-              setEpisodes(null);
-              setSeasonId(id);
-            }
+            choose(id);
           }}
           onClose={() => setPicking(false)}
         />
@@ -543,6 +627,55 @@ function EpisodeRow({
   const duration =
     episode.runtimeMinutes &&
     t.home.duration(Math.floor(episode.runtimeMinutes / 60), episode.runtimeMinutes % 60);
+  const still = (
+    <>
+      {episode.stillUrl && (
+        <img src={episode.stillUrl} alt="" loading="lazy" className="size-full object-cover" />
+      )}
+      {episode.progress !== undefined && (
+        <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/30">
+          <span
+            className="block h-full bg-[#e50914]"
+            style={{ width: `${Math.round(episode.progress * 100)}%` }}
+          />
+        </span>
+      )}
+    </>
+  );
+  if (wide) {
+    // Netflix web's row: the number, the still (a play button on hover), the name and length, and
+    // the synopsis under the name.
+    return (
+      <li className="border-b border-white/15">
+        <FocusButton
+          onPress={onPlay}
+          aria-label={name}
+          className="group flex w-full items-center gap-5 rounded-md px-4 py-6 text-left outline-none hover:bg-white/5 focused:bg-white/10"
+        >
+          <span className="w-8 flex-none text-center text-2xl text-white/70">
+            {episode.number ?? ""}
+          </span>
+          <span className="relative aspect-video w-[150px] flex-none overflow-hidden rounded bg-neutral-800">
+            {still}
+            <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100 group-focused:opacity-100">
+              <PlayCircleIcon className="size-10 rounded-full bg-black/40 text-white" />
+            </span>
+          </span>
+          <span className="grid min-w-0 flex-1 gap-2">
+            <span className="flex items-baseline justify-between gap-4">
+              <span className="text-base font-bold">{episode.title}</span>
+              {duration && <span className="flex-none text-base">{duration}</span>}
+            </span>
+            {episode.overview && (
+              <span className="line-clamp-3 text-sm leading-5 text-white/70">
+                {episode.overview}
+              </span>
+            )}
+          </span>
+        </FocusButton>
+      </li>
+    );
+  }
   return (
     <li className={wide ? "border-b border-white/15 py-4" : "mt-[22px]"}>
       <FocusButton
@@ -583,12 +716,14 @@ function Similar({
   connection,
   userId,
   itemId,
+  wide = false,
   onOpen,
   onExpired,
 }: {
   connection: Connection;
   userId: string;
   itemId: string;
+  wide?: boolean;
   onOpen: (item: MediaItem) => void;
   onExpired: () => void;
 }) {
@@ -615,6 +750,27 @@ function Similar({
   if (items?.length === 0) {
     return <p className="mt-6 text-white/60">{t.title.noSimilar}</p>;
   }
+  if (wide) {
+    return (
+      <ul className="mt-5 grid grid-cols-3 gap-4">
+        {(items ?? Array.from({ length: 6 }, () => null)).map((item, index) => (
+          <li key={item?.id ?? index}>
+            {item ? (
+              <SimilarCard
+                item={item}
+                connection={connection}
+                userId={userId}
+                onOpen={() => onOpen(item)}
+                onExpired={onExpired}
+              />
+            ) : (
+              <span className="block aspect-[4/5] animate-pulse rounded-md bg-white/10" />
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
     <ul className="mt-4 grid grid-cols-3 gap-1.5">
       {(items ?? Array.from({ length: 6 }, () => null)).map((item, index) => (
@@ -627,5 +783,187 @@ function Similar({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Netflix web's "More like this" card: the art with its length on top, then the rating, year and
+ * a "My list" button, and the synopsis.
+ */
+function SimilarCard(props: {
+  item: MediaItem;
+  connection: Connection;
+  userId: string;
+  onOpen: () => void;
+  onExpired: () => void;
+}) {
+  const { item, connection, userId } = props;
+  const [favorite, setFavoriteState] = useState(item.favorite);
+  const image = item.cardImage?.url ?? item.backdropUrl;
+  const length = item.runtimeMinutes
+    ? t.home.duration(Math.floor(item.runtimeMinutes / 60), item.runtimeMinutes % 60)
+    : null;
+
+  function toggle() {
+    const next = !favorite;
+    setFavoriteState(next);
+    setFavorite(connection, userId, item.id, next).catch((error: unknown) => {
+      setFavoriteState(!next);
+      if (error instanceof SessionExpiredError) props.onExpired();
+    });
+  }
+
+  return (
+    <div className="h-full overflow-hidden rounded-md bg-[#2f2f2f]">
+      <FocusButton
+        onPress={props.onOpen}
+        aria-label={item.title}
+        className="group relative block aspect-video w-full overflow-hidden outline-none focused:ring-4 focused:ring-white focused:ring-inset"
+      >
+        {image && (
+          <img
+            src={image}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="size-full object-cover"
+          />
+        )}
+        {!item.cardImage?.hasTitle && (
+          <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-3 pt-8 text-left text-base font-bold">
+            {item.title}
+          </span>
+        )}
+        {length && (
+          <span className="absolute top-2 right-3 text-base font-semibold [text-shadow:0_1px_3px_#000]">
+            {length}
+          </span>
+        )}
+        <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100 group-focused:opacity-100">
+          <PlayCircleIcon className="size-12 rounded-full bg-black/40 text-white" />
+        </span>
+      </FocusButton>
+      <div className="grid gap-3 p-4">
+        <div className="flex items-center gap-2.5">
+          {item.rating && (
+            <span className="border border-white/40 px-1.5 text-sm text-white/80">
+              {item.rating}
+            </span>
+          )}
+          {item.year && <span className="text-white/80">{item.year}</span>}
+          <span className="flex-1" />
+          <FocusButton
+            aria-label={t.home.myList}
+            aria-pressed={favorite}
+            onPress={toggle}
+            className="grid size-10 place-items-center rounded-full border-2 border-white/50 bg-[#2a2a2a]/60 outline-none hover:border-white focused:border-white focused:bg-white focused:text-black"
+          >
+            {favorite ? <CheckIcon className="size-5" /> : <PlusIcon className="size-5" />}
+          </FocusButton>
+        </div>
+        {item.overview && (
+          <p className="line-clamp-5 text-sm leading-[22px] text-white/80">{item.overview}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Netflix web's season menu: a bordered button with the season and a caret, opening a list of the
+ * seasons with their episode counts and "See all episodes" at the bottom.
+ */
+function SeasonMenu(props: {
+  seasons: Title["seasons"];
+  selected: string | null;
+  label: string;
+  onPick: (id: string) => void;
+}) {
+  const { seasons, selected, label, onPick } = props;
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const { ref, focusKey, focusSelf } = useFocusable({
+    focusKey: "SEASON_MENU",
+    isFocusBoundary: open,
+    trackChildren: true,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    focusSelf();
+    function key(event: KeyboardEvent) {
+      if (event.key !== "Escape" && event.key !== "GoBack" && event.key !== "BrowserBack") return;
+      // Closes the menu only, not the title underneath.
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    }
+    function outside(event: PointerEvent) {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    }
+    window.addEventListener("keydown", key, { capture: true });
+    window.addEventListener("pointerdown", outside, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", key, { capture: true });
+      window.removeEventListener("pointerdown", outside, { capture: true });
+    };
+  }, [open, focusSelf]);
+
+  function pick(id: string) {
+    setOpen(false);
+    onPick(id);
+  }
+
+  return (
+    <FocusContext.Provider value={focusKey}>
+      <div ref={box} className="relative">
+        <div ref={ref}>
+          <FocusButton
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            onPress={() => setOpen((value) => !value)}
+            className="inline-flex h-12 items-center gap-5 rounded-[4px] border border-white/40 bg-[#242424] px-5 text-lg font-bold outline-none hover:border-white focused:border-white focused:bg-white focused:text-black"
+          >
+            {label}
+            <CaretIcon className={`size-5 transition-transform ${open ? "rotate-180" : ""}`} />
+          </FocusButton>
+          {open && (
+            <ul
+              role="listbox"
+              className="absolute top-full right-0 z-20 mt-1 grid max-h-[60vh] min-w-full overflow-y-auto border border-white/25 bg-[#242424] py-2 whitespace-nowrap"
+            >
+              {seasons.map((option) => (
+                <li key={option.id}>
+                  <FocusButton
+                    role="option"
+                    aria-selected={option.id === selected}
+                    onPress={() => pick(option.id)}
+                    className="flex w-full items-baseline gap-2.5 px-4 py-2.5 text-left outline-none hover:bg-white/10 focused:bg-white/15"
+                  >
+                    <span className="text-lg font-bold">{option.name}</span>
+                    {option.episodeCount != null && (
+                      <span className="text-sm text-white/80">
+                        ({t.title.episodeCount(option.episodeCount)})
+                      </span>
+                    )}
+                  </FocusButton>
+                </li>
+              ))}
+              <li className="mx-4 my-2 border-t-2 border-white/20" aria-hidden="true" />
+              <li>
+                <FocusButton
+                  role="option"
+                  aria-selected={selected === ALL_SEASONS}
+                  onPress={() => pick(ALL_SEASONS)}
+                  className="w-full px-4 py-2.5 text-left text-lg font-bold outline-none hover:bg-white/10 focused:bg-white/15"
+                >
+                  {t.title.allEpisodes}
+                </FocusButton>
+              </li>
+            </ul>
+          )}
+        </div>
+      </div>
+    </FocusContext.Provider>
   );
 }
