@@ -16,9 +16,9 @@ export interface Account {
   onSignOut: () => void;
 }
 
-/** Netflix web's menu rows: 57 px tall, grey text that turns white and underlined on hover. */
+/** Netflix web's menu rows: 53 px tall, 4 px in from the sides, a rounded grey row on hover. */
 const ITEM =
-  "flex h-[57px] w-full items-center gap-4 px-[18px] text-left text-[16px] text-white/70 outline-none hover:text-white hover:underline focused:bg-white focused:text-black focused:no-underline";
+  "flex h-[53px] w-full items-center gap-4 rounded-lg px-3.5 text-left text-[16px] text-white/85 outline-none hover:bg-white/15 hover:text-white focused:bg-white focused:text-black";
 
 interface Props {
   account: Account;
@@ -59,7 +59,7 @@ export function AccountMenu({ account, onClose, openerKey, className }: Props) {
         ref={ref}
         role="menu"
         aria-label={t.account.menu}
-        className={`absolute z-10 grid w-[274px] rounded-lg border border-white/15 bg-[#181818] py-2 shadow-2xl ${className}`}
+        className={`absolute z-10 grid w-[274px] rounded-lg border border-white/10 bg-[#232323] p-1 shadow-2xl ${className}`}
       >
         {others.map((profile) => (
           <FocusButton
@@ -77,7 +77,7 @@ export function AccountMenu({ account, onClose, openerKey, className }: Props) {
           {t.account.manageProfiles}
         </FocusButton>
         {/* As on Netflix: sign out last, under a rule, as plain text. */}
-        <hr className="mt-1 mb-1 border-white/[0.07]" />
+        <hr className="-mx-1 my-1 border-white/[0.07]" />
         <FocusButton role="menuitem" className={ITEM} onPress={account.onSignOut}>
           {t.account.signOut}
         </FocusButton>
