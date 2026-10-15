@@ -201,7 +201,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
     >
       <FocusContext.Provider value={focusKey}>
         <div ref={ref} className="relative isolate flow-root min-h-dvh pb-28 sm:pb-16">
-          {!wide && featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
+          {featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
           <Header
             account={account}
             wide={wide}

@@ -88,7 +88,7 @@ export function GenrePage(props: Props) {
         onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 8)}
         className="fixed inset-0 isolate z-30 flow-root overflow-y-auto bg-black pb-28 sm:bg-[#141414] sm:pb-16"
       >
-        {!wide && featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
+        {featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
         <div
           className={`sticky top-0 z-20 flex items-center transition-colors duration-300 ${
             wide ? "h-20 gap-4 px-(--gutter)" : "h-[52px] gap-[18px] pr-4 pl-1.5"
