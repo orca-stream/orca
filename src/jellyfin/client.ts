@@ -21,7 +21,7 @@ export const jellyfin = new Jellyfin({
 export type Connection = Api;
 
 export function resumeSession(
-  session: Session,
+  session: Pick<Session, "serverUrl" | "accessToken">,
   sdk: Jellyfin = jellyfin,
   axiosInstance?: AxiosInstance,
 ): Connection {

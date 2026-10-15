@@ -1,4 +1,5 @@
 import { BaseItemKind } from "@jellyfin/sdk/lib/generated-client/models/base-item-kind";
+import { ImageType } from "@jellyfin/sdk/lib/generated-client/models/image-type";
 import { ItemSortBy } from "@jellyfin/sdk/lib/generated-client/models/item-sort-by";
 import { SortOrder } from "@jellyfin/sdk/lib/generated-client/models/sort-order";
 import { getGenreApi } from "@jellyfin/sdk/lib/utils/api/genre-api";
@@ -32,6 +33,19 @@ function items(connection: Connection, userId: string, query: object): Promise<M
       ...query,
     }),
   ).then((response) => toItems(connection, response.data.Items));
+}
+
+/**
+ * One title to show off behind the phone's profile picker, as Netflix does: a random one with a
+ * backdrop, and a title logo when one of a few has it. Null when the library has nothing to show.
+ */
+export async function spotlight(connection: Connection, userId: string): Promise<MediaItem | null> {
+  const found = await items(connection, userId, {
+    imageTypes: [ImageType.Backdrop],
+    sortBy: [ItemSortBy.Random],
+    limit: 6,
+  });
+  return found.find((item) => item.logoUrl) ?? found[0] ?? null;
 }
 
 /** Movies and series whose name matches what was typed. */

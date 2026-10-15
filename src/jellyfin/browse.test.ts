@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { loadGenre, loadGenres, search } from "./browse";
+import { loadGenre, loadGenres, search, spotlight } from "./browse";
 import { resumeSession } from "./client";
 import { fakeServer, testJellyfin } from "./fake-server";
 import type { Session } from "./session";
@@ -42,5 +42,31 @@ describe("categories", () => {
     await loadGenre(connection, "user-1", "Drama");
     expect(query().getAll("genres")).toEqual(["Drama"]);
     expect(query().has("parentId")).toBe(false);
+  });
+});
+
+describe("spotlight", () => {
+  it("picks a random title with a backdrop, preferring one with a logo", async () => {
+    const { connection, query } = against({
+      Items: [
+        { Id: "a", Type: "Movie", Name: "Plain", BackdropImageTags: ["b1"] },
+        {
+          Id: "b",
+          Type: "Series",
+          Name: "Logo",
+          BackdropImageTags: ["b2"],
+          ImageTags: { Logo: "l2" },
+        },
+      ],
+    });
+    const item = await spotlight(connection, "user-1");
+    expect(item?.title).toBe("Logo");
+    expect(query().getAll("imageTypes")).toEqual(["Backdrop"]);
+    expect(query().getAll("sortBy")).toEqual(["Random"]);
+  });
+
+  it("is null when the library has nothing", async () => {
+    const { connection } = against({ Items: [] });
+    expect(await spotlight(connection, "user-1")).toBeNull();
   });
 });

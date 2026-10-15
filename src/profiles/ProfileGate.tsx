@@ -4,7 +4,9 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
+import { useWideScreen } from "../ui/use-wide-screen";
 import { Avatar } from "./Avatar";
+import { PhoneProfiles } from "./PhoneProfiles";
 import { ProfileEditor } from "./ProfileEditor";
 
 interface Props {
@@ -42,6 +44,7 @@ export function ProfileGate({
   const editing = sessions.find((session) => sessionId(session) === editingId) ?? null;
   const { ref, focusKey, focusSelf } = useFocusable({ focusKey: "PROFILE_GATE" });
   const servers = new Set(sessions.map((session) => session.serverUrl));
+  const wide = useWideScreen();
 
   useEffect(() => {
     if (!removing && !editing) focusSelf();
@@ -74,6 +77,27 @@ export function ProfileGate({
     );
   }
 
+  const pickOrEdit = (session: Session) =>
+    managing ? setEditingId(sessionId(session)) : onPick(session);
+
+  if (!wide) {
+    return (
+      <FocusContext.Provider value={focusKey}>
+        <div ref={ref}>
+          <PhoneProfiles
+            sessions={sessions}
+            managing={managing}
+            showServers={servers.size > 1}
+            onTile={pickOrEdit}
+            onAdd={onAdd}
+            onToggleManaging={() => setManaging(!managing)}
+          />
+        </div>
+        {removeDialog}
+      </FocusContext.Provider>
+    );
+  }
+
   return (
     <FocusContext.Provider value={focusKey}>
       <main
@@ -95,7 +119,7 @@ export function ProfileGate({
                 focusKey={`PROFILE_${sessionId(session)}`}
                 className={TILE}
                 aria-label={managing ? t.profiles.editLabel(session.userName) : undefined}
-                onPress={() => (managing ? setEditingId(sessionId(session)) : onPick(session))}
+                onPress={() => pickOrEdit(session)}
               >
                 <span className="relative">
                   <Avatar session={session} className={TILE_IMAGE} />

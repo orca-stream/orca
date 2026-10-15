@@ -26,6 +26,8 @@ const es = {
   },
   profiles: {
     title: "¿Quién está viendo ahora?",
+    pick: "Elige tu perfil",
+    edit: "Editar",
     manageTitle: "Administrar perfiles",
     add: "Agregar perfil",
     manage: "Administrar perfiles",
@@ -219,6 +221,8 @@ const en: Messages = {
   },
   profiles: {
     title: "Who's watching?",
+    pick: "Choose your profile",
+    edit: "Edit",
     manageTitle: "Manage profiles",
     add: "Add profile",
     manage: "Manage profiles",
