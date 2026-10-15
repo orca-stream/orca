@@ -82,6 +82,8 @@ const es = {
     placeholder: "Buscar series y películas…",
     suggested: "Series y películas recomendadas",
     results: "Series y películas",
+    explore: "Más contenido para explorar:",
+    clear: "Borrar búsqueda",
     nothing: (term: string) => `No encontramos nada para «${term}».`,
   },
   account: {
@@ -175,6 +177,8 @@ const en: Messages = {
     placeholder: "Search shows and movies…",
     suggested: "Recommended TV shows & movies",
     results: "Shows & movies",
+    explore: "More to explore:",
+    clear: "Clear search",
     nothing: (term: string) => `We couldn't find anything for "${term}".`,
   },
   account: {

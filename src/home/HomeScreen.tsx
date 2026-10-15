@@ -7,6 +7,7 @@ import { loadHome, type Home, type Library, type MediaItem } from "../jellyfin/l
 import { setFavorite } from "../jellyfin/title";
 import { FocusButton } from "../navigation/Focusable";
 import { SearchPage } from "../search/SearchPage";
+import { SearchResults } from "../search/SearchResults";
 import { TitlePage } from "../title/TitlePage";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { Billboard, BillboardSkeleton, BILLBOARD_PLAY } from "./Billboard";
@@ -39,6 +40,9 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: "HOME" });
   const expired = useEffectEvent(onExpired);
   const { overlays, open, replace, close, closeAll } = useOverlays();
+  // Wide screens search in place, as Netflix web does: the results take the home's place.
+  const [searchTerm, setSearchTerm] = useState("");
+  const searching = wide && searchTerm.trim() !== "";
 
   useEffect(() => {
     let current = true;
@@ -159,12 +163,30 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
         <Header
           account={account}
           wide={wide}
-          filter={{ libraries, selected: libraryId, onSelect: selectLibrary }}
+          filter={{
+            libraries,
+            selected: libraryId,
+            onSelect: (id) => {
+              setSearchTerm("");
+              selectLibrary(id);
+            },
+          }}
           onSearch={() => open({ kind: "search" })}
+          search={{ term: searchTerm, onTerm: setSearchTerm }}
           onCategories={() => open({ kind: "categories" })}
         />
         <main>
-          {state.kind === "loading" && (
+          {searching && (
+            <SearchResults
+              connection={connection}
+              userId={userId}
+              term={searchTerm.trim()}
+              onOpen={openTitle}
+              onGenre={(genre) => open({ kind: "genre", name: genre })}
+              onExpired={onExpired}
+            />
+          )}
+          {!searching && state.kind === "loading" && (
             <>
               <BillboardSkeleton wide={wide} />
               <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-8 sm:gap-8">
@@ -173,7 +195,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
               </div>
             </>
           )}
-          {state.kind === "error" && (
+          {!searching && state.kind === "error" && (
             <Message text={t.home.loadError}>
               <FocusButton
                 focusKey="HOME_RETRY"
@@ -187,7 +209,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
               </FocusButton>
             </Message>
           )}
-          {state.kind === "ready" && (
+          {!searching && state.kind === "ready" && (
             <>
               {featured ? (
                 <Billboard

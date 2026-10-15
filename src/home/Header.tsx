@@ -2,7 +2,7 @@ import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-naviga
 import { useCallback, useEffect, useState } from "react";
 import { t } from "../i18n/locale";
 import type { Library } from "../jellyfin/library";
-import { FocusButton } from "../navigation/Focusable";
+import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
 import { ChevronDownIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { AccountMenu, type Account } from "./AccountMenu";
@@ -22,14 +22,21 @@ interface Props {
   filter: LibraryFilter;
   /** Wide screens get Netflix web's bar; phones, the app's title and filter chips. */
   wide: boolean;
+  /** Phones open the search screen; wide screens type into the header, as Netflix web does. */
   onSearch: () => void;
+  search: SearchState;
   onCategories: () => void;
 }
 
 const MENU_BUTTON = "ACCOUNT_MENU_BUTTON";
 
 /** Netflix's top bar. Turns solid once the page scrolls. */
-export function Header({ account, filter, wide, onSearch, onCategories }: Props) {
+export interface SearchState {
+  term: string;
+  onTerm: (term: string) => void;
+}
+
+export function Header({ account, filter, wide, onSearch, search, onCategories }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: "HEADER" });
   const [scrolled, setScrolled] = useState(false);
 
@@ -55,7 +62,7 @@ export function Header({ account, filter, wide, onSearch, onCategories }: Props)
         }`}
       >
         {wide ? (
-          <WideBar account={account} filter={filter} onSearch={onSearch} />
+          <WideBar account={account} filter={filter} search={search} />
         ) : (
           <PhoneBar filter={filter} onSearch={onSearch} onCategories={onCategories} />
         )}
@@ -88,14 +95,48 @@ function SearchButton({ onSearch, className }: { onSearch: () => void; className
 const NAV_ITEM =
   "rounded-full px-4 py-1.5 font-semibold text-white/80 outline-none hover:text-white aria-[current=page]:bg-white/15 aria-[current=page]:text-white focused:bg-white focused:text-black";
 
+/** Netflix web's search: a pill always in the header; the results replace the home below. */
+function SearchField({ search }: { search: SearchState }) {
+  return (
+    <label className="relative -mr-4 ml-auto flex h-12 w-[22rem] items-center gap-3 rounded-full border border-white/40 bg-black/40 px-4 focus-within:border-white">
+      <SearchIcon className="size-6 flex-none" />
+      <FocusInput
+        type="search"
+        value={search.term}
+        onChange={(event) => search.onTerm(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && search.term) {
+            event.preventDefault();
+            search.onTerm("");
+          }
+        }}
+        onFocus={scrollToTop}
+        placeholder={t.search.placeholder}
+        aria-label={t.search.placeholder}
+        enterKeyHint="search"
+        className="h-full min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/60 [&::-webkit-search-cancel-button]:hidden"
+      />
+      {search.term && (
+        <FocusButton
+          aria-label={t.search.clear}
+          onPress={() => search.onTerm("")}
+          className="grid size-7 flex-none place-items-center rounded-full border-2 border-white/60 text-white/80 outline-none hover:text-white focused:bg-white focused:text-black"
+        >
+          <CloseIcon className="size-3.5" strokeWidth={3} />
+        </FocusButton>
+      )}
+    </label>
+  );
+}
+
 function WideBar({
   account,
   filter,
-  onSearch,
+  search,
 }: {
   account: Account;
   filter: LibraryFilter;
-  onSearch: () => void;
+  search: SearchState;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   // Stable, so the open menu doesn't grab focus again every time the header re-renders.
@@ -134,7 +175,7 @@ function WideBar({
           ))}
         </ul>
       </nav>
-      <SearchButton onSearch={onSearch} className="-mr-6 ml-auto" />
+      <SearchField search={search} />
       <div className="relative">
         <FocusButton
           focusKey={MENU_BUTTON}
