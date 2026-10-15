@@ -207,10 +207,15 @@ function Details(props: DetailsProps) {
   );
   const people = (
     <>
-      {title.cast.length > 0 && <People label={t.title.cast} names={title.cast} />}
+      {title.cast.length > 0 && <People label={t.title.cast} names={title.cast} wide={wide} />}
       {title.creators.length > 0 && (
-        <People label={series ? t.title.creators : t.title.directors} names={title.creators} />
+        <People
+          label={series ? t.title.creators : t.title.directors}
+          names={title.creators}
+          wide={wide}
+        />
       )}
+      {wide && item.genres.length > 0 && <People label={t.title.genres} names={item.genres} wide />}
     </>
   );
   const actions = (
@@ -324,7 +329,7 @@ function Details(props: DetailsProps) {
             {meta}
             {item.overview && <p className="text-[15px] leading-6">{item.overview}</p>}
           </div>
-          <div className="grid content-start gap-2 text-sm">{people}</div>
+          <div className="grid content-start gap-4 text-sm">{people}</div>
         </div>
         <div className="mt-8 px-12 pb-12">
           {series && (
@@ -429,10 +434,14 @@ function Meta(props: { year?: number; rating?: string; extent?: string; hd: bool
   );
 }
 
-function People({ label, names }: { label: string; names: string[] }) {
+/**
+ * "Cast: …" and the like. A phone keeps each to one line, as the app does; wide screens show every
+ * name, wrapping, as Netflix web does beside the synopsis.
+ */
+function People({ label, names, wide }: { label: string; names: string[]; wide: boolean }) {
   return (
-    <p className="line-clamp-1 text-white/60">
-      <span>{label} </span>
+    <p className={wide ? "leading-[22px]" : "line-clamp-1 text-white/60"}>
+      <span className={wide ? "text-white/50" : ""}>{label} </span>
       <span>{names.join(", ")}</span>
     </p>
   );
