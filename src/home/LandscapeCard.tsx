@@ -1,6 +1,7 @@
 import { t } from "../i18n/locale";
 import type { MediaItem } from "../jellyfin/library";
 import { FocusButton } from "../navigation/Focusable";
+import { usePreview } from "./preview-context";
 
 interface Props {
   item: MediaItem;
@@ -16,12 +17,15 @@ interface Props {
 /** Netflix web's landscape card, for wide screens and TVs. */
 export function LandscapeCard({ item, onOpen, focusKey, onFocused, caption, showBadge }: Props) {
   const image = item.cardImage;
+  const preview = usePreview();
   const badge = showBadge && item.badge && item.progress === undefined ? item.badge : null;
   return (
     <FocusButton
       focusKey={focusKey}
       onFocused={onFocused}
       onPress={onOpen}
+      onPointerEnter={(event) => preview?.hover(item, event.currentTarget)}
+      onPointerLeave={() => preview?.leave()}
       aria-label={[item.title, caption].filter(Boolean).join(", ")}
       className="group block w-full text-left outline-none"
     >

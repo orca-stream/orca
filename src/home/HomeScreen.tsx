@@ -18,6 +18,7 @@ import { GenrePage } from "./GenrePage";
 import { Glow } from "./Glow";
 import { Header, type Account } from "./Header";
 import { useOverlays, type Overlay } from "./overlays";
+import { PreviewProvider } from "./Preview";
 import { firstCardKey } from "./focus-keys";
 import { scrollToTop } from "./scroll";
 import { Shelf, ShelfSkeleton } from "./Shelf";
@@ -191,104 +192,112 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   const featured = state.kind === "ready" ? state.home.featured : null;
 
   return (
-    <FocusContext.Provider value={focusKey}>
-      <div ref={ref} className="relative isolate flow-root min-h-dvh pb-28 sm:pb-16">
-        {!wide && featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
-        <Header
-          account={account}
-          wide={wide}
-          filter={{
-            libraries,
-            selected: libraryId,
-            onSelect: (id) => {
-              setSearchTerm("");
-              selectLibrary(id);
-            },
-          }}
-          onSearch={() => open({ kind: "search" })}
-          search={{ term: searchTerm, onTerm: setSearchTerm }}
-          onCategories={() => open({ kind: "categories" })}
-        />
-        <main>
-          {searching && (
-            <SearchResults
-              connection={connection}
-              userId={userId}
-              term={searchTerm.trim()}
-              onOpen={openTitle}
-              onGenre={(genre) => open({ kind: "genre", name: genre })}
-              onExpired={onExpired}
+    <PreviewProvider
+      connection={connection}
+      userId={userId}
+      onPlay={(item) => play(item.id)}
+      onOpen={openTitle}
+      onExpired={onExpired}
+    >
+      <FocusContext.Provider value={focusKey}>
+        <div ref={ref} className="relative isolate flow-root min-h-dvh pb-28 sm:pb-16">
+          {!wide && featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
+          <Header
+            account={account}
+            wide={wide}
+            filter={{
+              libraries,
+              selected: libraryId,
+              onSelect: (id) => {
+                setSearchTerm("");
+                selectLibrary(id);
+              },
+            }}
+            onSearch={() => open({ kind: "search" })}
+            search={{ term: searchTerm, onTerm: setSearchTerm }}
+            onCategories={() => open({ kind: "categories" })}
+          />
+          <main>
+            {searching && (
+              <SearchResults
+                connection={connection}
+                userId={userId}
+                term={searchTerm.trim()}
+                onOpen={openTitle}
+                onGenre={(genre) => open({ kind: "genre", name: genre })}
+                onExpired={onExpired}
+              />
+            )}
+            {!searching && state.kind === "loading" && (
+              <>
+                <BillboardSkeleton wide={wide} offset={wide ? WIDE_OFFSET : HOME_OFFSET} />
+                <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-8 sm:gap-8">
+                  <ShelfSkeleton wide={wide} />
+                  <ShelfSkeleton wide={wide} />
+                </div>
+              </>
+            )}
+            {!searching && state.kind === "error" && (
+              <Message text={t.home.loadError}>
+                <FocusButton
+                  focusKey="HOME_RETRY"
+                  onPress={() => {
+                    setState({ kind: "loading" });
+                    setAttempt((count) => count + 1);
+                  }}
+                  className="rounded-lg bg-white px-6 py-2.5 font-bold text-black outline-none hover:bg-white/80 focused:ring-4 focused:ring-white/50"
+                >
+                  {t.home.retry}
+                </FocusButton>
+              </Message>
+            )}
+            {!searching && state.kind === "ready" && (
+              <>
+                {featured ? (
+                  <Billboard
+                    item={featured}
+                    wide={wide}
+                    onPlay={() => play(featured.id)}
+                    onOpen={() => openTitle(featured)}
+                    onToggleList={() => toggleList(featured)}
+                    offset={wide ? WIDE_OFFSET : HOME_OFFSET}
+                  />
+                ) : (
+                  <div className="h-[128px] sm:h-24" />
+                )}
+                {state.home.shelves.length === 0 && !state.home.catalog ? (
+                  <Message text={t.home.empty} />
+                ) : (
+                  <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-10 sm:gap-10">
+                    {state.home.shelves.map((shelf) => (
+                      <Shelf key={shelf.id} shelf={shelf} wide={wide} onOpen={openTitle} />
+                    ))}
+                    {state.home.catalog && (
+                      <CatalogGrid catalog={state.home.catalog} wide={wide} onOpen={openTitle} />
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </main>
+          {overlays.map((overlay, index) => (
+            <Fragment key={index}>{renderOverlay(overlay)}</Fragment>
+          ))}
+          {!wide && (
+            <TabBar
+              account={account}
+              libraries={libraries}
+              selected={overlays.length > 0 ? "" : libraryId}
+              onTab={(id) => {
+                closeAll();
+                scrollToTop();
+                selectLibrary(id);
+              }}
             />
           )}
-          {!searching && state.kind === "loading" && (
-            <>
-              <BillboardSkeleton wide={wide} offset={wide ? WIDE_OFFSET : HOME_OFFSET} />
-              <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-8 sm:gap-8">
-                <ShelfSkeleton wide={wide} />
-                <ShelfSkeleton wide={wide} />
-              </div>
-            </>
-          )}
-          {!searching && state.kind === "error" && (
-            <Message text={t.home.loadError}>
-              <FocusButton
-                focusKey="HOME_RETRY"
-                onPress={() => {
-                  setState({ kind: "loading" });
-                  setAttempt((count) => count + 1);
-                }}
-                className="rounded-lg bg-white px-6 py-2.5 font-bold text-black outline-none hover:bg-white/80 focused:ring-4 focused:ring-white/50"
-              >
-                {t.home.retry}
-              </FocusButton>
-            </Message>
-          )}
-          {!searching && state.kind === "ready" && (
-            <>
-              {featured ? (
-                <Billboard
-                  item={featured}
-                  wide={wide}
-                  onPlay={() => play(featured.id)}
-                  onOpen={() => openTitle(featured)}
-                  onToggleList={() => toggleList(featured)}
-                  offset={wide ? WIDE_OFFSET : HOME_OFFSET}
-                />
-              ) : (
-                <div className="h-[128px] sm:h-24" />
-              )}
-              {state.home.shelves.length === 0 && !state.home.catalog ? (
-                <Message text={t.home.empty} />
-              ) : (
-                <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-10 sm:gap-10">
-                  {state.home.shelves.map((shelf) => (
-                    <Shelf key={shelf.id} shelf={shelf} wide={wide} onOpen={openTitle} />
-                  ))}
-                  {state.home.catalog && (
-                    <CatalogGrid catalog={state.home.catalog} wide={wide} onOpen={openTitle} />
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </main>
-        {overlays.map((overlay, index) => (
-          <Fragment key={index}>{renderOverlay(overlay)}</Fragment>
-        ))}
-        {!wide && (
-          <TabBar
-            account={account}
-            libraries={libraries}
-            selected={overlays.length > 0 ? "" : libraryId}
-            onTab={(id) => {
-              closeAll();
-              scrollToTop();
-              selectLibrary(id);
-            }}
-          />
-        )}
-      </div>
-    </FocusContext.Provider>
+        </div>
+      </FocusContext.Provider>
+    </PreviewProvider>
   );
 }
 

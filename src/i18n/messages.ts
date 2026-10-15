@@ -65,6 +65,7 @@ const es = {
     badgeNew: "Recién agregado",
     badgeNewEpisode: "Nuevo episodio",
     watchNow: "Ver ahora",
+    minutesOf: (watched: number, total: number) => `${watched} de ${total} min`,
   },
   title: {
     back: "Volver",
@@ -190,6 +191,7 @@ const en: Messages = {
     badgeNew: "Recently added",
     badgeNewEpisode: "New episode",
     watchNow: "Watch now",
+    minutesOf: (watched: number, total: number) => `${watched} of ${total}m`,
   },
   title: {
     back: "Back",
