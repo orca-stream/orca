@@ -72,7 +72,7 @@ export interface Home {
 
 export const TICKS_PER_MINUTE = 600_000_000;
 /** How long a title or an episode counts as new, as Netflix's tags do. */
-const NEW_FOR_MS = 14 * 24 * 60 * 60 * 1000;
+const NEW_FOR_MS = 7 * 24 * 60 * 60 * 1000;
 const SHELF_SIZE = 16;
 const CARD_WIDTH = 640;
 const POSTER_WIDTH = 480;

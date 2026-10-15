@@ -71,6 +71,8 @@ describe("toMediaItem", () => {
     const tag = (item: object) =>
       toMediaItem(connection, { Id: "x", Name: "X", ...item }, now).badge;
     expect(tag({ Type: "Movie", DateCreated: "2026-10-10T00:00:00Z" })).toBe("new");
+    // A week, not more: Jellyfin renews the date when files move or get rescanned.
+    expect(tag({ Type: "Movie", DateCreated: "2026-10-05T00:00:00Z" })).toBeUndefined();
     expect(tag({ Type: "Movie", DateCreated: "2026-09-01T00:00:00Z" })).toBeUndefined();
     expect(
       tag({

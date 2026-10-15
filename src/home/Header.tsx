@@ -187,13 +187,14 @@ function PhoneBar({ filter, onSearch, onCategories }: PhoneBarProps) {
 
   return (
     <>
-      <div className="flex h-14 items-center gap-[13px] pl-4">
+      <div className="flex h-[52px] items-center gap-[13px] pl-4">
         <Logo />
         <p className="truncate text-[23px] font-semibold">{selected?.name ?? t.home.nav}</p>
         <SearchButton onSearch={onSearch} className="mr-1.5 ml-auto" />
       </div>
-      <nav aria-label={t.home.libraries}>
-        <ul className="no-scrollbar mt-1.5 flex gap-[7px] overflow-x-auto px-4 py-1">
+      {/* 16 px above and below the chips, the same as the side margin (4 px of it make room for a focus ring). */}
+      <nav aria-label={t.home.libraries} className="pb-3">
+        <ul className="no-scrollbar flex gap-[7px] overflow-x-auto px-4 py-1">
           {selected ? (
             <>
               <li>

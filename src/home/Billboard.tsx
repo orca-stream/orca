@@ -11,10 +11,10 @@ const FRAME =
   "relative mx-(--gutter) mt-20 h-[68dvh] min-h-96 max-h-[56rem] overflow-hidden rounded-3xl";
 /**
  * The phone app's poster card, measured on a 393 px wide screen: 20 px in from each side (353 px
- * wide), 525 px tall, 11 px corners and a hairline light border, 126 px from the top.
+ * wide), 525 px tall, 11 px corners and a hairline light border, 16 px under the 112 px header.
  */
 const POSTER_FRAME =
-  "relative mx-5 mt-[126px] aspect-[353/525] overflow-hidden rounded-[11px] border border-white/30 shadow-2xl";
+  "relative mx-5 mt-[128px] aspect-[353/525] overflow-hidden rounded-[11px] border border-white/30 shadow-2xl";
 /** Netflix web's secondary button grey. */
 const GREY = "bg-[rgba(109,109,110,0.7)] text-white hover:bg-[rgba(109,109,110,0.4)]";
 

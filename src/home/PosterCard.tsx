@@ -9,13 +9,15 @@ interface Props {
   onFocused?: (node: HTMLElement) => void;
   /** Extra words for screen readers, such as the episode a "Next up" card plays. */
   caption?: string | null;
+  /** Netflix's "Recently added" tags, kept to the home's shelves so they stay meaningful. */
+  showBadge?: boolean;
 }
 
 /**
  * The phone app's poster: 111×155 on a 393-wide screen, 4 px corners, Netflix's red tags along the
  * bottom edge, and the progress bar inside the poster.
  */
-export function PosterCard({ item, onOpen, focusKey, onFocused, caption }: Props) {
+export function PosterCard({ item, onOpen, focusKey, onFocused, caption, showBadge }: Props) {
   return (
     <FocusButton
       focusKey={focusKey}
@@ -38,7 +40,7 @@ export function PosterCard({ item, onOpen, focusKey, onFocused, caption }: Props
             <span className="line-clamp-4">{item.title}</span>
           </span>
         )}
-        <Badge item={item} />
+        {showBadge && <Badge item={item} />}
         {item.progress !== undefined && (
           <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/30">
             <span

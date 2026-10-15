@@ -75,6 +75,7 @@ export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
                   onFocused={revealCard}
                   onOpen={() => onOpen(item)}
                   caption={episodeLabel(item)}
+                  showBadge
                 />
               )}
             </li>

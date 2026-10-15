@@ -197,7 +197,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
                   onToggleList={() => toggleList(featured)}
                 />
               ) : (
-                <div className="h-[126px] sm:h-24" />
+                <div className="h-[128px] sm:h-24" />
               )}
               {state.home.shelves.length === 0 ? (
                 <Message text={t.home.empty} />
