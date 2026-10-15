@@ -32,5 +32,20 @@ pnpm dev
 | `pnpm test`      | Vitest, single run                             |
 | `pnpm build`     | Typecheck and production build into `dist/`    |
 
+## Android app
+
+One APK for phones and Android TV, built with [Capacitor](https://capacitorjs.com) from `android/`.
+The built site ships inside the app (`dist/` is copied in by `cap sync`), so every change means a
+rebuild and reinstall. Needs JDK 21 and the Android SDK (`ANDROID_HOME`).
+
+| Script                | What it does                                                           |
+| --------------------- | ---------------------------------------------------------------------- |
+| `pnpm android:assets` | Renders launcher icons, TV banner and splash from `resources/*.svg`    |
+| `pnpm android:sync`   | Builds the site and copies it into the Android project                 |
+| `pnpm android:apk`    | Syncs, then builds `android/app/build/outputs/apk/debug/app-debug.apk` |
+
+Install it with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` (on Android TV,
+enable developer options and network debugging first, then `adb connect <tv-ip>`).
+
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/), enforced by a
 `commit-msg` hook (`.vite-hooks/`) and in CI.

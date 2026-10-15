@@ -21,5 +21,9 @@ export function getOrCreateDeviceId(store: KeyValueStore): string {
 export function detectDeviceName(userAgent: string): string {
   if (/web0s|webos/i.test(userAgent)) return "LG webOS TV";
   if (/xbox/i.test(userAgent)) return "Xbox";
+  // The Android app's WebView marks itself with "; wv)"; TVs give themselves away in the model name.
+  if (/android/i.test(userAgent) && /; wv\)/.test(userAgent)) {
+    return /\btv\b|atv|chromecast|bravia|\baft/i.test(userAgent) ? "Android TV" : "Android";
+  }
   return "Web browser";
 }
