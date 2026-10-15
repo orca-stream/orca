@@ -23,6 +23,12 @@ export interface MediaItem {
   runtimeMinutes?: number;
   /** How much was watched, from 0 to 1; absent when nothing was. */
   progress?: number;
+  /** Netflix's corner tag on a poster: added lately, or a series that got a new episode lately. */
+  badge?: "new" | "newEpisode";
+  /** In "My list", which is Jellyfin's favourites. */
+  favorite: boolean;
+  /** Rated with a thumbs up. */
+  liked: boolean;
   /** Landscape art for a card: a thumb, else a backdrop, else an episode still. */
   cardImage: CardImage | null;
   /** Portrait art for phones: the item's poster, or its series' poster for an episode. */
@@ -53,6 +59,8 @@ export type ShelfTitle =
 export interface Library {
   id: string;
   name: string;
+  /** Jellyfin's collection type: "movies" and "tvshows" get their own tabs on phones. */
+  type: string;
 }
 
 export interface Home {
@@ -62,7 +70,9 @@ export interface Home {
   shelves: Shelf[];
 }
 
-const TICKS_PER_MINUTE = 600_000_000;
+export const TICKS_PER_MINUTE = 600_000_000;
+/** How long a title or an episode counts as new, as Netflix's tags do. */
+const NEW_FOR_MS = 14 * 24 * 60 * 60 * 1000;
 const SHELF_SIZE = 16;
 const CARD_WIDTH = 640;
 const POSTER_WIDTH = 480;
@@ -70,12 +80,17 @@ const BACKDROP_WIDTH = 1920;
 const LOGO_WIDTH = 800;
 
 /** Fields the cards and the billboard read, on top of the ones every item carries. */
-const FIELDS = [ItemFields.Overview, ItemFields.Genres];
-const IMAGE_TYPES = [ImageType.Primary, ImageType.Thumb, ImageType.Backdrop, ImageType.Logo];
+export const FIELDS = [
+  ItemFields.Overview,
+  ItemFields.Genres,
+  ItemFields.DateCreated,
+  ItemFields.DateLastMediaAdded,
+];
+export const IMAGE_TYPES = [ImageType.Primary, ImageType.Thumb, ImageType.Backdrop, ImageType.Logo];
 /** Libraries that hold something to watch; music and books get their own screens later, if ever. */
 const VIDEO_LIBRARIES = new Set(["movies", "tvshows", "homevideos", "musicvideos"]);
 
-function imageUrl(
+export function imageUrl(
   connection: Connection,
   itemId: string,
   type: ImageType,
@@ -149,6 +164,15 @@ function logoUrl(connection: Connection, item: BaseItemDto): string | null {
   return null;
 }
 
+function badgeOf(item: BaseItemDto, now: number): MediaItem["badge"] {
+  if (item.Type !== "Movie" && item.Type !== "Series") return undefined;
+  const recent = (date: string | null | undefined) =>
+    date != null && now - Date.parse(date) < NEW_FOR_MS;
+  if (recent(item.DateCreated)) return "new";
+  if (item.Type === "Series" && recent(item.DateLastMediaAdded)) return "newEpisode";
+  return undefined;
+}
+
 const KINDS: Record<string, MediaItem["kind"]> = {
   Movie: "movie",
   Series: "series",
@@ -156,8 +180,13 @@ const KINDS: Record<string, MediaItem["kind"]> = {
 };
 
 /** Translates the server's item into what the UI draws. Exported for the tests. */
-export function toMediaItem(connection: Connection, item: BaseItemDto): MediaItem {
+export function toMediaItem(
+  connection: Connection,
+  item: BaseItemDto,
+  now = Date.now(),
+): MediaItem {
   const kind = KINDS[item.Type ?? ""] ?? "other";
+  const badge = badgeOf(item, now);
   const percentage = item.UserData?.PlayedPercentage;
   const backdrop = backdropOf(item);
   return {
@@ -181,6 +210,9 @@ export function toMediaItem(connection: Connection, item: BaseItemDto): MediaIte
       ? { runtimeMinutes: Math.round(item.RunTimeTicks / TICKS_PER_MINUTE) }
       : {}),
     ...(percentage ? { progress: Math.min(1, Math.max(0, percentage / 100)) } : {}),
+    ...(badge ? { badge } : {}),
+    favorite: item.UserData?.IsFavorite ?? false,
+    liked: item.UserData?.Likes ?? false,
     cardImage: cardImage(connection, item),
     posterUrl: posterUrl(connection, item),
     backdropUrl: backdrop
@@ -190,14 +222,22 @@ export function toMediaItem(connection: Connection, item: BaseItemDto): MediaIte
   };
 }
 
-function toItems(connection: Connection, items: BaseItemDto[] | null | undefined): MediaItem[] {
+export function toItems(
+  connection: Connection,
+  items: BaseItemDto[] | null | undefined,
+): MediaItem[] {
   return (items ?? []).filter((item) => item.Id).map((item) => toMediaItem(connection, item));
 }
 
-function expiredOr(error: unknown): unknown {
+export function expiredOr(error: unknown): unknown {
   return isAxiosError(error) && error.response?.status === 401
     ? new SessionExpiredError({ cause: error })
     : error;
+}
+
+/** Rejects with {@link SessionExpiredError} on 401, so every screen handles a revoked token alike. */
+export function orExpired<T>(promise: Promise<T>): Promise<T> {
+  return promise.catch((error: unknown) => Promise.reject(expiredOr(error)));
 }
 
 /** A shelf that fails to load is left out; a revoked token fails the whole screen. */
@@ -286,7 +326,11 @@ export async function loadHome(
 
   const loaded = shelves.filter((entry) => entry !== null);
   return {
-    libraries: libraries.map((view) => ({ id: view.Id!, name: view.Name ?? "" })),
+    libraries: libraries.map((view) => ({
+      id: view.Id!,
+      name: view.Name ?? "",
+      type: view.CollectionType ?? "",
+    })),
     featured: pickFeatured(loaded),
     shelves: loaded,
   };

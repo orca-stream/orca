@@ -1,13 +1,19 @@
 import { setFocus } from "@noriginmedia/norigin-spatial-navigation-core";
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
-import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { t } from "../i18n/locale";
 import { SessionExpiredError, type Connection } from "../jellyfin/client";
-import { loadHome, type Home, type Library } from "../jellyfin/library";
+import { loadHome, type Home, type Library, type MediaItem } from "../jellyfin/library";
+import { setFavorite } from "../jellyfin/title";
 import { FocusButton } from "../navigation/Focusable";
+import { SearchPage } from "../search/SearchPage";
+import { TitlePage } from "../title/TitlePage";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { Billboard, BillboardSkeleton, BILLBOARD_PLAY } from "./Billboard";
+import { Categories } from "./Categories";
+import { GenrePage } from "./GenrePage";
 import { Header, type Account } from "./Header";
+import { useOverlays, type Overlay } from "./overlays";
 import { firstCardKey } from "./focus-keys";
 import { scrollToTop } from "./scroll";
 import { Shelf, ShelfSkeleton } from "./Shelf";
@@ -32,6 +38,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   const wide = useWideScreen();
   const { ref, focusKey } = useFocusable({ focusKey: "HOME" });
   const expired = useEffectEvent(onExpired);
+  const { overlays, open, replace, close, closeAll } = useOverlays();
 
   useEffect(() => {
     let current = true;
@@ -58,10 +65,81 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
     setLibraryId(id);
   }
 
+  const openTitle = (item: MediaItem) => open({ kind: "title", id: item.id });
+
+  /** "My list" on the billboard: flips at once, flips back if the server says no. */
+  function toggleList(item: MediaItem) {
+    const flip = (favorite: boolean) =>
+      setState((current) =>
+        current.kind === "ready" && current.home.featured?.id === item.id
+          ? { ...current, home: { ...current.home, featured: { ...item, favorite } } }
+          : current,
+      );
+    flip(!item.favorite);
+    setFavorite(connection, userId, item.id, !item.favorite).catch((error: unknown) => {
+      flip(item.favorite);
+      if (error instanceof SessionExpiredError) onExpired();
+    });
+  }
+
+  function renderOverlay(overlay: Overlay) {
+    switch (overlay.kind) {
+      case "title":
+        return (
+          <TitlePage
+            connection={connection}
+            userId={userId}
+            itemId={overlay.id}
+            wide={wide}
+            onClose={close}
+            onOpen={openTitle}
+            onExpired={onExpired}
+          />
+        );
+      case "search":
+        return (
+          <SearchPage
+            connection={connection}
+            userId={userId}
+            wide={wide}
+            onClose={close}
+            onOpen={openTitle}
+            onExpired={onExpired}
+          />
+        );
+      case "categories":
+        return (
+          <Categories
+            connection={connection}
+            userId={userId}
+            libraryId={libraryId}
+            onPick={(genre) => replace({ kind: "genre", name: genre })}
+            onClose={close}
+            onExpired={onExpired}
+          />
+        );
+      case "genre":
+        return (
+          <GenrePage
+            connection={connection}
+            userId={userId}
+            genre={overlay.name}
+            libraryId={libraryId}
+            wide={wide}
+            onClose={close}
+            onOpen={openTitle}
+            onExpired={onExpired}
+          />
+        );
+    }
+  }
+
   // Land on Play, as Netflix does; without a billboard, on the first card; meanwhile, the header.
   // A phone is touched, not driven by arrows: a ring on Play would only look stuck.
+  // Read when the home changes, not a dependency: closing an overlay restores focus on its own.
+  const overlayOpen = useEffectEvent(() => overlays.length > 0);
   useEffect(() => {
-    if (!wide) return;
+    if (!wide || overlayOpen()) return;
     if (state.kind !== "ready") {
       void setFocus(state.kind === "error" ? "HOME_RETRY" : "HEADER");
       return;
@@ -77,17 +155,19 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   return (
     <FocusContext.Provider value={focusKey}>
       <div ref={ref} className="relative isolate flow-root min-h-dvh pb-28 sm:pb-16">
-        {!wide && featured && <Glow url={featured.posterUrl ?? featured.backdropUrl} />}
+        {!wide && featured && <Glow url={featured.backdropUrl ?? featured.posterUrl} />}
         <Header
           account={account}
           wide={wide}
           filter={{ libraries, selected: libraryId, onSelect: selectLibrary }}
+          onSearch={() => open({ kind: "search" })}
+          onCategories={() => open({ kind: "categories" })}
         />
         <main>
           {state.kind === "loading" && (
             <>
               <BillboardSkeleton wide={wide} />
-              <div className="mt-8 grid grid-cols-1 gap-8">
+              <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-8 sm:gap-8">
                 <ShelfSkeleton wide={wide} />
                 <ShelfSkeleton wide={wide} />
               </div>
@@ -101,7 +181,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
                   setState({ kind: "loading" });
                   setAttempt((count) => count + 1);
                 }}
-                className="rounded-lg bg-white px-6 py-2.5 font-bold text-black outline-none hover:bg-white/80 data-focused:ring-4 data-focused:ring-white/50"
+                className="rounded-lg bg-white px-6 py-2.5 font-bold text-black outline-none hover:bg-white/80 focused:ring-4 focused:ring-white/50"
               >
                 {t.home.retry}
               </FocusButton>
@@ -110,28 +190,39 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
           {state.kind === "ready" && (
             <>
               {featured ? (
-                <Billboard item={featured} wide={wide} />
+                <Billboard
+                  item={featured}
+                  wide={wide}
+                  onOpen={() => openTitle(featured)}
+                  onToggleList={() => toggleList(featured)}
+                />
               ) : (
-                <div className="h-32 sm:h-24" />
+                <div className="h-[126px] sm:h-24" />
               )}
               {state.home.shelves.length === 0 ? (
                 <Message text={t.home.empty} />
               ) : (
-                <div className="mt-6 grid grid-cols-1 gap-6 sm:mt-10 sm:gap-10">
+                <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-10 sm:gap-10">
                   {state.home.shelves.map((shelf) => (
-                    <Shelf key={shelf.id} shelf={shelf} wide={wide} />
+                    <Shelf key={shelf.id} shelf={shelf} wide={wide} onOpen={openTitle} />
                   ))}
                 </div>
               )}
             </>
           )}
         </main>
+        {overlays.map((overlay, index) => (
+          <Fragment key={index}>{renderOverlay(overlay)}</Fragment>
+        ))}
         {!wide && (
           <TabBar
             account={account}
-            onHome={() => {
+            libraries={libraries}
+            selected={overlays.length > 0 ? "" : libraryId}
+            onTab={(id) => {
+              closeAll();
               scrollToTop();
-              selectLibrary(null);
+              selectLibrary(id);
             }}
           />
         )}

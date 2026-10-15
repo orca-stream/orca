@@ -3,6 +3,7 @@ import { t } from "../i18n/locale";
 import type { MediaItem, Shelf as ShelfData, ShelfTitle } from "../jellyfin/library";
 import { FocusButton } from "../navigation/Focusable";
 import { cardKey } from "./focus-keys";
+import { PosterCard } from "./PosterCard";
 import { revealCard } from "./scroll";
 
 function titleOf(title: ShelfTitle): string {
@@ -23,8 +24,14 @@ function episodeLabel(item: MediaItem): string | null {
   return t.home.episode(episode.season, episode.number, episode.title);
 }
 
-/** Wide screens get landscape cards; phones, posters, as in the Netflix app. */
-export function Shelf({ shelf, wide }: { shelf: ShelfData; wide: boolean }) {
+interface ShelfProps {
+  shelf: ShelfData;
+  /** Wide screens get landscape cards; phones, posters, as in the Netflix app. */
+  wide: boolean;
+  onOpen: (item: MediaItem) => void;
+}
+
+export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
   // Coming back to a shelf lands on the card left last, like Netflix.
   const { ref, focusKey } = useFocusable({
     focusKey: `SHELF_${shelf.id}`,
@@ -40,13 +47,36 @@ export function Shelf({ shelf, wide }: { shelf: ShelfData; wide: boolean }) {
         aria-labelledby={`${headingId}-title`}
         className="scroll-mt-24"
       >
-        <h2 id={`${headingId}-title`} className="px-(--gutter) text-lg font-bold sm:text-2xl">
+        <h2
+          id={`${headingId}-title`}
+          className={
+            wide
+              ? "px-(--gutter) text-2xl font-bold"
+              : "px-3 pb-1.5 text-[16px] leading-[21px] font-semibold"
+          }
+        >
           {titleOf(shelf.title)}
         </h2>
-        <ul className="shelf relative flex gap-(--gap) overflow-x-auto px-(--gutter) pt-3 pb-4">
+        <ul
+          className={
+            wide
+              ? "shelf relative flex gap-(--gap) overflow-x-auto px-(--gutter) pt-3 pb-4"
+              : "no-scrollbar flex gap-1.5 overflow-x-auto px-3"
+          }
+        >
           {shelf.items.map((item) => (
-            <li key={item.id} className="shelf-card">
-              <Card item={item} focusKey={cardKey(shelf, item)} wide={wide} />
+            <li key={item.id} className={wide ? "shelf-card" : "poster-card"}>
+              {wide ? (
+                <Card item={item} focusKey={cardKey(shelf, item)} onOpen={() => onOpen(item)} />
+              ) : (
+                <PosterCard
+                  item={item}
+                  focusKey={cardKey(shelf, item)}
+                  onFocused={revealCard}
+                  onOpen={() => onOpen(item)}
+                  caption={episodeLabel(item)}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -58,27 +88,22 @@ export function Shelf({ shelf, wide }: { shelf: ShelfData; wide: boolean }) {
 interface CardProps {
   item: MediaItem;
   focusKey: string;
-  wide: boolean;
+  onOpen: () => void;
 }
 
-function Card({ item, focusKey, wide }: CardProps) {
+/** Netflix web's landscape card, for wide screens and TVs. */
+function Card({ item, focusKey, onOpen }: CardProps) {
   const caption = episodeLabel(item);
-  // A poster carries its title in the art; a card without art needs it written on top.
-  const image = wide
-    ? item.cardImage
-    : item.posterUrl
-      ? { url: item.posterUrl, hasTitle: true }
-      : null;
+  const image = item.cardImage;
   return (
     <FocusButton
       focusKey={focusKey}
       onFocused={revealCard}
+      onPress={onOpen}
       aria-label={[item.title, caption].filter(Boolean).join(", ")}
       className="group block w-full text-left outline-none"
     >
-      <span
-        className={`relative block overflow-hidden ${wide ? "aspect-video" : "aspect-[2/3]"} rounded-md bg-neutral-800 ring-white transition group-hover:brightness-110 group-data-focused:ring-4`}
-      >
+      <span className="relative block aspect-video overflow-hidden rounded-md bg-neutral-800 ring-white transition group-hover:brightness-110 group-focused:ring-4">
         {image && (
           <img
             src={image.url}
@@ -89,7 +114,7 @@ function Card({ item, focusKey, wide }: CardProps) {
           />
         )}
         {!image?.hasTitle && (
-          <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-2 pt-6 text-sm font-bold sm:p-3 sm:pt-8 sm:text-base">
+          <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-3 pt-8 text-base font-bold">
             <span className="line-clamp-2">{item.title}</span>
           </span>
         )}
@@ -97,13 +122,13 @@ function Card({ item, focusKey, wide }: CardProps) {
       {item.progress !== undefined && (
         <span className="mx-auto mt-2 block h-1 w-4/5 overflow-hidden rounded-full bg-white/30">
           <span
-            className="block h-full bg-red-600"
+            className="block h-full bg-[#e50914]"
             style={{ width: `${Math.round(item.progress * 100)}%` }}
           />
         </span>
       )}
       {caption && (
-        <span className="mt-1.5 block truncate text-xs text-white/60 sm:text-sm group-hover:text-white group-data-focused:text-white">
+        <span className="mt-1.5 block truncate text-sm text-white/60 group-hover:text-white group-focused:text-white">
           {caption}
         </span>
       )}
@@ -115,12 +140,16 @@ function Card({ item, focusKey, wide }: CardProps) {
 export function ShelfSkeleton({ wide }: { wide: boolean }) {
   return (
     <div aria-hidden="true" className="grid grid-cols-1 gap-3">
-      <div className="mx-(--gutter) h-6 w-48 rounded bg-white/10" />
-      <div className="shelf flex gap-(--gap) overflow-hidden px-(--gutter)">
+      <div className={`h-6 w-48 rounded bg-white/10 ${wide ? "mx-(--gutter)" : "mx-4"}`} />
+      <div
+        className={`flex overflow-hidden ${wide ? "shelf gap-(--gap) px-(--gutter)" : "gap-1.5 px-3"}`}
+      >
         {Array.from({ length: 7 }, (_, index) => (
           <div
             key={index}
-            className={`shelf-card animate-pulse ${wide ? "aspect-video" : "aspect-[2/3]"} rounded-md bg-white/10`}
+            className={`animate-pulse rounded-[4px] bg-white/10 ${
+              wide ? "shelf-card aspect-video" : "poster-card aspect-[111/155]"
+            }`}
           />
         ))}
       </div>

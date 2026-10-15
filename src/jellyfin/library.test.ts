@@ -66,6 +66,23 @@ describe("toMediaItem", () => {
     expect(item).not.toHaveProperty("progress");
   });
 
+  it("tags what was added lately, and a series that got a new episode", () => {
+    const now = Date.parse("2026-10-15T12:00:00Z");
+    const tag = (item: object) =>
+      toMediaItem(connection, { Id: "x", Name: "X", ...item }, now).badge;
+    expect(tag({ Type: "Movie", DateCreated: "2026-10-10T00:00:00Z" })).toBe("new");
+    expect(tag({ Type: "Movie", DateCreated: "2026-09-01T00:00:00Z" })).toBeUndefined();
+    expect(
+      tag({
+        Type: "Series",
+        DateCreated: "2025-01-01T00:00:00Z",
+        DateLastMediaAdded: "2026-10-14T00:00:00Z",
+      }),
+    ).toBe("newEpisode");
+    // An episode never carries a tag of its own: its series does.
+    expect(tag({ Type: "Episode", DateCreated: "2026-10-14T00:00:00Z" })).toBeUndefined();
+  });
+
   it("never crops a portrait poster into a card", () => {
     const item = toMediaItem(connection, {
       Id: "movie-2",
@@ -127,7 +144,7 @@ describe("loadHome", () => {
       { kind: "latest", library: "Películas" },
     ]);
     expect(home.featured?.id).toBe("movie-1");
-    expect(home.libraries).toEqual([{ id: "lib-movies", name: "Películas" }]);
+    expect(home.libraries).toEqual([{ id: "lib-movies", name: "Películas", type: "movies" }]);
     const latest = requests.find((request) => pathOf(request.url) === "/Items/Latest");
     const query = new URL(latest?.url ?? "").searchParams;
     expect(query.get("userId")).toBe("user-1");

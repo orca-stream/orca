@@ -17,10 +17,10 @@ interface Props {
 
 /** Shared by profile tiles and the add tile: the panel behind the focused one, Netflix-style. */
 const TILE =
-  "group grid w-32 justify-items-center gap-3 rounded-2xl p-3 outline-none transition-colors hover:bg-white/10 data-focused:bg-white/10 sm:w-40 sm:p-4";
+  "group grid w-32 justify-items-center gap-3 rounded-2xl p-3 outline-none transition-colors hover:bg-white/10 focused:bg-white/10 sm:w-40 sm:p-4";
 const TILE_IMAGE = "size-24 rounded-xl text-4xl sm:size-32 sm:text-5xl";
 const TILE_NAME =
-  "max-w-full truncate text-base text-white/60 group-hover:text-white group-data-focused:text-white sm:text-lg";
+  "max-w-full truncate text-base text-white/60 group-hover:text-white group-focused:text-white sm:text-lg";
 const PILL =
   "inline-flex items-center gap-2 rounded-full px-5 py-2.5 font-semibold outline-none transition-colors";
 
@@ -84,7 +84,7 @@ export function ProfileGate({
             <li>
               <FocusButton focusKey="PROFILE_ADD" className={TILE} onPress={onAdd}>
                 <span
-                  className={`grid place-items-center bg-white/10 text-white/70 group-hover:bg-white/20 group-data-focused:bg-white/20 ${TILE_IMAGE}`}
+                  className={`grid place-items-center bg-white/10 text-white/70 group-hover:bg-white/20 group-focused:bg-white/20 ${TILE_IMAGE}`}
                 >
                   <PlusIcon className="size-12" />
                 </span>
@@ -97,7 +97,7 @@ export function ProfileGate({
         <div>
           {managing ? (
             <FocusButton
-              className={`${PILL} bg-white text-black hover:bg-white/85 data-focused:ring-4 data-focused:ring-white/50`}
+              className={`${PILL} bg-white text-black hover:bg-white/85 focused:ring-4 focused:ring-white/50`}
               onPress={() => setManaging(false)}
             >
               <CheckIcon className="size-5" />
@@ -105,7 +105,7 @@ export function ProfileGate({
             </FocusButton>
           ) : (
             <FocusButton
-              className={`${PILL} border border-white/40 text-white/90 hover:border-white hover:text-white data-focused:border-white data-focused:bg-white data-focused:text-black`}
+              className={`${PILL} border border-white/40 text-white/90 hover:border-white hover:text-white focused:border-white focused:bg-white focused:text-black`}
               onPress={() => setManaging(true)}
             >
               <PencilIcon className="size-5" />
@@ -166,13 +166,13 @@ function RemoveDialog({ session, onCancel, onConfirm }: DialogProps) {
           <div className="mt-2 flex gap-3">
             <FocusButton
               focusKey="REMOVE_CANCEL"
-              className={`${PILL} bg-white/15 hover:bg-white/25 data-focused:bg-white data-focused:text-black`}
+              className={`${PILL} bg-white/15 hover:bg-white/25 focused:bg-white focused:text-black`}
               onPress={onCancel}
             >
               {t.profiles.cancel}
             </FocusButton>
             <FocusButton
-              className={`${PILL} bg-red-600 hover:bg-red-500 data-focused:ring-4 data-focused:ring-white`}
+              className={`${PILL} bg-red-600 hover:bg-red-500 focused:ring-4 focused:ring-white`}
               onPress={onConfirm}
             >
               {t.profiles.remove}

@@ -1,50 +1,72 @@
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { t } from "../i18n/locale";
+import type { Library } from "../jellyfin/library";
 import { FocusButton } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { HomeIcon } from "../ui/icons";
+import { FilmIcon, HomeIcon, TvIcon } from "../ui/icons";
 import { AccountMenu, type Account } from "./AccountMenu";
 
 const PROFILE_TAB = "TAB_PROFILE";
-const TAB =
-  "grid justify-items-center gap-1 rounded-full py-1.5 text-xs font-medium outline-none aria-[current=page]:bg-white/15 data-focused:bg-white data-focused:text-black";
 
 interface Props {
   account: Account;
-  /** Home again: drops the library filter and goes back to the top. */
-  onHome: () => void;
+  libraries: Library[];
+  /** The library the home is filtered to; null on the home itself. */
+  selected: string | null;
+  onTab: (libraryId: string | null) => void;
 }
 
-/** The phone app's floating tab bar. Search joins it when there is a search screen. */
-export function TabBar({ account, onHome }: Props) {
+/**
+ * The phone app's floating tab bar, measured on a 393 px wide screen: 324×62, 10 px off the bottom,
+ * a pill behind the current tab. Series and Movies take the place of Netflix's Clips and Search;
+ * search lives in the header.
+ */
+export function TabBar({ account, libraries, selected, onTab }: Props) {
   const { ref, focusKey } = useFocusable({ focusKey: "TAB_BAR" });
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const shows = libraries.find((library) => library.type === "tvshows");
+  const movies = libraries.find((library) => library.type === "movies");
 
   return (
     <FocusContext.Provider value={focusKey}>
       <nav
         ref={ref}
         aria-label={t.home.nav}
-        className="fixed inset-x-(--gutter) bottom-3 z-20 mx-auto max-w-sm"
+        className="fixed bottom-[max(10px,env(safe-area-inset-bottom))] left-1/2 z-40 w-[324px] max-w-[calc(100%-2rem)] -translate-x-1/2"
       >
-        <ul className="grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-neutral-900/90 p-1.5 shadow-2xl backdrop-blur-md">
-          <li>
-            <FocusButton aria-current="page" onPress={onHome} className={`${TAB} w-full`}>
-              <HomeIcon className="size-6" />
-              {t.home.nav}
-            </FocusButton>
-          </li>
-          <li className="relative">
+        <ul className="flex h-[62px] rounded-full border border-white/10 bg-[#262626]/95 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.6)] backdrop-blur-md">
+          <Tab label={t.home.nav} current={selected === null} onPress={() => onTab(null)}>
+            <HomeIcon className="size-[23px]" strokeWidth={1.5} />
+          </Tab>
+          {shows && (
+            <Tab
+              label={t.home.shows}
+              current={selected === shows.id}
+              onPress={() => onTab(shows.id)}
+            >
+              <TvIcon className="size-[23px]" strokeWidth={1.5} />
+            </Tab>
+          )}
+          {movies && (
+            <Tab
+              label={t.home.movies}
+              current={selected === movies.id}
+              onPress={() => onTab(movies.id)}
+            >
+              <FilmIcon className="size-[23px]" strokeWidth={1.5} />
+            </Tab>
+          )}
+          <li className="relative flex-1">
             <FocusButton
               focusKey={PROFILE_TAB}
               onPress={() => setMenuOpen((open) => !open)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className={`${TAB} w-full`}
+              className={TAB}
             >
-              <Avatar session={account.session} className="size-6 rounded text-xs" />
+              <Avatar session={account.session} className="size-[23px] rounded-[4px] text-xs" />
               {t.account.myProfile}
             </FocusButton>
             {menuOpen && (
@@ -59,5 +81,23 @@ export function TabBar({ account, onHome }: Props) {
         </ul>
       </nav>
     </FocusContext.Provider>
+  );
+}
+
+const TAB =
+  "grid size-full content-center justify-items-center gap-[3px] rounded-full text-[11px] leading-none text-white/85 outline-none aria-[current=page]:bg-white/12 aria-[current=page]:text-white focused:bg-white focused:text-black";
+
+function Tab(props: { label: string; current: boolean; onPress: () => void; children: ReactNode }) {
+  return (
+    <li className="flex-1">
+      <FocusButton
+        aria-current={props.current ? "page" : undefined}
+        onPress={props.onPress}
+        className={TAB}
+      >
+        {props.children}
+        {props.label}
+      </FocusButton>
+    </li>
   );
 }
