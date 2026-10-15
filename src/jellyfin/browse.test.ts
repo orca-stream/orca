@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { loadGenre, loadGenres, search, spotlight } from "./browse";
+import { loadGenre, loadGenres, search, spotlights } from "./browse";
 import { resumeSession } from "./client";
 import { fakeServer, testJellyfin } from "./fake-server";
 import type { Session } from "./session";
@@ -45,28 +45,23 @@ describe("categories", () => {
   });
 });
 
-describe("spotlight", () => {
-  it("picks a random title with a backdrop, preferring one with a logo", async () => {
+describe("spotlights", () => {
+  it("picks random titles that have a poster, at full phone width", async () => {
     const { connection, query } = against({
       Items: [
-        { Id: "a", Type: "Movie", Name: "Plain", BackdropImageTags: ["b1"] },
-        {
-          Id: "b",
-          Type: "Series",
-          Name: "Logo",
-          BackdropImageTags: ["b2"],
-          ImageTags: { Logo: "l2" },
-        },
+        { Id: "a", Type: "Movie", Name: "Plain", ImageTags: { Primary: "p1" } },
+        { Id: "b", Type: "Series", Name: "No poster", ImageTags: {} },
       ],
     });
-    const item = await spotlight(connection, "user-1");
-    expect(item?.title).toBe("Logo");
-    expect(query().getAll("imageTypes")).toEqual(["Backdrop"]);
+    const found = await spotlights(connection, "user-1");
+    expect(found.map((item) => item.title)).toEqual(["Plain"]);
+    expect(found[0]?.artUrl).toContain("/Items/a/Images/Primary?tag=p1&maxWidth=1080");
+    expect(query().getAll("imageTypes")).toEqual(["Primary"]);
     expect(query().getAll("sortBy")).toEqual(["Random"]);
   });
 
-  it("is null when the library has nothing", async () => {
+  it("is empty when the library has nothing", async () => {
     const { connection } = against({ Items: [] });
-    expect(await spotlight(connection, "user-1")).toBeNull();
+    expect(await spotlights(connection, "user-1")).toEqual([]);
   });
 });

@@ -8,6 +8,7 @@ import type { Connection } from "./client";
 import {
   FIELDS,
   IMAGE_TYPES,
+  imageUrl,
   orExpired,
   pickFeatured,
   shelf,
@@ -35,17 +36,50 @@ function items(connection: Connection, userId: string, query: object): Promise<M
   ).then((response) => toItems(connection, response.data.Items));
 }
 
+/** A title behind the phone's profile picker. */
+export interface Spotlight {
+  title: string;
+  /** The portrait poster, big enough to fill a phone screen. */
+  artUrl: string;
+}
+
+/** A phone is about 1080 px wide; the poster fills it edge to edge. */
+const SPOTLIGHT_WIDTH = 1080;
+const SPOTLIGHTS = 8;
+
 /**
- * One title to show off behind the phone's profile picker, as Netflix does: a random one with a
- * backdrop, and a title logo when one of a few has it. Null when the library has nothing to show.
+ * Titles to show off behind the phone's profile picker, one after another: random ones with a
+ * poster. Empty when the library has nothing to show.
  */
-export async function spotlight(connection: Connection, userId: string): Promise<MediaItem | null> {
-  const found = await items(connection, userId, {
-    imageTypes: [ImageType.Backdrop],
-    sortBy: [ItemSortBy.Random],
-    limit: 6,
-  });
-  return found.find((item) => item.logoUrl) ?? found[0] ?? null;
+export async function spotlights(connection: Connection, userId: string): Promise<Spotlight[]> {
+  const response = await orExpired(
+    getLibraryApi(connection).getItems({
+      userId,
+      recursive: true,
+      includeItemTypes: TITLES,
+      enableImageTypes: [ImageType.Primary],
+      imageTypeLimit: 1,
+      imageTypes: [ImageType.Primary],
+      sortBy: [ItemSortBy.Random],
+      limit: SPOTLIGHTS,
+    }),
+  );
+  return (response.data.Items ?? []).flatMap((item) =>
+    item.Id && item.ImageTags?.Primary
+      ? [
+          {
+            title: item.Name ?? "",
+            artUrl: imageUrl(
+              connection,
+              item.Id,
+              ImageType.Primary,
+              item.ImageTags.Primary,
+              SPOTLIGHT_WIDTH,
+            ),
+          },
+        ]
+      : [],
+  );
 }
 
 /** Movies and series whose name matches what was typed. */

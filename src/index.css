@@ -23,6 +23,16 @@
   }
 }
 
+/* A slow push-in on the profile picker's posters while each one is on screen. */
+@keyframes ken-burns {
+  from {
+    transform: scale(1.12);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
