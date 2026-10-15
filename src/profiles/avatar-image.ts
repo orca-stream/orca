@@ -9,7 +9,7 @@ export function squareCrop(width: number, height: number) {
 
 /**
  * Any picture (a library icon, a photo from the device) cropped to a centered square and shrunk to
- * {@link AVATAR_SIZE}, so a 12 MP photo uploads as ~50 KB. Rasterized too: the server stores
+ * at most {@link AVATAR_SIZE}, so a 12 MP photo uploads as ~50 KB. Rasterized too: the server stores
  * bitmaps, not SVG.
  */
 export async function pictureToAvatar(url: string): Promise<Blob> {
@@ -17,16 +17,19 @@ export async function pictureToAvatar(url: string): Promise<Blob> {
   image.src = url;
   await image.decode();
 
-  const canvas = document.createElement("canvas");
-  canvas.width = AVATAR_SIZE;
-  canvas.height = AVATAR_SIZE;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Canvas 2D isn't available");
   // SVGs without width/height report 0×0; they're drawn whole.
   const width = image.naturalWidth || AVATAR_SIZE;
   const height = image.naturalHeight || AVATAR_SIZE;
   const { x, y, size } = squareCrop(width, height);
-  context.drawImage(image, x, y, size, size, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+  // Shrunk, never enlarged: upscaling adds bytes, not detail.
+  const side = Math.min(size, AVATAR_SIZE);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D isn't available");
+  context.drawImage(image, x, y, size, size, 0, 0, side, side);
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
