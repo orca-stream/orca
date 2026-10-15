@@ -29,6 +29,8 @@ describe("toMediaItem", () => {
       ImageTags: { Primary: "still" },
       ParentThumbItemId: "series-1",
       ParentThumbImageTag: "thumb",
+      SeriesId: "series-1",
+      SeriesPrimaryImageTag: "series-poster",
     });
     expect(item).toMatchObject({
       kind: "episode",
@@ -40,6 +42,7 @@ describe("toMediaItem", () => {
         url: `${base}/series-1/Images/Thumb?tag=thumb&maxWidth=640&quality=90`,
         hasTitle: true,
       },
+      posterUrl: `${base}/series-1/Images/Primary?tag=series-poster&maxWidth=480&quality=90`,
     });
   });
 
@@ -71,21 +74,25 @@ describe("toMediaItem", () => {
       ImageTags: { Primary: "poster" },
     });
     expect(item.cardImage).toBeNull();
+    expect(item.posterUrl).toBe(
+      `${base}/movie-2/Images/Primary?tag=poster&maxWidth=480&quality=90`,
+    );
   });
 });
 
 /** The SDK writes the query into the URL, so routes match on the path alone. */
 const pathOf = (url: string | undefined) => new URL(url ?? "", "https://invalid").pathname;
 
-function homeAgainst(route: Route) {
+function homeAgainst(route: Route, libraryId?: string) {
   const { instance, requests } = fakeServer(route);
   return {
-    promise: loadHome(resumeSession(session, testJellyfin, instance), session.userId),
+    promise: loadHome(resumeSession(session, testJellyfin, instance), session.userId, libraryId),
     requests,
   };
 }
 
 const movies = { Id: "lib-movies", Name: "Películas", CollectionType: "movies" };
+const shows = { Id: "lib-shows", Name: "Series", CollectionType: "tvshows" };
 const music = { Id: "lib-music", Name: "Música", CollectionType: "music" };
 const featured = {
   Id: "movie-1",
@@ -120,10 +127,34 @@ describe("loadHome", () => {
       { kind: "latest", library: "Películas" },
     ]);
     expect(home.featured?.id).toBe("movie-1");
+    expect(home.libraries).toEqual([{ id: "lib-movies", name: "Películas" }]);
     const latest = requests.find((request) => pathOf(request.url) === "/Items/Latest");
     const query = new URL(latest?.url ?? "").searchParams;
     expect(query.get("userId")).toBe("user-1");
     expect(query.get("parentId")).toBe("lib-movies");
+  });
+
+  it("keeps every shelf to the chosen library", async () => {
+    const { promise, requests } = homeAgainst((config) => {
+      switch (pathOf(config.url)) {
+        case "/UserViews":
+          return { status: 200, data: { Items: [movies, shows] } };
+        case "/Items/Latest":
+          return { status: 200, data: [featured] };
+        default:
+          return { status: 200, data: { Items: [] } };
+      }
+    }, "lib-shows");
+    const home = await promise;
+    // The filter narrows the shelves, never the list of libraries offered as filters.
+    expect(home.libraries.map((library) => library.id)).toEqual(["lib-movies", "lib-shows"]);
+    expect(home.shelves.map((shelf) => shelf.title)).toEqual([
+      { kind: "latest", library: "Series" },
+    ]);
+    const parents = requests
+      .filter((request) => pathOf(request.url) !== "/UserViews")
+      .map((request) => new URL(request.url ?? "").searchParams.get("parentId"));
+    expect(parents).toEqual(["lib-shows", "lib-shows", "lib-shows"]);
   });
 
   it("leaves out a shelf that fails instead of failing the screen", async () => {

@@ -25,6 +25,8 @@ export interface MediaItem {
   progress?: number;
   /** Landscape art for a card: a thumb, else a backdrop, else an episode still. */
   cardImage: CardImage | null;
+  /** Portrait art for phones: the item's poster, or its series' poster for an episode. */
+  posterUrl: string | null;
   backdropUrl: string | null;
   logoUrl: string | null;
 }
@@ -47,7 +49,14 @@ export type ShelfTitle =
   | { kind: "nextUp" }
   | { kind: "latest"; library: string };
 
+/** A video library, offered as a filter (Netflix's "Series", "Movies"). */
+export interface Library {
+  id: string;
+  name: string;
+}
+
 export interface Home {
+  libraries: Library[];
   /** What the billboard features; null when the libraries are empty. */
   featured: MediaItem | null;
   shelves: Shelf[];
@@ -56,6 +65,7 @@ export interface Home {
 const TICKS_PER_MINUTE = 600_000_000;
 const SHELF_SIZE = 16;
 const CARD_WIDTH = 640;
+const POSTER_WIDTH = 480;
 const BACKDROP_WIDTH = 1920;
 const LOGO_WIDTH = 800;
 
@@ -108,6 +118,22 @@ function backdropOf(item: BaseItemDto): { itemId: string; tag: string } | null {
   return null;
 }
 
+function posterUrl(connection: Connection, item: BaseItemDto): string | null {
+  if (item.Type === "Episode") {
+    return item.SeriesId && item.SeriesPrimaryImageTag
+      ? imageUrl(
+          connection,
+          item.SeriesId,
+          ImageType.Primary,
+          item.SeriesPrimaryImageTag,
+          POSTER_WIDTH,
+        )
+      : null;
+  }
+  const own = item.ImageTags?.Primary;
+  return own ? imageUrl(connection, item.Id!, ImageType.Primary, own, POSTER_WIDTH) : null;
+}
+
 function logoUrl(connection: Connection, item: BaseItemDto): string | null {
   const own = item.ImageTags?.Logo;
   if (own) return imageUrl(connection, item.Id!, ImageType.Logo, own, LOGO_WIDTH);
@@ -156,6 +182,7 @@ export function toMediaItem(connection: Connection, item: BaseItemDto): MediaIte
       : {}),
     ...(percentage ? { progress: Math.min(1, Math.max(0, percentage / 100)) } : {}),
     cardImage: cardImage(connection, item),
+    posterUrl: posterUrl(connection, item),
     backdropUrl: backdrop
       ? imageUrl(connection, backdrop.itemId, ImageType.Backdrop, backdrop.tag, BACKDROP_WIDTH)
       : null,
@@ -200,10 +227,15 @@ function pickFeatured(shelves: Shelf[]): MediaItem | null {
 
 /**
  * Everything the home screen shows, loaded in parallel: continue watching, next up, and what was
- * added recently to each video library. Throws {@link SessionExpiredError} on 401, and the original
- * error when the libraries can't even be listed (offline, server down).
+ * added recently to each video library. With `libraryId`, every shelf keeps to that library.
+ * Throws {@link SessionExpiredError} on 401, and the original error when the libraries can't even
+ * be listed (offline, server down).
  */
-export async function loadHome(connection: Connection, userId: string): Promise<Home> {
+export async function loadHome(
+  connection: Connection,
+  userId: string,
+  libraryId?: string,
+): Promise<Home> {
   const library = getLibraryApi(connection);
   const common = { userId, fields: FIELDS, enableImageTypes: IMAGE_TYPES, imageTypeLimit: 1 };
 
@@ -217,10 +249,14 @@ export async function loadHome(connection: Connection, userId: string): Promise<
     (view) => view.Id && VIDEO_LIBRARIES.has(view.CollectionType ?? ""),
   );
 
+  const shown = libraryId ? libraries.filter((view) => view.Id === libraryId) : libraries;
+  const scope = libraryId ? { parentId: libraryId } : {};
+
   const shelves = await Promise.all([
     shelf("resume", { kind: "continueWatching" }, async () => {
       const { data } = await library.getResumeItems({
         ...common,
+        ...scope,
         limit: SHELF_SIZE,
         mediaTypes: [MediaType.Video],
       });
@@ -229,12 +265,13 @@ export async function loadHome(connection: Connection, userId: string): Promise<
     shelf("nextUp", { kind: "nextUp" }, async () => {
       const { data } = await getShowApi(connection).getNextUp({
         ...common,
+        ...scope,
         limit: SHELF_SIZE,
         enableResumable: false,
       });
       return toItems(connection, data.Items);
     }),
-    ...libraries.map((view) =>
+    ...shown.map((view) =>
       shelf(`latest-${view.Id}`, { kind: "latest", library: view.Name ?? "" }, async () => {
         const { data } = await library.getLatestMedia({
           ...common,
@@ -248,5 +285,9 @@ export async function loadHome(connection: Connection, userId: string): Promise<
   ]);
 
   const loaded = shelves.filter((entry) => entry !== null);
-  return { featured: pickFeatured(loaded), shelves: loaded };
+  return {
+    libraries: libraries.map((view) => ({ id: view.Id!, name: view.Name ?? "" })),
+    featured: pickFeatured(loaded),
+    shelves: loaded,
+  };
 }

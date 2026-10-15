@@ -23,7 +23,8 @@ function episodeLabel(item: MediaItem): string | null {
   return t.home.episode(episode.season, episode.number, episode.title);
 }
 
-export function Shelf({ shelf }: { shelf: ShelfData }) {
+/** Wide screens get landscape cards; phones, posters, as in the Netflix app. */
+export function Shelf({ shelf, wide }: { shelf: ShelfData; wide: boolean }) {
   // Coming back to a shelf lands on the card left last, like Netflix.
   const { ref, focusKey } = useFocusable({
     focusKey: `SHELF_${shelf.id}`,
@@ -45,7 +46,7 @@ export function Shelf({ shelf }: { shelf: ShelfData }) {
         <ul className="shelf relative flex gap-(--gap) overflow-x-auto px-(--gutter) pt-3 pb-4">
           {shelf.items.map((item) => (
             <li key={item.id} className="shelf-card">
-              <Card item={item} focusKey={cardKey(shelf, item)} />
+              <Card item={item} focusKey={cardKey(shelf, item)} wide={wide} />
             </li>
           ))}
         </ul>
@@ -54,8 +55,20 @@ export function Shelf({ shelf }: { shelf: ShelfData }) {
   );
 }
 
-function Card({ item, focusKey }: { item: MediaItem; focusKey: string }) {
+interface CardProps {
+  item: MediaItem;
+  focusKey: string;
+  wide: boolean;
+}
+
+function Card({ item, focusKey, wide }: CardProps) {
   const caption = episodeLabel(item);
+  // A poster carries its title in the art; a card without art needs it written on top.
+  const image = wide
+    ? item.cardImage
+    : item.posterUrl
+      ? { url: item.posterUrl, hasTitle: true }
+      : null;
   return (
     <FocusButton
       focusKey={focusKey}
@@ -63,17 +76,19 @@ function Card({ item, focusKey }: { item: MediaItem; focusKey: string }) {
       aria-label={[item.title, caption].filter(Boolean).join(", ")}
       className="group block w-full text-left outline-none"
     >
-      <span className="relative block aspect-video overflow-hidden rounded-md bg-neutral-800 ring-white transition group-hover:brightness-110 group-data-focused:ring-4">
-        {item.cardImage && (
+      <span
+        className={`relative block overflow-hidden ${wide ? "aspect-video" : "aspect-[2/3]"} rounded-md bg-neutral-800 ring-white transition group-hover:brightness-110 group-data-focused:ring-4`}
+      >
+        {image && (
           <img
-            src={item.cardImage.url}
+            src={image.url}
             alt=""
             loading="lazy"
             draggable={false}
             className="size-full object-cover"
           />
         )}
-        {!item.cardImage?.hasTitle && (
+        {!image?.hasTitle && (
           <span className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-2 pt-6 text-sm font-bold sm:p-3 sm:pt-8 sm:text-base">
             <span className="line-clamp-2">{item.title}</span>
           </span>
@@ -88,7 +103,7 @@ function Card({ item, focusKey }: { item: MediaItem; focusKey: string }) {
         </span>
       )}
       {caption && (
-        <span className="mt-1.5 block truncate text-sm text-white/60 group-hover:text-white group-data-focused:text-white">
+        <span className="mt-1.5 block truncate text-xs text-white/60 sm:text-sm group-hover:text-white group-data-focused:text-white">
           {caption}
         </span>
       )}
@@ -97,7 +112,7 @@ function Card({ item, focusKey }: { item: MediaItem; focusKey: string }) {
 }
 
 /** Grey cards in place of the shelves while the server answers. */
-export function ShelfSkeleton() {
+export function ShelfSkeleton({ wide }: { wide: boolean }) {
   return (
     <div aria-hidden="true" className="grid grid-cols-1 gap-3">
       <div className="mx-(--gutter) h-6 w-48 rounded bg-white/10" />
@@ -105,7 +120,7 @@ export function ShelfSkeleton() {
         {Array.from({ length: 7 }, (_, index) => (
           <div
             key={index}
-            className="shelf-card aspect-video animate-pulse rounded-md bg-white/10"
+            className={`shelf-card animate-pulse ${wide ? "aspect-video" : "aspect-[2/3]"} rounded-md bg-white/10`}
           />
         ))}
       </div>

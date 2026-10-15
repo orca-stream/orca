@@ -10,6 +10,10 @@
   }
 }
 
+@utility no-scrollbar {
+  scrollbar-width: none;
+}
+
 @layer base {
   body {
     @apply bg-[#141414] font-sans text-white antialiased;
@@ -17,15 +21,15 @@
 }
 
 @layer components {
-  /* A shelf shows N whole cards plus a peek of the next one, so it reads as scrollable. */
+  /*
+   * A shelf shows N whole cards plus a peek of the next one, so it reads as scrollable. Phones show
+   * posters and wide screens landscape cards, so both start at 3.3.
+   */
   .shelf {
     --gap: 0.5rem;
-    --cards: 2.3;
+    --cards: 3.3;
     scrollbar-width: none;
 
-    @media (width >= 40rem) {
-      --cards: 3.3;
-    }
     @media (width >= 64rem) {
       --cards: 5.3;
     }

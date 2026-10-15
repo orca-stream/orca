@@ -35,11 +35,14 @@ const es = {
   },
   home: {
     nav: "Inicio",
+    libraries: "Bibliotecas",
+    clearLibrary: "Quitar filtro",
     continueWatching: "Continuar viendo",
     nextUp: "Siguiente episodio",
     latest: (library: string) => `Recién agregado en ${library}`,
     play: "Reproducir",
     moreInfo: "Más información",
+    moreInfoShort: "Información",
     episode: (season: number, episode: number, title: string) =>
       `T${season}:E${episode} «${title}»`,
     duration: (hours: number, minutes: number) =>
@@ -50,6 +53,7 @@ const es = {
   },
   account: {
     menu: "Perfil y opciones",
+    myProfile: "Mi perfil",
     manageProfiles: "Administrar perfiles",
     signOut: "Cerrar sesión",
   },
@@ -91,11 +95,14 @@ const en: Messages = {
   },
   home: {
     nav: "Home",
+    libraries: "Libraries",
+    clearLibrary: "Clear filter",
     continueWatching: "Continue watching",
     nextUp: "Next up",
     latest: (library: string) => `Recently added in ${library}`,
     play: "Play",
     moreInfo: "More info",
+    moreInfoShort: "Info",
     episode: (season: number, episode: number, title: string) =>
       `S${season}:E${episode} "${title}"`,
     duration: (hours: number, minutes: number) =>
@@ -106,6 +113,7 @@ const en: Messages = {
   },
   account: {
     menu: "Profile and options",
+    myProfile: "My profile",
     manageProfiles: "Manage profiles",
     signOut: "Sign out",
   },
