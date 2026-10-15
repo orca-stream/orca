@@ -5,7 +5,7 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { PencilIcon, SignOutIcon } from "../ui/icons";
+import { PencilIcon } from "../ui/icons";
 
 export interface Account {
   session: Session;
@@ -16,8 +16,9 @@ export interface Account {
   onSignOut: () => void;
 }
 
+/** Netflix web's menu rows: 57 px tall, grey text that turns white and underlined on hover. */
 const ITEM =
-  "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left outline-none hover:bg-white/10 focused:bg-white focused:text-black";
+  "flex h-[57px] w-full items-center gap-4 px-[18px] text-left text-[16px] text-white/70 outline-none hover:text-white hover:underline focused:bg-white focused:text-black focused:no-underline";
 
 interface Props {
   account: Account;
@@ -58,7 +59,7 @@ export function AccountMenu({ account, onClose, openerKey, className }: Props) {
         ref={ref}
         role="menu"
         aria-label={t.account.menu}
-        className={`absolute grid w-64 gap-1 rounded-xl border border-white/15 bg-black/95 p-2 shadow-2xl ${className}`}
+        className={`absolute z-10 grid w-[274px] rounded-lg border border-white/15 bg-[#181818] py-2 shadow-2xl ${className}`}
       >
         {others.map((profile) => (
           <FocusButton
@@ -67,17 +68,17 @@ export function AccountMenu({ account, onClose, openerKey, className }: Props) {
             className={ITEM}
             onPress={() => account.onPickProfile(profile)}
           >
-            <Avatar session={profile} className="size-8 rounded-md text-base" />
+            <Avatar session={profile} className="size-9 flex-none rounded-[4px] text-base" />
             <span className="truncate">{profile.userName}</span>
           </FocusButton>
         ))}
-        {others.length > 0 && <hr className="my-1 border-white/15" />}
         <FocusButton role="menuitem" className={ITEM} onPress={account.onManageProfiles}>
-          <PencilIcon className="size-5" />
+          <PencilIcon className="size-[26px] flex-none" strokeWidth={1.5} />
           {t.account.manageProfiles}
         </FocusButton>
+        {/* As on Netflix: sign out last, under a rule, as plain text. */}
+        <hr className="mt-1 mb-1 border-white/[0.07]" />
         <FocusButton role="menuitem" className={ITEM} onPress={account.onSignOut}>
-          <SignOutIcon className="size-5" />
           {t.account.signOut}
         </FocusButton>
       </div>

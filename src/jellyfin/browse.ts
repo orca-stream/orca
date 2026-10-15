@@ -1,9 +1,19 @@
 import { BaseItemKind } from "@jellyfin/sdk/lib/generated-client/models/base-item-kind";
 import { ItemSortBy } from "@jellyfin/sdk/lib/generated-client/models/item-sort-by";
+import { SortOrder } from "@jellyfin/sdk/lib/generated-client/models/sort-order";
 import { getGenreApi } from "@jellyfin/sdk/lib/utils/api/genre-api";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api";
 import type { Connection } from "./client";
-import { FIELDS, IMAGE_TYPES, orExpired, toItems, type MediaItem } from "./library";
+import {
+  FIELDS,
+  IMAGE_TYPES,
+  orExpired,
+  pickFeatured,
+  shelf,
+  toItems,
+  type Home,
+  type MediaItem,
+} from "./library";
 
 /** Search and categories look for titles, never for single episodes. */
 const TITLES = [BaseItemKind.Movie, BaseItemKind.Series];
@@ -63,4 +73,57 @@ export function loadGenre(
     limit: 200,
     ...(libraryId ? { parentId: libraryId } : {}),
   });
+}
+
+const GENRE_SHELF = 16;
+
+/**
+ * A category's page, laid out like the home: a billboard and shelves of the genre's titles, newest,
+ * best rated, then movies and series apart. A shelf that fails is left out; 401 fails the page.
+ */
+export async function loadGenrePage(
+  connection: Connection,
+  userId: string,
+  genre: string,
+  libraryId?: string,
+): Promise<Omit<Home, "libraries">> {
+  const base = {
+    genres: [genre],
+    limit: GENRE_SHELF,
+    ...(libraryId ? { parentId: libraryId } : {}),
+  };
+  const descending = [SortOrder.Descending];
+  const shelves = (
+    await Promise.all([
+      shelf("recent", { kind: "recent" }, () =>
+        items(connection, userId, {
+          ...base,
+          sortBy: [ItemSortBy.DateCreated],
+          sortOrder: descending,
+        }),
+      ),
+      shelf("topRated", { kind: "topRated" }, () =>
+        items(connection, userId, {
+          ...base,
+          sortBy: [ItemSortBy.CommunityRating],
+          sortOrder: descending,
+        }),
+      ),
+      shelf("movies", { kind: "movies" }, () =>
+        items(connection, userId, {
+          ...base,
+          includeItemTypes: [BaseItemKind.Movie],
+          sortBy: [ItemSortBy.Random],
+        }),
+      ),
+      shelf("shows", { kind: "shows" }, () =>
+        items(connection, userId, {
+          ...base,
+          includeItemTypes: [BaseItemKind.Series],
+          sortBy: [ItemSortBy.Random],
+        }),
+      ),
+    ])
+  ).filter((entry) => entry !== null);
+  return { featured: pickFeatured(shelves), shelves };
 }

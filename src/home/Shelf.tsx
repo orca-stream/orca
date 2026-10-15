@@ -14,6 +14,14 @@ function titleOf(title: ShelfTitle): string {
       return t.home.nextUp;
     case "latest":
       return t.home.latest(title.library);
+    case "recent":
+      return t.home.recent;
+    case "topRated":
+      return t.home.topRated;
+    case "movies":
+      return t.home.moviesShelf;
+    case "shows":
+      return t.home.showsShelf;
   }
 }
 

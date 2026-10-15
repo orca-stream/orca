@@ -4,7 +4,7 @@ import { t } from "../i18n/locale";
 import type { Library } from "../jellyfin/library";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { ChevronDownIcon, CloseIcon, SearchIcon } from "../ui/icons";
+import { CaretIcon, ChevronDownIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { AccountMenu, type Account } from "./AccountMenu";
 import { scrollToTop } from "./scroll";
 
@@ -73,7 +73,7 @@ export function Header({ account, filter, wide, onSearch, search, onCategories }
 
 function Logo() {
   return (
-    <p className="text-[28px] leading-none font-black tracking-tight text-[#e50914] uppercase sm:text-3xl">
+    <p className="text-[28px] leading-none font-black tracking-tight text-[#e50914] uppercase sm:text-[26px]">
       orca
     </p>
   );
@@ -93,12 +93,18 @@ function SearchButton({ onSearch, className }: { onSearch: () => void; className
 }
 
 const NAV_ITEM =
-  "rounded-full px-4 py-1.5 font-semibold text-white/80 outline-none hover:text-white aria-[current=page]:bg-white/15 aria-[current=page]:text-white focused:bg-white focused:text-black";
+  "flex h-[38px] items-center rounded-full px-4 text-[15px] text-white/85 outline-none hover:text-white aria-[current=page]:bg-white/15 aria-[current=page]:font-semibold aria-[current=page]:text-white focused:bg-white focused:text-black";
 
-/** Netflix web's search: a pill always in the header; the results replace the home below. */
+/**
+ * Netflix web's search: a magnifier that widens into a pill when clicked or focused, and stays open
+ * while it holds a search. The results replace the home below.
+ */
 function SearchField({ search }: { search: SearchState }) {
   return (
-    <label className="relative -mr-4 ml-auto flex h-12 w-[22rem] items-center gap-3 rounded-full border border-white/40 bg-black/40 px-4 focus-within:border-white">
+    <label
+      data-open={search.term ? "" : undefined}
+      className="relative -mr-2 ml-auto flex h-12 w-12 cursor-pointer items-center gap-3 overflow-hidden rounded-full border border-transparent px-[11px] transition-[width,background-color,border-color] duration-300 ease-out focus-within:w-[22rem] focus-within:cursor-text focus-within:border-white/25 focus-within:bg-[#141414] data-open:w-[22rem] data-open:border-white/25 data-open:bg-[#141414]"
+    >
       <SearchIcon className="size-6 flex-none" />
       <FocusInput
         type="search"
@@ -110,7 +116,7 @@ function SearchField({ search }: { search: SearchState }) {
             search.onTerm("");
           }
         }}
-        onFocus={scrollToTop}
+        onFocus={() => scrollToTop()}
         placeholder={t.search.placeholder}
         aria-label={t.search.placeholder}
         enterKeyHint="search"
@@ -147,7 +153,7 @@ function WideBar({
   };
 
   return (
-    <div className="flex h-20 items-center gap-10 px-(--gutter)">
+    <div className="flex h-20 items-center gap-6 px-(--gutter)">
       <Logo />
       <nav aria-label={t.home.libraries}>
         <ul className="flex items-center gap-1">
@@ -184,19 +190,17 @@ function WideBar({
           aria-label={t.account.menu}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          className="group flex items-center gap-2 rounded-lg p-1 outline-none focused:ring-4 focused:ring-white/70"
+          className="flex h-10 items-center gap-2.5 rounded-md px-1 outline-none hover:bg-white/10 aria-expanded:bg-white/10 focused:ring-4 focused:ring-white/70"
         >
-          <Avatar session={account.session} className="size-10 rounded-md text-lg" />
-          <ChevronDownIcon
-            className={`size-4 transition-transform ${menuOpen ? "rotate-180" : ""}`}
-          />
+          <Avatar session={account.session} className="size-8 rounded-[4px] text-base" />
+          <CaretIcon className={`size-4 transition-transform ${menuOpen ? "rotate-180" : ""}`} />
         </FocusButton>
         {menuOpen && (
           <AccountMenu
             account={account}
             onClose={closeMenu}
             openerKey={MENU_BUTTON}
-            className="top-full right-0 mt-3"
+            className="top-full right-0 mt-1.5"
           />
         )}
       </div>

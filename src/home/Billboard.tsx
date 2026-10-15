@@ -7,14 +7,14 @@ import { scrollToTop } from "./scroll";
 
 export const BILLBOARD_PLAY = "BILLBOARD_PLAY";
 
-const FRAME =
-  "relative mx-(--gutter) mt-20 h-[68dvh] min-h-96 max-h-[56rem] overflow-hidden rounded-3xl";
+const FRAME = "relative mx-(--gutter) h-[68dvh] min-h-96 max-h-[56rem] overflow-hidden rounded-3xl";
 /**
  * The phone app's poster card, measured on a 393 px wide screen: 20 px in from each side (353 px
- * wide), 525 px tall, 11 px corners and a hairline light border, 16 px under the 112 px header.
+ * wide), 525 px tall, 11 px corners and a hairline light border. Its distance from the top depends
+ * on the bar above it, so the page sets it.
  */
 const POSTER_FRAME =
-  "relative mx-5 mt-[128px] aspect-[353/525] overflow-hidden rounded-[11px] border border-white/30 shadow-2xl";
+  "relative mx-5 aspect-[353/525] overflow-hidden rounded-[11px] border border-white/30 shadow-2xl";
 /** Netflix web's secondary button grey. */
 const GREY = "bg-[rgba(109,109,110,0.7)] text-white hover:bg-[rgba(109,109,110,0.4)]";
 
@@ -37,10 +37,12 @@ interface Props {
   wide: boolean;
   onOpen: () => void;
   onToggleList: () => void;
+  /** How far below the top bar the billboard starts, which depends on the page's bar. */
+  offset: string;
 }
 
 /** The big featured title on top of the home screen. */
-export function Billboard({ item, wide, onOpen, onToggleList }: Props) {
+export function Billboard({ item, wide, onOpen, onToggleList, offset }: Props) {
   const { ref, focusKey } = useFocusable({
     focusKey: "BILLBOARD",
     preferredChildFocusKey: BILLBOARD_PLAY,
@@ -48,7 +50,11 @@ export function Billboard({ item, wide, onOpen, onToggleList }: Props) {
 
   return (
     <FocusContext.Provider value={focusKey}>
-      <section ref={ref} aria-labelledby="billboard-title" className={wide ? FRAME : POSTER_FRAME}>
+      <section
+        ref={ref}
+        aria-labelledby="billboard-title"
+        className={`${wide ? FRAME : POSTER_FRAME} ${offset}`}
+      >
         {wide ? (
           <WideContent item={item} onOpen={onOpen} />
         ) : (
@@ -191,11 +197,11 @@ function PosterContent({
   );
 }
 
-export function BillboardSkeleton({ wide }: { wide: boolean }) {
+export function BillboardSkeleton({ wide, offset }: { wide: boolean; offset: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`${wide ? FRAME : POSTER_FRAME} animate-pulse bg-white/10`}
+      className={`${wide ? FRAME : POSTER_FRAME} ${offset} animate-pulse bg-white/10`}
     />
   );
 }

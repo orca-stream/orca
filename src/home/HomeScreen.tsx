@@ -13,12 +13,18 @@ import { useWideScreen } from "../ui/use-wide-screen";
 import { Billboard, BillboardSkeleton, BILLBOARD_PLAY } from "./Billboard";
 import { Categories } from "./Categories";
 import { GenrePage } from "./GenrePage";
+import { Glow } from "./Glow";
 import { Header, type Account } from "./Header";
 import { useOverlays, type Overlay } from "./overlays";
 import { firstCardKey } from "./focus-keys";
 import { scrollToTop } from "./scroll";
 import { Shelf, ShelfSkeleton } from "./Shelf";
 import { TabBar } from "./TabBar";
+
+/** The phone billboard sits 16 px under the 112 px header. */
+const HOME_OFFSET = "mt-[128px]";
+/** Wide screens: under the fixed 80 px header. */
+const WIDE_OFFSET = "mt-20";
 
 interface Props {
   connection: Connection;
@@ -117,6 +123,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
             connection={connection}
             userId={userId}
             libraryId={libraryId}
+            wide={wide}
             onPick={(genre) => replace({ kind: "genre", name: genre })}
             onClose={close}
             onExpired={onExpired}
@@ -188,7 +195,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
           )}
           {!searching && state.kind === "loading" && (
             <>
-              <BillboardSkeleton wide={wide} />
+              <BillboardSkeleton wide={wide} offset={wide ? WIDE_OFFSET : HOME_OFFSET} />
               <div className="mt-5 grid grid-cols-1 gap-[18px] sm:mt-8 sm:gap-8">
                 <ShelfSkeleton wide={wide} />
                 <ShelfSkeleton wide={wide} />
@@ -217,6 +224,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
                   wide={wide}
                   onOpen={() => openTitle(featured)}
                   onToggleList={() => toggleList(featured)}
+                  offset={wide ? WIDE_OFFSET : HOME_OFFSET}
                 />
               ) : (
                 <div className="h-[128px] sm:h-24" />
@@ -250,27 +258,6 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
         )}
       </div>
     </FocusContext.Provider>
-  );
-}
-
-/**
- * The phone app tints the top of the screen with the featured title's colours. A blurred copy of
- * its art does the same without computing any colour.
- */
-function Glow({ url }: { url: string | null }) {
-  if (!url) return null;
-  return (
-    <div
-      aria-hidden="true"
-      className="absolute inset-x-0 top-0 -z-10 h-[90dvh] overflow-hidden mask-b-from-40% mask-b-to-100%"
-    >
-      <img
-        src={url}
-        alt=""
-        // Larger than its frame: a blur darkens an image's edges, and those must stay off-screen.
-        className="absolute -inset-20 h-[calc(100%+10rem)] w-[calc(100%+10rem)] max-w-none object-cover opacity-60 blur-3xl saturate-150"
-      />
-    </div>
   );
 }
 

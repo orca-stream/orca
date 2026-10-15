@@ -17,6 +17,18 @@
   }
 }
 
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @utility no-scrollbar {
   scrollbar-width: none;
 }

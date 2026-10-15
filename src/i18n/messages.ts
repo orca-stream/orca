@@ -40,6 +40,10 @@ const es = {
     continueWatching: "Continuar viendo",
     nextUp: "Siguiente episodio",
     latest: (library: string) => `Recién agregado en ${library}`,
+    recent: "Recién agregado",
+    topRated: "Mejor valorados",
+    moviesShelf: "Películas",
+    showsShelf: "Series",
     play: "Reproducir",
     moreInfo: "Más información",
     episode: (season: number, episode: number, title: string) =>
@@ -135,6 +139,10 @@ const en: Messages = {
     continueWatching: "Continue watching",
     nextUp: "Next up",
     latest: (library: string) => `Recently added in ${library}`,
+    recent: "Recently added",
+    topRated: "Top rated",
+    moviesShelf: "Movies",
+    showsShelf: "Shows",
     play: "Play",
     moreInfo: "More info",
     episode: (season: number, episode: number, title: string) =>

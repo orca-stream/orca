@@ -53,7 +53,12 @@ export interface Shelf {
 export type ShelfTitle =
   | { kind: "continueWatching" }
   | { kind: "nextUp" }
-  | { kind: "latest"; library: string };
+  | { kind: "latest"; library: string }
+  // A category's page.
+  | { kind: "recent" }
+  | { kind: "topRated" }
+  | { kind: "movies" }
+  | { kind: "shows" };
 
 /** A video library, offered as a filter (Netflix's "Series", "Movies"). */
 export interface Library {
@@ -241,7 +246,7 @@ export function orExpired<T>(promise: Promise<T>): Promise<T> {
 }
 
 /** A shelf that fails to load is left out; a revoked token fails the whole screen. */
-async function shelf(
+export async function shelf(
   id: string,
   title: ShelfTitle,
   load: () => Promise<MediaItem[]>,
@@ -257,9 +262,9 @@ async function shelf(
 }
 
 /** The billboard features something recent with a backdrop, preferring one with a title logo. */
-function pickFeatured(shelves: Shelf[]): MediaItem | null {
+export function pickFeatured(shelves: Shelf[]): MediaItem | null {
   const candidates = shelves
-    .filter((shelf) => shelf.title.kind === "latest")
+    .filter((shelf) => shelf.title.kind === "latest" || shelf.title.kind === "recent")
     .flatMap((shelf) => shelf.items)
     .filter((item) => item.backdropUrl && (item.kind === "movie" || item.kind === "series"));
   return candidates.find((item) => item.logoUrl) ?? candidates[0] ?? null;
