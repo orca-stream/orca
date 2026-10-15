@@ -30,6 +30,12 @@ function serveDebugApk(): Plugin {
         res.setHeader("Cache-Control", "no-store");
         createReadStream(DEBUG_APK).pipe(res);
       });
+      // A short address that is easy to type on a phone or a TV remote.
+      server.middlewares.use("/dapk", (_req, res) => {
+        res.statusCode = 302;
+        res.setHeader("Location", "/downloads/orcajp.apk");
+        res.end();
+      });
     },
   };
 }
