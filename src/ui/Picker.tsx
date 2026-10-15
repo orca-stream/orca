@@ -51,27 +51,33 @@ export function Picker({ label, closeLabel, options, selected, onPick, onClose }
         aria-label={label}
         className="fixed inset-0 z-50 grid grid-rows-[1fr_auto] bg-black/85 backdrop-blur-sm"
       >
-        <ul className="no-scrollbar grid content-center justify-items-center gap-2 overflow-y-auto py-10">
-          {options.map((option) => {
-            const isSelected = option.id === selected;
-            return (
-              <li key={option.id}>
-                <FocusButton
-                  focusKey={isSelected ? SELECTED_KEY : undefined}
-                  aria-current={isSelected ? "true" : undefined}
-                  onPress={() => onPick(option.id)}
-                  className={`rounded px-4 py-2 outline-none focused:bg-white focused:text-black ${
-                    isSelected
-                      ? "text-[21px] font-bold text-white"
-                      : "text-lg text-white/60 hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </FocusButton>
-              </li>
-            );
-          })}
-        </ul>
+        {/*
+          Centred with auto margins, not `content-center`: a centred list longer than the screen
+          spills above the top, where it can't be scrolled to. Auto margins drop to 0 instead.
+        */}
+        <div className="no-scrollbar grid min-h-0 overflow-y-auto">
+          <ul className="my-auto grid justify-items-center gap-2 py-10">
+            {options.map((option) => {
+              const isSelected = option.id === selected;
+              return (
+                <li key={option.id}>
+                  <FocusButton
+                    focusKey={isSelected ? SELECTED_KEY : undefined}
+                    aria-current={isSelected ? "true" : undefined}
+                    onPress={() => onPick(option.id)}
+                    className={`rounded px-4 py-2 outline-none focused:bg-white focused:text-black ${
+                      isSelected
+                        ? "text-[21px] font-bold text-white"
+                        : "text-lg text-white/60 hover:text-white"
+                    }`}
+                  >
+                    {option.label}
+                  </FocusButton>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
         <div className="grid justify-items-center pt-2 pb-10">
           <FocusButton
             aria-label={closeLabel}
