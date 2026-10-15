@@ -16,7 +16,8 @@ render() {
 }
 
 # The adaptive icon's foreground is the mark without its black square (the background layer is
-# black already); the 256-unit artboard maps to the full 108dp layer, so the mark sits in the safe zone.
+# black already). Launchers show only the middle 72dp of the 108dp layer, so the artboard is drawn at
+# 64% of the layer: the mark ends up about half the visible icon tall, the size of Netflix's N.
 grep -v "<rect" "$brand/icon.svg" > "$tmp/mark.svg"
 
 for pair in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
@@ -30,7 +31,9 @@ for pair in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
   convert "$dir/ic_launcher.png" \
     \( -size "${icon}x${icon}" xc:none -fill white -draw "circle $((icon / 2)),$((icon / 2)) $((icon / 2)),0" \) \
     -compose DstIn -composite "$dir/ic_launcher_round.png"
-  render "$tmp/mark.svg" 256 "$layer" "$dir/ic_launcher_foreground.png"
+  render "$tmp/mark.svg" 256 $((layer * 64 / 100)) "$tmp/mark.png"
+  convert "$tmp/mark.png" -background none -gravity center -extent "${layer}x${layer}" \
+    "$dir/ic_launcher_foreground.png"
 done
 
 # Android TV launcher banner: 320x180 at xhdpi, the logotype centred on black.

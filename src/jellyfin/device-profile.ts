@@ -131,7 +131,7 @@ export function browserDeviceProfile(probe: MediaProbe): DeviceProfile {
   ];
 
   return {
-    Name: "ORCA'JP",
+    Name: "Orca'JP",
     MaxStreamingBitrate: MAX_BITRATE,
     MaxStaticBitrate: MAX_BITRATE,
     DirectPlayProfiles: directPlay,

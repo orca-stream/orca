@@ -38,7 +38,7 @@ export function CategorySheet({ genres, onPick, onClose }: Props) {
         />
         <ul
           ref={ref}
-          className="no-scrollbar absolute top-2 right-0 bottom-0 left-[34%] animate-[slide-in_250ms_ease-out] overflow-y-auto rounded-tl-2xl bg-[#232323] py-2 shadow-2xl"
+          className="no-scrollbar absolute top-[calc(0.5rem+env(safe-area-inset-top))] right-0 bottom-0 left-[34%] animate-[slide-in_250ms_ease-out] overflow-y-auto rounded-tl-2xl bg-[#232323] py-2 shadow-2xl"
         >
           {genres.map((genre) => (
             <li key={genre}>

@@ -25,6 +25,7 @@
     "@capacitor/android": "8.5.3",
     "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.5.3",
+    "@capacitor/screen-orientation": "8.0.2",
     "@jellyfin/sdk": "1.0.0",
     "@noriginmedia/norigin-spatial-navigation-core": "4.1.2",
     "@noriginmedia/norigin-spatial-navigation-react": "3.3.0",

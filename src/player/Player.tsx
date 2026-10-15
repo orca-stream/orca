@@ -37,6 +37,7 @@ import {
   VolumeIcon,
 } from "../ui/icons";
 import { browserEngine } from "./engine";
+import { fullScreen } from "./full-screen";
 import { formatTime } from "./time";
 
 interface Props {
@@ -183,28 +184,24 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
       const last = sourceRef.current;
       if (last) void playbackReports.stopped(connection, last, element?.currentTime ?? 0);
       running.destroy();
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      void fullScreen.exit();
     };
   }, [connection]);
 
-  // A phone plays in landscape, full screen, as the app does. Needs a tap that counts: the one on
-  // Play when opening, and the first one after leaving the app, which drops full screen.
+  // A phone plays in landscape, full screen, as the app does; the Android app goes full screen on
+  // any screen. A browser needs a tap that counts: the one on Play when opening, and the first one
+  // after leaving the app, which drops full screen.
+  // Leaving it with the button keeps it left: the next tap does not put it back.
+  const windowed = useRef(false);
   const landscape = useCallback(() => {
     const root = ref.current;
-    if (wide || !root || document.fullscreenElement) return;
-    root
-      .requestFullscreen?.()
-      .then(() => {
-        // The tap may have closed the player meanwhile.
-        if (!root.isConnected) return document.exitFullscreen();
-        return (screen.orientation as { lock?: (o: string) => Promise<void> }).lock?.("landscape");
-      })
-      .catch(() => {});
+    if (!root || windowed.current || fullScreen.active() || (wide && !fullScreen.always)) return;
+    void fullScreen.enter(root, !wide).then(setFullscreen);
   }, [wide, ref]);
   useEffect(() => landscape(), [landscape]);
 
   useEffect(() => {
-    const sync = () => setFullscreen(document.fullscreenElement !== null);
+    const sync = () => setFullscreen(fullScreen.active());
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
@@ -263,8 +260,10 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
   }
 
   function toggleFullscreen() {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    else void ref.current?.requestFullscreen?.().catch(() => {});
+    const root = ref.current;
+    windowed.current = fullScreen.active();
+    if (windowed.current) void fullScreen.exit().then(() => setFullscreen(false));
+    else if (root) void fullScreen.enter(root, !wide).then(setFullscreen);
   }
 
   /** Another item, or other tracks: the spinner shows until the new stream plays. */
@@ -614,6 +613,12 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
                   {next && (
                     <TextButton label={t.player.nextShort} onPress={playNext}>
                       <NextEpisodeIcon className="size-6" />
+                    </TextButton>
+                  )}
+                  {/* Only when opening it full screen did not take (a browser that wants a tap). */}
+                  {!fullscreen && (
+                    <TextButton label={t.player.fullscreen} onPress={toggleFullscreen}>
+                      <FullscreenIcon exit={false} className="size-6" />
                     </TextButton>
                   )}
                 </div>

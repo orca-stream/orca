@@ -105,7 +105,7 @@ export function ProfileGate({
         ref={ref}
         className="relative grid min-h-dvh place-content-center gap-10 bg-[radial-gradient(ellipse_at_50%_0%,#4a0d14_0%,#2a070b_45%,#0d0203_100%)] px-4 py-24 text-center"
       >
-        <Logo className="absolute top-8 left-4 sm:left-16" />
+        <Logo className="absolute top-[calc(2rem+env(safe-area-inset-top))] left-4 sm:left-16" />
 
         <h1 className="text-3xl font-bold sm:text-4xl">
           {managing ? t.profiles.manageTitle : t.profiles.title}

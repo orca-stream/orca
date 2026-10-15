@@ -82,7 +82,7 @@ export function ProfileEditor({ session, onChange, onRemove, onBack }: Props) {
         className="relative grid min-h-dvh place-content-center justify-items-center gap-6 bg-[radial-gradient(ellipse_at_50%_0%,#4a0d14_0%,#2a070b_45%,#0d0203_100%)] px-4 py-24 text-center"
       >
         <FocusButton
-          className="absolute top-6 left-4 grid size-11 place-items-center rounded-full outline-none hover:bg-white/10 focused:bg-white focused:text-black sm:left-16"
+          className="absolute top-[calc(1.5rem+env(safe-area-inset-top))] left-4 grid size-11 place-items-center rounded-full outline-none hover:bg-white/10 focused:bg-white focused:text-black sm:left-16"
           aria-label={t.profiles.back}
           onPress={onBack}
         >
@@ -179,7 +179,7 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="min-h-dvh bg-neutral-950 pb-16">
-        <header className="sticky top-0 z-10 grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-neutral-950/95 px-4 py-4 shadow-lg shadow-black/40 sm:px-16">
+        <header className="sticky top-0 z-10 grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-neutral-950/95 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-4 shadow-lg shadow-black/40 sm:px-16">
           <FocusButton
             className="grid size-11 place-items-center rounded-full outline-none hover:bg-white/10 focused:bg-white focused:text-black"
             aria-label={t.profiles.back}

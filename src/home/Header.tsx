@@ -52,7 +52,7 @@ export function Header({ account, filter, wide, onSearch, search, onCategories }
     <FocusContext.Provider value={focusKey}>
       <header
         ref={ref}
-        className={`fixed inset-x-0 top-0 z-20 transition-colors duration-300 ${
+        className={`fixed inset-x-0 top-0 z-20 pt-[env(safe-area-inset-top)] transition-colors duration-300 ${
           scrolled
             ? wide
               ? "bg-[#141414]"

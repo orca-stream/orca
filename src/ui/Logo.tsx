@@ -1,10 +1,10 @@
-/** The ORCA'JP logotype, in Netflix's red (source: resources/logotype.svg). */
+/** The Orca'JP logotype, in Netflix's red (source: resources/logotype.svg). */
 export function Logo({ className = "" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 949 256"
       role="img"
-      aria-label="ORCA'JP"
+      aria-label="Orca'JP"
       fill="#e50914"
       className={`h-[26px] w-auto shrink-0 sm:h-6 ${className}`}
     >

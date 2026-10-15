@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Shows behind the status bar where the WebView can't draw under it (older than 140). -->
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 
 

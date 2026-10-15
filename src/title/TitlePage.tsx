@@ -129,7 +129,7 @@ export function TitlePage(props: Props) {
           aria-modal="true"
           className="fixed inset-0 z-30 overflow-y-auto bg-black pb-28"
         >
-          <div className="sticky top-0 z-10 flex h-[52px] items-center bg-black px-1">
+          <div className="sticky top-0 z-10 box-content flex h-[52px] items-center bg-black px-1 pt-[env(safe-area-inset-top)]">
             <FocusButton
               aria-label={t.title.back}
               onPress={onClose}

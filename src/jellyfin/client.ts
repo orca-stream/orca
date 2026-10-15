@@ -7,9 +7,9 @@ import { browserStore } from "../storage";
 import { detectDeviceName, getOrCreateDeviceId } from "./device";
 import type { Session } from "./session";
 
-/** The app's single SDK instance: identifies ORCA'JP and this device to every server it talks to. */
+/** The app's single SDK instance: identifies Orca'JP and this device to every server it talks to. */
 export const jellyfin = new Jellyfin({
-  clientInfo: { name: "ORCA'JP", version: __APP_VERSION__ },
+  clientInfo: { name: "Orca'JP", version: __APP_VERSION__ },
   deviceInfo: {
     id: getOrCreateDeviceId(browserStore()),
     name: detectDeviceName(navigator.userAgent),

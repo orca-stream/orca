@@ -69,7 +69,7 @@ export function SearchPage({ connection, userId, wide, onClose, onOpen, onExpire
         aria-label={t.home.search}
         className="fixed inset-0 z-30 overflow-y-auto bg-black pb-28"
       >
-        <div className="sticky top-0 z-10 flex h-[52px] items-center gap-1 bg-[#2f2f2f] px-1">
+        <div className="sticky top-0 z-10 box-content flex h-[52px] items-center gap-1 bg-[#2f2f2f] px-1 pt-[env(safe-area-inset-top)]">
           <FocusButton
             aria-label={t.title.back}
             onPress={onClose}

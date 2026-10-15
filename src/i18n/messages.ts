@@ -56,7 +56,7 @@ const es = {
     scan: "Escanea este código con la cámara de tu teléfono y aprueba el inicio de sesión.",
     typeCode: "O, en un dispositivo donde ya entraste, abre «Vincular un dispositivo» y escribe:",
     codeOnly:
-      "En tu teléfono, abre ORCA'JP › tu perfil › «Vincular un dispositivo» (o Quick Connect en Jellyfin) y escribe:",
+      "En tu teléfono, abre Orca'JP › tu perfil › «Vincular un dispositivo» (o Quick Connect en Jellyfin) y escribe:",
     needServer: "Escribe la dirección del servidor para ver el código.",
     loading: "Generando código…",
     or: "o",
@@ -251,7 +251,7 @@ const en: Messages = {
     scan: "Scan this code with your phone's camera and approve the sign-in.",
     typeCode: "Or, on a device that's already signed in, open “Link a device” and enter:",
     codeOnly:
-      "On your phone, open ORCA'JP › your profile › “Link a device” (or Quick Connect in Jellyfin) and enter:",
+      "On your phone, open Orca'JP › your profile › “Link a device” (or Quick Connect in Jellyfin) and enter:",
     needServer: "Enter the server address to get a code.",
     loading: "Getting a code…",
     or: "or",
