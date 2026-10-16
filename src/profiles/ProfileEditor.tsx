@@ -5,6 +5,7 @@ import { AvatarForbiddenError, removeAvatar, uploadAvatar } from "../jellyfin/av
 import { resumeSession, SessionExpiredError } from "../jellyfin/client";
 import type { Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
+import { useBackKey } from "../navigation/use-back-key";
 import { BackIcon, PencilIcon, TrashIcon } from "../ui/icons";
 import { Avatar } from "./Avatar";
 import { photoToAvatar, pictureToAvatar } from "./avatar-image";
@@ -49,6 +50,7 @@ export function ProfileEditor({ session, onChange, onRemove, onBack }: Props) {
   useEffect(() => {
     if (!picking) focusSelf();
   }, [focusSelf, picking]);
+  useBackKey(onBack, { enabled: !picking });
 
   async function save(change: () => Promise<Session>) {
     setPicking(false);
@@ -171,6 +173,7 @@ interface PickerProps {
 /** Netflix's "choose a profile icon": a row per library folder, built-in faces last. */
 function IconPicker({ session, onPick, onBack }: PickerProps) {
   const { ref, focusKey, focusSelf } = useFocusable({ focusKey: "ICON_PICKER" });
+  useBackKey(onBack);
 
   useEffect(() => {
     focusSelf();
@@ -179,7 +182,10 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
   return (
     <FocusContext.Provider value={focusKey}>
       <main ref={ref} className="min-h-dvh bg-neutral-950 pb-16">
-        <header className="sticky top-0 z-10 grid grid-cols-[auto_1fr_auto] items-center gap-4 bg-neutral-950/95 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-4 shadow-lg shadow-black/40 sm:px-16">
+        {/* Not sticky: the arrows measure where things sit in the page, and a header stuck over the
+            rows would sit among them, so Up from a row would land on Back. It scrolls away, as on
+            Netflix's TV app, and comes back with the first row. */}
+        <header className="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-4 sm:px-16">
           <FocusButton
             className="grid size-11 place-items-center rounded-full outline-none hover:bg-white/10 focused:bg-white focused:text-black"
             aria-label={t.profiles.back}
@@ -198,8 +204,8 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
         </header>
 
         <div className="grid gap-8 px-4 pt-8 sm:px-16">
-          {AVATAR_LIBRARY.map((category) => (
-            <section key={category.title ?? ""} className="grid gap-3">
+          {AVATAR_LIBRARY.map((category, row) => (
+            <section key={category.title ?? ""} className="grid scroll-mt-4 scroll-mb-16 gap-3">
               <h2 className="text-lg font-bold sm:text-2xl">
                 {category.title ?? t.profiles.builtInIcons}
               </h2>
@@ -212,9 +218,7 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
                         category.title ?? t.profiles.builtInIcons,
                         index + 1,
                       )}
-                      onFocused={(node) =>
-                        node.scrollIntoView({ block: "nearest", inline: "nearest" })
-                      }
+                      onFocused={(node) => revealIcon(node, row === 0)}
                       onPress={() => onPick(icon.url)}
                     >
                       <img
@@ -234,4 +238,14 @@ function IconPicker({ session, onPick, onBack }: PickerProps) {
       </main>
     </FocusContext.Provider>
   );
+}
+
+/**
+ * Brings a focused icon into view with its whole row and the row's title, leaving room below it (a
+ * TV may crop the screen's edges). The first row brings the header back too.
+ */
+function revealIcon(node: HTMLElement, firstRow: boolean): void {
+  node.scrollIntoView({ block: "nearest", inline: "nearest" });
+  if (firstRow) window.scrollTo({ top: 0 });
+  else node.closest("section")?.scrollIntoView({ block: "nearest" });
 }

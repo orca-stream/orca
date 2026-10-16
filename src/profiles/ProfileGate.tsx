@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
+import { useBackKey } from "../navigation/use-back-key";
 import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
 import { Logo } from "../ui/Logo";
 import { useWideScreen } from "../ui/use-wide-screen";
@@ -50,6 +51,8 @@ export function ProfileGate({
   useEffect(() => {
     if (!removing && !editing) focusSelf();
   }, [focusSelf, removing, editing]);
+  // Back leaves "manage profiles" for the plain picker; with nothing to leave, it isn't taken.
+  useBackKey(() => setManaging(false), { enabled: managing && !editing && !removing });
 
   const removeDialog = removing && (
     <RemoveDialog
@@ -188,6 +191,7 @@ function RemoveDialog({ session, onCancel, onConfirm }: DialogProps) {
     isFocusBoundary: true,
     preferredChildFocusKey: "REMOVE_CANCEL",
   });
+  useBackKey(onCancel, { capture: true });
 
   useEffect(() => {
     focusSelf();
