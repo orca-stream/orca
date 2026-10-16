@@ -1,14 +1,9 @@
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import type { ComponentPropsWithoutRef, KeyboardEvent } from "react";
 import { caretCanMove } from "./caret";
-
-/**
- * The library moves DOM focus without scrolling (see spatial.ts), so whatever the arrows land on is
- * brought into view here; on a 540px-tall TV page the last card of a list starts below the fold.
- */
-function reveal(node: HTMLElement): void {
-  node.scrollIntoView({ block: "nearest", inline: "nearest" });
-}
+// The library moves DOM focus without scrolling (see spatial.ts), so whatever the arrows land on is
+// brought into view here; on a 540px-tall TV page the last card of a list starts below the fold.
+import { reveal } from "./reveal";
 
 interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "onClick"> {
   /** Runs on click, tap, Enter or the gamepad's A button. Not used by submit buttons. */
