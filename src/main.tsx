@@ -5,6 +5,7 @@ import App from "./App.tsx";
 import { locale } from "./i18n/locale";
 import { initBackButton } from "./navigation/back-button";
 import { initGamepadKeys } from "./navigation/gamepad-keys";
+import { initGamepadPolling } from "./navigation/gamepad-poll";
 import { initSpatialNavigation } from "./navigation/spatial";
 
 // index.html ships lang="en"; the page is in whatever language the browser asked for, and a wrong
@@ -12,6 +13,7 @@ import { initSpatialNavigation } from "./navigation/spatial";
 document.documentElement.lang = locale;
 
 initGamepadKeys();
+initGamepadPolling();
 initSpatialNavigation();
 void initBackButton();
 

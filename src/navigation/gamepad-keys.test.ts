@@ -40,12 +40,21 @@ describe("gamepadAlias", () => {
     expect(gamepadAlias("GamepadB", 196)).toBe("GoBack");
     expect(gamepadAlias("Unidentified", 205)).toBe("ArrowLeft");
     expect(gamepadAlias("", 213)).toBe("ArrowRight");
+    // The Xbox app's WebView2 sends B this way.
+    expect(gamepadAlias("Unidentified", 27)).toBe("GoBack");
+    expect(gamepadAlias("Unidentified", 40)).toBe("ArrowDown");
+  });
+
+  it("goes by keyCode only for unnamed keys, so a keyboard's Escape stays Escape", () => {
+    expect(gamepadAlias("Escape", 27)).toBeNull();
+    expect(gamepadAlias("ArrowLeft", 37)).toBeNull();
   });
 
   it("leaves ordinary keys alone", () => {
     expect(gamepadAlias("ArrowUp", 38)).toBeNull();
     expect(gamepadAlias("Enter", 13)).toBeNull();
     expect(gamepadAlias("Escape", 27)).toBeNull();
+    expect(gamepadAlias("ArrowLeft", 37)).toBeNull();
   });
 });
 

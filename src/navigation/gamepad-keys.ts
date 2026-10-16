@@ -1,9 +1,9 @@
 /**
  * An Xbox pad in Edge or in the app's WebView2 reports some buttons as keys of its own: A is
- * "GamepadA" (keyCode 195), B "GamepadB" (196), and on Windows the d-pad and left stick come as
- * 203–206 / 211–214 instead of arrows. Nothing else in the app knows those, and a key nobody takes
- * makes Edge fall back to its mouse-like cursor. So each one is swallowed and sent again as the key
- * the app already handles: Enter, GoBack, or an arrow.
+ * "GamepadA" (keyCode 195), B "GamepadB" (196) or an unnamed keyCode 27, and the d-pad and left
+ * stick may come as unnamed 203–206 / 211–214 instead of arrows. Nothing else in the app knows
+ * those, and a key nobody takes makes Edge fall back to its mouse-like cursor. So each one is
+ * swallowed and sent again as the key the app already handles: Enter, GoBack, or an arrow.
  */
 const ALIASES: Record<string, string> = {
   GamepadA: "Enter",
@@ -18,8 +18,18 @@ const ALIASES: Record<string, string> = {
   GamepadLeftThumbstickRight: "ArrowRight",
 };
 
-/** The same buttons by keyCode, for when `key` comes empty or "Unidentified". */
+/**
+ * The same buttons by keyCode, for when `key` comes empty or "Unidentified" — as the Xbox app's
+ * WebView2 sends B (keyCode 27, Escape's) and the left stick (37–40, the arrows'), with no key name
+ * any screen would recognise.
+ */
 const KEY_CODES: Record<number, string> = {
+  13: "Enter",
+  27: "GoBack",
+  37: "ArrowLeft",
+  38: "ArrowUp",
+  39: "ArrowRight",
+  40: "ArrowDown",
   195: "Enter",
   196: "GoBack",
   203: "ArrowUp",
@@ -34,7 +44,8 @@ const KEY_CODES: Record<number, string> = {
 
 /** The key the app should see for a pad's key event, or null when it is an ordinary key. */
 export function gamepadAlias(key: string, keyCode: number): string | null {
-  return ALIASES[key] ?? KEY_CODES[keyCode] ?? null;
+  const unnamed = key === "" || key === "Unidentified";
+  return ALIASES[key] ?? (unnamed ? KEY_CODES[keyCode] : undefined) ?? null;
 }
 
 /** Text fields keep A for themselves: it is what brings up the console's on-screen keyboard. */
