@@ -9,7 +9,7 @@ import { getMediaInfoApi } from "@jellyfin/sdk/lib/utils/api/media-info-api";
 import { getSessionApi } from "@jellyfin/sdk/lib/utils/api/session-api";
 import { getShowApi } from "@jellyfin/sdk/lib/utils/api/show-api";
 import type { Connection } from "./client";
-import { orExpired } from "./library";
+import { logoUrl, orExpired } from "./library";
 
 /** Jellyfin counts time in ticks of 100 ns. */
 export const TICKS_PER_SECOND = 10_000_000;
@@ -32,6 +32,8 @@ export interface PlayableItem {
   year?: number;
   rating?: string;
   overview?: string;
+  /** The title's logo (the series' for an episode), for the TV's pause screen. */
+  logo?: string;
 }
 
 export interface Track {
@@ -42,6 +44,8 @@ export interface Track {
 }
 
 export interface SubtitleTrack extends Track {
+  /** Only the lines in another language (signs, songs), not a full translation. */
+  forced?: boolean;
   /** A WebVTT file the video element shows on its own; without it, the server burns it in. */
   url?: string;
 }
@@ -73,7 +77,8 @@ export class PlaybackError extends Error {
   }
 }
 
-function toPlayable(item: BaseItemDto): PlayableItem {
+function toPlayable(connection: Connection, item: BaseItemDto): PlayableItem {
+  const logo = logoUrl(connection, item);
   const episode = item.Type === "Episode";
   const position = item.UserData?.Played ? 0 : (item.UserData?.PlaybackPositionTicks ?? 0);
   return {
@@ -94,6 +99,7 @@ function toPlayable(item: BaseItemDto): PlayableItem {
     ...(item.ProductionYear ? { year: item.ProductionYear } : {}),
     ...(item.OfficialRating ? { rating: item.OfficialRating } : {}),
     ...(item.Overview ? { overview: item.Overview } : {}),
+    ...(logo ? { logo } : {}),
   };
 }
 
@@ -107,7 +113,7 @@ export async function resolvePlayable(
   itemId: string,
 ): Promise<PlayableItem> {
   const { data: item } = await orExpired(getLibraryApi(connection).getItem({ itemId, userId }));
-  if (item.Type !== "Series") return toPlayable(item);
+  if (item.Type !== "Series") return toPlayable(connection, item);
 
   const shows = getShowApi(connection);
   const { data: next } = await orExpired(
@@ -120,14 +126,14 @@ export async function resolvePlayable(
     }),
   );
   const upNext = next.Items?.[0];
-  if (upNext?.Id) return toPlayable(upNext);
+  if (upNext?.Id) return toPlayable(connection, upNext);
 
   const { data: all } = await orExpired(
     shows.getEpisodes({ seriesId: itemId, userId, limit: 1, fields: OVERVIEW }),
   );
   const first = all.Items?.[0];
   if (!first?.Id) throw new PlaybackError("NoEpisodes");
-  return toPlayable(first);
+  return toPlayable(connection, first);
 }
 
 /** The episode after this one, across seasons; null after the last. */
@@ -148,7 +154,7 @@ export async function nextEpisode(
   );
   const next = data.Items?.[1];
   // Up next starts from the top, whatever was watched of it before.
-  return next?.Id ? { ...toPlayable(next), resumeAt: 0 } : null;
+  return next?.Id ? { ...toPlayable(connection, next), resumeAt: 0 } : null;
 }
 
 function trackLabel(stream: MediaStream): string {
@@ -250,6 +256,7 @@ export async function requestPlayback(
       label: trackLabel(stream),
       ...(stream.Language ? { language: stream.Language } : {}),
       default: Boolean(stream.IsDefault),
+      ...(stream.IsForced ? { forced: true } : {}),
       ...(stream.DeliveryMethod === "External" && stream.DeliveryUrl
         ? {
             url: stream.IsExternalUrl ? stream.DeliveryUrl : `${base}${stream.DeliveryUrl}`,

@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { t } from "../i18n/locale";
+import { locale, t } from "../i18n/locale";
 import { SessionExpiredError, type Connection } from "../jellyfin/client";
 import { browserDeviceProfile, browserProbe } from "../jellyfin/device-profile";
 import {
@@ -21,24 +21,30 @@ import {
   type PlaybackChoice,
   type PlaybackSource,
 } from "../jellyfin/playback";
+import { loadRating, saveRating, type Rating } from "../jellyfin/rating";
 import { FocusButton } from "../navigation/Focusable";
-import { keepScreenOn } from "../host";
+import { keepScreenOn, onXbox } from "../host";
 import { browserStore, readItem, writeItem } from "../storage";
 import {
   BackIcon,
   CheckIcon,
   CloseIcon,
+  DoubleThumbUpIcon,
   ForwardIcon,
   FullscreenIcon,
   NextEpisodeIcon,
   PauseIcon,
   PlayIcon,
+  RestartIcon,
   RewindIcon,
   SubtitlesIcon,
+  ThumbDownIcon,
+  ThumbUpIcon,
   VolumeIcon,
 } from "../ui/icons";
 import { browserEngine } from "./engine";
 import { fullScreen } from "./full-screen";
+import { presetChoice, trackPresets, type TrackPreset } from "./presets";
 import { formatTime } from "./time";
 
 interface Props {
@@ -90,6 +96,8 @@ function deviceProfile() {
 export function Player({ connection, userId, itemId, onClose, onExpired, ...props }: Props) {
   // Turning a phone sideways makes it as wide as a laptop; the layout it opened with stays.
   const [wide] = useState(props.wide);
+  // The console: Netflix's TV player, which keeps its controls up while paused.
+  const tv = wide && onXbox;
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLTrackElement>(null);
   const [cues, setCues] = useState<string[]>([]);
@@ -183,6 +191,34 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     };
   }, [connection, userId, request?.playable]);
 
+  // The TV's thumbs rate the show, not the episode, as Netflix does.
+  const rated = request ? (request.playable.seriesId ?? request.playable.id) : null;
+  const [rating, setRating] = useState<Rating | null>(null);
+  useEffect(() => {
+    if (!tv || !rated) return;
+    let current = true;
+    loadRating(connection, userId, rated).then(
+      (found) => current && setRating(found),
+      () => {},
+    );
+    return () => {
+      current = false;
+      setRating(null);
+    };
+  }, [tv, connection, userId, rated]);
+
+  /** The same thumb again takes the rating back; a failed save puts the old one back. */
+  function rate(choice: Rating) {
+    if (!rated) return;
+    const before = rating;
+    const after = before === choice ? null : choice;
+    setRating(after);
+    saveRating(connection, userId, rated, after).catch((error: unknown) => {
+      setRating(before);
+      if (error instanceof SessionExpiredError) onExpired();
+    });
+  }
+
   // Leaving: the server hears where it stopped (and ends its transcode).
   useEffect(() => {
     const running = engine.current;
@@ -215,8 +251,8 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
 
   // A phone keeps its controls while paused, as the app does; wide screens hide them for the
   // pause screen.
-  const visible = controls || (paused && !wide) || panel || buffering || failure !== null;
-  const pauseScreen = wide && paused && !visible;
+  const visible = controls || (paused && (!wide || tv)) || panel || buffering || failure !== null;
+  const pauseScreen = wide && !tv && paused && !visible;
 
   const wake = useCallback(() => {
     setControls(true);
@@ -470,7 +506,13 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
           <div
             aria-live="off"
             className={`pointer-events-none absolute inset-x-0 grid justify-items-center px-[10%] text-center text-[clamp(18px,3.4vw,46px)] leading-tight font-medium transition-[bottom] duration-300 [text-shadow:0_0_4px_#000,0_0_2px_#000,0_2px_4px_#000] ${
-              visible && failure === null ? (wide ? "bottom-36" : "bottom-28") : "bottom-[9%]"
+              visible && failure === null
+                ? tv
+                  ? "bottom-[28%]"
+                  : wide
+                    ? "bottom-36"
+                    : "bottom-28"
+                : "bottom-[9%]"
             }`}
           >
             {cues.map((cue, index) => (
@@ -516,121 +558,155 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
               else wake();
             }}
           >
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/70 to-transparent" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-black/80 to-transparent" />
+            {tv && playable ? (
+              <TvControls
+                playable={playable}
+                paused={paused}
+                position={position}
+                duration={end}
+                presets={source ? trackPresets(source, locale, t.player.withSubtitles) : []}
+                tracks={
+                  source !== null &&
+                  (source.audioTracks.length > 1 || source.subtitleTracks.length > 0)
+                }
+                rating={rating}
+                onTogglePlay={togglePlay}
+                onSeek={seek}
+                onScrub={wake}
+                onBack={onClose}
+                onRestart={() => seek(0)}
+                onNext={next ? playNext : undefined}
+                onPreset={(preset) => source && pick(presetChoice(source, preset))}
+                onTracks={() => setPanel(true)}
+                onRate={rate}
+              />
+            ) : (
+              <>
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-linear-to-b from-black/70 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-black/80 to-transparent" />
 
-            <div
-              className={`absolute inset-x-0 top-0 flex items-center ${
-                wide ? "p-6" : "h-14 gap-3 px-3 pt-[env(safe-area-inset-top)]"
-              }`}
-            >
-              <FocusButton
-                aria-label={t.player.back}
-                onPress={onClose}
-                className="grid size-12 place-items-center rounded-full outline-none hover:scale-110 focused:bg-white focused:text-black"
-              >
-                <BackIcon className={wide ? "size-9" : "size-7"} />
-              </FocusButton>
-              {!wide && <div className="min-w-0 flex-1 text-center">{heading}</div>}
-              {!wide && <span className="size-12 flex-none" />}
-            </div>
-
-            {!wide && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-[12vw]">
-                <ControlButton label={t.player.rewind} onPress={() => seek(now() - SKIP)} big>
-                  <RewindIcon className="size-11" />
-                </ControlButton>
-                <ControlButton
-                  focusKey={PLAY_PAUSE}
-                  label={paused ? t.player.play : t.player.pause}
-                  onPress={togglePlay}
-                  big
+                <div
+                  className={`absolute inset-x-0 top-0 flex items-center ${
+                    wide ? "p-6" : "h-14 gap-3 px-3 pt-[env(safe-area-inset-top)]"
+                  }`}
                 >
-                  {paused ? <PlayIcon className="size-14" /> : <PauseIcon className="size-14" />}
-                </ControlButton>
-                <ControlButton label={t.player.forward} onPress={() => seek(now() + SKIP)} big>
-                  <ForwardIcon className="size-11" />
-                </ControlButton>
-              </div>
-            )}
-
-            <div
-              className={`absolute inset-x-0 bottom-0 ${
-                wide ? "px-6 pb-5" : "px-5 pb-[max(12px,env(safe-area-inset-bottom))]"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <Timeline position={position} duration={end} onSeek={seek} onScrub={wake} />
-                <span className="flex-none text-sm tabular-nums sm:text-base">
-                  {formatTime(Math.max(0, end - position))}
-                </span>
-              </div>
-
-              {wide ? (
-                <div className="mt-3 flex items-center gap-5">
-                  <ControlButton
-                    focusKey={PLAY_PAUSE}
-                    label={paused ? t.player.play : t.player.pause}
-                    onPress={togglePlay}
+                  <FocusButton
+                    aria-label={t.player.back}
+                    onPress={onClose}
+                    className="grid size-12 place-items-center rounded-full outline-none hover:scale-110 focused:bg-white focused:text-black"
                   >
-                    {paused ? <PlayIcon className="size-10" /> : <PauseIcon className="size-10" />}
-                  </ControlButton>
-                  <ControlButton label={t.player.rewind} onPress={() => seek(now() - SKIP)}>
-                    <RewindIcon className="size-10" />
-                  </ControlButton>
-                  <ControlButton label={t.player.forward} onPress={() => seek(now() + SKIP)}>
-                    <ForwardIcon className="size-10" />
-                  </ControlButton>
-                  <VolumeControl
-                    volume={volume}
-                    muted={muted}
-                    onMute={() => {
-                      setMuted((value) => !value);
-                      if (volume === 0) setVolume(0.5);
-                    }}
-                    onChange={changeVolume}
-                  />
-                  <div className="min-w-0 flex-1 text-center">{heading}</div>
-                  {next && (
-                    <ControlButton label={t.player.nextEpisode} onPress={playNext}>
-                      <NextEpisodeIcon className="size-10" />
+                    <BackIcon className={wide ? "size-9" : "size-7"} />
+                  </FocusButton>
+                  {!wide && <div className="min-w-0 flex-1 text-center">{heading}</div>}
+                  {!wide && <span className="size-12 flex-none" />}
+                </div>
+
+                {!wide && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-[12vw]">
+                    <ControlButton label={t.player.rewind} onPress={() => seek(now() - SKIP)} big>
+                      <RewindIcon className="size-11" />
                     </ControlButton>
-                  )}
-                  {source &&
-                    (source.audioTracks.length > 1 || source.subtitleTracks.length > 0) && (
-                      <ControlButton label={t.player.tracks} onPress={() => setPanel(true)}>
-                        <SubtitlesIcon className="size-10" />
+                    <ControlButton
+                      focusKey={PLAY_PAUSE}
+                      label={paused ? t.player.play : t.player.pause}
+                      onPress={togglePlay}
+                      big
+                    >
+                      {paused ? (
+                        <PlayIcon className="size-14" />
+                      ) : (
+                        <PauseIcon className="size-14" />
+                      )}
+                    </ControlButton>
+                    <ControlButton label={t.player.forward} onPress={() => seek(now() + SKIP)} big>
+                      <ForwardIcon className="size-11" />
+                    </ControlButton>
+                  </div>
+                )}
+
+                <div
+                  className={`absolute inset-x-0 bottom-0 ${
+                    wide ? "px-6 pb-5" : "px-5 pb-[max(12px,env(safe-area-inset-bottom))]"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <Timeline position={position} duration={end} onSeek={seek} onScrub={wake} />
+                    <span className="flex-none text-sm tabular-nums sm:text-base">
+                      {formatTime(Math.max(0, end - position))}
+                    </span>
+                  </div>
+
+                  {wide ? (
+                    <div className="mt-3 flex items-center gap-5">
+                      <ControlButton
+                        focusKey={PLAY_PAUSE}
+                        label={paused ? t.player.play : t.player.pause}
+                        onPress={togglePlay}
+                      >
+                        {paused ? (
+                          <PlayIcon className="size-10" />
+                        ) : (
+                          <PauseIcon className="size-10" />
+                        )}
                       </ControlButton>
-                    )}
-                  <ControlButton
-                    label={fullscreen ? t.player.exitFullscreen : t.player.fullscreen}
-                    onPress={toggleFullscreen}
-                  >
-                    <FullscreenIcon exit={fullscreen} className="size-10" />
-                  </ControlButton>
-                </div>
-              ) : (
-                <div className="mt-2 flex justify-center gap-8">
-                  {source &&
-                    (source.audioTracks.length > 1 || source.subtitleTracks.length > 0) && (
-                      <TextButton label={t.player.tracks} onPress={() => setPanel(true)}>
-                        <SubtitlesIcon className="size-6" />
-                      </TextButton>
-                    )}
-                  {next && (
-                    <TextButton label={t.player.nextShort} onPress={playNext}>
-                      <NextEpisodeIcon className="size-6" />
-                    </TextButton>
+                      <ControlButton label={t.player.rewind} onPress={() => seek(now() - SKIP)}>
+                        <RewindIcon className="size-10" />
+                      </ControlButton>
+                      <ControlButton label={t.player.forward} onPress={() => seek(now() + SKIP)}>
+                        <ForwardIcon className="size-10" />
+                      </ControlButton>
+                      <VolumeControl
+                        volume={volume}
+                        muted={muted}
+                        onMute={() => {
+                          setMuted((value) => !value);
+                          if (volume === 0) setVolume(0.5);
+                        }}
+                        onChange={changeVolume}
+                      />
+                      <div className="min-w-0 flex-1 text-center">{heading}</div>
+                      {next && (
+                        <ControlButton label={t.player.nextEpisode} onPress={playNext}>
+                          <NextEpisodeIcon className="size-10" />
+                        </ControlButton>
+                      )}
+                      {source &&
+                        (source.audioTracks.length > 1 || source.subtitleTracks.length > 0) && (
+                          <ControlButton label={t.player.tracks} onPress={() => setPanel(true)}>
+                            <SubtitlesIcon className="size-10" />
+                          </ControlButton>
+                        )}
+                      <ControlButton
+                        label={fullscreen ? t.player.exitFullscreen : t.player.fullscreen}
+                        onPress={toggleFullscreen}
+                      >
+                        <FullscreenIcon exit={fullscreen} className="size-10" />
+                      </ControlButton>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex justify-center gap-8">
+                      {source &&
+                        (source.audioTracks.length > 1 || source.subtitleTracks.length > 0) && (
+                          <TextButton label={t.player.tracks} onPress={() => setPanel(true)}>
+                            <SubtitlesIcon className="size-6" />
+                          </TextButton>
+                        )}
+                      {next && (
+                        <TextButton label={t.player.nextShort} onPress={playNext}>
+                          <NextEpisodeIcon className="size-6" />
+                        </TextButton>
+                      )}
+                      {/* Only when opening it full screen did not take (a browser that wants a tap). */}
+                      {!fullscreen && (
+                        <TextButton label={t.player.fullscreen} onPress={toggleFullscreen}>
+                          <FullscreenIcon exit={false} className="size-6" />
+                        </TextButton>
+                      )}
+                    </div>
                   )}
-                  {/* Only when opening it full screen did not take (a browser that wants a tap). */}
-                  {!fullscreen && (
-                    <TextButton label={t.player.fullscreen} onPress={toggleFullscreen}>
-                      <FullscreenIcon exit={false} className="size-6" />
-                    </TextButton>
-                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1003,5 +1079,170 @@ function PauseScreen({ playable, shown }: { playable: PlayableItem; shown: boole
         {t.player.paused}
       </p>
     </div>
+  );
+}
+
+/**
+ * Netflix's TV player: back, start over and next episode up in the corner, the title opposite, a
+ * round play button by the timeline and the audio-and-subtitle chips under it. Paused, the show's
+ * logo and the three thumbs come up on the left.
+ */
+function TvControls(props: {
+  playable: PlayableItem;
+  paused: boolean;
+  position: number;
+  duration: number;
+  presets: TrackPreset[];
+  /** Whether there is anything to choose: "Other…" opens the full list. */
+  tracks: boolean;
+  rating: Rating | null;
+  onTogglePlay: () => void;
+  onSeek: (to: number) => void;
+  onScrub: () => void;
+  onBack: () => void;
+  onRestart: () => void;
+  onNext: (() => void) | undefined;
+  onPreset: (preset: TrackPreset) => void;
+  onTracks: () => void;
+  onRate: (rating: Rating) => void;
+}) {
+  const { playable, paused, position, duration } = props;
+  const { episode } = playable;
+  const detail =
+    episode &&
+    (episode.season != null && episode.number != null
+      ? t.home.episode(episode.season, episode.number, episode.title)
+      : episode.title);
+  const thumbs: { rating: Rating; label: string; icon: ReactNode }[] = [
+    { rating: "dislike", label: t.player.rateDislike, icon: <ThumbDownIcon className="size-6" /> },
+    { rating: "like", label: t.player.rateLike, icon: <ThumbUpIcon className="size-6" /> },
+    { rating: "love", label: t.player.rateLove, icon: <DoubleThumbUpIcon className="size-6" /> },
+  ];
+  const chip =
+    "pointer-events-auto flex flex-none items-center gap-2 rounded-full px-4 py-1.5 font-semibold whitespace-nowrap text-white outline-none backdrop-blur-sm transition-colors focused:bg-white focused:text-black";
+
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-linear-to-b from-black/70 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-linear-to-t from-black/85 to-transparent" />
+      <div
+        className={`pointer-events-none absolute inset-0 bg-linear-to-r from-black/60 via-black/20 to-transparent transition-opacity duration-500 ${
+          paused ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <div className="absolute top-[7%] left-[5%] flex gap-3">
+        <CornerButton label={t.player.back} onPress={props.onBack}>
+          <BackIcon className="size-8" />
+        </CornerButton>
+        <CornerButton label={t.player.restart} onPress={props.onRestart}>
+          <RestartIcon className="size-8" />
+        </CornerButton>
+        {props.onNext && (
+          <CornerButton label={t.player.nextEpisode} onPress={props.onNext}>
+            <NextEpisodeIcon className="size-8" />
+          </CornerButton>
+        )}
+      </div>
+
+      <div className="pointer-events-none absolute top-[7%] right-[5%] max-w-[45%] text-right [text-shadow:0_1px_3px_#000]">
+        <p className="truncate text-[clamp(18px,1.9vw,30px)] font-bold">{playable.title}</p>
+        {detail && <p className="truncate text-[clamp(15px,1.5vw,24px)]">{detail}</p>}
+      </div>
+
+      {paused && (
+        <div className="absolute bottom-[29%] left-[8%] w-[min(60%,900px)]">
+          {playable.logo ? (
+            <img
+              src={playable.logo}
+              alt={playable.title}
+              className="mb-6 max-h-[18vh] max-w-[30vw] object-contain object-left drop-shadow-lg"
+            />
+          ) : (
+            <h2 className="mb-6 text-[clamp(32px,3.6vw,64px)] leading-tight font-bold">
+              {playable.title}
+            </h2>
+          )}
+          <div className="flex flex-wrap gap-3">
+            {thumbs.map((thumb) => (
+              <FocusButton
+                key={thumb.rating}
+                aria-pressed={props.rating === thumb.rating}
+                onPress={() => props.onRate(thumb.rating)}
+                className={`${chip} text-[clamp(15px,1.3vw,22px)] ${
+                  props.rating === thumb.rating ? "bg-white/45" : "bg-white/20"
+                }`}
+              >
+                {thumb.icon}
+                {thumb.label}
+                {props.rating === thumb.rating && <CheckIcon className="size-5" />}
+              </FocusButton>
+            ))}
+          </div>
+          <p className="mt-3 text-[clamp(14px,1.15vw,20px)] text-white/90 [text-shadow:0_1px_3px_#000]">
+            {t.player.ratePrompt}
+          </p>
+        </div>
+      )}
+
+      <div className="absolute inset-x-[8%] bottom-[8%]">
+        <div className="flex items-center gap-5">
+          <FocusButton
+            focusKey={PLAY_PAUSE}
+            aria-label={paused ? t.player.play : t.player.pause}
+            onPress={props.onTogglePlay}
+            className="pointer-events-auto grid size-16 flex-none place-items-center rounded-full bg-white/25 text-white outline-none transition-transform focused:scale-110 focused:bg-white focused:text-black"
+          >
+            {paused ? <PlayIcon className="size-8" /> : <PauseIcon className="size-8" />}
+          </FocusButton>
+          <span className="flex-none text-[clamp(16px,1.4vw,24px)] tabular-nums">
+            {formatTime(position)}
+          </span>
+          <Timeline
+            position={position}
+            duration={duration}
+            onSeek={props.onSeek}
+            onScrub={props.onScrub}
+          />
+          <span className="flex-none text-[clamp(16px,1.4vw,24px)] tabular-nums">
+            {formatTime(Math.max(0, duration - position))}
+          </span>
+        </div>
+        {props.tracks && (
+          <div className="mt-3 flex gap-3 pl-[calc(4rem+1.25rem)] text-[clamp(14px,1.2vw,20px)]">
+            {props.presets.map((preset) => (
+              <FocusButton
+                key={`${preset.audioIndex}:${preset.subtitleIndex}`}
+                aria-pressed={preset.active}
+                onPress={() => props.onPreset(preset)}
+                className={`${chip} bg-white/20`}
+              >
+                {preset.active && <CheckIcon className="size-5" />}
+                {preset.label}
+              </FocusButton>
+            ))}
+            <FocusButton onPress={props.onTracks} className={`${chip} bg-white/20`}>
+              {t.player.otherTracks}
+            </FocusButton>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** One of the TV player's corner icons; its name shows under it while it has the focus. */
+function CornerButton(props: { label: string; onPress: () => void; children: ReactNode }) {
+  return (
+    <FocusButton
+      aria-label={props.label}
+      onPress={props.onPress}
+      className="pointer-events-auto relative grid size-14 place-items-center rounded-full outline-none transition-colors focused:bg-white focused:text-black"
+    >
+      {props.children}
+      <span className="pointer-events-none absolute top-full left-1/2 mt-2 hidden -translate-x-1/2 text-sm font-bold whitespace-nowrap text-white uppercase [text-shadow:0_1px_3px_#000] in-data-focused:block">
+        {props.label}
+      </span>
+    </FocusButton>
   );
 }

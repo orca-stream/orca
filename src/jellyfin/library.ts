@@ -178,7 +178,8 @@ function posterUrl(connection: Connection, item: BaseItemDto): string | null {
   return own ? imageUrl(connection, item.Id!, ImageType.Primary, own, POSTER_WIDTH) : null;
 }
 
-function logoUrl(connection: Connection, item: BaseItemDto): string | null {
+/** The title's logo, or for an episode its series' logo. */
+export function logoUrl(connection: Connection, item: BaseItemDto): string | null {
   const own = item.ImageTags?.Logo;
   if (own) return imageUrl(connection, item.Id!, ImageType.Logo, own, LOGO_WIDTH);
   if (item.ParentLogoItemId && item.ParentLogoImageTag) {

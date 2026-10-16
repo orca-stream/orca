@@ -186,6 +186,13 @@ const es = {
     unsupported:
       "Este dispositivo no puede reproducir este título y el servidor no pudo convertirlo.",
     retry: "Reintentar",
+    restart: "Volver a empezar",
+    otherTracks: "Otro…",
+    withSubtitles: (language: string) => `${language} con subtítulos`,
+    rateDislike: "No es para mí",
+    rateLike: "Me gusta",
+    rateLove: "Me encanta",
+    ratePrompt: "¿Lo estás disfrutando? Tu calificación queda guardada en tu perfil.",
   },
   account: {
     menu: "Perfil y opciones",
@@ -382,6 +389,13 @@ const en: Messages = {
     loadError: "This title couldn't be played.",
     unsupported: "This device can't play this title and the server couldn't convert it.",
     retry: "Try again",
+    restart: "Start over",
+    otherTracks: "Other…",
+    withSubtitles: (language: string) => `${language} with subtitles`,
+    rateDislike: "Not for me",
+    rateLike: "I like this",
+    rateLove: "Love this!",
+    ratePrompt: "Enjoying it? Your rating is saved to your profile.",
   },
   account: {
     menu: "Profile and options",

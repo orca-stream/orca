@@ -144,6 +144,35 @@ export function ThumbUpIcon(props: IconProps) {
   );
 }
 
+export function ThumbDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M17 14V3h3v11Zm0 0-4 7a2.5 2.5 0 0 1-2.5-3l.5-4H5.5a2 2 0 0 1-2-2.4l1.4-7A2 2 0 0 1 6.9 3H17" />
+    </Icon>
+  );
+}
+
+/** Netflix's "Love this": two thumbs up, one behind the other. */
+export function DoubleThumbUpIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9 11v10H6V11Zm0 0 3.5-6.5a2.3 2.3 0 0 1 2.3 2.8L14.4 11h4.8a1.8 1.8 0 0 1 1.8 2.2l-1.3 6.2a1.9 1.9 0 0 1-1.9 1.6H9" />
+      <path d="M5 16.5V9.5L8.2 3.8" />
+    </Icon>
+  );
+}
+
+/** Netflix's "Start over": an arrow running back round a circle. */
+export function RestartIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9" />
+      <path d="M4.5 4v5h5" />
+      <path d="M10.5 9.2v5.6l4.4-2.8Z" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 /** Netflix's play button on an episode still or a search row: a ring with a solid triangle. */
 export function PlayCircleIcon(props: IconProps) {
   return (
