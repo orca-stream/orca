@@ -7,6 +7,7 @@ import { connectToServer, SignInError, type SignInFailure } from "./sign-in";
 export const DEFAULT_SERVERS: readonly string[] = [
   "https://jf.example.com",
   "http://192.168.1.100:8096",
+  "http://192.168.1.145:8096",
   "http://localhost:8096",
 ];
 
