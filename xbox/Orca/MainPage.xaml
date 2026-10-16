@@ -4,5 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Black">
     <!-- The WebView2 is added from code: created in XAML it never takes focus on Xbox. -->
-    <Grid x:Name="Root" Background="Black" />
+    <Grid x:Name="Root" Background="Black">
+        <!-- Holds focus until the WebView2 is ready, so focus then moves into it (see MainPage.xaml.cs). -->
+        <Button x:Name="FocusSink" Opacity="0" Width="1" Height="1" IsTabStop="True" />
+    </Grid>
 </Page>

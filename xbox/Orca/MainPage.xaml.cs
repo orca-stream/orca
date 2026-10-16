@@ -29,6 +29,7 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         Root.Children.Add(_web);
+        Loaded += (_, _) => FocusSink.Focus(FocusState.Programmatic);
         _web.CoreWebView2Initialized += OnCoreWebView2Initialized;
         Loaded += async (_, _) => await _web.EnsureCoreWebView2Async();
         SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
@@ -68,8 +69,32 @@ public sealed partial class MainPage : Page
         };
         await core.AddScriptToExecuteOnDocumentCreatedAsync($"window.orcaHost = {host.Stringify()};");
 
+        _web.NavigationCompleted += (_, _) => FocusWeb();
+        Window.Current.Activated += (_, e) =>
+        {
+            if (e.WindowActivationState != CoreWindowActivationState.Deactivated)
+            {
+                FocusWeb();
+            }
+        };
         _web.Source = new Uri($"http://{Host}/index.html");
-        _web.Focus(FocusState.Programmatic);
+    }
+
+    /// <summary>
+    /// Keys and the pad only reach the page while the WebView2 holds focus, and on Xbox it does not
+    /// take it on its own (document.hasFocus() stays false). It gets it once the page has loaded, and
+    /// again whenever the app comes back to the front.
+    /// </summary>
+    private void FocusWeb()
+    {
+        _ = Dispatcher.RunAsync(CoreDispatcherPriority.Low, async () =>
+        {
+            // Straight from the page to the WebView2 the focus does not stick: it goes through the
+            // invisible FocusSink first, and the WebView2 takes it a moment later.
+            FocusSink.Focus(FocusState.Programmatic);
+            await System.Threading.Tasks.Task.Delay(100);
+            _web.Focus(FocusState.Programmatic);
+        });
     }
 
     private static JsonArray Languages()
