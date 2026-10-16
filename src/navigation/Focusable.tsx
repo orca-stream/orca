@@ -1,5 +1,6 @@
 import { useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import type { ComponentPropsWithoutRef, KeyboardEvent } from "react";
+import { caretCanMove } from "./caret";
 
 /**
  * The library moves DOM focus without scrolling (see spatial.ts), so whatever the arrows land on is
@@ -44,6 +45,11 @@ export function FocusButton({
 
 interface InputProps extends ComponentPropsWithoutRef<"input"> {
   focusKey?: string;
+  /**
+   * Runs when the arrows move on to something else; not on a DOM blur, which an on-screen keyboard
+   * may cause.
+   */
+  onFocusLeave?: () => void;
 }
 
 /** Keys a text field needs for itself: moving the caret, and Enter to submit its form. */
@@ -51,16 +57,19 @@ const TEXT_KEYS = new Set(["ArrowLeft", "ArrowRight", "Enter", "Home", "End"]);
 
 /**
  * A text field reachable with arrows. Up/down still move between fields; left/right and Enter stay
- * in the field, so the caret moves and the form submits as usual.
+ * in the field, so the caret moves and the form submits as usual — until the caret is at that end.
  */
-export function FocusInput({ focusKey, onKeyDown, ...props }: InputProps) {
+export function FocusInput({ focusKey, onKeyDown, onFocusLeave, ...props }: InputProps) {
   const { ref } = useFocusable<object, HTMLInputElement>({
     focusKey,
     onFocus: ({ node }) => reveal(node),
+    onBlur: () => onFocusLeave?.(),
   });
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     // React's handler runs at the root, before the library's listener on window.
-    if (TEXT_KEYS.has(event.key)) event.stopPropagation();
+    if (TEXT_KEYS.has(event.key) && caretCanMove(event.key, event.currentTarget)) {
+      event.stopPropagation();
+    }
     onKeyDown?.(event);
   }
   return <input ref={ref} onKeyDown={handleKeyDown} {...props} />;

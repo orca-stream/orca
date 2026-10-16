@@ -1,5 +1,6 @@
+import { setFocus } from "@noriginmedia/norigin-spatial-navigation-core";
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { t } from "../i18n/locale";
 import type { Library } from "../jellyfin/library";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
@@ -88,43 +89,86 @@ function SearchButton({ onSearch, className }: { onSearch: () => void; className
 const NAV_ITEM =
   "flex h-[38px] items-center rounded-full px-4 text-[15px] text-white/85 outline-none hover:text-white aria-[current=page]:bg-white/15 aria-[current=page]:font-semibold aria-[current=page]:text-white focused:bg-white focused:text-black";
 
+const SEARCH_INPUT = "header-search";
+const SEARCH_BUTTON = "header-search-button";
+const BACK_KEYS = new Set(["Escape", "GoBack", "BrowserBack"]);
+
 /**
- * Netflix web's search: a magnifier that widens into a pill when clicked or focused, and stays open
- * while it holds a search. The results replace the home below.
+ * Netflix web's search: a magnifier that widens into a pill when pressed, and stays open while it
+ * holds a search. The results replace the home below. Closed, it is a button and not the field
+ * itself: arrows passing over a field would open the console's on-screen keyboard, and a remote could
+ * not get past it to the profile menu.
  */
 function SearchField({ search }: { search: SearchState }) {
+  const [editing, setEditing] = useState(false);
+  const refocusButton = useRef(false);
+  const open = editing || search.term !== "";
+
+  // The field replaces the button under the arrows' focus, so the keys type into it at once; Back
+  // hands the focus back to the button.
+  useEffect(() => {
+    if (editing) void setFocus(SEARCH_INPUT);
+  }, [editing]);
+  useEffect(() => {
+    if (open || !refocusButton.current) return;
+    refocusButton.current = false;
+    void setFocus(SEARCH_BUTTON);
+  }, [open]);
+
   return (
-    <label
-      data-open={search.term ? "" : undefined}
-      className="relative -mr-2 ml-auto flex h-12 w-12 cursor-pointer items-center gap-3 overflow-hidden rounded-full border border-transparent px-[11px] transition-[width,background-color,border-color] duration-300 ease-out focus-within:w-[22rem] focus-within:cursor-text focus-within:border-white/25 focus-within:bg-[#141414] data-open:w-[22rem] data-open:border-white/25 data-open:bg-[#141414]"
+    <div
+      data-open={open ? "" : undefined}
+      className="relative -mr-2 ml-auto flex h-12 w-12 items-center gap-3 overflow-hidden rounded-full border border-transparent transition-[width,background-color,border-color] duration-300 ease-out data-open:w-[22rem] data-open:border-white/25 data-open:bg-[#141414] data-open:px-[11px]"
     >
-      <SearchIcon className="size-6 flex-none" />
-      <FocusInput
-        type="search"
-        value={search.term}
-        onChange={(event) => search.onTerm(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && search.term) {
-            event.preventDefault();
-            search.onTerm("");
-          }
-        }}
-        onFocus={() => scrollToTop()}
-        placeholder={t.search.placeholder}
-        aria-label={t.search.placeholder}
-        enterKeyHint="search"
-        className="h-full min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/60 [&::-webkit-search-cancel-button]:hidden"
-      />
-      {search.term && (
+      {open ? (
+        <>
+          <SearchIcon className="size-6 flex-none" />
+          <FocusInput
+            focusKey={SEARCH_INPUT}
+            type="search"
+            value={search.term}
+            onChange={(event) => search.onTerm(event.target.value)}
+            onKeyDown={(event) => {
+              // Escape, or the remote's and pad's Back: the search closes, emptied.
+              if (!BACK_KEYS.has(event.key)) return;
+              event.preventDefault();
+              search.onTerm("");
+              setEditing(false);
+              refocusButton.current = true;
+            }}
+            onFocus={() => scrollToTop()}
+            onFocusLeave={() => setEditing(false)}
+            onBlur={(event) => {
+              // A click elsewhere closes an empty search; an on-screen keyboard keeps it open.
+              if (!event.currentTarget.value && event.relatedTarget) setEditing(false);
+            }}
+            autoFocus={editing}
+            placeholder={t.search.placeholder}
+            aria-label={t.search.placeholder}
+            enterKeyHint="search"
+            className="h-full min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-white/60 [&::-webkit-search-cancel-button]:hidden"
+          />
+          {search.term && (
+            <FocusButton
+              aria-label={t.search.clear}
+              onPress={() => search.onTerm("")}
+              className="grid size-7 flex-none place-items-center rounded-full border-2 border-white/60 text-white/80 outline-none hover:text-white focused:bg-white focused:text-black"
+            >
+              <CloseIcon className="size-3.5" strokeWidth={3} />
+            </FocusButton>
+          )}
+        </>
+      ) : (
         <FocusButton
-          aria-label={t.search.clear}
-          onPress={() => search.onTerm("")}
-          className="grid size-7 flex-none place-items-center rounded-full border-2 border-white/60 text-white/80 outline-none hover:text-white focused:bg-white focused:text-black"
+          focusKey={SEARCH_BUTTON}
+          aria-label={t.home.search}
+          onPress={() => setEditing(true)}
+          className="grid size-12 flex-none place-items-center rounded-full outline-none hover:text-white focused:bg-white focused:text-black"
         >
-          <CloseIcon className="size-3.5" strokeWidth={3} />
+          <SearchIcon className="size-6" />
         </FocusButton>
       )}
-    </label>
+    </div>
   );
 }
 
