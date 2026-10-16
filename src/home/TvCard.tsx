@@ -135,7 +135,7 @@ function Details({ item, caption }: { item: MediaItem; caption?: string | null |
       ? Math.max(1, Math.round((1 - item.progress) * item.runtimeMinutes))
       : null;
   return (
-    <div className="mt-3 grid gap-1 text-base motion-safe:animate-[fade-in_300ms_ease-out]">
+    <div className="mt-2 grid text-base leading-6 motion-safe:animate-[fade-in_300ms_ease-out]">
       {caption ? (
         <p className="truncate text-white/80">{caption}</p>
       ) : (

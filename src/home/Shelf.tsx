@@ -110,7 +110,8 @@ export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
         ref={ref}
         id={headingId}
         aria-labelledby={`${headingId}-title`}
-        className="scroll-mt-24"
+        // The TV's shelves sit closer than the home's gap: the details under a card fill the rest.
+        className={tv ? "-mt-8 scroll-mt-24" : "scroll-mt-24"}
       >
         <h2
           id={`${headingId}-title`}

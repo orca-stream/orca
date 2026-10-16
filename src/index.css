@@ -79,14 +79,14 @@
    */
   .tv-shelf {
     --gap: 0.625rem;
-    --tv-h: min(42vh, 24vw);
+    --tv-h: min(48vh, 27vw);
     scrollbar-width: none;
     padding-right: calc(100% - var(--tv-h) * 16 / 9);
   }
 
   .tv-card {
     width: calc(var(--tv-h) * 2 / 3);
-    min-height: calc(var(--tv-h) + 4.75rem);
+    min-height: calc(var(--tv-h) + 3.5rem);
     transition: width 300ms ease-out;
 
     &[data-open] {
