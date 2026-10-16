@@ -1,4 +1,5 @@
-import { init } from "@noriginmedia/norigin-spatial-navigation-core";
+import { init, SpatialNavigationService } from "@noriginmedia/norigin-spatial-navigation-core";
+import { isAdjacentSlice } from "./adjacency";
 
 /** Keys that drive the app without a pointer: arrows, Enter, Back, and a remote's or pad's. */
 const NAVIGATION_KEYS = new Set([
@@ -21,6 +22,8 @@ const NAVIGATION_KEYS = new Set([
  * on the last thing tapped would only look stuck. `<html data-input>` says which one drove it last.
  */
 export function initSpatialNavigation(): void {
+  // The library has no option for this; it calls the static through the class, so this replaces it.
+  SpatialNavigationService.isAdjacentSlice = isAdjacentSlice;
   init({ shouldFocusDOMNode: true, domNodeFocusOptions: { preventScroll: true } });
   const root = document.documentElement;
   window.addEventListener(
