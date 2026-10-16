@@ -1,3 +1,4 @@
+import { setFocus } from "@noriginmedia/norigin-spatial-navigation-core";
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { t } from "../i18n/locale";
@@ -5,6 +6,7 @@ import { jellyfin } from "../jellyfin/client";
 import { normalizeServerUrl } from "../jellyfin/server-url";
 import { probeServer, serverKind, type ServerKind, type ServerProbe } from "../jellyfin/servers";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
+import { useBackKey } from "../navigation/use-back-key";
 import { GlobeIcon, HomeIcon, LaptopIcon, PlusIcon } from "../ui/icons";
 
 interface Props {
@@ -40,11 +42,25 @@ export function ServerPicker({ servers: offered, onPick, onCancel, notice }: Pro
   const [servers] = useState(offered);
   const [probes, setProbes] = useState<Record<string, ServerProbe>>({});
   const [typing, setTyping] = useState(servers.length === 0);
+  // Back folds the address field opened by hand before it leaves the picker.
+  const [folded, setFolded] = useState(false);
+  useBackKey(
+    () => {
+      setTyping(false);
+      setFolded(true);
+    },
+    { enabled: typing && servers.length > 0, capture: true },
+  );
   const { ref, focusKey, focusSelf } = useFocusable({ focusKey: "SERVER_PICKER" });
 
   useEffect(() => {
     focusSelf();
   }, [focusSelf]);
+
+  // Focus goes back to the button that opened the field, not lost with the field.
+  useEffect(() => {
+    if (folded && !typing) void setFocus("SERVER_OTHER_OPEN");
+  }, [folded, typing]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +98,11 @@ export function ServerPicker({ servers: offered, onPick, onCancel, notice }: Pro
             {typing ? (
               <OtherServer onPick={onPick} />
             ) : (
-              <FocusButton className={CARD} onPress={() => setTyping(true)}>
+              <FocusButton
+                focusKey="SERVER_OTHER_OPEN"
+                className={CARD}
+                onPress={() => setTyping(true)}
+              >
                 <span className="grid size-12 flex-none place-items-center rounded-xl bg-white/10 text-white/70">
                   <PlusIcon className="size-6" />
                 </span>

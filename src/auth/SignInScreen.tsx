@@ -6,6 +6,7 @@ import { normalizeServerUrl } from "../jellyfin/server-url";
 import type { Session } from "../jellyfin/session";
 import { signIn, SignInError } from "../jellyfin/sign-in";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
+import { useBackKey } from "../navigation/use-back-key";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { AuthPage } from "./AuthPage";
 import { QuickConnectPanel } from "./QuickConnectPanel";
@@ -32,7 +33,13 @@ interface Props {
 
 /** Picks the server first (unless it's already known), then signs in to it. */
 export function SignInScreen({ prefill, servers, onCancel, onSignedIn }: Props) {
-  const [server, setServer] = useState(() => knownServer(prefill?.server));
+  // Every step taken here, the picker being null: Back undoes the last one, then leaves.
+  const [steps, setSteps] = useState(() => [knownServer(prefill?.server)]);
+  const server = steps.at(-1)!;
+  const setServer = (next: string | null) => setSteps((current) => [...current, next]);
+  const stepBack = steps.length > 1 ? () => setSteps((current) => current.slice(0, -1)) : onCancel;
+  useBackKey(() => stepBack?.(), { enabled: stepBack !== undefined });
+
   return (
     <AuthPage>
       {server === null ? (

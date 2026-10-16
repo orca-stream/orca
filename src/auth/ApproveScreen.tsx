@@ -11,6 +11,7 @@ import {
 import { sessionId, type Session } from "../jellyfin/session";
 import { connectToServer } from "../jellyfin/sign-in";
 import { FocusButton } from "../navigation/Focusable";
+import { useBackKey } from "../navigation/use-back-key";
 import { Avatar } from "../profiles/Avatar";
 import { CodeInput } from "../ui/CodeInput";
 import { CheckIcon, LinkDeviceIcon, PlusIcon } from "../ui/icons";
@@ -89,6 +90,9 @@ export function ApproveScreen({
   useEffect(() => {
     if (ready) focusSelf();
   }, [ready, focusSelf, approvedAs]);
+
+  // Back is Cancel, or Continue once the code is approved: there's nothing left to cancel.
+  useBackKey(() => (approvedAs ? onDone(approvedAs) : onCancel()));
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
