@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap mp rescap">
+
+  <!-- Publisher must match the subject of the signing certificate (scripts/xbox-build.sh). -->
+  <Identity Name="io.github.orcastream.orca" Publisher="CN=OrcaJP Dev" Version="0.1.0.0" />
+
+  <!-- Required by the packaging tools even though no phone will ever run it. -->
+  <mp:PhoneIdentity PhoneProductId="a52bc6ba-0913-4c7b-a6ff-ac76c8edea51" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+
+  <Properties>
+    <DisplayName>Orca'JP</DisplayName>
+    <PublisherDisplayName>selkiecode</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="Orca.App">
+      <uap:VisualElements
+        DisplayName="Orca'JP"
+        Description="Orca'JP, a Jellyfin client"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png"
+        BackgroundColor="#000000">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#000000" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <!-- Jellyfin servers on the home network (http://192.168.x.x:8096). -->
+    <Capability Name="privateNetworkClientServer" />
+    <rescap:Capability Name="hevcPlayback" />
+  </Capabilities>
+</Package>

@@ -2,6 +2,7 @@ import { Jellyfin, type Api } from "@jellyfin/sdk";
 import { getSessionApi } from "@jellyfin/sdk/lib/utils/api/session-api";
 import { getUserApi } from "@jellyfin/sdk/lib/utils/api/user-api";
 import { isAxiosError, type AxiosInstance } from "axios";
+import { uwpHost } from "../host";
 import { locale } from "../i18n/locale";
 import { browserStore } from "../storage";
 import { detectDeviceName, getOrCreateDeviceId } from "./device";
@@ -12,7 +13,7 @@ export const jellyfin = new Jellyfin({
   clientInfo: { name: "Orca'JP", version: __APP_VERSION__ },
   deviceInfo: {
     id: getOrCreateDeviceId(browserStore()),
-    name: detectDeviceName(navigator.userAgent),
+    name: detectDeviceName(navigator.userAgent, uwpHost?.device),
     languages: [locale],
   },
 });

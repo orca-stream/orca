@@ -19,7 +19,9 @@
     "prepare": "vp config",
     "android:assets": "./scripts/android-assets.sh",
     "android:sync": "pnpm build && cap sync android",
-    "android:apk": "pnpm android:sync && cd android && ./gradlew assembleDebug"
+    "android:apk": "pnpm android:sync && cd android && ./gradlew assembleDebug",
+    "xbox:assets": "./scripts/xbox-assets.sh",
+    "xbox:build": "./scripts/xbox-build.sh"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

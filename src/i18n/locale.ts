@@ -15,5 +15,11 @@ export function pickLocale(preferred: readonly string[]): Locale {
   return FALLBACK;
 }
 
-export const locale = pickLocale(typeof navigator === "undefined" ? [] : navigator.languages);
+function preferredLanguages(): readonly string[] {
+  if (typeof window === "undefined") return [];
+  // The Xbox/Windows app passes the system's preferred languages along (see host.ts).
+  return window.orcaHost?.languages ?? navigator.languages;
+}
+
+export const locale = pickLocale(preferredLanguages());
 export const t = MESSAGES[locale];

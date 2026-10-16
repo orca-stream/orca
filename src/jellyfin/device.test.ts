@@ -5,6 +5,14 @@ const webView = (model: string) =>
   `Mozilla/5.0 (Linux; Android 16; ${model} Build/BT2A.260319.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.24 Mobile Safari/537.36`;
 
 describe("detectDeviceName", () => {
+  it("takes the Xbox/Windows app's word for it, whatever its WebView2 says", () => {
+    const edge =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0";
+    expect(detectDeviceName(edge, "xbox")).toBe("Xbox");
+    expect(detectDeviceName(edge, "windows")).toBe("Windows");
+    expect(detectDeviceName(edge)).toBe("Web browser");
+  });
+
   it("names the Android app on a phone", () => {
     expect(detectDeviceName(webView("Pixel 8"))).toBe("Android");
   });

@@ -18,7 +18,10 @@ export function getOrCreateDeviceId(store: KeyValueStore): string {
 }
 
 /** The name shown in Jellyfin's dashboard under Devices. */
-export function detectDeviceName(userAgent: string): string {
+export function detectDeviceName(userAgent: string, host?: "xbox" | "windows"): string {
+  // The Xbox/Windows app's WebView2 looks like desktop Edge; the app says which it is.
+  if (host === "xbox") return "Xbox";
+  if (host === "windows") return "Windows";
   if (/web0s|webos/i.test(userAgent)) return "LG webOS TV";
   if (/xbox/i.test(userAgent)) return "Xbox";
   // The Android app's WebView marks itself with "; wv)"; TVs give themselves away in the model name.

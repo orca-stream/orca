@@ -22,6 +22,7 @@ import {
   type PlaybackSource,
 } from "../jellyfin/playback";
 import { FocusButton } from "../navigation/Focusable";
+import { keepScreenOn } from "../host";
 import { browserStore, readItem, writeItem } from "../storage";
 import {
   BackIcon,
@@ -108,6 +109,12 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
   const [volume, setVolume] = useState(storedVolume);
   const [fullscreen, setFullscreen] = useState(false);
   const [controls, setControls] = useState(true);
+
+  // The console dims a TV left without input; not while a video plays.
+  useEffect(() => {
+    keepScreenOn(!paused);
+    return () => keepScreenOn(false);
+  }, [paused]);
   const [panel, setPanel] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Whether the last press was a finger: a tap shows the controls instead of acting, on any screen.

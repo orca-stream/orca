@@ -34,3 +34,8 @@ dist-ssr
 # Project memory — a directory symlink into the private brain repo, never versioned
 .memory
 .claude
+
+# Xbox/Windows app: build output and packages
+xbox/Orca/bin
+xbox/Orca/obj
+xbox/out
