@@ -1,7 +1,7 @@
 import { Jellyfin, type Api } from "@jellyfin/sdk";
 import { getSessionApi } from "@jellyfin/sdk/lib/utils/api/session-api";
 import { getUserApi } from "@jellyfin/sdk/lib/utils/api/user-api";
-import { isAxiosError, type AxiosInstance } from "axios";
+import axios, { isAxiosError, type AxiosInstance } from "axios";
 import { uwpHost } from "../host";
 import { locale } from "../i18n/locale";
 import { browserStore } from "../storage";
@@ -21,12 +21,23 @@ export const jellyfin = new Jellyfin({
 /** An authenticated connection to one server. Components hold it but never call the SDK on it. */
 export type Connection = Api;
 
+/**
+ * How long a call to a stored server may take. Without a limit, a server left behind on another
+ * network (a home address on mobile data) never answers nor fails: the screen loads forever.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 export function resumeSession(
   session: Pick<Session, "serverUrl" | "accessToken">,
   sdk: Jellyfin = jellyfin,
-  axiosInstance?: AxiosInstance,
+  axiosInstance: AxiosInstance = axios.create({ timeout: REQUEST_TIMEOUT_MS }),
 ): Connection {
   return sdk.createApi(session.serverUrl, session.accessToken, axiosInstance);
+}
+
+/** The server never answered: offline, another network, refused, timed out. Not a server error. */
+export function isUnreachable(error: unknown): boolean {
+  return isAxiosError(error) && !error.response;
 }
 
 /** The server no longer accepts the stored token (revoked, or the user was removed). */

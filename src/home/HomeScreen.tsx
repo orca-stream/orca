@@ -2,8 +2,9 @@ import { setFocus } from "@noriginmedia/norigin-spatial-navigation-core";
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import { Fragment, useEffect, useEffectEvent, useState, type ReactNode } from "react";
 import { t } from "../i18n/locale";
-import { SessionExpiredError, type Connection } from "../jellyfin/client";
+import { isUnreachable, jellyfin, SessionExpiredError, type Connection } from "../jellyfin/client";
 import { loadHome, type Home, type Library, type MediaItem } from "../jellyfin/library";
+import { probeServer } from "../jellyfin/servers";
 import { setFavorite } from "../jellyfin/title";
 import { FocusButton } from "../navigation/Focusable";
 import { SearchPage } from "../search/SearchPage";
@@ -37,11 +38,13 @@ interface Props {
   account: Account;
   /** The server rejected the stored token while loading. */
   onExpired: () => void;
+  /** The server doesn't answer from here (offline, or a home server seen from another network). */
+  onUnreachable: () => void;
 }
 
 type State = { kind: "loading" } | { kind: "ready"; home: Home } | { kind: "error" };
 
-export function HomeScreen({ connection, account, onExpired }: Props) {
+export function HomeScreen({ connection, account, onExpired, onUnreachable }: Props) {
   const userId = account.session.userId;
   const [state, setState] = useState<State>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -51,6 +54,7 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
   const wide = useWideScreen();
   const { ref, focusKey } = useFocusable({ focusKey: "HOME" });
   const expired = useEffectEvent(onExpired);
+  const unreachable = useEffectEvent(onUnreachable);
   const { overlays, open, replace, close, closeAll } = useOverlays();
   // Wide screens search in place, as Netflix web does: the results take the home's place.
   const [searchTerm, setSearchTerm] = useState("");
@@ -58,18 +62,29 @@ export function HomeScreen({ connection, account, onExpired }: Props) {
 
   useEffect(() => {
     let current = true;
+    let loaded = false;
     loadHome(connection, userId, libraryId ?? undefined).then(
       (home) => {
+        loaded = true;
         if (!current) return;
         setLibraries(home.libraries);
         setState({ kind: "ready", home });
       },
       (error: unknown) => {
+        loaded = true;
         if (!current) return;
         if (error instanceof SessionExpiredError) expired();
+        else if (isUnreachable(error)) unreachable();
         else setState({ kind: "error" });
       },
     );
+    // A server that can't be reached from here never fails a request quickly: it just doesn't
+    // answer. A short ping tells in seconds, instead of leaving the skeleton up until the timeout.
+    void probeServer(jellyfin, connection.basePath).then((probe) => {
+      if (current && !loaded && probe.status === "offline" && probe.reason === "unreachable") {
+        unreachable();
+      }
+    });
     return () => {
       current = false;
     };

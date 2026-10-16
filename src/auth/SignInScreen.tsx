@@ -36,7 +36,12 @@ export function SignInScreen({ prefill, servers, onCancel, onSignedIn }: Props) 
   return (
     <AuthPage>
       {server === null ? (
-        <ServerPicker servers={servers} onPick={setServer} onCancel={onCancel} />
+        <ServerPicker
+          servers={servers}
+          onPick={setServer}
+          onCancel={onCancel}
+          notice={prefill?.notice}
+        />
       ) : (
         <SignInForm
           server={server}

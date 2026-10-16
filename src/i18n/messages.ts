@@ -15,6 +15,8 @@ const es = {
     expired: (name: string) => `La sesión de ${name} caducó. Vuelve a entrar.`,
     chooseServer: "¿A qué servidor te conectas?",
     chooseServerHint: "Elige dónde está tu Jellyfin.",
+    unreachableNotice: (server: string) =>
+      `No se pudo conectar con ${server}. Revisa tu conexión o elige otro servidor.`,
     kind: { internet: "Internet", local: "Red de tu casa", thisDevice: "Este dispositivo" },
     checking: "Comprobando…",
     online: "Disponible",
@@ -219,6 +221,8 @@ const en: Messages = {
     expired: (name: string) => `${name}'s session expired. Please sign in again.`,
     chooseServer: "Which server are you connecting to?",
     chooseServerHint: "Pick where your Jellyfin lives.",
+    unreachableNotice: (server: string) =>
+      `Couldn't connect to ${server}. Check your connection or pick another server.`,
     kind: { internet: "Internet", local: "Home network", thisDevice: "This device" },
     checking: "Checking…",
     online: "Available",

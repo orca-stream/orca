@@ -12,6 +12,8 @@ interface Props {
   servers: string[];
   onPick: (serverUrl: string) => void;
   onCancel?: () => void;
+  /** Why the picker is showing: the stored server stopped answering. */
+  notice?: string;
 }
 
 const KIND_ICON: Record<ServerKind, typeof GlobeIcon> = {
@@ -33,7 +35,7 @@ const CARD =
  * The first step of signing in: which Jellyfin to talk to. Each address is asked for its name as
  * soon as the list shows, so the one that answers from this device stands out.
  */
-export function ServerPicker({ servers: offered, onPick, onCancel }: Props) {
+export function ServerPicker({ servers: offered, onPick, onCancel, notice }: Props) {
   // Fixed while the picker is open: a parent re-rendering mustn't ask every server again.
   const [servers] = useState(offered);
   const [probes, setProbes] = useState<Record<string, ServerProbe>>({});
@@ -63,6 +65,12 @@ export function ServerPicker({ servers: offered, onPick, onCancel }: Props) {
           <h1 className="text-3xl font-bold sm:text-4xl">{t.login.chooseServer}</h1>
           <p className="text-white/60">{t.login.chooseServerHint}</p>
         </div>
+
+        {notice && (
+          <p className="rounded-xl bg-amber-500/15 px-4 py-3 text-sm text-amber-200" role="alert">
+            {notice}
+          </p>
+        )}
 
         <ul className="grid gap-3">
           {servers.map((server) => (

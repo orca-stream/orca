@@ -183,6 +183,14 @@ function App() {
           key={sessionId(screen.session)}
           connection={screen.connection}
           onExpired={() => expire(screen.session)}
+          onUnreachable={() =>
+            setScreen({
+              kind: "signIn",
+              prefill: {
+                notice: t.login.unreachableNotice(new URL(screen.session.serverUrl).host),
+              },
+            })
+          }
           account={{
             session: screen.session,
             profiles: sessions,
