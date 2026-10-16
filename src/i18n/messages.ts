@@ -127,6 +127,8 @@ const es = {
     badgeNewEpisode: "Nuevo episodio",
     watchNow: "Ver ahora",
     minutesOf: (watched: number, total: number) => `${watched} de ${total} min`,
+    timeLeft: (hours: number, minutes: number) =>
+      `Queda: ${hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`}`,
   },
   title: {
     back: "Volver",
@@ -322,6 +324,8 @@ const en: Messages = {
     badgeNewEpisode: "New episode",
     watchNow: "Watch now",
     minutesOf: (watched: number, total: number) => `${watched} of ${total}m`,
+    timeLeft: (hours: number, minutes: number) =>
+      `${hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`} left`,
   },
   title: {
     back: "Back",

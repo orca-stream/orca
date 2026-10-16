@@ -27,6 +27,28 @@ export function revealCard(card: HTMLElement): void {
     const start = Number.parseFloat(getComputedStyle(row).paddingLeft) || 0;
     row.scrollTo({ left: item.offsetLeft - start, behavior: behavior() });
   }
+  revealShelf(card);
+}
+
+/**
+ * The Xbox's version: the focused card grows while the one left shrinks, so where it lands is
+ * worked out from the cards' resting width (a poster as tall as the row) rather than read now.
+ */
+export function revealTvCard(card: HTMLElement): void {
+  const item = card.closest("li");
+  const row = item?.parentElement;
+  const art = card.querySelector("[data-art]");
+  if (item && row && art) {
+    const index = Array.prototype.indexOf.call(row.children, item);
+    const gap = Number.parseFloat(getComputedStyle(row).columnGap) || 0;
+    const poster = (art.getBoundingClientRect().height * 2) / 3;
+    row.scrollTo({ left: index * (poster + gap), behavior: behavior() });
+  }
+  revealShelf(card);
+}
+
+/** Scrolls the page so the card's shelf sits in the upper part of the screen. */
+function revealShelf(card: HTMLElement): void {
   const shelf = card.closest("section");
   if (!shelf) return;
   const page = scrollerOf(card);

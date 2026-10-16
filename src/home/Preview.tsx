@@ -9,6 +9,7 @@ import {
 } from "react";
 import { t } from "../i18n/locale";
 import { PreviewContext } from "./preview-context";
+import { TrailerPlayer } from "./TrailerPlayer";
 import { SessionExpiredError, type Connection } from "../jellyfin/client";
 import type { MediaItem } from "../jellyfin/library";
 import { setFavorite, setLiked } from "../jellyfin/title";
@@ -93,7 +94,23 @@ export function PreviewProvider({
     };
   }, [open, close]);
 
-  const value = useMemo(() => ({ hover, leave }), [hover, leave]);
+  // The TV's cards play trailers too; a revoked token still signs out.
+  const expiredRef = useRef(onExpired);
+  useEffect(() => {
+    expiredRef.current = onExpired;
+  });
+  const trailers = useCallback(
+    (item: MediaItem): Promise<Trailer[]> =>
+      item.kind === "movie" || item.kind === "series"
+        ? findTrailers(connection, userId, item.id).catch((error: unknown) => {
+            if (error instanceof SessionExpiredError) expiredRef.current();
+            return [];
+          })
+        : Promise.resolve([]),
+    [connection, userId],
+  );
+
+  const value = useMemo(() => ({ hover, leave, trailers }), [hover, leave, trailers]);
   return (
     <PreviewContext.Provider value={value}>
       {children}
@@ -150,7 +167,6 @@ function PreviewCard(props: {
   const [place] = useState(() => placement(card));
   const [grown, setGrown] = useState(false);
   const [trailers, setTrailers] = useState<Trailer[]>([]);
-  const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [favorite, setFavoriteState] = useState(item.favorite);
@@ -176,13 +192,6 @@ function PreviewCard(props: {
       current = false;
     };
   }, [connection, userId, item.id, item.kind]);
-
-  const trailer = trailers[attempt];
-  /** The trailer couldn't play: the next one, or the picture alone. */
-  const skip = useCallback(() => {
-    setPlaying(false);
-    setAttempt((count) => count + 1);
-  }, []);
 
   function toggleFavorite() {
     const next = !favorite;
@@ -239,31 +248,7 @@ function PreviewCard(props: {
         {picture && (
           <img src={picture} alt="" draggable={false} className="size-full object-cover" />
         )}
-        {trailer?.kind === "file" && (
-          <video
-            key={trailer.url}
-            src={trailer.url}
-            autoPlay
-            loop
-            playsInline
-            muted={muted}
-            onPlaying={() => setPlaying(true)}
-            onError={skip}
-            className={`absolute inset-0 size-full object-cover transition-opacity duration-500 ${
-              playing ? "opacity-100" : "opacity-0"
-            }`}
-          />
-        )}
-        {trailer?.kind === "youtube" && (
-          <YouTubeTrailer
-            key={trailer.id}
-            id={trailer.id}
-            muted={muted}
-            playing={playing}
-            onPlaying={() => setPlaying(true)}
-            onFail={skip}
-          />
-        )}
+        <TrailerPlayer trailers={trailers} muted={muted} onPlayingChange={setPlaying} />
         <span className="absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-[#181818] to-transparent" />
         {item.logoUrl ? (
           <img
@@ -379,100 +364,5 @@ function RoundButton(props: {
     >
       {props.children}
     </button>
-  );
-}
-
-const YOUTUBE_ORIGIN = "https://www.youtube-nocookie.com";
-
-/**
- * A YouTube trailer without YouTube's chrome: muted, looping, no controls, and out of the
- * pointer's way. Its player API (by postMessage) says when it plays or fails, and takes mute.
- */
-function YouTubeTrailer(props: {
-  id: string;
-  muted: boolean;
-  playing: boolean;
-  onPlaying: () => void;
-  onFail: () => void;
-}) {
-  const { id, muted, playing } = props;
-  const frame = useRef<HTMLIFrameElement>(null);
-  const started = useRef(false);
-  const onPlaying = useEffectEvent(props.onPlaying);
-  const onFail = useEffectEvent(props.onFail);
-
-  const command = useCallback((func: string) => {
-    frame.current?.contentWindow?.postMessage(
-      JSON.stringify({ event: "command", func, args: [] }),
-      YOUTUBE_ORIGIN,
-    );
-  }, []);
-
-  useEffect(() => {
-    function listen(event: MessageEvent) {
-      if (event.origin !== YOUTUBE_ORIGIN || event.source !== frame.current?.contentWindow) return;
-      let data: { event?: string; info?: unknown };
-      try {
-        data = JSON.parse(String(event.data)) as typeof data;
-      } catch {
-        return;
-      }
-      if (data.event === "onError") onFail();
-      const state =
-        data.event === "onStateChange"
-          ? data.info
-          : (data.info as { playerState?: number } | null)?.playerState;
-      if (state === 1) {
-        started.current = true;
-        onPlaying();
-      }
-    }
-    window.addEventListener("message", listen);
-    // A trailer that never starts (blocked, removed) leaves the picture alone.
-    const giveUp = setTimeout(() => started.current || onFail(), 8000);
-    return () => {
-      window.removeEventListener("message", listen);
-      clearTimeout(giveUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (playing) command(muted ? "mute" : "unMute");
-  }, [muted, playing, command]);
-
-  const params = new URLSearchParams({
-    autoplay: "1",
-    mute: "1",
-    controls: "0",
-    loop: "1",
-    playlist: id,
-    playsinline: "1",
-    rel: "0",
-    iv_load_policy: "3",
-    disablekb: "1",
-    fs: "0",
-    enablejsapi: "1",
-    origin: window.location.origin,
-  });
-
-  return (
-    <iframe
-      ref={frame}
-      title=""
-      aria-hidden="true"
-      tabIndex={-1}
-      src={`${YOUTUBE_ORIGIN}/embed/${id}?${params.toString()}`}
-      allow="autoplay; encrypted-media"
-      onLoad={() =>
-        frame.current?.contentWindow?.postMessage(
-          JSON.stringify({ event: "listening", id }),
-          YOUTUBE_ORIGIN,
-        )
-      }
-      // Slightly larger than the picture, so YouTube's corner badges fall outside it.
-      className={`pointer-events-none absolute top-1/2 left-1/2 aspect-video w-[118%] max-w-none -translate-x-1/2 -translate-y-1/2 border-0 transition-opacity duration-500 ${
-        playing ? "opacity-100" : "opacity-0"
-      }`}
-    />
   );
 }

@@ -73,6 +73,31 @@
     width: calc((100vw - 0.75rem - 2.3 * 0.375rem) / 3.3);
   }
 
+  /*
+   * The Xbox's shelves, as in Netflix's TV app: posters as tall as `--tv-h`, and the focused one
+   * widened to 16:9. The trailing room lets the last card, widened, still slide to the start.
+   */
+  .tv-shelf {
+    --gap: 0.625rem;
+    --tv-h: min(42vh, 24vw);
+    scrollbar-width: none;
+    padding-right: calc(100% - var(--tv-h) * 16 / 9);
+  }
+
+  .tv-card {
+    width: calc(var(--tv-h) * 2 / 3);
+    min-height: calc(var(--tv-h) + 4.75rem);
+    transition: width 300ms ease-out;
+
+    &[data-open] {
+      width: calc(var(--tv-h) * 16 / 9);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
   .shelf-card {
     flex: none;
     width: calc((100% - (var(--cards) - 1) * var(--gap)) / var(--cards));

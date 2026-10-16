@@ -21,6 +21,9 @@ declare global {
 export const uwpHost: UwpHost | undefined =
   typeof window === "undefined" ? undefined : window.orcaHost;
 
+/** The Xbox app: a TV and a pad, so the home shows Netflix's TV shelves. */
+export const onXbox = uwpHost?.device === "xbox";
+
 /** Keeps the console's screen from dimming while a video plays; a no-op outside the app. */
 export function keepScreenOn(on: boolean): void {
   window.chrome?.webview?.postMessage(JSON.stringify({ type: "playing", on }));

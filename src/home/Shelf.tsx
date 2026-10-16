@@ -1,5 +1,6 @@
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import { useRef, useState } from "react";
+import { onXbox } from "../host";
 import { t } from "../i18n/locale";
 import type { MediaItem, Shelf as ShelfData, ShelfTitle } from "../jellyfin/library";
 import { ChevronIcon } from "../ui/icons";
@@ -7,6 +8,7 @@ import { cardKey } from "./focus-keys";
 import { LandscapeCard } from "./LandscapeCard";
 import { PosterCard } from "./PosterCard";
 import { revealCard } from "./scroll";
+import { TvCard } from "./TvCard";
 
 function titleOf(title: ShelfTitle): string {
   switch (title.kind) {
@@ -38,7 +40,7 @@ function episodeLabel(item: MediaItem): string | null {
 
 interface ShelfProps {
   shelf: ShelfData;
-  /** Wide screens get landscape cards; phones, posters, as in the Netflix app. */
+  /** Wide screens get landscape cards; phones, posters, as in the Netflix app; the Xbox, its TV app's. */
   wide: boolean;
   onOpen: (item: MediaItem) => void;
 }
@@ -52,6 +54,7 @@ export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
   const headingId = `shelf-${shelf.id}`;
   const row = useRef<HTMLUListElement>(null);
   const [arrows, setArrows] = useState<Arrows | null>(null);
+  const tv = wide && onXbox;
 
   /** Where the cards sit, and which way the row can still go. Read on hover, not on every render. */
   function measure() {
@@ -124,14 +127,23 @@ export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
             ref={row}
             onScroll={wide ? measure : undefined}
             className={
-              wide
-                ? "shelf relative flex gap-(--gap) overflow-x-auto px-(--gutter) pt-3 pb-4"
-                : "no-scrollbar flex gap-1.5 overflow-x-auto px-3"
+              tv
+                ? "tv-shelf relative flex gap-(--gap) overflow-x-auto pt-3 pl-(--gutter)"
+                : wide
+                  ? "shelf relative flex gap-(--gap) overflow-x-auto px-(--gutter) pt-3 pb-4"
+                  : "no-scrollbar flex gap-1.5 overflow-x-auto px-3"
             }
           >
             {shelf.items.map((item) => (
-              <li key={item.id} className={wide ? "shelf-card" : "poster-card"}>
-                {wide ? (
+              <li key={item.id} className={tv ? "flex-none" : wide ? "shelf-card" : "poster-card"}>
+                {tv ? (
+                  <TvCard
+                    item={item}
+                    focusKey={cardKey(shelf, item)}
+                    onOpen={() => onOpen(item)}
+                    caption={episodeLabel(item)}
+                  />
+                ) : wide ? (
                   <LandscapeCard
                     item={item}
                     focusKey={cardKey(shelf, item)}
@@ -153,7 +165,7 @@ export function Shelf({ shelf, wide, onOpen }: ShelfProps) {
               </li>
             ))}
           </ul>
-          {wide && arrows && (
+          {wide && !tv && arrows && (
             <>
               <ShelfArrow left hidden={!arrows.back} box={arrows} onPress={() => page(-1)} />
               <ShelfArrow hidden={!arrows.forward} box={arrows} onPress={() => page(1)} />
@@ -195,6 +207,21 @@ function ShelfArrow(props: { left?: boolean; hidden: boolean; box: Arrows; onPre
 
 /** Grey cards in place of the shelves while the server answers. */
 export function ShelfSkeleton({ wide }: { wide: boolean }) {
+  if (wide && onXbox) {
+    return (
+      <div aria-hidden="true" className="grid grid-cols-1 gap-3">
+        <div className="mx-(--gutter) h-6 w-48 rounded bg-white/10" />
+        <div className="tv-shelf flex gap-(--gap) overflow-hidden px-(--gutter)">
+          {Array.from({ length: 7 }, (_, index) => (
+            <div
+              key={index}
+              className="aspect-[2/3] h-(--tv-h) flex-none animate-pulse rounded-md bg-white/10"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div aria-hidden="true" className="grid grid-cols-1 gap-3">
       <div className={`h-6 w-48 rounded bg-white/10 ${wide ? "mx-(--gutter)" : "mx-4"}`} />
