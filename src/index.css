@@ -78,3 +78,9 @@
     width: calc((100% - (var(--cards) - 1) * var(--gap)) / var(--cards));
   }
 }
+
+/* The Xbox app: no pointer to scroll with, so no scrollbars on the TV (see main.tsx). */
+html[data-device="xbox"],
+html[data-device="xbox"] * {
+  scrollbar-width: none;
+}
