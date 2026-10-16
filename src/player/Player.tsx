@@ -376,10 +376,11 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
     if (key === "f") toggleFullscreen();
     if (key === "m") setMuted((value) => !value);
     if (!visible) {
-      // Hidden controls: the arrows act on the video, not on the buttons nobody can see.
-      if (key === "ArrowLeft" || key === "ArrowRight")
+      // Hidden controls: the arrows act on the video, not on the buttons nobody can see. On the
+      // console, as on Netflix's TV app, a button only brings the controls up.
+      if (!tv && (key === "ArrowLeft" || key === "ArrowRight"))
         seek(now() + (key === "ArrowRight" ? SKIP : -SKIP));
-      if (key === "Enter") togglePlay();
+      if (!tv && key === "Enter") togglePlay();
       if (key.startsWith("Arrow") || key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
