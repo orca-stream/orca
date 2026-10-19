@@ -29,6 +29,7 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () =
       // The test pages live on 127.0.0.1, which a real server would refuse.
       isAllowed: () => Promise.resolve(true),
       ...overrides,
+      proxyUrl: "http://127.0.0.1:1",
       launch: () => Promise.resolve(browser),
     });
 

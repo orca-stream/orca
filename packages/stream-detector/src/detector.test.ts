@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  buildLaunchOptions,
   PlaywrightStreamDetector,
   StreamDetectionError,
   type BrowserLike,
@@ -59,6 +60,7 @@ class FakeBrowser implements BrowserLike {
   readonly contexts: FakeContext[] = [];
   closed = false;
   newContextError: Error | null = null;
+  contextOptions: unknown[] = [];
   private disconnectListeners: (() => void)[] = [];
   onNewContext: (context: FakeContext) => void = () => {};
   on(_event: "disconnected", listener: () => void): void {
@@ -67,7 +69,8 @@ class FakeBrowser implements BrowserLike {
   disconnect(): void {
     for (const listener of this.disconnectListeners) listener();
   }
-  newContext(): Promise<ContextLike> {
+  newContext(contextOptions: unknown): Promise<ContextLike> {
+    this.contextOptions.push(contextOptions);
     if (this.newContextError) return Promise.reject(this.newContextError);
     const context = new FakeContext();
     this.contexts.push(context);
@@ -97,7 +100,14 @@ const response = (req: RequestLike, contentType: string, body: string): Response
 });
 
 const allowAll = (_url: string) => Promise.resolve(true);
-const options = { maxConcurrent: 1, timeoutMs: 40, settleMs: 5, isAllowed: allowAll };
+const PROXY = "http://127.0.0.1:3128";
+const options = {
+  maxConcurrent: 1,
+  timeoutMs: 40,
+  settleMs: 5,
+  isAllowed: allowAll,
+  proxyUrl: PROXY,
+};
 const noSignal = () => new AbortController().signal;
 
 function detectorWith(browser: FakeBrowser, overrides: Partial<typeof options> = {}) {
@@ -445,5 +455,42 @@ describe("PlaywrightStreamDetector recovers from a browser that went away", () =
       .catch((e: unknown) => e);
     expect((error as StreamDetectionError).reason).toBe("browser");
     expect(browser.contexts[0]!.closed).toBe(1);
+  });
+});
+
+describe("PlaywrightStreamDetector and what a page can do around the route", () => {
+  it("blocks service workers, which would fetch outside the context's routing", async () => {
+    const browser = new FakeBrowser();
+    await new PlaywrightStreamDetector({
+      ...options,
+      userAgent: "UA/9",
+      launch: () => Promise.resolve(browser),
+    })
+      .detect("https://site.test/", { signal: noSignal() })
+      .catch(() => null);
+    expect(browser.contexts).toHaveLength(1);
+    expect(browser.contextOptions).toEqual([{ userAgent: "UA/9", serviceWorkers: "block" }]);
+  });
+});
+
+describe("buildLaunchOptions", () => {
+  it("sends every request through the proxy, loopback included, and keeps WebRTC from leaking", () => {
+    const launch = buildLaunchOptions(undefined, "http://127.0.0.1:4040");
+    expect(launch).toMatchObject({
+      headless: true,
+      proxy: { server: "http://127.0.0.1:4040", bypass: "<-loopback>" },
+    });
+    expect(launch.args).toContain("--webrtc-ip-handling-policy=disable_non_proxied_udp");
+    expect(launch.args).toContain("--force-webrtc-ip-handling-policy");
+  });
+
+  it("keeps the caller's executable and arguments, and cannot be given a way around the proxy", () => {
+    const launch = buildLaunchOptions(
+      { executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--no-proxy-server"] },
+      "http://127.0.0.1:4040",
+    );
+    expect(launch.executablePath).toBe("/usr/bin/chromium");
+    expect(launch.args).toContain("--no-sandbox");
+    expect(launch.args).not.toContain("--no-proxy-server");
   });
 });

@@ -69,7 +69,10 @@ export interface ContextLike {
 export interface BrowserLike {
   /** Fires when the browser process dies or is closed from outside. */
   on?(event: "disconnected", listener: () => void): unknown;
-  newContext(options: { userAgent?: string }): Promise<ContextLike>;
+  newContext(options: {
+    userAgent?: string;
+    serviceWorkers?: "allow" | "block";
+  }): Promise<ContextLike>;
   close(): Promise<void>;
 }
 
@@ -77,6 +80,36 @@ export interface LaunchOptions {
   headless?: boolean;
   executablePath?: string;
   args?: string[];
+  proxy?: { server: string; bypass?: string };
+}
+
+/** Chromium switches that would let a page or the launcher go around the proxy. */
+const FORBIDDEN_ARGS = ["--no-proxy-server", "--proxy-bypass-list", "--proxy-server"];
+/** Keeps WebRTC from opening UDP sockets (and learning addresses) around the proxy. */
+const WEBRTC_ARGS = [
+  "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+  "--force-webrtc-ip-handling-policy",
+];
+
+/**
+ * How Chromium is started: everything through the guarded proxy, with `<-loopback>` so that loopback
+ * addresses go through it too (Chromium otherwise sends them straight out), and nothing in the
+ * caller's own arguments able to undo that.
+ */
+export function buildLaunchOptions(
+  base: Pick<LaunchOptions, "executablePath" | "args"> | undefined,
+  proxyUrl: string,
+): LaunchOptions {
+  const own = (base?.args ?? []).filter(
+    (arg) =>
+      !FORBIDDEN_ARGS.some((forbidden) => arg === forbidden || arg.startsWith(`${forbidden}=`)),
+  );
+  return {
+    headless: true,
+    ...(base?.executablePath ? { executablePath: base.executablePath } : {}),
+    args: [...own, ...WEBRTC_ARGS],
+    proxy: { server: proxyUrl, bypass: "<-loopback>" },
+  };
 }
 
 export interface PlaywrightStreamDetectorOptions {
@@ -92,7 +125,12 @@ export interface PlaywrightStreamDetectorOptions {
    * through it, so a page cannot be used to read the server's own network. Required on purpose.
    */
   isAllowed: (url: string) => Promise<boolean>;
-  launchOptions?: LaunchOptions;
+  /**
+   * The guarded proxy Chromium is started behind (`GuardedProxy.url`). Redirects, WebRTC and
+   * anything else the route cannot see still have to pass it. Required on purpose.
+   */
+  proxyUrl: string;
+  launchOptions?: Pick<LaunchOptions, "executablePath" | "args">;
   /** Replaces the Playwright launch. Meant for tests. */
   launch?: () => Promise<BrowserLike>;
 }
@@ -113,9 +151,12 @@ function forwardedHeaders(all: Record<string, string>): Record<string, string> {
   return out;
 }
 
-async function defaultLaunch(options: LaunchOptions | undefined): Promise<BrowserLike> {
+async function defaultLaunch(
+  options: PlaywrightStreamDetectorOptions["launchOptions"],
+  proxyUrl: string,
+): Promise<BrowserLike> {
   const { chromium } = await import("playwright");
-  return (await chromium.launch({ headless: true, ...options })) as unknown as BrowserLike;
+  return (await chromium.launch(buildLaunchOptions(options, proxyUrl))) as unknown as BrowserLike;
 }
 
 /** Watches what a page requests inside a headless Chromium and returns the streams it found. */
@@ -151,9 +192,11 @@ export class PlaywrightStreamDetector {
       const browser = await handle;
       let context: ContextLike;
       try {
-        context = await browser.newContext(
-          this.options.userAgent === undefined ? {} : { userAgent: this.options.userAgent },
-        );
+        context = await browser.newContext({
+          ...(this.options.userAgent === undefined ? {} : { userAgent: this.options.userAgent }),
+          // A service worker fetches on its own, outside the context's routing.
+          serviceWorkers: "block",
+        });
       } catch (cause) {
         this.forget(handle);
         throw new StreamDetectionError("browser", "The browser could not open a context", {
@@ -211,7 +254,10 @@ export class PlaywrightStreamDetector {
 
   private launched(): Promise<BrowserLike> {
     if (this.browser) return this.browser;
-    const handle = (this.options.launch ?? (() => defaultLaunch(this.options.launchOptions)))();
+    const handle = (
+      this.options.launch ??
+      (() => defaultLaunch(this.options.launchOptions, this.options.proxyUrl))
+    )();
     this.browser = handle;
     handle.then(
       (browser) => {

@@ -8,6 +8,7 @@ export {
   type StreamKind,
 } from "./candidates.ts";
 export {
+  buildLaunchOptions,
   PlaywrightStreamDetector,
   StreamDetectionError,
   type BrowserLike,
