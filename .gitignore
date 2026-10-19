@@ -36,6 +36,6 @@ dist-ssr
 .claude
 
 # Xbox/Windows app: build output and packages
-xbox/Orca/bin
-xbox/Orca/obj
-xbox/out
+apps/jp/xbox/Orca/bin
+apps/jp/xbox/Orca/obj
+apps/jp/xbox/out
