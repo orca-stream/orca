@@ -27,3 +27,8 @@ peerDependencyRules:
 # Same supply-chain window CI enforces. Pinned here so a global minimumReleaseAge: 0 on a dev
 # machine cannot resolve a lockfile CI will reject.
 minimumReleaseAge: 1440
+
+# drizzle-kit's esbuild only runs an optional postinstall speed-up; it works without it. Declared so
+# `pnpm install` doesn't fail on ERR_PNPM_IGNORED_BUILDS (better-sqlite3 ships prebuilds, no script).
+allowBuilds:
+  esbuild: false

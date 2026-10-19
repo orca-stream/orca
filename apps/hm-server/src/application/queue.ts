@@ -1,0 +1,230 @@
+import type { ProgressDetail } from "@orca/hm-contract";
+import { backoffMs } from "../domain/backoff.ts";
+import { AbortedError, RetryableError } from "../domain/errors.ts";
+import type { Job, Resource } from "../domain/job.ts";
+import type { Clock, JobCanceller, JobRepository, QueueSignal, Random } from "./ports.ts";
+
+export interface JobContext {
+  signal: AbortSignal;
+  /** Throttled: at most one write and one event per second per job. */
+  progress: (progress: number | null, detail?: ProgressDetail | null) => void;
+}
+
+export type JobOutcome = "done" | "failed" | "cancelled" | "requeued";
+
+export interface JobHandler {
+  run(job: Job, context: JobContext): Promise<void>;
+  /** Called after the queue settled the job, e.g. to put the episode's status in line with it. */
+  onOutcome?(job: Job, outcome: JobOutcome): Promise<void>;
+}
+
+/** What the queue tells the outside world. The HTTP layer turns these into SSE events. */
+export interface QueueEvents {
+  updated(job: Job): void;
+  progress(job: Job, progress: number | null, detail: ProgressDetail | null): void;
+}
+
+export interface QueueOptions {
+  jobs: JobRepository;
+  clock: Clock;
+  random: Random;
+  handler: JobHandler;
+  events: QueueEvents;
+  /** How many jobs of each resource may run at once. */
+  limits: Record<Resource, number>;
+  owner?: string;
+  leaseMs?: number;
+  heartbeatMs?: number;
+  pollMs?: number;
+  progressIntervalMs?: number;
+}
+
+const RESOURCES: Resource[] = ["browser", "ffmpeg", "download", "none"];
+
+/**
+ * The persistent in-process queue: jobs live in SQLite, so a crash loses nothing. Workers claim the
+ * next due job per resource, hold a lease they refresh while running, and a semaphore per resource
+ * caps concurrency. A job that fails retryably is requeued with backoff; one that is cancelled is
+ * aborted through its AbortSignal.
+ */
+export class JobQueue implements JobCanceller, QueueSignal {
+  private readonly options: Required<Omit<QueueOptions, "limits">> & Pick<QueueOptions, "limits">;
+  private readonly active: Record<Resource, number> = {
+    browser: 0,
+    ffmpeg: 0,
+    download: 0,
+    none: 0,
+  };
+  private readonly running = new Map<
+    string,
+    { controller: AbortController; done: Promise<void> }
+  >();
+  private pumping: Promise<void> | undefined;
+  private pumpAgain = false;
+  private stopping = false;
+  private timer: ReturnType<typeof setInterval> | undefined;
+
+  constructor(options: QueueOptions) {
+    this.options = {
+      owner: `hm-${process.pid}`,
+      leaseMs: 60_000,
+      heartbeatMs: 15_000,
+      pollMs: 2_000,
+      progressIntervalMs: 1_000,
+      ...options,
+    };
+  }
+
+  /** Recovers what a crash left running, then starts polling for due jobs. */
+  async start(): Promise<void> {
+    await this.options.jobs.recoverRunning();
+    this.timer = setInterval(() => void this.pump(), this.options.pollMs);
+    this.timer.unref();
+    void this.pump();
+  }
+
+  /** Aborts what is running (it stays `running` in the database and is recovered at the next boot). */
+  async stop(): Promise<void> {
+    this.stopping = true;
+    if (this.timer) clearInterval(this.timer);
+    for (const { controller } of this.running.values()) controller.abort();
+    await Promise.allSettled([...this.running.values()].map((run) => run.done));
+  }
+
+  notify(): void {
+    void this.pump();
+  }
+
+  /** Claims and launches whatever is due and has a free slot. Safe to call from anywhere, any time. */
+  pump(): Promise<void> {
+    if (this.stopping) return Promise.resolve();
+    if (this.pumping) {
+      this.pumpAgain = true;
+      return this.pumping;
+    }
+    this.pumping = this.runPump().finally(() => {
+      this.pumping = undefined;
+    });
+    return this.pumping;
+  }
+
+  private async runPump(): Promise<void> {
+    do {
+      this.pumpAgain = false;
+      await this.options.jobs.recoverExpired();
+      for (const resource of RESOURCES) {
+        while (this.active[resource] < this.options.limits[resource]) {
+          const job = await this.options.jobs.claim(
+            resource,
+            this.options.owner,
+            this.options.leaseMs,
+          );
+          if (!job) break;
+          this.launch(job);
+        }
+      }
+    } while (this.pumpAgain);
+  }
+
+  /** For tests: pumps until nothing is running and nothing more is due. */
+  async settle(): Promise<void> {
+    for (;;) {
+      await this.pump();
+      if (this.running.size === 0) return;
+      await Promise.all([...this.running.values()].map((run) => run.done));
+    }
+  }
+
+  async cancel(id: string): Promise<Job> {
+    const running = this.running.get(id);
+    if (running) {
+      running.controller.abort();
+      await running.done;
+      const job = await this.options.jobs.get(id);
+      if (job) return job;
+    }
+    const current = await this.options.jobs.get(id);
+    if (
+      current &&
+      (current.status === "done" || current.status === "failed" || current.status === "cancelled")
+    ) {
+      return current;
+    }
+    const cancelled = await this.options.jobs.cancel(id);
+    this.options.events.updated(cancelled);
+    await this.safely(() => this.options.handler.onOutcome?.(cancelled, "cancelled"));
+    return cancelled;
+  }
+
+  private launch(job: Job): void {
+    this.active[job.resource]++;
+    const controller = new AbortController();
+    const done = this.execute(job, controller).finally(() => {
+      this.active[job.resource]--;
+      this.running.delete(job.id);
+      void this.pump();
+    });
+    this.running.set(job.id, { controller, done });
+  }
+
+  private async execute(job: Job, controller: AbortController): Promise<void> {
+    const { jobs, handler, events, clock, random } = this.options;
+    events.updated(job);
+    const heartbeat =
+      this.options.heartbeatMs > 0
+        ? setInterval(
+            () => void jobs.heartbeat(job.id, this.options.owner, this.options.leaseMs),
+            this.options.heartbeatMs,
+          )
+        : undefined;
+    heartbeat?.unref();
+    let lastProgress = -Infinity;
+    const progress: JobContext["progress"] = (value, detail = null) => {
+      const now = clock.now();
+      if (now - lastProgress < this.options.progressIntervalMs) return;
+      lastProgress = now;
+      void jobs.updateProgress(job.id, value, detail);
+      events.progress(job, value, detail);
+    };
+
+    try {
+      await handler.run(job, { signal: controller.signal, progress });
+      const done = await jobs.complete(job.id);
+      events.updated(done);
+      await this.safely(() => handler.onOutcome?.(done, "done"));
+    } catch (error) {
+      if (controller.signal.aborted || error instanceof AbortedError) {
+        if (this.stopping) return;
+        const cancelled = await jobs.cancel(job.id);
+        events.updated(cancelled);
+        await this.safely(() => handler.onOutcome?.(cancelled, "cancelled"));
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof RetryableError && job.attempts < job.maxAttempts) {
+        const delay = backoffMs(job.attempts, random.next(), error.retryAfterMs);
+        const requeued = await jobs.requeue(job.id, clock.now() + delay, message);
+        events.updated(requeued);
+        await this.safely(() => handler.onOutcome?.(requeued, "requeued"));
+        return;
+      }
+      const failed = await jobs.fail(
+        job.id,
+        message,
+        error instanceof RetryableError ? "retryable" : "permanent",
+      );
+      events.updated(failed);
+      await this.safely(() => handler.onOutcome?.(failed, "failed"));
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
+    }
+  }
+
+  private async safely(action: () => Promise<void> | undefined): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      console.error("job outcome hook failed", error);
+    }
+  }
+}

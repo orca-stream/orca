@@ -1,0 +1,37 @@
+{
+  "name": "@orca/hm-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Orca'H&M: downloads shows from public-domain sites into a Jellyfin library",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/main.ts",
+    "start": "node dist/main.mjs",
+    "build": "tsc -p tsconfig.json && vp pack",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test run",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@hono/zod-validator": "catalog:",
+    "@jellyfin/sdk": "catalog:",
+    "@orca/extractor-core": "workspace:*",
+    "@orca/extractor-internet-archive": "workspace:*",
+    "@orca/hm-contract": "workspace:*",
+    "@orca/jellyfin": "workspace:*",
+    "axios": "catalog:",
+    "better-sqlite3": "catalog:",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "~7.0.2",
+    "vite-plus": "catalog:"
+  }
+}
