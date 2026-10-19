@@ -2,7 +2,12 @@
 declare const __APP_VERSION__: string;
 
 interface ImportMetaEnv {
-  /** One more server offered on the sign-in picker, first among the defaults. */
+  /**
+   * Servers offered on the sign-in picker, comma-separated. Unset: only the servers this device
+   * already signed in to are offered, plus manual entry.
+   */
+  readonly VITE_JELLYFIN_SERVERS?: string;
+  /** Older single-server form of `VITE_JELLYFIN_SERVERS`; still read, and listed first. */
   readonly VITE_JELLYFIN_SERVER_URL?: string;
   /**
    * Where phones open Orca'JP when they scan the sign-in QR. Defaults to the address this page was

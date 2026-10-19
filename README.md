@@ -22,7 +22,7 @@ The lint, format and staged-file rules live in the root `vite.config.ts`; each p
 ```bash
 corepack enable
 pnpm install
-cp apps/jp/.env.example apps/jp/.env   # point VITE_JELLYFIN_SERVER_URL at your server
+cp apps/jp/.env.example apps/jp/.env   # list your servers in VITE_JELLYFIN_SERVERS (comma-separated; leave empty to offer only servers already signed in to)
 pnpm dev
 ```
 

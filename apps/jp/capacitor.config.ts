@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   backgroundColor: "#000000",
   server: {
     // Served from http://localhost (still a secure context), so Jellyfin servers on plain http in the
-    // LAN (http://192.168.1.100:8096) are not blocked as mixed content, as they would be from https.
+    // LAN (http://media.local:8096) are not blocked as mixed content, as they would be from https.
     androidScheme: "http",
   },
   plugins: {

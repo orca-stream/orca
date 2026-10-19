@@ -2,9 +2,8 @@ import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-naviga
 import { useEffect, useState, type FormEvent } from "react";
 import { t } from "../i18n/locale";
 import { jellyfin, type Connection } from "../jellyfin/client";
-import { normalizeServerUrl } from "@orca/jellyfin";
+import { normalizeServerUrl, signIn, SignInError } from "@orca/jellyfin";
 import type { Session } from "../jellyfin/session";
-import { signIn, SignInError } from "@orca/jellyfin";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
 import { useWideScreen } from "../ui/use-wide-screen";

@@ -2,9 +2,14 @@ import type { Api, Jellyfin } from "@jellyfin/sdk";
 import { getAuthenticationApi } from "@jellyfin/sdk/lib/utils/api/authentication-api";
 import { isAxiosError, type AxiosInstance } from "axios";
 import { SessionExpiredError, type Connection } from "./client";
-import { normalizeServerUrl } from "@orca/jellyfin";
+import {
+  normalizeServerUrl,
+  connectToServer,
+  sessionFrom,
+  SignInError,
+  type ServerConnection,
+} from "@orca/jellyfin";
 import type { Session } from "./session";
-import { connectToServer, sessionFrom, SignInError, type ServerConnection } from "@orca/jellyfin";
 
 // Jellyfin's Quick Connect: a device that can't type comfortably (TV, Xbox) asks the server for a
 // short code, a signed-in device approves that code, and the first one gets its own token.

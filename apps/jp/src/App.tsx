@@ -22,7 +22,7 @@ import {
   withoutQuickConnectLink,
   type QuickConnectLink,
 } from "./jellyfin/quick-connect";
-import { DEFAULT_SERVERS, serverChoices } from "./jellyfin/servers";
+import { configuredServers, serverChoices } from "./jellyfin/servers";
 import { ProfileGate } from "./profiles/ProfileGate";
 import { browserStore } from "./storage";
 
@@ -139,7 +139,10 @@ function App() {
           prefill={screen.prefill}
           servers={serverChoices(
             sessions.map((session) => session.serverUrl),
-            [import.meta.env.VITE_JELLYFIN_SERVER_URL, ...DEFAULT_SERVERS],
+            configuredServers(
+              import.meta.env.VITE_JELLYFIN_SERVERS,
+              import.meta.env.VITE_JELLYFIN_SERVER_URL,
+            ),
           )}
           onCancel={
             screen.then

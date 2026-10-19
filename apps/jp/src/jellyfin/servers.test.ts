@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { fakeServer, testJellyfin } from "@orca/jellyfin/testing";
-import { probeServer, serverChoices, serverKind } from "./servers";
+import { configuredServers, probeServer, serverChoices, serverKind } from "./servers";
 
 describe("serverChoices", () => {
   it("puts the servers already used first, each once, then the defaults", () => {
@@ -15,6 +15,34 @@ describe("serverChoices", () => {
   it("drops an address that isn't valid", () => {
     expect(serverChoices([], ["ftp://nope", " ", "jf.example.com"])).toEqual([
       "http://jf.example.com",
+    ]);
+  });
+});
+
+describe("serverChoices without a configured list", () => {
+  it("offers only the servers this device already signed in to", () => {
+    expect(serverChoices(["https://jf.example.com/"])).toEqual(["https://jf.example.com"]);
+    expect(serverChoices([])).toEqual([]);
+  });
+});
+
+describe("configuredServers", () => {
+  it("reads a comma-separated list, ignoring spaces, newlines and empty entries", () => {
+    expect(
+      configuredServers("https://jf.example.com, 192.168.1.100:8096 ,\n http://media.local:8096,,"),
+    ).toEqual(["https://jf.example.com", "192.168.1.100:8096", "http://media.local:8096"]);
+  });
+
+  it("is empty when the variable is unset or blank", () => {
+    expect(configuredServers(undefined)).toEqual([]);
+    expect(configuredServers("")).toEqual([]);
+    expect(configuredServers(" , ")).toEqual([]);
+  });
+
+  it("keeps the single-server variable working, ahead of the list", () => {
+    expect(configuredServers("https://b.example.com", "https://a.example.com")).toEqual([
+      "https://a.example.com",
+      "https://b.example.com",
     ]);
   });
 });

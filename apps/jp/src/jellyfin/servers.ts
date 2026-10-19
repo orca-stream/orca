@@ -1,26 +1,33 @@
 import type { Jellyfin } from "@jellyfin/sdk";
 import axios, { type AxiosInstance } from "axios";
-import { normalizeServerUrl } from "@orca/jellyfin";
-import { connectToServer, SignInError, type SignInFailure } from "@orca/jellyfin";
+import {
+  normalizeServerUrl,
+  connectToServer,
+  SignInError,
+  type SignInFailure,
+} from "@orca/jellyfin";
 
-/** Offered on the server picker even before anyone signed in on this device. */
-export const DEFAULT_SERVERS: readonly string[] = [
-  "https://jf.example.com",
-  "http://192.168.1.100:8096",
-  "http://192.168.1.145:8096",
-  "http://localhost:8096",
-];
+/**
+ * The suggested servers from the build's environment: `VITE_JELLYFIN_SERVERS`, a comma-separated
+ * list, and the older single-server `VITE_JELLYFIN_SERVER_URL`, which goes first. Nothing is baked
+ * in: unset, the picker offers only servers this device already signed in to, plus manual entry.
+ */
+export function configuredServers(list: string | undefined, single?: string): string[] {
+  return [single, ...(list ?? "").split(/[,\n]/)]
+    .map((address) => address?.trim() ?? "")
+    .filter((address) => address !== "");
+}
 
 /** A server that doesn't answer within this long is shown as unavailable, not left spinning. */
 const PROBE_TIMEOUT_MS = 5000;
 
 /**
  * The servers to offer, each once: the ones this device already signed in to first (the likely
- * pick), then `defaults`. Anything that isn't a valid address is dropped.
+ * pick), then the configured ones. Anything that isn't a valid address is dropped.
  */
 export function serverChoices(
   used: readonly string[],
-  defaults: readonly (string | undefined)[] = DEFAULT_SERVERS,
+  defaults: readonly (string | undefined)[] = [],
 ): string[] {
   const choices = new Set<string>();
   for (const address of [...used, ...defaults]) {
