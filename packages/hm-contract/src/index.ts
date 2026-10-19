@@ -6,6 +6,7 @@ export {
   EpisodeDto,
   EpisodeStatus,
   LicenseDto,
+  MAX_TITLE_LENGTH,
   PreviewDto,
   PreviewEpisode,
   PreviewRequest,

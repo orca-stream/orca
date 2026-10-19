@@ -3,6 +3,7 @@ import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api.js";
 import { isAxiosError, type AxiosInstance } from "axios";
 import type { MediaServer } from "../../application/ports.ts";
 import { PermanentError, RetryableError } from "../../domain/errors.ts";
+import { createJellyfinHttp } from "./http.ts";
 
 export interface JellyfinMediaServerOptions {
   jellyfin: Jellyfin;
@@ -14,6 +15,8 @@ export interface JellyfinMediaServerOptions {
   /** Where the same folder is, as Jellyfin sees it (differs when the containers mount it elsewhere). */
   jellyfinMediaRoot: string;
   axiosInstance?: AxiosInstance;
+  /** Only used when no `axiosInstance` is given. */
+  timeoutMs?: number;
 }
 
 export class JellyfinMediaServer implements MediaServer {
@@ -25,8 +28,8 @@ export class JellyfinMediaServer implements MediaServer {
 
   /** `POST /Library/Media/Updated`: a targeted scan of one folder, no full library refresh. */
   async libraryUpdated(path: string): Promise<void> {
-    const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot, axiosInstance } =
-      this.options;
+    const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
+    const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
     const root = mediaRoot.replace(/\/+$/, "");
     if (path !== root && !path.startsWith(`${root}/`)) {
       throw new PermanentError(`${path} is not under the media root ${root}`);

@@ -18,6 +18,13 @@ describe("naming", () => {
     expect(sanitizeName("  a|b*c\\d  ")).toBe("abcd");
     expect(sanitizeName("Dots...")).toBe("Dots");
     expect(sanitizeName("???")).toBe("Untitled");
+    // Jellyfin ignores everything that starts with a dot, and .hm-staging is ours.
+    expect(sanitizeName(".hm-staging")).toBe("hm-staging");
+    expect(sanitizeName("...Foo")).toBe("Foo");
+    expect(sanitizeName("..")).toBe("Untitled");
+    // Long titles are cut before they exceed a file name limit.
+    expect(sanitizeName("x".repeat(400))).toHaveLength(150);
+    expect(sanitizeName(`${"x".repeat(149)} y`)).toBe("x".repeat(149));
   });
 
   it("follows Jellyfin's layout", () => {
@@ -134,14 +141,66 @@ describe("FsLibraryWriter", () => {
     await expect(stat(staged)).rejects.toThrow();
   });
 
+  it("keeps the extension of the poster it was given", async () => {
+    const series = aSeries();
+    await writer.writeSeries(series);
+    await writer.writePoster(series, { bytes: new Uint8Array([9]), extension: ".png" });
+    expect(await writer.posterPath(series)).toBe(
+      join(root, "The Beverly Hillbillies (1962)", "poster.png"),
+    );
+  });
+
+  it("removes a series folder it just made, but never one with episodes in it", async () => {
+    const series = aSeries();
+    await writer.writeSeries(series);
+    await writer.removeSeries(series);
+    await expect(stat(writer.seriesPath(series))).rejects.toThrow();
+
+    await writer.writeSeries(series);
+    await mkdir(join(writer.seriesPath(series), "Season 01"));
+    await writer.removeSeries(series);
+    expect((await stat(join(writer.seriesPath(series), "Season 01"))).isDirectory()).toBe(true);
+  });
+
   it("serves a poster only once one was written", async () => {
     const series = aSeries();
     await writer.writeSeries(series);
     expect(await writer.posterPath(series)).toBeNull();
-    await writer.writePoster(series, new Uint8Array([1, 2, 3]));
+    await writer.writePoster(series, { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" });
     const path = await writer.posterPath(series);
     expect(path).toBe(join(root, "The Beverly Hillbillies (1962)", "poster.jpg"));
     expect([...(await readFile(path!))]).toEqual([1, 2, 3]);
+  });
+
+  it("copies across file systems to a hidden temp name first, then renames", async () => {
+    const { copyFile: realCopy } = await import("node:fs/promises");
+    const seen: string[] = [];
+    const crossing = new FsLibraryWriter(root, {
+      rename: async (from, to) => {
+        if (String(to).includes("Season 01") && !String(to).includes("/.")) {
+          const error = new Error("cross-device") as NodeJS.ErrnoException;
+          error.code = "EXDEV";
+          if (String(from).includes(".hm-staging")) throw error;
+        }
+        const { rename } = await import("node:fs/promises");
+        await rename(from, to);
+      },
+      copyFile: async (from, to) => {
+        seen.push(String(to));
+        await realCopy(from, to);
+      },
+    });
+    const series = aSeries();
+    const episode = anEpisode({ season: 1, episode: 1 });
+    await crossing.writeSeries(series);
+    const staged = crossing.stagingPath(episode);
+    await mkdir(join(root, ".hm-staging"), { recursive: true });
+    await writeFile(staged, "video");
+    const { relativePath } = await crossing.commitEpisode(series, episode, staged);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatch(/\/\.[^/]+\.tmp$/); // dot-prefixed: Jellyfin never sees a half file
+    expect(await readFile(join(root, relativePath), "utf8")).toBe("video");
+    await expect(stat(staged)).rejects.toThrow();
   });
 
   it("discards a staged file and its part", async () => {

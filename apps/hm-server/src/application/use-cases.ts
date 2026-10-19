@@ -37,6 +37,9 @@ function sourceOf(episode: ExtractedEpisode): Source {
 }
 
 export function createUseCases(deps: Deps) {
+  // One admin re-check per session at a time: a burst of requests shares the answer.
+  const rechecks = new Map<string, Promise<boolean>>();
+
   const enqueueDownloads = createEnqueueDownloads(deps);
   const { publishJob } = createJobEvents(deps);
 
@@ -147,8 +150,15 @@ export function createUseCases(deps: Deps) {
         createdAt: now,
       }));
 
-      await deps.series.create(series, episodes);
+      // The folder first: if it can't be written there is nothing to undo. If saving then fails,
+      // take the folder away again, so a retry doesn't meet a half-made series.
       await deps.library.writeSeries(series);
+      try {
+        await deps.series.create(series, episodes);
+      } catch (error) {
+        await deps.library.removeSeries(series).catch(() => undefined);
+        throw error;
+      }
 
       let created = series;
       if (extraction.series.posterUrl) {
@@ -281,7 +291,14 @@ export function createUseCases(deps: Deps) {
       }
       if (now - session.checkedAt >= deps.adminRecheckMs) {
         try {
-          if (!(await deps.authenticator.isStillAdmin(session.userId))) {
+          let check = rechecks.get(sessionId);
+          if (!check) {
+            check = deps.authenticator
+              .isStillAdmin(session.userId)
+              .finally(() => rechecks.delete(sessionId));
+            rechecks.set(sessionId, check);
+          }
+          if (!(await check)) {
             await deps.sessions.delete(sessionId);
             return null;
           }

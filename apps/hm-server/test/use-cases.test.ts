@@ -66,6 +66,26 @@ describe("addSeries", () => {
     expect(h.events.some((e) => e.type === "series.updated")).toBe(true);
   });
 
+  it("leaves nothing behind when the library can't be written, so the user can try again", async () => {
+    const real = h.library.writeSeries.bind(h.library);
+    h.library.writeSeries = async () => {
+      throw new Error("EACCES: permission denied");
+    };
+    await expect(addBevhill(h)).rejects.toThrow(/EACCES/);
+    expect(await h.series.list()).toEqual([]);
+
+    h.library.writeSeries = real;
+    await expect(addBevhill(h)).resolves.toMatchObject({ series: { episodeCount: 6 } });
+  });
+
+  it("removes the folder it made when saving the series fails", async () => {
+    h.deps.series.create = async () => {
+      throw new Error("SQLITE_FULL");
+    };
+    await expect(addBevhill(h)).rejects.toThrow(/SQLITE_FULL/);
+    expect(await exists(join(h.root, "The Beverly Hillbillies (1962)"))).toBe(false);
+  });
+
   it("still adds the series when the poster can't be fetched", async () => {
     h.images.fail = true;
     const { series } = await addBevhill(h);
@@ -435,6 +455,13 @@ describe("sessions", () => {
     h.authenticator.demoted.add("id-sam");
     h.clock.advance(61 * 60 * 1000);
     expect(await h.useCases.resolveSession(sessionId)).toBeNull();
+  });
+
+  it("asks Jellyfin once when several requests of one session arrive together", async () => {
+    const { sessionId } = await h.useCases.login("sam", "secret");
+    h.clock.advance(2 * 3600 * 1000);
+    await Promise.all(Array.from({ length: 5 }, () => h.useCases.resolveSession(sessionId)));
+    expect(h.authenticator.checks).toBe(1);
   });
 
   it("keeps the session when Jellyfin can't be asked", async () => {

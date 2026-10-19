@@ -1,6 +1,9 @@
 import * as z from "zod";
 import { LicenseKindSchema } from "./common.ts";
 
+/** Titles become folder names; this keeps them well under file-name limits. */
+export const MAX_TITLE_LENGTH = 150;
+
 export const EpisodeStatus = z.enum(["missing", "queued", "downloading", "available", "failed"]);
 export type EpisodeStatus = z.infer<typeof EpisodeStatus>;
 
@@ -56,7 +59,7 @@ export type PreviewDto = z.infer<typeof PreviewDto>;
 
 export const CreateSeriesBody = z.object({
   previewId: z.string().min(1),
-  title: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
   year: z.number().int().min(1800).max(2200).nullable(),
   episodeKeys: z.array(z.string()).min(1),
   follow: z.boolean().default(false),
@@ -66,7 +69,7 @@ export const CreateSeriesBody = z.object({
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 
 export const SeriesPatch = z.object({
-  title: z.string().trim().min(1).optional(),
+  title: z.string().trim().min(1).max(MAX_TITLE_LENGTH).optional(),
   year: z.number().int().min(1800).max(2200).nullable().optional(),
   follow: z.boolean().optional(),
   checkIntervalHours: z

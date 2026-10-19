@@ -131,8 +131,10 @@ export interface LibraryWriter {
   seriesPath(series: Series): string;
   /** Creates the series folder and writes tvshow.nfo. */
   writeSeries(series: Series): Promise<void>;
-  writePoster(series: Series, image: Uint8Array): Promise<void>;
-  /** The poster.jpg on disk, if the series has one. */
+  writePoster(series: Series, image: FetchedImage): Promise<void>;
+  /** Deletes a series folder this server just made and that holds nothing but its own files. */
+  removeSeries(series: Series): Promise<void>;
+  /** The poster image on disk, if the series has one. */
   posterPath(series: Series): Promise<string | null>;
   /** Moves the staged file to its Jellyfin name and writes the episode .nfo. Returns the path under MEDIA_ROOT. */
   commitEpisode(
@@ -171,8 +173,14 @@ export interface StreamDetector {
   detect(pageUrl: string, options: { signal: AbortSignal }): Promise<DetectedStream[]>;
 }
 
+export interface FetchedImage {
+  bytes: Uint8Array;
+  /** Lower-case, with the dot: `.jpg`, `.png`, `.webp`. */
+  extension: string;
+}
+
 export interface ImageFetcher {
-  fetch(url: string, options?: { signal?: AbortSignal }): Promise<Uint8Array>;
+  fetch(url: string, options?: { signal?: AbortSignal }): Promise<FetchedImage>;
 }
 
 export interface EventBus {

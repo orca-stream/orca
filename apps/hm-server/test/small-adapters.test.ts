@@ -135,25 +135,85 @@ describe("FetchHttpClient", () => {
 });
 
 describe("FetchImageFetcher", () => {
-  it("returns the bytes", async () => {
-    const { fetchImpl } = responder(new Response(new Uint8Array([1, 2, 3])));
-    const bytes = await new FetchImageFetcher({ userAgent: "x", fetch: fetchImpl }).fetch(
-      "https://archive.org/img",
-    );
-    expect([...bytes]).toEqual([1, 2, 3]);
+  const image = (
+    body: ConstructorParameters<typeof Response>[0],
+    type = "image/jpeg",
+    extra: Record<string, string> = {},
+  ) => new Response(body, { headers: { "content-type": type, ...extra } });
+
+  it("returns the bytes and the extension its content type implies", async () => {
+    const fetcher = (response: Response) =>
+      new FetchImageFetcher({ userAgent: "x", fetch: responder(response).fetchImpl });
+    const jpeg = await fetcher(image(new Uint8Array([1, 2, 3]))).fetch("https://archive.org/img");
+    expect([...jpeg.bytes]).toEqual([1, 2, 3]);
+    expect(jpeg.extension).toBe(".jpg");
+    expect(
+      (await fetcher(image(new Uint8Array([1]), "image/png")).fetch("https://a.org/i")).extension,
+    ).toBe(".png");
+    expect(
+      (
+        await fetcher(image(new Uint8Array([1]), "image/webp; charset=binary")).fetch(
+          "https://a.org/i",
+        )
+      ).extension,
+    ).toBe(".webp");
   });
 
-  it("refuses a failed or oversized answer", async () => {
-    const failed = new FetchImageFetcher({
-      userAgent: "x",
-      fetch: responder(new Response("", { status: 404 })).fetchImpl,
+  it("refuses what isn't an image, a failed answer, and anything over the size cap", async () => {
+    const make = (response: Response, maxBytes?: number) =>
+      new FetchImageFetcher({
+        userAgent: "x",
+        ...(maxBytes ? { maxBytes } : {}),
+        fetch: responder(response).fetchImpl,
+      });
+    await expect(make(image("<html>", "text/html")).fetch("https://a.org/i")).rejects.toThrow(
+      /not an image/i,
+    );
+    await expect(
+      make(new Response("", { status: 404 })).fetch("https://a.org/i"),
+    ).rejects.toThrow();
+    await expect(make(image(new Uint8Array(5)), 2).fetch("https://a.org/i")).rejects.toThrow(
+      /too large/,
+    );
+  });
+
+  it("rejects on Content-Length alone, closing the body unread", async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(10));
+      },
+      cancel() {
+        cancelled = true;
+      },
     });
-    await expect(failed.fetch("https://archive.org/img")).rejects.toThrow();
-    const big = new FetchImageFetcher({
-      userAgent: "x",
-      maxBytes: 2,
-      fetch: responder(new Response(new Uint8Array(5))).fetchImpl,
+    const response = new Response(body, {
+      headers: { "content-type": "image/jpeg", "content-length": "1000000" },
     });
-    await expect(big.fetch("https://archive.org/img")).rejects.toThrow(/too large/);
+    const fetcher = new FetchImageFetcher({
+      userAgent: "x",
+      maxBytes: 100,
+      fetch: responder(response).fetchImpl,
+    });
+    await expect(fetcher.fetch("https://a.org/i")).rejects.toThrow(/too large/);
+    expect(cancelled).toBe(true);
+  });
+
+  it("stops reading a body that lies about its size", async () => {
+    let chunks = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        chunks++;
+        controller.enqueue(new Uint8Array(60));
+        if (chunks > 50) controller.close();
+      },
+    });
+    const fetcher = new FetchImageFetcher({
+      userAgent: "x",
+      maxBytes: 100,
+      fetch: responder(image(body)).fetchImpl,
+    });
+    await expect(fetcher.fetch("https://a.org/i")).rejects.toThrow(/too large/);
+    expect(chunks).toBeLessThan(10);
   });
 });

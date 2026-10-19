@@ -59,6 +59,14 @@ describe("bodies", () => {
     expect(body).toMatchObject({ follow: false, downloadNow: false, licenseAck: false });
   });
 
+  it("caps titles at 150 characters, so they stay valid folder names", () => {
+    const long = "x".repeat(151);
+    const base = { previewId: "p", year: 1962, episodeKeys: ["a"] };
+    expect(CreateSeriesBody.safeParse({ ...base, title: long }).success).toBe(false);
+    expect(CreateSeriesBody.safeParse({ ...base, title: "x".repeat(150) }).success).toBe(true);
+    expect(SeriesPatch.safeParse({ title: long }).success).toBe(false);
+  });
+
   it("allows clearing the year in a patch", () => {
     expect(SeriesPatch.parse({ year: null })).toEqual({ year: null });
   });

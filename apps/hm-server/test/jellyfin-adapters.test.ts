@@ -105,6 +105,61 @@ describe("JellyfinAuthenticator", () => {
     await expect(removed.authenticator.isStillAdmin("u1")).resolves.toBe(false);
   });
 
+  it("treats an administrator Jellyfin disabled as gone", async () => {
+    const { authenticator: a } = authenticator(() => ({
+      status: 200,
+      data: { Id: "u1", Policy: { IsAdministrator: true, IsDisabled: true } },
+    }));
+    await expect(a.isStillAdmin("u1")).resolves.toBe(false);
+  });
+
+  it("logs a failed token revoke instead of hiding it, and still signs the admin in", async () => {
+    const warnings: unknown[] = [];
+    const { instance } = fakeServer((config) =>
+      config.url?.endsWith("/Sessions/Logout") ? { status: 500, data: "" } : auth(true)(config),
+    );
+    const a = new JellyfinAuthenticator({
+      jellyfin: testJellyfin,
+      serverUrl: URL_,
+      apiKey: "k",
+      axiosInstance: instance,
+      log: (message) => void warnings.push(message),
+    });
+    await expect(a.authenticate("sam", "secret")).resolves.toMatchObject({ userId: "u1" });
+    expect(warnings).toHaveLength(1);
+    expect(String(warnings[0])).toMatch(/revoke/i);
+  });
+
+  it("gives up on a Jellyfin that accepts the connection and never answers", async () => {
+    const { createServer } = await import("node:http");
+    const sockets = new Set<import("node:net").Socket>();
+    const server = createServer(() => {}); // never responds
+    server.on("connection", (socket) => void sockets.add(socket));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as import("node:net").AddressInfo;
+    try {
+      const a = new JellyfinAuthenticator({
+        jellyfin: testJellyfin,
+        serverUrl: `http://127.0.0.1:${port}`,
+        apiKey: "k",
+        timeoutMs: 100,
+      });
+      await expect(a.isStillAdmin("u1")).rejects.toBeInstanceOf(RetryableError);
+      const m = new JellyfinMediaServer({
+        jellyfin: testJellyfin,
+        serverUrl: `http://127.0.0.1:${port}`,
+        apiKey: "k",
+        mediaRoot: "/m",
+        jellyfinMediaRoot: "/m",
+        timeoutMs: 100,
+      });
+      await expect(m.libraryUpdated("/m/x")).rejects.toBeInstanceOf(RetryableError);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      server.close();
+    }
+  });
+
   it("doesn't call it a demotion when Jellyfin is down", async () => {
     const { authenticator: a } = authenticator(() => "offline");
     await expect(a.isStillAdmin("u1")).rejects.toBeInstanceOf(RetryableError);

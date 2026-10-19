@@ -1,4 +1,11 @@
-/** Makes a title safe as a file or folder name on Linux, macOS and Windows shares. */
+/** Longest file or folder name we write for a title. */
+export const MAX_NAME_LENGTH = 150;
+
+/**
+ * Makes a title safe as a file or folder name on Linux, macOS and Windows shares: no reserved
+ * characters, no leading dots (Jellyfin ignores dot-files, and `.hm-staging` is ours), no trailing
+ * dots or spaces, and cut to {@link MAX_NAME_LENGTH}.
+ */
 export function sanitizeName(name: string): string {
   const cleaned = name
     // eslint-disable-next-line no-control-regex
@@ -7,7 +14,8 @@ export function sanitizeName(name: string): string {
     .replace(/[<>"/\\|?*]/g, "")
     .replace(/\s+/g, " ")
     .replace(/\s-\s*$/, "")
-    .trim()
+    .replace(/^[. ]+/, "")
+    .slice(0, MAX_NAME_LENGTH)
     .replace(/[. ]+$/, "");
   return cleaned === "" ? "Untitled" : cleaned;
 }

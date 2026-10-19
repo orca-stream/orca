@@ -10,6 +10,7 @@ import {
   type Me,
 } from "@orca/hm-contract";
 import { readFile } from "node:fs/promises";
+import { extname } from "node:path";
 import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -25,6 +26,12 @@ import { serveWeb } from "./static.ts";
 export const SESSION_COOKIE = "hm_session";
 const MAX_BODY_BYTES = 1024 * 1024;
 const PING_MS = 25_000;
+const POSTER_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
 
 export interface AppDeps {
   useCases: UseCases;
@@ -158,7 +165,7 @@ export function createApp(deps: AppDeps) {
         404,
       );
     return c.body(new Uint8Array(await readFile(path)), 200, {
-      "content-type": "image/jpeg",
+      "content-type": POSTER_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream",
       "cache-control": "private, max-age=3600",
     });
   });

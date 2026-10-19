@@ -5,6 +5,7 @@ import type {
   Authenticator,
   DownloadContext,
   Downloader,
+  FetchedImage,
   ImageFetcher,
   MediaServer,
   StreamDetector,
@@ -93,6 +94,7 @@ export class FakeAuthenticator implements Authenticator {
 
   async isStillAdmin(userId: string): Promise<boolean> {
     this.checks++;
+    await new Promise((resolve) => setTimeout(resolve, 5));
     if (this.down) throw new Error("jellyfin is down");
     return !this.demoted.has(userId);
   }
@@ -102,10 +104,10 @@ export class FakeImageFetcher implements ImageFetcher {
   fail = false;
   readonly requested: string[] = [];
 
-  async fetch(url: string): Promise<Uint8Array> {
+  async fetch(url: string): Promise<FetchedImage> {
     this.requested.push(url);
     if (this.fail) throw new Error("no image");
-    return new Uint8Array([1, 2, 3]);
+    return { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" };
   }
 }
 
