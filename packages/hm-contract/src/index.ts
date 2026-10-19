@@ -7,9 +7,7 @@ export {
   EpisodeStatus,
   LanguageCode,
   LicenseDto,
-  MAX_MAX_HEIGHT,
   MAX_TITLE_LENGTH,
-  MIN_MAX_HEIGHT,
   PreviewDto,
   PreviewEpisode,
   PreviewRequest,
@@ -19,7 +17,15 @@ export {
 } from "./series.ts";
 export { EnqueueBody, JobDto, JobKind, JobStatus, ListJobsQuery, ProgressDetail } from "./jobs.ts";
 export { HmEvent } from "./events.ts";
-export { HM_EVENT_TYPES, isHmEvent, LICENSE_ACK_REQUIRED, needsLicenseAck } from "./rules.ts";
+export {
+  HM_EVENT_TYPES,
+  isHmEvent,
+  LANGUAGE_CODE_PATTERN,
+  LICENSE_ACK_REQUIRED,
+  MAX_MAX_HEIGHT,
+  MIN_MAX_HEIGHT,
+  needsLicenseAck,
+} from "./rules.ts";
 export {
   MarkReadBody,
   NotificationDto,

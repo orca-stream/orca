@@ -236,6 +236,42 @@ describe("SeriesDetailScreen", () => {
     expect(screen.getByRole("button", { name: "Revisar ahora" })).toBeTruthy();
   });
 
+  it("saves the series' own quality and tracks, sending only what changed", async () => {
+    const user = userEvent.setup();
+    const { requests } = detailSetup();
+    const form = await screen.findByRole("form", { name: "Calidad y pistas" });
+    const save = within(form).getByRole("button", { name: "Guardar pistas" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+
+    await user.selectOptions(within(form).getByLabelText("Altura máxima del vídeo"), "720");
+    await user.type(within(form).getByLabelText("Idiomas de audio"), "SPA, eng");
+    await user.click(within(form).getByRole("switch", { name: "Sin subtítulos" }));
+    expect(
+      (within(form).getByLabelText("Idiomas de subtítulos") as HTMLInputElement).disabled,
+    ).toBe(true);
+    await user.click(save);
+
+    await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
+    const patch = requests.find((r) => r.method === "PATCH")!;
+    expect(await patch.json()).toEqual({
+      maxHeight: 720,
+      audioLangs: ["spa", "eng"],
+      subtitleLangs: [],
+    });
+  });
+
+  it("refuses a language that is not a three-letter code before sending anything", async () => {
+    const user = userEvent.setup();
+    const { requests } = detailSetup();
+    const form = await screen.findByRole("form", { name: "Calidad y pistas" });
+    await user.type(within(form).getByLabelText("Idiomas de audio"), "english");
+    expect(within(form).getByRole("alert").textContent).toMatch(/tres letras/);
+    expect(
+      (within(form).getByRole("button", { name: "Guardar pistas" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+  });
+
   it("says when the series does not exist", async () => {
     renderApp(
       <Route path="/series/:id">

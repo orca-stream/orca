@@ -12,6 +12,7 @@ import { Button, EmptyState, Spinner, Switch, TextField } from "../ui";
 import { useNow } from "../ui/use-now";
 import { EpisodeTable } from "./EpisodeTable";
 import { Poster } from "./Poster";
+import { TrackPrefsForm } from "./TrackPrefsForm";
 import {
   groupBySeason,
   missingIds,
@@ -177,6 +178,11 @@ export function SeriesDetailScreen() {
           </div>
         </div>
       </header>
+
+      <TrackPrefsForm
+        key={JSON.stringify([data.maxHeight, data.audioLangs, data.subtitleLangs])}
+        series={data}
+      />
 
       <section aria-label={t.series.episodes} className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">

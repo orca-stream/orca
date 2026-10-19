@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { LicenseKindSchema } from "./common.ts";
+import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT } from "./rules.ts";
 
 /** Titles become folder names; this keeps them well under file-name limits. */
 export const MAX_TITLE_LENGTH = 150;
@@ -78,11 +79,10 @@ export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
  * An ISO 639-2 language code: three lower-case letters, as ffprobe reports a track's language
  * (`eng`, `spa`, `jpn`). Not the two-letter ISO 639-1 code (`en`) and not a name.
  */
-export const LanguageCode = z.string().regex(/^[a-z]{3}$/, "Use a three-letter ISO 639-2 code");
+export const LanguageCode = z
+  .string()
+  .regex(LANGUAGE_CODE_PATTERN, "Use a three-letter ISO 639-2 code");
 
-/** Smallest and tallest video a height limit can name (144p to 8K). */
-export const MIN_MAX_HEIGHT = 144;
-export const MAX_MAX_HEIGHT = 4320;
 const MAX_LANGUAGES = 10;
 
 export const SeriesPatch = z.object({

@@ -25,6 +25,13 @@ export function needsLicenseAck(input: {
  */
 export const LICENSE_ACK_REQUIRED = "license_ack_required";
 
+/** Smallest and tallest video a height limit can name (144p to 8K). */
+export const MIN_MAX_HEIGHT = 144;
+export const MAX_MAX_HEIGHT = 4320;
+
+/** An ISO 639-2 language code: three lower-case letters (`eng`, `spa`, `jpn`). */
+export const LANGUAGE_CODE_PATTERN = /^[a-z]{3}$/;
+
 /** Every `type` the event stream sends; each is also the SSE event name. */
 export const HM_EVENT_TYPES = [
   "job.updated",
