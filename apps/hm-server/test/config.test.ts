@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ConfigError, loadConfig } from "../src/infrastructure/config.ts";
+import { ConfigError, loadConfig, userAgent } from "../src/infrastructure/config.ts";
 
 const minimal = { JELLYFIN_URL: "http://jellyfin:8096", JELLYFIN_API_KEY: "key" };
 
@@ -21,6 +21,7 @@ describe("loadConfig", () => {
     expect(config.webRoot).toBeUndefined();
     // No baked-in device id: it is generated once and stored, unless the environment overrides it.
     expect(config.deviceId).toBeUndefined();
+    expect(config.contactEmail).toBeUndefined();
   });
 
   it("reads everything from the environment", () => {
@@ -34,6 +35,7 @@ describe("loadConfig", () => {
       WEB_ROOT: "/app/web",
       SECURE_COOKIES: "true",
       DEVICE_ID: "nas-1",
+      CONTACT_EMAIL: "ops@example.com",
       DOWNLOAD_CONCURRENCY: "3",
     });
     expect(config).toMatchObject({
@@ -45,6 +47,7 @@ describe("loadConfig", () => {
       webRoot: "/app/web",
       secureCookies: true,
       deviceId: "nas-1",
+      contactEmail: "ops@example.com",
     });
     expect(config.concurrency.download).toBe(3);
   });
@@ -68,5 +71,22 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...minimal, JELLYFIN_URL: "http://jellyfin:8096/" }).jellyfinUrl).toBe(
       "http://jellyfin:8096",
     );
+  });
+});
+
+describe("userAgent", () => {
+  it("names the app and, when configured, who to write to", () => {
+    expect(userAgent("1.2.3", "ops@example.com")).toBe("OrcaHM/1.2.3 (+contact: ops@example.com)");
+    expect(userAgent("1.2.3", undefined)).toBe("OrcaHM/1.2.3");
+  });
+
+  it("rejects a contact that is not an email", () => {
+    expect(() =>
+      loadConfig({
+        JELLYFIN_URL: "http://localhost:8096",
+        JELLYFIN_API_KEY: "k",
+        CONTACT_EMAIL: "nope",
+      }),
+    ).toThrow(/CONTACT_EMAIL/);
   });
 });

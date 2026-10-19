@@ -15,6 +15,7 @@ const Env = z.object({
   HOST: z.string().min(1).default("127.0.0.1"),
   WEB_ROOT: z.string().min(1).optional(),
   DEVICE_ID: z.string().min(1).optional(),
+  CONTACT_EMAIL: z.email().optional(),
   SECURE_COOKIES: bool.default(false),
   DOWNLOAD_CONCURRENCY: count(2),
   FFMPEG_CONCURRENCY: count(1),
@@ -34,6 +35,8 @@ export interface Config {
   webRoot: string | undefined;
   /** Only set when the environment overrides the id generated and stored in the database. */
   deviceId: string | undefined;
+  /** Put in the User-Agent so a site's operators know who to write to. */
+  contactEmail: string | undefined;
   secureCookies: boolean;
   concurrency: { download: number; ffmpeg: number; browser: number; none: number };
   iaHostConcurrency: number;
@@ -66,6 +69,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     host: e.HOST,
     webRoot: e.WEB_ROOT,
     deviceId: e.DEVICE_ID,
+    contactEmail: e.CONTACT_EMAIL,
     secureCookies: e.SECURE_COOKIES,
     concurrency: {
       download: e.DOWNLOAD_CONCURRENCY,
@@ -75,4 +79,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     },
     iaHostConcurrency: e.IA_HOST_CONCURRENCY,
   };
+}
+
+/** What this server calls itself when it fetches from other sites. */
+export function userAgent(version: string, contactEmail: string | undefined): string {
+  return contactEmail ? `OrcaHM/${version} (+contact: ${contactEmail})` : `OrcaHM/${version}`;
 }

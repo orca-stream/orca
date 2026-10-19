@@ -29,12 +29,12 @@ describe("session storage", () => {
     ]);
 
     // The same user id on another server is another profile.
-    saveSession(store, { ...sam, serverUrl: "http://192.168.1.100:8096" });
+    saveSession(store, { ...sam, serverUrl: "http://192.168.0.10:8096" });
     expect(loadSessions(store)).toHaveLength(3);
 
     expect(removeSession(store, sam).map(sessionId)).toEqual([
       "user-2@https://jf.example.com",
-      "user-1@http://192.168.1.100:8096",
+      "user-1@http://192.168.0.10:8096",
     ]);
   });
 

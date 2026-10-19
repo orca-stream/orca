@@ -10,7 +10,7 @@ import { createJobHandler } from "./application/job-handler.ts";
 import { JobQueue } from "./application/queue.ts";
 import { createUseCases } from "./application/use-cases.ts";
 import { resolveDeviceId } from "./application/device-id.ts";
-import { loadConfig } from "./infrastructure/config.ts";
+import { loadConfig, userAgent } from "./infrastructure/config.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "./infrastructure/db/job-repository.ts";
 import { DrizzleSeriesRepository } from "./infrastructure/db/series-repository.ts";
@@ -36,7 +36,7 @@ const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "u
 };
 
 const config = loadConfig(process.env);
-const userAgent = `OrcaHM/${version} (+contact: 352633863+selkiecode@users.noreply.github.com)`;
+const agent = userAgent(version, config.contactEmail);
 
 mkdirSync(dirname(resolve(config.dbFile)), { recursive: true });
 mkdirSync(resolve(config.mediaRoot), { recursive: true });
@@ -68,11 +68,11 @@ const deps: Deps = {
   jobs: new DrizzleJobRepository(database, systemClock),
   sessions: new DrizzleSessionRepository(database.db),
   extractors: new StaticExtractorRegistry([
-    createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent }) }),
+    createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent }) }),
   ]),
   previews: new InMemoryPreviewStore(systemClock),
   library,
-  images: new FetchImageFetcher({ userAgent }),
+  images: new FetchImageFetcher({ userAgent: agent }),
   authenticator: new JellyfinAuthenticator({
     jellyfin,
     serverUrl: config.jellyfinUrl,
@@ -86,8 +86,8 @@ const deps: Deps = {
     jellyfinMediaRoot: config.jellyfinMediaRoot,
   }),
   downloaders: [
-    new HttpDownloader({ userAgent, hostLimit: config.iaHostConcurrency }),
-    new FfmpegDownloader({ userAgent }),
+    new HttpDownloader({ userAgent: agent, hostLimit: config.iaHostConcurrency }),
+    new FfmpegDownloader({ userAgent: agent }),
   ],
   // The Playwright detector arrives with the later phase; page sources fail clearly until then.
   detector: null,

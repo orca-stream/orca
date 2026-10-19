@@ -172,7 +172,7 @@ describe("approveQuickConnect", () => {
 describe("the QR link", () => {
   const link = {
     code: "922779",
-    server: "http://192.168.1.100:8096",
+    server: "http://192.168.0.10:8096",
     serverId: "srv-1",
     device: "Xbox",
   };
@@ -180,7 +180,7 @@ describe("the QR link", () => {
   it("round-trips through the address the phone opens", () => {
     const url = quickConnectUrl("https://orca.example.com/app/?old=1#home", link);
     expect(url).toBe(
-      "https://orca.example.com/app/?qc=922779&server=http%3A%2F%2F192.168.1.100%3A8096&sid=srv-1&device=Xbox",
+      "https://orca.example.com/app/?qc=922779&server=http%3A%2F%2F192.168.0.10%3A8096&sid=srv-1&device=Xbox",
     );
     expect(readQuickConnectLink(new URL(url).search)).toEqual(link);
   });
@@ -212,14 +212,14 @@ describe("the QR link", () => {
 });
 
 describe("profilesForLink", () => {
-  const lan = { ...session, serverUrl: "http://192.168.1.100:8096", userId: "user-2" };
+  const lan = { ...session, serverUrl: "http://192.168.0.10:8096", userId: "user-2" };
   const other = { ...session, serverUrl: "https://other.example.com", userId: "user-3" };
 
   it("prefers the profiles on the same address, without asking any server", async () => {
     const asked: string[] = [];
     const found = await profilesForLink(
       [session, lan, other],
-      { code: "1", server: "192.168.1.100:8096", serverId: "srv-1" },
+      { code: "1", server: "192.168.0.10:8096", serverId: "srv-1" },
       async (url) => (asked.push(url), "srv-1"),
     );
     expect(found).toEqual([lan]);
@@ -233,7 +233,7 @@ describe("profilesForLink", () => {
     };
     const found = await profilesForLink(
       [session, other],
-      { code: "1", server: "http://192.168.1.100:8096", serverId: "srv-1" },
+      { code: "1", server: "http://192.168.0.10:8096", serverId: "srv-1" },
       async (url) => ids[url] ?? null,
     );
     expect(found).toEqual([session]);
@@ -242,7 +242,7 @@ describe("profilesForLink", () => {
   it("finds nothing when a server can't be reached", async () => {
     const found = await profilesForLink(
       [session],
-      { code: "1", server: "http://192.168.1.100:8096", serverId: "srv-1" },
+      { code: "1", server: "http://192.168.0.10:8096", serverId: "srv-1" },
       () => Promise.reject(new Error("offline")),
     );
     expect(found).toEqual([]);

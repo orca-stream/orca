@@ -7,7 +7,7 @@ describe("normalizeServerUrl", () => {
   });
 
   it("adds http:// when the scheme is missing", () => {
-    expect(normalizeServerUrl("192.168.1.100:8096")).toBe("http://192.168.1.100:8096");
+    expect(normalizeServerUrl("192.168.0.10:8096")).toBe("http://192.168.0.10:8096");
   });
 
   it("trims whitespace and trailing slashes", () => {
@@ -16,8 +16,8 @@ describe("normalizeServerUrl", () => {
 
   it("strips the jellyfin-web client path pasted from the address bar", () => {
     expect(normalizeServerUrl("https://jf.example.com/web/#/home")).toBe("https://jf.example.com");
-    expect(normalizeServerUrl("http://192.168.1.100:8096/web/index.html")).toBe(
-      "http://192.168.1.100:8096",
+    expect(normalizeServerUrl("http://192.168.0.10:8096/web/index.html")).toBe(
+      "http://192.168.0.10:8096",
     );
   });
 

@@ -6,10 +6,10 @@ describe("serverChoices", () => {
   it("puts the servers already used first, each once, then the defaults", () => {
     expect(
       serverChoices(
-        ["http://192.168.1.100:8096", "https://jf.example.com/"],
-        ["https://jf.example.com", undefined, "192.168.1.100:8096", "http://localhost:8096"],
+        ["http://192.168.0.10:8096", "https://jf.example.com/"],
+        ["https://jf.example.com", undefined, "192.168.0.10:8096", "http://localhost:8096"],
       ),
-    ).toEqual(["http://192.168.1.100:8096", "https://jf.example.com", "http://localhost:8096"]);
+    ).toEqual(["http://192.168.0.10:8096", "https://jf.example.com", "http://localhost:8096"]);
   });
 
   it("drops an address that isn't valid", () => {
@@ -29,8 +29,8 @@ describe("serverChoices without a configured list", () => {
 describe("configuredServers", () => {
   it("reads a comma-separated list, ignoring spaces, newlines and empty entries", () => {
     expect(
-      configuredServers("https://jf.example.com, 192.168.1.100:8096 ,\n http://media.local:8096,,"),
-    ).toEqual(["https://jf.example.com", "192.168.1.100:8096", "http://media.local:8096"]);
+      configuredServers("https://jf.example.com, 192.168.0.10:8096 ,\n http://media.local:8096,,"),
+    ).toEqual(["https://jf.example.com", "192.168.0.10:8096", "http://media.local:8096"]);
   });
 
   it("is empty when the variable is unset or blank", () => {
@@ -51,7 +51,7 @@ describe("serverKind", () => {
   it("tells this device, the home network and the internet apart", () => {
     expect(serverKind("http://localhost:8096")).toBe("thisDevice");
     expect(serverKind("http://127.0.0.1:8096")).toBe("thisDevice");
-    expect(serverKind("http://192.168.1.100:8096")).toBe("local");
+    expect(serverKind("http://192.168.0.10:8096")).toBe("local");
     expect(serverKind("http://10.0.0.5")).toBe("local");
     expect(serverKind("http://172.20.1.1")).toBe("local");
     expect(serverKind("http://nas.local:8096")).toBe("local");

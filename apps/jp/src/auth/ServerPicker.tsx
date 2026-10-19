@@ -201,7 +201,7 @@ function OtherServer({ onPick }: { onPick: (serverUrl: string) => void }) {
           {t.login.otherServerHint}
           <FocusInput
             className="rounded-xl border border-white/20 bg-black/40 px-4 py-3 text-base text-white outline-none placeholder:text-white/30 focus-visible:border-white focus-visible:ring-2 focus-visible:ring-white/60"
-            // Not type="url": the browser would reject a bare "192.168.1.100:8096".
+            // Not type="url": the browser would reject a bare "192.168.0.10:8096".
             inputMode="url"
             autoComplete="url"
             autoCapitalize="none"
