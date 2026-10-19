@@ -43,6 +43,8 @@ const es = {
     adminsOnly: "Solo los administradores pueden entrar.",
     unreachable: "No se pudo contactar con el servidor. Inténtalo de nuevo.",
     failed: "No se pudo iniciar sesión.",
+    tooManyAttempts: "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
+    tooManyAttemptsWait: (wait: string) => `Demasiados intentos. Vuelve a intentarlo en ${wait}.`,
   },
   errors: {
     generic: "Algo salió mal.",
@@ -92,6 +94,8 @@ const en: typeof es = {
     adminsOnly: "Only administrators can sign in.",
     unreachable: "Could not reach the server. Try again.",
     failed: "Could not sign in.",
+    tooManyAttempts: "Too many attempts. Wait a moment and try again.",
+    tooManyAttemptsWait: (wait: string) => `Too many attempts. Try again in ${wait}.`,
   },
   errors: {
     generic: "Something went wrong.",

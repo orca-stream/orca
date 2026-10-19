@@ -9,6 +9,15 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+async function failure(call: Promise<unknown>): Promise<ApiError> {
+  try {
+    await call;
+  } catch (error) {
+    return error as ApiError;
+  }
+  throw new Error("the call was expected to fail");
+}
+
 function setup(respond: (request: Request) => Response | Promise<Response>) {
   const fetchFake = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
     respond(new Request(new URL(requestUrl(input), "http://panel.test"), init)),
@@ -108,5 +117,26 @@ describe("api client", () => {
       await api.get("/series").catch(() => undefined);
       expect(onUnauthorized).not.toHaveBeenCalled();
     });
+  });
+
+  it("keeps the Retry-After of a throttled call, in seconds", async () => {
+    const { api } = setup(() =>
+      Response.json(
+        { error: "too_many_requests" },
+        { status: 429, headers: { "retry-after": "42" } },
+      ),
+    );
+    const error = await failure(api.post("/auth/login", {}, { expectUnauthorized: true }));
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(429);
+    expect(error.retryAfterSeconds).toBe(42);
+  });
+
+  it("has no Retry-After when the header is absent or not a number of seconds", async () => {
+    const { api } = setup(() =>
+      Response.json({ error: "x" }, { status: 429, headers: { "retry-after": "soon" } }),
+    );
+    const error = await failure(api.get("/x"));
+    expect(error.retryAfterSeconds).toBeUndefined();
   });
 });

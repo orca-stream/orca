@@ -92,4 +92,24 @@ describe("LoginScreen", () => {
     renderApp(<LoginScreen />, { locale: "en" });
     expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
   });
+
+  it("tells how long to wait when the server throttles sign-ins (429 + Retry-After)", async () => {
+    const user = userEvent.setup();
+    renderApp(<LoginScreen />, {
+      handler: () =>
+        new Response(JSON.stringify({ error: "too_many_requests" }), {
+          status: 429,
+          headers: { "content-type": "application/json", "retry-after": "90" },
+        }),
+    });
+    await fillAndSubmit(user);
+    expect((await screen.findByRole("alert")).textContent).toContain("2 min");
+  });
+
+  it("falls back to a generic wait message when a 429 gives no Retry-After", async () => {
+    const user = userEvent.setup();
+    renderApp(<LoginScreen />, { handler: () => jsonResponse({ error: "x" }, 429) });
+    await fillAndSubmit(user);
+    expect((await screen.findByRole("alert")).textContent).toContain("Demasiados intentos");
+  });
 });

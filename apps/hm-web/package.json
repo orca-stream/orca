@@ -14,6 +14,7 @@
     "test:watch": "vp test watch"
   },
   "dependencies": {
+    "@orca/hm-contract": "workspace:*",
     "@orca/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "react": "catalog:",

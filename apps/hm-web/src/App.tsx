@@ -1,16 +1,24 @@
+import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
+import { useLiveEvents } from "./events/use-live-events";
 import { useT } from "./i18n/locale";
 import { Providers } from "./providers";
 import { Placeholder } from "./shell/Placeholder";
 import { Shell } from "./shell/Shell";
 
+/** Mounted only for a signed-in admin, so the event stream never opens without a session. */
+function LiveShell({ children }: { children: ReactNode }) {
+  const live = useLiveEvents();
+  return <Shell live={live}>{children}</Shell>;
+}
+
 function Panel() {
   const t = useT();
   return (
     <AuthGate>
-      <Shell>
+      <LiveShell>
         <Switch>
           <Route path="/">
             <Placeholder title={t.nav.dashboard} />
@@ -25,7 +33,7 @@ function Panel() {
             <Redirect to="/" replace />
           </Route>
         </Switch>
-      </Shell>
+      </LiveShell>
     </AuthGate>
   );
 }

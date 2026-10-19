@@ -348,6 +348,9 @@ importers:
 
   apps/hm-web:
     dependencies:
+      '@orca/hm-contract':
+        specifier: workspace:*
+        version: link:../../packages/hm-contract
       '@orca/ui':
         specifier: workspace:*
         version: link:../../packages/ui

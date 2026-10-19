@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useSearchParams } from "wouter";
 import { ApiError } from "../api/client";
+import { formatDuration } from "../i18n/format";
 import { useT } from "../i18n/locale";
 import type { Messages } from "../i18n/messages";
 import { Button, TextField } from "../ui";
@@ -9,6 +10,11 @@ import { useLogin } from "./session";
 
 function loginErrorMessage(error: unknown, t: Messages): string {
   if (error instanceof ApiError) {
+    if (error.status === 429) {
+      return error.retryAfterSeconds === undefined
+        ? t.login.tooManyAttempts
+        : t.login.tooManyAttemptsWait(formatDuration(error.retryAfterSeconds));
+    }
     if (error.status === 401) return t.login.invalidCredentials;
     if (error.status === 403) return t.login.adminsOnly;
     if (error.status === 0) return t.login.unreachable;

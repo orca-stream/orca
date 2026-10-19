@@ -8,13 +8,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly issues: ApiIssue[] | undefined;
+  /** From a `Retry-After` header given in seconds (a 429); undefined otherwise. */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(status: number, code: string, message?: string, issues?: ApiIssue[]) {
+  constructor(
+    status: number,
+    code: string,
+    message?: string,
+    issues?: ApiIssue[],
+    retryAfterSeconds?: number,
+  ) {
     super(message ?? code);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.issues = issues;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -53,7 +62,9 @@ async function readError(response: Response): Promise<ApiError> {
   const code = typeof record.error === "string" ? record.error : "http_error";
   const message = typeof record.message === "string" ? record.message : undefined;
   const issues = Array.isArray(record.issues) ? (record.issues as ApiIssue[]) : undefined;
-  return new ApiError(response.status, code, message, issues);
+  const header = response.headers.get("retry-after");
+  const seconds = header !== null && /^\d+$/.test(header.trim()) ? Number(header) : undefined;
+  return new ApiError(response.status, code, message, issues, seconds);
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
