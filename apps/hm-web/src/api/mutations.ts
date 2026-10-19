@@ -30,6 +30,10 @@ export function useMutations() {
       mutationFn: (episodeIds: string[]) => api.post<JobDto[]>("/jobs", { episodeIds }),
       onSuccess: refreshAll,
     }),
+    checkSeries: useMutation({
+      mutationFn: (seriesId: string) => api.post<JobDto>(`/series/${id(seriesId)}/check`),
+      onSuccess: refreshAll,
+    }),
     downloadSeries: useMutation({
       mutationFn: (seriesId: string) => api.post<JobDto[]>(`/series/${id(seriesId)}/download`),
       onSuccess: refreshAll,

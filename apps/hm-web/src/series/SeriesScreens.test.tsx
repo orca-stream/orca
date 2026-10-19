@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
-import { makeEpisode, makeSeries } from "../test/fixtures";
+import { makeEpisode, makeJob, makeSeries } from "../test/fixtures";
 import { jsonResponse, renderApp, type Handler } from "../test/render";
 import { SeriesDetailScreen } from "./SeriesDetailScreen";
 import { SeriesListScreen } from "./SeriesListScreen";
@@ -77,6 +77,8 @@ const detailHandler: Handler = (request) => {
     return jsonResponse(makeSeries({ follow: true }));
   if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
   if (url.pathname === "/api/jobs" && request.method === "POST") return jsonResponse([], 201);
+  if (url.pathname === "/api/series/s1/check" && request.method === "POST")
+    return jsonResponse(makeJob({ kind: "check_series", episodeId: null, episodeCode: null }), 202);
   return jsonResponse({}, 404);
 };
 
@@ -199,6 +201,39 @@ describe("SeriesDetailScreen", () => {
       requests.filter((r) => r.method === "PATCH").map((r) => r.json()),
     );
     expect(patches).toEqual([{ follow: true }, { checkIntervalHours: 6 }]);
+  });
+
+  it("shows the last and the next check of a followed series, and checks now on demand", async () => {
+    const user = userEvent.setup();
+    const hourAgo = Date.now() - 3_600_000;
+    const handler: Handler = (request) =>
+      new URL(request.url).pathname === "/api/series/s1" && request.method === "GET"
+        ? jsonResponse(makeSeries({ follow: true, checkIntervalHours: 24, lastCheckedAt: hourAgo }))
+        : detailHandler(request);
+    const { requests } = renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      { handler, path: "/series/s1" },
+    );
+    expect(await screen.findByText(/Última revisión hace 1 hora/)).toBeTruthy();
+    expect(screen.getByText(/Próxima revisión dentro de 23 horas/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Revisar ahora" }));
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series/s1/check",
+        ),
+      ).toBe(true),
+    );
+    expect(await screen.findByText("Revisión en cola.")).toBeTruthy();
+  });
+
+  it("does not promise a next check for a series that is not followed", async () => {
+    detailSetup();
+    await screen.findByRole("heading", { name: "Beverly Hillbillies" });
+    expect(screen.queryByText(/Próxima revisión/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Revisar ahora" })).toBeTruthy();
   });
 
   it("says when the series does not exist", async () => {

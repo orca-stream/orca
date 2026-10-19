@@ -29,7 +29,7 @@ export function SeriesDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const series = useQuery(queries.seriesDetail(api, id));
   const episodesQuery = useQuery(queries.episodes(api, id));
-  const { patchSeries, enqueue } = useMutations();
+  const { patchSeries, enqueue, checkSeries } = useMutations();
 
   const episodes = episodesQuery.data;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -73,7 +73,9 @@ export function SeriesDetailScreen() {
   const interval = intervalDraft ?? String(data.checkIntervalHours);
   const hours = Number(interval);
   const intervalValid = Number.isInteger(hours) && hours >= 1 && hours <= 24 * 30;
-  const failedAction = patchSeries.isError || enqueue.isError;
+  const failedAction = patchSeries.isError || enqueue.isError || checkSeries.isError;
+  const nextCheckAt =
+    data.lastCheckedAt === null ? null : data.lastCheckedAt + data.checkIntervalHours * 3_600_000;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
@@ -144,13 +146,34 @@ export function SeriesDetailScreen() {
                 {t.series.saveInterval}
               </Button>
             </form>
-            <p className="text-xs text-white/50">
-              {data.lastCheckedAt === null
-                ? t.series.neverChecked
-                : t.series.lastChecked(
-                    formatRelative(new Date(data.lastCheckedAt), new Date(now), locale),
-                  )}
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="mr-auto text-xs text-white/50">
+                <p>
+                  {data.lastCheckedAt === null
+                    ? t.series.neverChecked
+                    : t.series.lastChecked(
+                        formatRelative(new Date(data.lastCheckedAt), new Date(now), locale),
+                      )}
+                </p>
+                {data.follow && (
+                  <p>
+                    {nextCheckAt === null || nextCheckAt <= now
+                      ? t.series.checkSoon
+                      : t.series.nextChecked(
+                          formatRelative(new Date(nextCheckAt), new Date(now), locale),
+                        )}
+                  </p>
+                )}
+              </div>
+              <Button loading={checkSeries.isPending} onClick={() => checkSeries.mutate(id)}>
+                {t.series.checkNow}
+              </Button>
+            </div>
+            {checkSeries.isSuccess && (
+              <p role="status" className="text-xs text-white/70">
+                {t.series.checkQueued}
+              </p>
+            )}
           </div>
         </div>
       </header>
