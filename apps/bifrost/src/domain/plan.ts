@@ -199,9 +199,12 @@ export function planWarnings(cfg: JellyfinConfig, snap: Snapshot): string[] {
 }
 
 function planSection(section: ConfigSection, declared: Rec, current: Rec): Change[] {
-  const keys = Object.keys(declared).filter((k) => !deepEqual(declared[k], current[k]));
+  const config = deepMerge(current, declared);
+  // Compare what the merge would leave, so a nested object declared in part (TrickplayOptions)
+  // matches once the server holds those fields, instead of differing from the whole object forever.
+  const keys = Object.keys(declared).filter((k) => !deepEqual(config[k], current[k]));
   if (keys.length === 0) return [];
-  return [{ kind: "updateConfig", section, config: deepMerge(current, declared), keys }];
+  return [{ kind: "updateConfig", section, config, keys }];
 }
 
 function planPluginSettings(cfg: JellyfinConfig, snap: Snapshot): Change[] {

@@ -248,6 +248,38 @@ describe("planApply", () => {
     expect(needsRestart(planApply(cfg, sys))).toBe(false);
   });
 
+  it("treats a partially declared nested object as matching once the server has those fields", () => {
+    const cfg = exampleConfig().jellyfin;
+    const snap = satisfied();
+    // The server answers with the whole object; the config names only one of its fields.
+    snap.system.TrickplayOptions = {
+      EnableHwAcceleration: true,
+      EnableHwEncoding: false,
+      Interval: 10000,
+    };
+    expect(planApply(cfg, snap)).toEqual([]);
+
+    snap.system.TrickplayOptions = {
+      EnableHwAcceleration: false,
+      EnableHwEncoding: false,
+      Interval: 10000,
+    };
+    expect(planApply(cfg, snap)).toMatchObject([
+      {
+        kind: "updateConfig",
+        section: "system",
+        keys: ["TrickplayOptions"],
+        config: {
+          TrickplayOptions: {
+            EnableHwAcceleration: true,
+            EnableHwEncoding: false,
+            Interval: 10000,
+          },
+        },
+      },
+    ]);
+  });
+
   it("removes undeclared libraries only with prune.libraries", () => {
     const snap = satisfied();
     snap.folders.push({
