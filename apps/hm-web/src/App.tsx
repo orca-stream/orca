@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
+import { DashboardScreen } from "./dashboard/DashboardScreen";
 import { useLiveEvents } from "./events/use-live-events";
 import { useT } from "./i18n/locale";
 import { Providers } from "./providers";
@@ -20,14 +21,12 @@ function Panel() {
     <AuthGate>
       <LiveShell>
         <Switch>
-          <Route path="/">
-            <Placeholder title={t.nav.dashboard} />
-          </Route>
+          <Route path="/" component={DashboardScreen} />
           <Route path="/series">
             <Placeholder title={t.nav.series} />
           </Route>
-          <Route path="/settings">
-            <Placeholder title={t.nav.settings} />
+          <Route path="/extractors">
+            <Placeholder title={t.nav.extractors} />
           </Route>
           <Route>
             <Redirect to="/" replace />

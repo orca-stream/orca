@@ -16,7 +16,7 @@ const LIVE_TONE: Record<SseStatus, string> = {
 const NAV = [
   { href: "/", icon: HomeIcon, label: "dashboard" },
   { href: "/series", icon: TvIcon, label: "series" },
-  { href: "/settings", icon: CollectionIcon, label: "settings" },
+  { href: "/extractors", icon: CollectionIcon, label: "extractors" },
 ] as const;
 
 function NavLink({ href, children }: { href: string; children: ReactNode }) {
