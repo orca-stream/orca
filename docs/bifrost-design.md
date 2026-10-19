@@ -486,21 +486,34 @@ Service: `user: <orca-hm uid>:<jellyfin gid>`, `shm_size: 1gb`, `mem_limit: 1536
 **Backups.** `bifrost backup` also snapshots `<hm.dataDir>/data` (the SQLite database) when the `hm` section exists, in the same restic snapshot as Jellyfin's config. `hm.env` is not included (`hm up` regenerates it from the secrets) and neither is `src/` (build scratch).
 
 - _Consistency._ A live copy of a WAL database is not reliable, so H&M is stopped (`docker stop orca-hm`) for the `restic backup` call and started again right after; the EXIT trap starts it if restic fails. Rejected: `sqlite3 .backup` (not guaranteed on the host) and an in-container backup call (would need H&M to ship a dedicated code path). The cost is a few seconds of downtime, and nothing happens if H&M was not running. A configured H&M that was never deployed (no `data/` directory) is skipped.
-- _Restore._ `bifrost restore` stops the stack (H&M shares the compose file), restores `<hm.dataDir>/data` from the same snapshot, creates the `orca-hm` user if the machine lacks it, fixes ownership and starts the stack again. A snapshot taken before H&M was backed up has no such directory and the live data is left alone.
+- _Restore._ `bifrost restore [--only all|jellyfin|hm]` (default `all`). `all` stops the stack, restores Jellyfin's config and H&M's data from the same snapshot, fixes ownership (`jellyfin:jellyfin` / `orca-hm:jellyfin`) and starts the stack. `--only jellyfin` stops and starts just Jellyfin and never mentions H&M. `--only hm` stops and starts just the `orca-hm` container with plain `docker` (its compose service may not exist yet on a new machine) and leaves Jellyfin running; it creates the `orca-hm` user if missing and fails if the snapshot has no H&M data. With `all`, a snapshot without H&M data (taken before it was backed up) leaves the live H&M data alone. The WAL cleanup and the Jellyfin chown run only when Jellyfin is part of the restore.
+- _Version._ `restic restore --include ... --delete` needs restic 0.17 or newer; the restore script checks `restic version` first and stops before touching anything if it is older. The Homelab's Ubuntu 26.04 ships 0.18.1.
+- _After a restore_, always run `bifrost hm up`: it regenerates `hm.env` (not part of the snapshot) and recreates the container.
 
 ## 10. Moving to another machine
 
-**Prerequisites** on the new machine: key-based SSH login for `host.sshUser` and passwordless sudo (Bifröst runs `sudo -n`, so a password prompt fails instead of hanging). On the machine that runs Bifröst, carry the two gitignored files: `bifrost.yaml` (edit `host.*`, `jellyfin.url` and the paths for the new machine) and `.env` (see `.env.example` for the keys).
+**Prerequisites.** On the new machine: key-based SSH login for `host.sshUser` and passwordless sudo (Bifröst runs `sudo -n`, so a password prompt fails instead of hanging). On the machine that runs Bifröst, carry the two gitignored files: `bifrost.yaml` (change `host.address`, `host.sshUser` and the like; see below for what must not change) and `.env` (keys in `.env.example`).
 
-**Order:**
+**Paths must stay identical when restoring.** `restore` writes with `--target /` using the configured paths, so `host.dataDir`, `hm.dataDir` and the media paths must be the same as on the old machine. The same goes for the media paths in a migration: the library ids and watch state survive only if they match.
+
+**The restic repository must be reachable from the new machine** (move or mount the backup disk, or use an sftp/rest backend), and `RESTIC_PASSWORD` must be kept off the server: if the `.env` is lost, the snapshots cannot be recovered. `ORCA_HM_JELLYFIN_API_KEY` is recoverable (`hm up` recreates it); `RESTIC_PASSWORD` is not. `migrate`, `apply` and `restore` take no host argument; they act on `host` from the config.
+
+**Path A: Jellyfin state from the old server, H&M data from a snapshot.**
 
 1. `bifrost host prepare <host>` (add `--with-disk` once the media disk is connected).
 2. `bifrost up <host>`: Jellyfin runs, empty.
-3. Copy the media with rsync, **keeping the same paths** (the library ids and watch state survive only if the paths do).
-4. `bifrost migrate <host>` brings the watch state over from the old server (`migrate.source`).
-5. `bifrost apply <host>` converges the declared configuration.
-6. H&M data: `bifrost restore <host> --snapshot <id> --yes` from a repository that holds a snapshot taken with H&M configured. The restore replaces Jellyfin's config directory too, so use it **instead of** step 4 when Jellyfin's state also comes from the snapshot; migrating and then restoring would overwrite the migration.
-7. `bifrost hm up <host>` builds and starts H&M on the existing data.
+3. rsync the media, keeping the same paths.
+4. `bifrost migrate`: watch state from the old server (`migrate.source`).
+5. `bifrost apply`.
+6. `bifrost restore --only hm --snapshot <id> --yes`.
+7. `bifrost hm up <host>`.
+
+**Path B: everything from a snapshot.**
+
+1. `bifrost host prepare <host>`, then `bifrost up <host>`, then rsync the media (same paths).
+2. `bifrost restore --snapshot <id> --yes`: Jellyfin's config and H&M's data. Do this **before** `apply`: the carried `.env`'s `JELLYFIN_API_KEY` belongs to the old database, which the restore brings back, and the new server's own key is gone after the restore.
+3. `bifrost apply`.
+4. `bifrost hm up <host>`.
 
 ## Sources
 

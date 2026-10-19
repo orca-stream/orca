@@ -15,7 +15,7 @@ import type { JellyfinAdmin } from "./application/ports/jellyfin-admin.ts";
 import type { RemoteHost } from "./application/ports/remote-host.ts";
 import type { SourceArchive } from "./application/ports/source-archive.ts";
 import type { SecretStore } from "./application/ports/secret-store.ts";
-import { restore } from "./application/restore.ts";
+import { RESTORE_ONLY, restore, type RestoreOnly } from "./application/restore.ts";
 import { up } from "./application/up.ts";
 import type { Config } from "./domain/config.ts";
 import { BifrostError } from "./domain/errors.ts";
@@ -55,7 +55,7 @@ Commands:
   dump                  Print the live server as a config (-o FILE to write it)
   apply                 Make the server match the config (repositories, plugins, libraries, settings)
   backup                Jellyfin database backup, then a restic snapshot
-  restore               Restore the config directory from a restic snapshot (needs --yes)
+  restore               Restore Jellyfin's config and Orca'H&M's data from a restic snapshot (needs --yes; --only narrows it)
   migrate               Move users and watch state from another Jellyfin (its built-in backup)
 
 Options:
@@ -66,6 +66,7 @@ Options:
   -o, --output FILE     dump: write to FILE instead of stdout
       --from WHERE      dump: "target" (default, paths untouched) or "source" (migrate.source, paths mapped through pathMap)
       --snapshot ID     restore: restic snapshot (default: latest)
+      --only WHAT       restore: all (default), jellyfin or hm; hm leaves Jellyfin running
       --yes             restore: confirm the overwrite
       --backup-file F   migrate: use this zip instead of the path the source reports
   -h, --help            This text
@@ -79,6 +80,7 @@ const options = {
   output: { type: "string", short: "o" },
   from: { type: "string" },
   snapshot: { type: "string" },
+  only: { type: "string" },
   yes: { type: "boolean" },
   "backup-file": { type: "string" },
   help: { type: "boolean", short: "h" },
@@ -230,13 +232,18 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
       await backup({ remote: rt.remote(cfg), secrets, jellyfin, log }, cfg, { dryRun });
       return 0;
     }
-    case "restore":
+    case "restore": {
+      const only = values.only ?? "all";
+      if (!RESTORE_ONLY.includes(only as RestoreOnly))
+        throw new UsageError(`--only must be one of ${RESTORE_ONLY.join(", ")}, not "${only}"`);
       await restore({ remote: rt.remote(cfg), secrets, clock, log }, cfg, {
         dryRun,
         yes: values.yes ?? false,
         snapshot: values.snapshot ?? "latest",
+        only: only as RestoreOnly,
       });
       return 0;
+    }
     case "migrate": {
       if (!cfg.migrate) {
         throw new BifrostError(

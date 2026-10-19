@@ -172,6 +172,12 @@ describe("cli", () => {
     expect(text(a.err)).toMatch(/backup/);
   });
 
+  it("restore --only accepts all, jellyfin or hm and nothing else", async () => {
+    const a = setup({ JELLYFIN_API_KEY: "key" });
+    expect(await run(["restore", "--only", "everything", "--yes"], a.rt)).toBe(2);
+    expect(text(a.err)).toMatch(/--only must be one of all, hm, jellyfin/);
+  });
+
   it("migrate needs a migrate.source section", async () => {
     const a = setup();
     expect(await run(["migrate", "--dry-run"], a.rt)).toBe(1);

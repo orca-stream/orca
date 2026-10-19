@@ -66,7 +66,7 @@ describe("backup", () => {
     expect(write.mode).toBe("0600");
     expect(write.stdin).toContain(PASSWORD);
     expect(remote.scripts().find((s) => s.includes("restic backup"))).toContain(
-      `trap 'rm -f ${write.cmd}' EXIT`,
+      `trap 'rc=$?; rm -f ${write.cmd}; exit $rc' EXIT`,
     );
   });
 
@@ -233,7 +233,7 @@ describe("restore with Orca'H&M", () => {
 
   it("leaves H&M's data alone when the snapshot has none", async () => {
     const script = await run(withHm);
-    expect(script).toMatch(/restic ls abc123 \/srv\/orca-hm\/data/);
+    expect(script).toMatch(/restic -q ls abc123 \/srv\/orca-hm\/data/);
   });
 
   it("does nothing about H&M without the hm section", async () => {

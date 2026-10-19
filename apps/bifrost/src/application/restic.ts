@@ -41,6 +41,21 @@ export function resticPreamble(
     "set -o pipefail",
     `export RESTIC_REPOSITORY='${backup.repository}'`,
     `export RESTIC_PASSWORD_FILE=${RESTIC_PASSWORD_FILE}`,
-    `trap '${[`rm -f ${RESTIC_PASSWORD_FILE}`, ...onExit].join("; ")}' EXIT`,
+    // The script's own exit status survives the cleanup commands.
+    `trap '${["rc=$?", `rm -f ${RESTIC_PASSWORD_FILE}`, ...onExit, "exit $rc"].join("; ")}' EXIT`,
+  ];
+}
+
+/** `restore --delete` with `--include` only behaves as documented from this restic version. */
+export const RESTIC_MIN_VERSION = "0.17";
+
+/** Fails with a clear message before anything is touched when the host's restic is too old. */
+export function resticVersionCheck(): string[] {
+  return [
+    `restic_ver=$(restic version | sed -n 's/^restic \\([0-9]*\\.[0-9]*\\).*/\\1/p')`,
+    `if [ "$(printf '%s\\n${RESTIC_MIN_VERSION}\\n' "$restic_ver" | sort -V | head -n 1)" != "${RESTIC_MIN_VERSION}" ]; then`,
+    `  echo "restic >= ${RESTIC_MIN_VERSION} is required to restore (found: \${restic_ver:-unknown})" >&2`,
+    "  exit 1",
+    "fi",
   ];
 }

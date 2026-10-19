@@ -24,12 +24,18 @@ export interface BackupDeps {
  */
 function hmBackupLines(configDir: string, hmData: string): string[] {
   return [
-    `hm_was_running=$(docker ps -q --filter name='^${HM_SERVICE}$')`,
-    `hm_restart() { [ -z "$hm_was_running" ] || docker start ${HM_SERVICE} >/dev/null; hm_was_running=; }`,
     `paths=(${configDir})`,
     `if [ -d ${hmData} ]; then paths+=(${hmData}); [ -z "$hm_was_running" ] || docker stop ${HM_SERVICE} >/dev/null; fi`,
     `restic backup "\${paths[@]}" --exclude ${configDir}/log --exclude-caches`,
     "hm_restart",
+  ];
+}
+
+/** Defined before the EXIT trap is installed, so the trap can never call a missing function. */
+export function hmRestartDefinitions(): string[] {
+  return [
+    `hm_was_running=$(docker ps -q --filter name='^${HM_SERVICE}$')`,
+    `hm_restart() { [ -z "$hm_was_running" ] || docker start ${HM_SERVICE} >/dev/null; hm_was_running=; }`,
   ];
 }
 
@@ -58,6 +64,7 @@ export async function backup(
   const hm = cfg.hm;
   const hmData = hm ? hmDataPath(hm) : undefined;
   const script = [
+    ...(hm ? hmRestartDefinitions() : []),
     ...resticPreamble(b, hm ? ["hm_restart"] : []),
     // Keep only the two newest of Jellyfin's own zips: restic keeps the history.
     `{ ls -1t ${configDir}/data/backups/*.zip 2>/dev/null || true; } | tail -n +3 | xargs -r rm -f`,
