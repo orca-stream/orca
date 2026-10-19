@@ -224,6 +224,28 @@ describe("addSeries", () => {
   });
 });
 
+describe("downloadingCount", () => {
+  it("counts a series' queued and running downloads, in the list and in the detail", async () => {
+    const { series } = await addBevhill(h);
+    expect(series.downloadingCount).toBe(0);
+    expect((await h.useCases.getSeries(series.id)).downloadingCount).toBe(0);
+
+    await h.useCases.downloadSeries(series.id);
+    expect((await h.useCases.getSeries(series.id)).downloadingCount).toBe(6);
+    expect((await h.useCases.listSeries()).map((s) => s.downloadingCount)).toEqual([6]);
+
+    await h.queue.settle();
+    expect((await h.useCases.getSeries(series.id)).downloadingCount).toBe(0);
+    expect((await h.useCases.listSeries())[0]?.downloadingCount).toBe(0);
+  });
+
+  it("is already counted in the answer to adding a series with downloadNow", async () => {
+    const { series } = await addBevhill(h, { downloadNow: true });
+    expect(series.downloadingCount).toBe(6);
+    await h.queue.settle();
+  });
+});
+
 describe("downloading (the end-to-end pipeline)", () => {
   it("IA URL -> preview -> add -> jobs run -> files written -> one debounced Jellyfin refresh", async () => {
     const { series } = await addBevhill(h, { downloadNow: true });

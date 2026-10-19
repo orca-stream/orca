@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, notInArray, sql } from "drizzle-orm";
 import type { ProgressDetail } from "@orca/hm-contract";
 import type {
   Clock,
@@ -264,6 +264,24 @@ export class DrizzleJobRepository implements JobRepository {
     const items = rows.slice(0, filter.limit).map(toJob);
     const last = items.at(-1);
     return { items, nextCursor: rows.length > filter.limit && last ? last.id : null };
+  }
+
+  async countActiveDownloads(): Promise<Map<string, number>> {
+    const rows = this.db
+      .select({ seriesId: jobs.seriesId, count: sql<number>`count(*)` })
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.kind, "download_episode"),
+          inArray(jobs.status, ["queued", "running"]),
+          isNotNull(jobs.seriesId),
+        ),
+      )
+      .groupBy(jobs.seriesId)
+      .all();
+    return new Map(
+      rows.flatMap((row) => (row.seriesId ? [[row.seriesId, row.count] as const] : [])),
+    );
   }
 
   private recover(where: ReturnType<typeof sql>): number {

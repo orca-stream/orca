@@ -82,6 +82,8 @@ export interface JobRepository {
   recoverExpired(exceptIds: string[]): Promise<number>;
   get(id: string): Promise<Job | null>;
   list(filter: ListJobsFilter): Promise<{ items: Job[]; nextCursor: string | null }>;
+  /** Queued plus running episode downloads per series id; series with none are absent. */
+  countActiveDownloads(): Promise<Map<string, number>>;
 }
 
 export interface SessionRecord {

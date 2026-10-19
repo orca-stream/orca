@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
-import { makeEpisode, makeJob, makeSeries } from "../test/fixtures";
+import { makeEpisode, makeSeries } from "../test/fixtures";
 import { jsonResponse, renderApp, type Handler } from "../test/render";
 import { SeriesDetailScreen } from "./SeriesDetailScreen";
 import { SeriesListScreen } from "./SeriesListScreen";
@@ -13,7 +13,7 @@ describe("SeriesListScreen", () => {
       const { pathname } = new URL(request.url);
       if (pathname === "/api/series")
         return jsonResponse([
-          makeSeries({ id: "s1", follow: true }),
+          makeSeries({ id: "s1", follow: true, downloadingCount: 2 }),
           makeSeries({
             id: "s2",
             title: "Other",
@@ -22,22 +22,16 @@ describe("SeriesListScreen", () => {
             episodeCount: 5,
           }),
         ]);
-      if (pathname === "/api/jobs")
-        return jsonResponse({
-          items: [
-            makeJob({ id: "1", seriesId: "s1", status: "running" }),
-            makeJob({ id: "2", seriesId: "s1", status: "queued" }),
-          ],
-          nextCursor: null,
-        });
       return jsonResponse({}, 404);
     };
-    renderApp(<SeriesListScreen />, { handler, path: "/series" });
+    const { requests } = renderApp(<SeriesListScreen />, { handler, path: "/series" });
 
     const card = (await screen.findByText("Beverly Hillbillies")).closest("a")!;
     expect(within(card).getByText(/12\/36 disponibles/)).toBeTruthy();
     expect(within(card).getByText("Siguiendo")).toBeTruthy();
-    expect(await within(card).findByText("Descargando 2")).toBeTruthy();
+    expect(within(card).getByText("Descargando 2")).toBeTruthy();
+    // The count comes with the series: the list doesn't go and fetch the queue to work it out.
+    expect(requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
     expect(card.getAttribute("href")).toBe("/series/s1");
     expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster");
 

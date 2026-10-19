@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { queries } from "../api/queries";
 import { useApi } from "../api/context";
-import { activeBySeries } from "../dashboard/job-view";
 import { useT } from "../i18n/locale";
 import { EmptyState, Spinner } from "../ui";
 import { Poster } from "./Poster";
@@ -12,8 +11,6 @@ export function SeriesListScreen() {
   const t = useT();
   const api = useApi();
   const list = useQuery(queries.seriesList(api));
-  const active = useQuery(queries.jobsActive(api));
-  const downloading = activeBySeries(active.data ?? []);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -39,7 +36,7 @@ export function SeriesListScreen() {
       {list.isSuccess && list.data.length > 0 && (
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {list.data.map((series) => {
-            const count = downloading.get(series.id) ?? 0;
+            const count = series.downloadingCount;
             return (
               <li key={series.id}>
                 <Link

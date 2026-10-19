@@ -197,18 +197,26 @@ export function createUseCases(deps: Deps) {
 
       deps.events.publish({ type: "series.updated", seriesId: series.id });
       if (body.downloadNow) await enqueueDownloads(episodes.map((episode) => episode.id));
-      return toSeriesDto(created, { episodeCount: episodes.length, availableCount: 0 });
+      return toSeriesDto(created, (await deps.jobs.countActiveDownloads()).get(created.id) ?? 0, {
+        episodeCount: episodes.length,
+        availableCount: 0,
+      });
     },
 
     async listSeries(): Promise<SeriesDto[]> {
-      return (await deps.series.list()).map((series) => toSeriesDto(series));
+      const [all, downloading] = await Promise.all([
+        deps.series.list(),
+        deps.jobs.countActiveDownloads(),
+      ]);
+      return all.map((series) => toSeriesDto(series, downloading.get(series.id) ?? 0));
     },
 
     async getSeries(id: string): Promise<SeriesDto> {
       const series = await deps.series.get(id);
       if (!series) throw new AppError("not_found", "No such series");
       const episodes = await deps.series.listEpisodes(id);
-      return toSeriesDto(series, {
+      const downloading = (await deps.jobs.countActiveDownloads()).get(id) ?? 0;
+      return toSeriesDto(series, downloading, {
         episodeCount: episodes.length,
         availableCount: episodes.filter((episode) => episode.status === "available").length,
       });

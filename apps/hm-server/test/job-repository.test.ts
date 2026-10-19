@@ -9,6 +9,34 @@ const job = (extra = {}) => ({
 });
 
 describe("DrizzleJobRepository", () => {
+  it("counts the queued and running episode downloads of each series", async () => {
+    const { jobs, series } = testDatabase();
+    await series.create(aSeries({ id: "a" }), []);
+    await series.create(aSeries({ id: "b", externalId: "b", folderName: "B" }), []);
+    const forSeries = (seriesId: string, extra = {}) => job({ seriesId, ...extra });
+    const first = await jobs.enqueue(forSeries("a"));
+    await jobs.enqueue(forSeries("a"));
+    await jobs.enqueue(forSeries("a"));
+    await jobs.enqueue(forSeries("b"));
+    // Other kinds of work for the series aren't downloads.
+    await jobs.enqueue(forSeries("b", { kind: "check_series", resource: "none" }));
+    await jobs.enqueue(job()); // and a job without a series belongs to none
+
+    // Queued and running both count.
+    expect(await jobs.claim("download", "w", 1000)).toMatchObject({ id: first.job.id });
+    let counts = await jobs.countActiveDownloads();
+    expect([...counts.entries()].sort()).toEqual([
+      ["a", 3],
+      ["b", 1],
+    ]);
+
+    // Settled ones don't.
+    await jobs.complete(first.job.id, "w");
+    counts = await jobs.countActiveDownloads();
+    expect(counts.get("a")).toBe(2);
+    expect(counts.has("nope")).toBe(false);
+  });
+
   it("claims by priority, then oldest first, only jobs that are due and of the asked resource", async () => {
     const { jobs, clock } = testDatabase();
     const first = await jobs.enqueue(job());

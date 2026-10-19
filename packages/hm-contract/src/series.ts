@@ -95,6 +95,8 @@ export const SeriesDto = z.object({
   hasPoster: z.boolean(),
   episodeCount: z.number().int(),
   availableCount: z.number().int(),
+  /** Episode downloads of this series that are queued or running right now. */
+  downloadingCount: z.number().int(),
   createdAt: z.number(),
 });
 export type SeriesDto = z.infer<typeof SeriesDto>;

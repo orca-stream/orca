@@ -56,6 +56,7 @@ export function toPreviewDto(
 
 export function toSeriesDto(
   series: Series | SeriesWithCounts,
+  downloadingCount: number,
   counts?: { episodeCount: number; availableCount: number },
 ): SeriesDto {
   const c = counts ?? ("episodeCount" in series ? series : { episodeCount: 0, availableCount: 0 });
@@ -73,6 +74,7 @@ export function toSeriesDto(
     hasPoster: series.hasPoster,
     episodeCount: c.episodeCount,
     availableCount: c.availableCount,
+    downloadingCount,
     createdAt: series.createdAt,
   };
 }
