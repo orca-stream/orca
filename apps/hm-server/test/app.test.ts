@@ -180,7 +180,7 @@ describe("login rate limit", () => {
       return real(username, password);
     };
     const statuses = (
-      await Promise.all(Array.from({ length: 5 }, () => login("sam", "wrong")))
+      await Promise.all(Array.from({ length: 5 }, async () => login("sam", "wrong")))
     ).map((response) => response.status);
     expect(reached).toBe(2);
     expect(statuses.filter((status) => status === 429)).toHaveLength(3);
