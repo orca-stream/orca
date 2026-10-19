@@ -20,3 +20,9 @@ export {
   type ResponseLike,
 } from "./detector.ts";
 export { Semaphore } from "./semaphore.ts";
+export {
+  CONNECT_TIMEOUT_MS,
+  DNS_CACHE_TTL_MS,
+  GuardedProxy,
+  type GuardedProxyOptions,
+} from "./proxy.ts";
