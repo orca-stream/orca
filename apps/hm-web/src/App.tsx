@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
-import { AddSeriesScreen } from "./series/AddSeriesScreen";
 import { DashboardScreen } from "./dashboard/DashboardScreen";
 import { useLiveEvents } from "./events/use-live-events";
-import { useT } from "./i18n/locale";
+import { ExtractorsScreen } from "./extractors/ExtractorsScreen";
 import { Providers } from "./providers";
-import { Placeholder } from "./shell/Placeholder";
+import { AddSeriesScreen } from "./series/AddSeriesScreen";
+import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
+import { SeriesListScreen } from "./series/SeriesListScreen";
 import { Shell } from "./shell/Shell";
 
 /** Mounted only for a signed-in admin, so the event stream never opens without a session. */
@@ -17,19 +18,16 @@ function LiveShell({ children }: { children: ReactNode }) {
 }
 
 function Panel() {
-  const t = useT();
   return (
     <AuthGate>
       <LiveShell>
         <Switch>
           <Route path="/" component={DashboardScreen} />
+          {/* "new" before ":id", or the add screen would be read as a series called new. */}
           <Route path="/series/new" component={AddSeriesScreen} />
-          <Route path="/series">
-            <Placeholder title={t.nav.series} />
-          </Route>
-          <Route path="/extractors">
-            <Placeholder title={t.nav.extractors} />
-          </Route>
+          <Route path="/series/:id" component={SeriesDetailScreen} />
+          <Route path="/series" component={SeriesListScreen} />
+          <Route path="/extractors" component={ExtractorsScreen} />
           <Route>
             <Redirect to="/" replace />
           </Route>

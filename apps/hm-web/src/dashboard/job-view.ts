@@ -65,3 +65,14 @@ export function jobName(job: JobDto, kindLabel: string): string {
   if (!job.seriesTitle) return kindLabel;
   return job.episodeCode ? `${job.seriesTitle} ${job.episodeCode}` : job.seriesTitle;
 }
+
+/** How many episode downloads (running or waiting) each series has in the queue. */
+export function activeBySeries(jobs: readonly JobDto[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const job of jobs) {
+    if (job.kind !== "download_episode" || !job.seriesId) continue;
+    if (job.status !== "running" && job.status !== "queued") continue;
+    counts.set(job.seriesId, (counts.get(job.seriesId) ?? 0) + 1);
+  }
+  return counts;
+}

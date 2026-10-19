@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { makeJob } from "../test/fixtures";
 import {
+  activeBySeries,
   canCancel,
   jobName,
   jobSpeedAndEta,
@@ -97,5 +98,20 @@ describe("jobName", () => {
     expect(jobName(makeJob(), "Descarga")).toBe("Beverly Hillbillies S01E01");
     expect(jobName(makeJob({ episodeCode: null }), "Descarga")).toBe("Beverly Hillbillies");
     expect(jobName(makeJob({ seriesTitle: null, episodeCode: null }), "Descarga")).toBe("Descarga");
+  });
+});
+
+describe("activeBySeries", () => {
+  it("counts the download jobs in the queue per series", () => {
+    const counts = activeBySeries([
+      makeJob({ id: "1", seriesId: "a", status: "running" }),
+      makeJob({ id: "2", seriesId: "a", status: "queued" }),
+      makeJob({ id: "3", seriesId: "b", status: "queued" }),
+      makeJob({ id: "4", seriesId: "b", kind: "refresh_library" }),
+      makeJob({ id: "5", seriesId: null }),
+    ]);
+    expect(counts.get("a")).toBe(2);
+    expect(counts.get("b")).toBe(1);
+    expect(counts.size).toBe(2);
   });
 });
