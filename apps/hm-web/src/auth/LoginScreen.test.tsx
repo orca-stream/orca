@@ -79,6 +79,13 @@ describe("LoginScreen", () => {
     );
   });
 
+  it.each([502, 503])("says Jellyfin isn't answering on a %i", async (status) => {
+    const user = userEvent.setup();
+    renderApp(<LoginScreen />, { handler: () => jsonResponse({ error: "upstream" }, status) });
+    await fillAndSubmit(user);
+    expect((await screen.findByRole("alert")).textContent).toBe("Jellyfin no responde.");
+  });
+
   it("does not send an empty form", async () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<LoginScreen />);

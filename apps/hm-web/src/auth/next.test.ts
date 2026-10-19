@@ -13,6 +13,18 @@ describe("safeNext", () => {
     }
   });
 
+  it("rejects control characters the URL parser would strip into another origin", () => {
+    for (const bad of [
+      "/\t/evil.test",
+      "/\n/evil.test",
+      "/\r/evil.test",
+      "/a\u0000b",
+      "/a\u007fb",
+    ]) {
+      expect(safeNext(bad)).toBe("/");
+    }
+  });
+
   it("never loops back to the sign-in screen", () => {
     expect(safeNext("/login")).toBe("/");
     expect(safeNext("/login?next=/x")).toBe("/");

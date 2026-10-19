@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { makeEpisode } from "../test/fixtures";
 import {
-  downloadingCount,
   groupBySeason,
   isSelectable,
   missingIds,
@@ -93,11 +92,5 @@ describe("pruneSelection", () => {
   it("returns the same set when nothing changes", () => {
     const set = new Set(["a1"]);
     expect(pruneSelection(set, EPISODES)).toBe(set);
-  });
-});
-
-describe("downloadingCount", () => {
-  it("counts the episodes being downloaded", () => {
-    expect(downloadingCount(EPISODES)).toBe(1);
   });
 });

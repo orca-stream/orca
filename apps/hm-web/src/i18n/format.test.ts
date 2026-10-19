@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  etaSeconds,
-  formatBytes,
-  formatDuration,
-  formatEta,
-  formatRelative,
-  formatSpeed,
-} from "./format";
+import { etaSeconds, formatBytes, formatDuration, formatRelative, formatSpeed } from "./format";
 
 describe("formatBytes", () => {
   it("scales by 1024 and follows the locale's decimal mark", () => {
@@ -54,16 +47,6 @@ describe("formatDuration", () => {
     expect(formatDuration(180)).toBe("3 min");
     expect(formatDuration(3900)).toBe("1 h 5 min");
     expect(formatDuration(7200)).toBe("2 h");
-  });
-});
-
-describe("formatEta", () => {
-  it("shows a dash when the speed is 0", () => {
-    expect(formatEta({ loaded: 0, total: 1000, bytesPerSecond: 0 })).toBe("—");
-  });
-
-  it("formats the time left", () => {
-    expect(formatEta({ loaded: 0, total: 1800, bytesPerSecond: 10 })).toBe("3 min");
   });
 });
 

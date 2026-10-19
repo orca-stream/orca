@@ -45,11 +45,6 @@ export function formatDuration(seconds: number): string {
   return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
 }
 
-export function formatEta(progress: Progress): string {
-  const seconds = etaSeconds(progress);
-  return seconds === null ? DASH : formatDuration(seconds);
-}
-
 const STEPS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
   ["day", 86_400],
   ["hour", 3_600],

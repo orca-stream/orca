@@ -76,7 +76,7 @@ describe("AddSeriesScreen", () => {
     );
     expect((screen.getByLabelText("Año") as HTMLInputElement).value).toBe("1962");
     expect(screen.getByText("Dominio público")).toBeTruthy();
-    expect(screen.getByText("Episode 3 is missing")).toBeTruthy();
+    expect(screen.getByText(/Faltan episodios en la numeración/)).toBeTruthy();
     const row = screen.getByText("Getting Settled").closest("tr")!;
     expect(within(row).getByText("Inferido")).toBeTruthy();
     expect(within(row).getByText("S01E02")).toBeTruthy();
@@ -94,6 +94,42 @@ describe("AddSeriesScreen", () => {
     await waitFor(() =>
       expect(screen.queryByRole("img", { name: "The Beverly Hillbillies" })).toBeNull(),
     );
+  });
+
+  it("links the license only when its address is http(s), else shows it as plain text", async () => {
+    const user = userEvent.setup();
+    const bad = "javascript:alert(1)";
+    setup({
+      previews: [
+        makePreview({
+          license: { kind: "cc-by", url: "https://example.test/l", requiresAck: false },
+        }),
+        makePreview({ license: { kind: "cc-by", url: bad, requiresAck: false } }),
+      ],
+    });
+    await previewIt(user);
+    expect(screen.getByRole("link", { name: "Ver licencia" }).getAttribute("href")).toBe(
+      "https://example.test/l",
+    );
+    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Ver licencia" })).toBeNull());
+    expect(screen.getByText(bad)).toBeTruthy();
+  });
+
+  it("translates the server's warnings by their kind and falls back to its text for an unknown kind", async () => {
+    const user = userEvent.setup();
+    setup({
+      preview: makePreview({
+        warnings: [
+          { kind: "gap", message: "Episode 3 is missing", keys: ["e4"] },
+          { kind: "novel" as never, message: "Something new" },
+        ],
+      }),
+    });
+    await previewIt(user);
+    expect(screen.queryByText("Episode 3 is missing")).toBeNull();
+    expect(screen.getByText(/Faltan episodios en la numeración/)).toBeTruthy();
+    expect(screen.getByText("Something new")).toBeTruthy();
   });
 
   it("keeps Confirm disabled until the license is acknowledged when it is unknown", async () => {

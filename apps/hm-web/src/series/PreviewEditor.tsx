@@ -1,6 +1,7 @@
 import type { PreviewDto } from "@orca/hm-contract";
 import { formatBytes, formatDuration } from "../i18n/format";
 import { useLocale, useT } from "../i18n/locale";
+import type { Messages } from "../i18n/messages";
 import { PosterImage } from "./Poster";
 import { Button, Checkbox, Switch, Table, TBody, Td, TextField, Th, THead, Tr, cx } from "../ui";
 import {
@@ -22,6 +23,22 @@ const LICENSE_TONE: Record<PreviewDto["license"]["kind"], string> = {
   "cc-other": "bg-amber-500/15 text-amber-300",
   unknown: "bg-amber-500/15 text-amber-300",
 };
+
+/** Only http(s) addresses become links: a `javascript:` URL from a site must never be clickable. */
+function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+/** The warning in the panel's language by its kind; the server's own text for a kind we don't know. */
+function warningText(warning: PreviewDto["warnings"][number], t: Messages): string {
+  const text = (t.add.warningText as Record<string, string | undefined>)[warning.kind];
+  return text ?? warning.message;
+}
 
 interface PreviewEditorProps {
   preview: PreviewDto;
@@ -89,7 +106,10 @@ export function PreviewEditor({
                 {t.add.licenseKinds[preview.license.kind]}
               </span>
               <span className="text-white/70">{t.add.licenseWhy[preview.license.kind]}</span>
-              {preview.license.url && (
+              {preview.license.url && !isHttpUrl(preview.license.url) && (
+                <span className="break-all text-white/60">{preview.license.url}</span>
+              )}
+              {preview.license.url && isHttpUrl(preview.license.url) && (
                 <a
                   href={preview.license.url}
                   target="_blank"
@@ -116,7 +136,7 @@ export function PreviewEditor({
                 <strong className="font-medium text-amber-200">
                   {t.add.warningKinds[warning.kind]}:{" "}
                 </strong>
-                {warning.message}
+                {warningText(warning, t)}
               </li>
             ))}
           </ul>

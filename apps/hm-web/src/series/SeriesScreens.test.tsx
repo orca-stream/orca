@@ -69,17 +69,19 @@ const EPISODES = [
   makeEpisode({ id: "e5", season: 2, episode: 2, title: "Cinco", status: "missing" }),
 ];
 
+const detailHandler: Handler = (request) => {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/series/s1" && request.method === "GET")
+    return jsonResponse(makeSeries());
+  if (url.pathname === "/api/series/s1" && request.method === "PATCH")
+    return jsonResponse(makeSeries({ follow: true }));
+  if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
+  if (url.pathname === "/api/jobs" && request.method === "POST") return jsonResponse([], 201);
+  return jsonResponse({}, 404);
+};
+
 function detailSetup() {
-  const handler: Handler = (request) => {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/series/s1" && request.method === "GET")
-      return jsonResponse(makeSeries());
-    if (url.pathname === "/api/series/s1" && request.method === "PATCH")
-      return jsonResponse(makeSeries({ follow: true }));
-    if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
-    if (url.pathname === "/api/jobs" && request.method === "POST") return jsonResponse([], 201);
-    return jsonResponse({}, 404);
-  };
+  const handler = detailHandler;
   const view = renderApp(
     <Route path="/series/:id">
       <SeriesDetailScreen />
@@ -129,6 +131,45 @@ describe("SeriesDetailScreen", () => {
           .disabled,
       ).toBe(true),
     );
+  });
+
+  it("shows only the button that was pressed as busy while its request is in flight", async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => undefined;
+    let gate = Promise.resolve();
+    const hold = () => {
+      gate = new Promise<void>((resolve) => (release = resolve));
+    };
+    hold();
+    const ok = detailHandler;
+    renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        handler: async (request) => {
+          if (request.method === "POST" && new URL(request.url).pathname === "/api/jobs")
+            await gate;
+          return ok(request);
+        },
+        path: "/series/s1",
+      },
+    );
+    await screen.findByRole("heading", { name: "Beverly Hillbillies" });
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E02" }));
+    const selected = screen.getByRole("button", { name: /Descargar seleccionados/ });
+    const missing = screen.getByRole("button", { name: "Descargar los que faltan" });
+    await user.click(selected);
+    await waitFor(() => expect(selected.getAttribute("aria-busy")).toBe("true"));
+    expect(missing.getAttribute("aria-busy")).toBeNull();
+    release();
+    await waitFor(() => expect(selected.getAttribute("aria-busy")).toBeNull());
+
+    hold();
+    await user.click(missing);
+    await waitFor(() => expect(missing.getAttribute("aria-busy")).toBe("true"));
+    expect(selected.getAttribute("aria-busy")).toBeNull();
+    release();
   });
 
   it("retries a failed episode on its own", async () => {

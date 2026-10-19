@@ -166,4 +166,48 @@ describe("DashboardScreen", () => {
     expect(await screen.findByText("Beverly Hillbillies S09E09")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Ver más" })).toBeNull();
   });
+
+  it("says so when cancelling is refused (409), instead of failing silently", async () => {
+    const user = userEvent.setup();
+    const ok = handlerFor({ active: [RUNNING], failed: [], history: [[]] });
+    renderApp(<DashboardScreen />, {
+      handler: (request) =>
+        request.url.endsWith("/cancel") ? jsonResponse({ error: "conflict" }, 409) : ok(request),
+    });
+    await screen.findByRole("progressbar");
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(
+      within(await screen.findByRole("dialog", { hidden: true })).getByRole("button", {
+        name: "Cancelar descarga",
+        hidden: true,
+      }),
+    );
+    expect((await screen.findByRole("alert")).textContent).toBe("No se pudo completar la acción.");
+  });
+
+  it("says so when retrying one failure is refused (409)", async () => {
+    const user = userEvent.setup();
+    const failed = [makeJob({ id: "j8", status: "failed", errorKind: "permanent" })];
+    const ok = handlerFor({ active: [], failed, history: [[]] });
+    renderApp(<DashboardScreen />, {
+      handler: (request) =>
+        request.url.endsWith("/retry") ? jsonResponse({ error: "conflict" }, 409) : ok(request),
+    });
+    await user.click(await screen.findByRole("button", { name: "Reintentar" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("No se pudo completar la acción.");
+  });
+
+  it("labels the last error by its kind, in the panel's language", async () => {
+    const failed = [
+      makeJob({ id: "j9", status: "failed", errorKind: "retryable", lastError: "HTTP 503" }),
+      makeJob({ id: "j8", status: "failed", errorKind: "permanent", lastError: "HTTP 404" }),
+    ];
+    renderApp(<DashboardScreen />, {
+      handler: handlerFor({ active: [], failed, history: [[]] }),
+    });
+    const retryable = (await screen.findByText("HTTP 503")).closest("td")!;
+    expect(within(retryable).getByText("Último error (se reintentará)")).toBeTruthy();
+    const permanent = screen.getByText("HTTP 404").closest("td")!;
+    expect(within(permanent).getByText("Error permanente")).toBeTruthy();
+  });
 });

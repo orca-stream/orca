@@ -13,6 +13,7 @@ export function ErrorsPanel() {
   const api = useApi();
   const failed = useQuery(queries.jobsFailed(api));
   const { retryJob, retryJobs } = useMutations();
+  const retryFailed = retryJob.isError;
   const jobs = failed.data ?? [];
   const retryable = retryableJobs(jobs);
 
@@ -35,6 +36,11 @@ export function ErrorsPanel() {
       {retryJobs.isSuccess && retryJobs.data > 0 && (
         <p role="status" className="text-sm text-amber-300">
           {t.dashboard.retryAllPartial(retryJobs.data)}
+        </p>
+      )}
+      {retryFailed && (
+        <p role="alert" className="text-sm text-amber-300">
+          {t.dashboard.actionFailed}
         </p>
       )}
       {failed.isPending && <Spinner className="size-6" />}
@@ -62,12 +68,13 @@ export function ErrorsPanel() {
                   <JobName job={job} />
                 </Td>
                 <Td>
+                  {job.errorKind && (
+                    <p className="text-xs text-white/50">{t.dashboard.lastError[job.errorKind]}</p>
+                  )}
                   <p className="text-sm break-words text-white/80">
                     {job.lastError ?? t.dashboard.unknownError}
                   </p>
                   <p className="mt-1 text-xs text-white/50">
-                    {job.errorKind ? t.dashboard.errorKinds[job.errorKind] : null}
-                    {job.errorKind ? " · " : null}
                     {t.dashboard.attempt(job.attempts, job.maxAttempts)}
                   </p>
                 </Td>

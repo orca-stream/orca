@@ -18,6 +18,7 @@ function loginErrorMessage(error: unknown, t: Messages): string {
     if (error.status === 401) return t.login.invalidCredentials;
     if (error.status === 403) return t.login.adminsOnly;
     if (error.status === 0) return t.login.unreachable;
+    if (error.status === 502 || error.status === 503) return t.login.jellyfinDown;
   }
   return t.login.failed;
 }

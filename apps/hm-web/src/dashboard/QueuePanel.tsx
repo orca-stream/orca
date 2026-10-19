@@ -86,6 +86,11 @@ export function QueuePanel() {
       <h2 id="queue-title" className="text-lg font-semibold">
         {t.dashboard.queueTitle}
       </h2>
+      {cancelJob.isError && (
+        <p role="alert" className="text-sm text-amber-300">
+          {t.dashboard.actionFailed}
+        </p>
+      )}
       {active.isPending && <Spinner className="size-6" />}
       {active.isError && (
         <p role="alert" className="text-sm text-amber-300">

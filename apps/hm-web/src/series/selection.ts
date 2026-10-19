@@ -32,10 +32,6 @@ export function missingIds(episodes: readonly EpisodeDto[]): string[] {
     .map((episode) => episode.id);
 }
 
-export function downloadingCount(episodes: readonly EpisodeDto[]): number {
-  return episodes.filter((episode) => episode.status === "downloading").length;
-}
-
 export function toggleSelected(
   selection: ReadonlySet<string>,
   episodes: readonly EpisodeDto[],

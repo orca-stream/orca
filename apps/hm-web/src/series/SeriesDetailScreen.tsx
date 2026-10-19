@@ -33,6 +33,8 @@ export function SeriesDetailScreen() {
 
   const episodes = episodesQuery.data;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  // Which of the two bulk buttons is waiting on the server, so only that one shows busy.
+  const [bulk, setBulk] = useState<"selected" | "missing" | null>(null);
   const [intervalDraft, setIntervalDraft] = useState<string | null>(null);
 
   // Live updates can finish or start a download under a pick: what no longer applies is dropped.
@@ -161,18 +163,25 @@ export function SeriesDetailScreen() {
           </Button>
           <Button
             disabled={selection.size === 0}
-            loading={enqueue.isPending}
-            onClick={() =>
-              enqueue.mutate(orderedSelection, { onSuccess: () => setPicked(new Set()) })
-            }
+            loading={bulk === "selected"}
+            onClick={() => {
+              setBulk("selected");
+              enqueue.mutate(orderedSelection, {
+                onSuccess: () => setPicked(new Set()),
+                onSettled: () => setBulk(null),
+              });
+            }}
           >
             {t.series.downloadSelected(selection.size)}
           </Button>
           <Button
             variant="primary"
             disabled={missing.length === 0}
-            loading={enqueue.isPending}
-            onClick={() => enqueue.mutate(missing)}
+            loading={bulk === "missing"}
+            onClick={() => {
+              setBulk("missing");
+              enqueue.mutate(missing, { onSettled: () => setBulk(null) });
+            }}
           >
             {t.series.downloadMissing}
           </Button>
