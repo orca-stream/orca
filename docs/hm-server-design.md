@@ -394,7 +394,7 @@ CMD ["node","dist/main.mjs"]
   - Volumes: `hm-data:/data` and the 1 TB disk's TV folder mounted at **the same path inside both containers**, e.g. `/media/tv` in H&M and Jellyfin. That keeps the `Library/Media/Updated` paths identical. If the paths differ, use `JELLYFIN_MEDIA_ROOT`.
   - Env from `.env`: `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `SESSION_SECRET`.
 - **Configuration is environment-only, with no environment defaults in code.** Required, validated by Zod at boot (the error lists everything missing): `HOST`, `PORT`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL`, `JELLYFIN_API_KEY`. Optional: `CONTACT_EMAIL` (User-Agent contact), `DEVICE_ID` (otherwise a UUID is generated once and stored in the database `settings` table), `WEB_ROOT`, `SECURE_COOKIES`, and the tuning knobs `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`, `IA_HOST_CONCURRENCY`, which keep named-constant defaults. `apps/hm-server/.env.example` has example values.
-- The panel (`apps/jp`) takes its suggested servers only from `VITE_JELLYFIN_SERVERS` (comma-separated; `VITE_JELLYFIN_SERVER_URL` still works and is listed first). Unset, it offers only servers already signed in to, plus manual entry.
+- The Orca'JP client (`apps/jp`) takes its suggested servers only from `VITE_JELLYFIN_SERVERS` (comma-separated; `VITE_JELLYFIN_SERVER_URL` still works and is listed first). Unset, it offers only servers already signed in to, plus manual entry.
 - Write files as the UID Jellyfin reads with (`PUID`), or set group-readable permissions.
 
 ## 8. Testing without network (Vitest under `vp test`)
