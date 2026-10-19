@@ -264,7 +264,12 @@ describe("HttpDownloader and the address guard", () => {
       else serveFile(req, res);
     };
     const checked: string[] = [];
-    const guard = refuseUrl((url) => void checked.push(url) === undefined && false);
+    const guard: UrlGuard = {
+      assertUrl: async (url) => {
+        checked.push(url);
+        return new URL(url);
+      },
+    };
     await downloader({ guard }).download(source(), join(dir, "o.mp4"), context());
     expect(seen.map((s) => s.url)).toEqual(["/video.mp4", "/moved.mp4"]);
     expect(checked).toEqual([`${base}/video.mp4`, `${base}/moved.mp4`]);

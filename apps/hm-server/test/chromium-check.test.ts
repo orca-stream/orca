@@ -15,7 +15,10 @@ describe("assertChromium", () => {
   it("accepts the configured executable when it can be run", async () => {
     const checked: string[] = [];
     await assertChromium(detector("/usr/bin/chromium"), {
-      canExecute: async (path) => void checked.push(path) === undefined,
+      canExecute: async (path) => {
+        checked.push(path);
+        return true;
+      },
       bundledPath: async () => "/never/asked",
     });
     expect(checked).toEqual(["/usr/bin/chromium"]);

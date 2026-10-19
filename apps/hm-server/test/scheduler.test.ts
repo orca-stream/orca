@@ -106,7 +106,7 @@ describe("Scheduler", () => {
     await scheduler.idle();
     expect(await checkJobs()).toHaveLength(1);
 
-    scheduler.stop();
+    await scheduler.stop();
     expect(timers[0]!.cancelled).toBe(true);
   });
 
