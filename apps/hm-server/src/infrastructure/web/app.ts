@@ -122,6 +122,7 @@ export function createApp(deps: AppDeps) {
     } catch (error) {
       if (error instanceof AppError && error.code === "unauthorized")
         limiter.recordFailure(address, username);
+      else limiter.release(address, username);
       throw error;
     }
     limiter.recordSuccess(address, username);

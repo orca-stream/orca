@@ -171,6 +171,21 @@ describe("login rate limit", () => {
     expect((await login("ana", "pw")).status).toBe(200);
   });
 
+  it("lets at most two of five parallel wrong logins reach Jellyfin", async () => {
+    const real = h.authenticator.authenticate.bind(h.authenticator);
+    let reached = 0;
+    h.authenticator.authenticate = async (username, password) => {
+      reached++;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return real(username, password);
+    };
+    const statuses = (
+      await Promise.all(Array.from({ length: 5 }, () => login("sam", "wrong")))
+    ).map((response) => response.status);
+    expect(reached).toBe(2);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(3);
+  });
+
   it("lets the user in again after the window", async () => {
     for (let i = 0; i < 2; i++) await login("sam", "wrong");
     h.clock.advance(15 * 60 * 1000 + 1000);

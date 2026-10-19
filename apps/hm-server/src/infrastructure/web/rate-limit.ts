@@ -14,11 +14,13 @@ export interface LoginRateLimiterOptions {
 
 /**
  * Keeps this server from being what locks a Jellyfin account. Jellyfin locks a user after 3 failed
- * logins (the default policy, `LoginAttemptsBeforeLockout` 0, means 3) and only a success resets the
- * counter; every login through here reaches Jellyfin from this server's address, so the per-user cap
- * below counts across all client addresses and stays under 3. It cannot protect against someone on
- * the LAN who hits Jellyfin directly: that path never passes through here. In memory, so it resets
- * on restart, which is fine for a brake.
+ * logins when the lockout policy is saved at its default (0 means 3 once the policy has been saved;
+ * null or -1 never locks) and only a success resets the counter. Every login through here reaches
+ * Jellyfin from this server's address, so the per-user cap below counts across all client addresses
+ * and stays under 3. The price is accepted: anyone can keep a known user out of H&M for the window
+ * by failing twice, which beats a lockout that needs a manual unlock in Jellyfin. It cannot protect
+ * against someone on the LAN who hits Jellyfin directly: that path never passes through here. In
+ * memory, so it resets on restart, which is fine for a brake.
  */
 export class LoginRateLimiter {
   private readonly now: () => number;
@@ -29,6 +31,9 @@ export class LoginRateLimiter {
   private readonly attemptWindowMs: number;
   private readonly failures = new Map<string, number[]>();
   private readonly userFailures = new Map<string, number[]>();
+  /** Allowed checks whose verdict has not arrived yet, per user and per address+user. */
+  private readonly pendingUsers = new Map<string, number>();
+  private readonly pendingKeys = new Map<string, number>();
   private attempts: number[] = [];
   private lastSweep = 0;
 
@@ -41,20 +46,30 @@ export class LoginRateLimiter {
     this.attemptWindowMs = options.attemptWindowMs ?? 60 * 1000;
   }
 
-  /** Asks to try a login. An allowed check counts toward the global cap. */
+  /**
+   * Asks to try a login. An allowed check reserves a place: it counts toward the caps like a
+   * failure would until the caller ends it with `recordFailure`, `recordSuccess` or `release`
+   * (exactly one of them), so a burst of parallel logins cannot all pass before any failure lands.
+   */
   check(address: string, username: string): RateDecision {
     const now = this.now();
     this.sweep(now);
     this.attempts = this.attempts.filter((time) => now - time < this.attemptWindowMs);
     const recent = this.recentFailures(address, username, now);
-    if (recent.length >= this.maxFailures) {
+    if (
+      recent.length + (this.pendingKeys.get(this.key(address, username)) ?? 0) >=
+      this.maxFailures
+    ) {
       return {
         allowed: false,
         retryAfterSec: wait((recent[0] as number) + this.failureWindowMs - now),
       };
     }
     const user = this.recentUserFailures(username, now);
-    if (user.length >= this.maxUserFailures) {
+    if (
+      user.length + (this.pendingUsers.get(this.userKey(username)) ?? 0) >=
+      this.maxUserFailures
+    ) {
       return {
         allowed: false,
         retryAfterSec: wait((user[0] as number) + this.failureWindowMs - now),
@@ -67,10 +82,19 @@ export class LoginRateLimiter {
       };
     }
     this.attempts.push(now);
+    bump(this.pendingKeys, this.key(address, username), 1);
+    bump(this.pendingUsers, this.userKey(username), 1);
     return { allowed: true };
   }
 
+  /** Ends an allowed attempt that reached no verdict (an upstream error, say). */
+  release(address: string, username: string): void {
+    bump(this.pendingKeys, this.key(address, username), -1);
+    bump(this.pendingUsers, this.userKey(username), -1);
+  }
+
   recordFailure(address: string, username: string): void {
+    this.release(address, username);
     const now = this.now();
     const key = this.key(address, username);
     this.failures.set(key, [...this.recentFailures(address, username, now), now]);
@@ -78,6 +102,7 @@ export class LoginRateLimiter {
   }
 
   recordSuccess(address: string, username: string): void {
+    this.release(address, username);
     this.failures.delete(this.key(address, username));
     // Jellyfin resets its own counter on a success, so the user's count starts over too.
     this.userFailures.delete(this.userKey(username));
@@ -109,7 +134,8 @@ export class LoginRateLimiter {
   }
 
   private userKey(username: string): string {
-    return username.trim().toLowerCase();
+    // Jellyfin keys users by `name.ToUpperInvariant()`; trimming too only groups more, never less.
+    return username.trim().toUpperCase();
   }
 
   private recentFailures(address: string, username: string, now: number): number[] {
@@ -123,8 +149,14 @@ export class LoginRateLimiter {
   }
 
   private key(address: string, username: string): string {
-    return `${address}|${username.trim().toLowerCase()}`;
+    return `${address}|${this.userKey(username)}`;
   }
 }
+
+const bump = (map: Map<string, number>, key: string, by: number): void => {
+  const next = Math.max(0, (map.get(key) ?? 0) + by);
+  if (next === 0) map.delete(key);
+  else map.set(key, next);
+};
 
 const wait = (ms: number): number => Math.max(1, Math.ceil(ms / 1000));

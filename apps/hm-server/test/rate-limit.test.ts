@@ -77,4 +77,31 @@ describe("LoginRateLimiter", () => {
     limiter.check("ip", "someone");
     expect(limiter.size).toBe(0);
   });
+
+  it("counts attempts that are still in flight, so a burst cannot all slip past the cap", () => {
+    const { limiter } = make();
+    expect(limiter.check("ip", "sam").allowed).toBe(true);
+    expect(limiter.check("ip", "sam").allowed).toBe(true);
+    expect(limiter.check("ip", "sam").allowed).toBe(false);
+    // A failure turns a reservation into a recorded failure, so the cap still holds.
+    limiter.recordFailure("ip", "sam");
+    limiter.recordFailure("ip", "sam");
+    expect(limiter.check("ip", "sam").allowed).toBe(false);
+  });
+
+  it("frees the reservation when the attempt ends without a verdict", () => {
+    const { limiter } = make();
+    expect(limiter.check("ip", "sam").allowed).toBe(true);
+    limiter.release("ip", "sam");
+    expect(limiter.check("ip", "sam").allowed).toBe(true);
+    expect(limiter.check("ip", "sam").allowed).toBe(true);
+  });
+
+  it("groups names the way Jellyfin does: upper-cased, so dotless i and case variants share a count", () => {
+    const { limiter } = make();
+    limiter.recordFailure("ip", "admin");
+    limiter.recordFailure("ip", "admin");
+    expect(limiter.check("other", "ADMIN").allowed).toBe(false);
+    expect(limiter.check("other", "admın").allowed).toBe(false);
+  });
 });
