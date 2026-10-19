@@ -43,6 +43,8 @@ export interface ExtractedSeries {
   title: string;
   year?: number;
   plot?: string;
+  /** A cover image to fetch, when the site has one. */
+  posterUrl?: string;
   /** Changes when the remote item changes; lets a later check skip an unchanged series. */
   remoteMarker?: string;
 }

@@ -76,6 +76,7 @@ describe("shape A: one item with many files (bevhill)", () => {
       plot: "public domain episodes of the beverly hillbillies",
     });
     expect(result.series.year).toBeUndefined();
+    expect(result.series.posterUrl).toBe(`https://archive.org/services/img/${BEVHILL}`);
     expect(result.series.remoteMarker).toMatch(/^\d+$/);
   });
 

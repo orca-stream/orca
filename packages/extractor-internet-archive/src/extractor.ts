@@ -246,6 +246,7 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
         title: seriesTitle,
         ...(year !== undefined ? { year } : {}),
         ...(description ? { plot: description } : {}),
+        posterUrl: `https://archive.org/services/img/${encodeURIComponent(target.id)}`,
         ...(remoteMarker ? { remoteMarker } : {}),
       },
       seasons,
