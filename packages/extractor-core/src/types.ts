@@ -126,4 +126,10 @@ export interface SiteExtractor extends ExtractorInfo {
   /** Pure: says whether this extractor owns the URL, without touching the network. */
   canHandle(url: string): boolean;
   extract(url: string, options?: { signal?: AbortSignal }): Promise<Extraction>;
+  /**
+   * A cheap fingerprint of the series on the site (one or two small requests, never the episodes).
+   * It must equal `extract(url).series.remoteMarker` while nothing changed, and differ once
+   * something did. Optional: an extractor without it is re-extracted on every check.
+   */
+  remoteMarker?(url: string, options?: { signal?: AbortSignal }): Promise<string>;
 }

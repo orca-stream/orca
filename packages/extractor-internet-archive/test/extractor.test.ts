@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ExtractorError } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "../src/extractor.ts";
-import { fakeHttp, fixture, metadataUrl, oneStepBeyond, scrapeUrl } from "./fixtures.ts";
+import { fakeHttp, fixture, latestUrl, metadataUrl, oneStepBeyond, scrapeUrl } from "./fixtures.ts";
 
 const BEVHILL = "bevhill-s01e01-36";
 const bevhillUrl = `https://archive.org/details/${BEVHILL}`;
@@ -189,7 +189,8 @@ describe("shape B: a collection with one item per episode (One Step Beyond)", ()
       title: "One Step Beyond",
     });
     expect(result.series.plot).toContain("all 96 episodes");
-    expect(result.series.remoteMarker).toBe("5");
+    // The count plus the newest addeddate: an item added or removed changes it.
+    expect(result.series.remoteMarker).toBe("5:2018-06-06T15:10:20Z");
     expect(result.episodes.map((e) => [e.season, e.episode, e.title])).toEqual([
       [1, 1, "The Bride Possessed"],
       [1, 10, "The Vision"],
@@ -273,5 +274,57 @@ describe("errors", () => {
     item.files = [];
     const { extractor } = extractorFor({ [metadataUrl(BEVHILL)]: item });
     await expect(extractor.extract(bevhillUrl)).rejects.toMatchObject({ code: "no-episodes" });
+  });
+});
+
+describe("remoteMarker", () => {
+  it("shape A: reads item_last_updated from the one item, the same value extract() saved", async () => {
+    const { extractor, requests } = extractorFor({
+      [metadataUrl(BEVHILL)]: fixture(`${BEVHILL}.metadata`),
+    });
+    const marker = await extractor.remoteMarker?.(bevhillUrl);
+    expect(marker).toBe("1757346685");
+    expect(requests).toEqual([metadataUrl(BEVHILL)]);
+    expect((await extractor.extract(bevhillUrl)).series.remoteMarker).toBe(marker);
+  });
+
+  it("shape B: one sorted listing gives the total and the newest addeddate, never the episodes", async () => {
+    const { extractor, requests } = extractorFor(oneStepBeyond());
+    const url = "https://archive.org/details/onestepbeyondcomplete";
+    const marker = await extractor.remoteMarker?.(url);
+    expect(marker).toBe("5:2018-06-06T15:10:20Z");
+    expect(requests).toEqual([
+      metadataUrl("onestepbeyondcomplete"),
+      latestUrl("onestepbeyondcomplete"),
+    ]);
+    expect((await extractor.extract(url)).series.remoteMarker).toBe(marker);
+  });
+
+  it("changes when a new item shows up in the collection", async () => {
+    const answers = oneStepBeyond();
+    const { extractor } = extractorFor(answers);
+    const before = await extractor.remoteMarker?.(
+      "https://archive.org/details/onestepbeyondcomplete",
+    );
+    const latest = answers[latestUrl("onestepbeyondcomplete")] as {
+      items: { identifier: string; addeddate: string }[];
+      total: number;
+    };
+    latest.items.unshift({ identifier: "S3E1NEW", addeddate: "2026-10-18T10:00:00Z" });
+    latest.total = 6;
+    const { extractor: later } = extractorFor(answers);
+    expect(await later.remoteMarker?.("https://archive.org/details/onestepbeyondcomplete")).toBe(
+      "6:2026-10-18T10:00:00Z",
+    );
+    expect(before).not.toBe("6:2026-10-18T10:00:00Z");
+  });
+
+  it("rejects a page that is not an item, like extract()", async () => {
+    const { extractor } = extractorFor({});
+    await expect(
+      extractor.remoteMarker?.("https://archive.org/search?query=x"),
+    ).rejects.toMatchObject({
+      code: "unsupported-url",
+    });
   });
 });

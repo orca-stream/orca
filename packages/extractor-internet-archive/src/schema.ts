@@ -63,6 +63,7 @@ const scrapeItem = z.object({
   date: text,
   year: stringList,
   licenseurl: text,
+  addeddate: text,
 });
 
 export const scrapeSchema = z.object({

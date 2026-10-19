@@ -23,7 +23,8 @@ import {
 import { cleanSeriesTitle, firstYear, stripHtml, tidyUppercase } from "./text.ts";
 import { canHandleUrl, parseIaUrl } from "./url.ts";
 
-const SCRAPE_FIELDS = "identifier,title,description,date,year,licenseurl";
+const SCRAPE_FIELDS = "identifier,title,description,date,year,licenseurl,addeddate";
+const LATEST_FIELDS = "identifier,addeddate";
 const MAX_SCRAPE_PAGES = 100;
 /// A video this many times longer than the typical episode is several episodes in one file.
 const COMPILATION_FACTOR = 3;
@@ -93,6 +94,44 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
     return { items, total: total ?? items.length };
   }
 
+  /** The count of a collection plus the newest `addeddate`: an item added or removed changes it. */
+  const collectionMarker = (total: number, newest: string | undefined) =>
+    `${total}:${newest ?? ""}`;
+
+  const newestOf = (dates: (string | undefined)[]) =>
+    dates
+      .filter((date): date is string => Boolean(date))
+      .sort()
+      .at(-1);
+
+  async function remoteMarker(input: string, options?: { signal?: AbortSignal }): Promise<string> {
+    const target = parseIaUrl(input);
+    const signal = options?.signal;
+    const root = await loadItem(target.id, signal);
+    if (!isCollection(root)) {
+      return root.item_last_updated === undefined
+        ? `files:${root.files.length}`
+        : String(root.item_last_updated);
+    }
+    const raw = await http.getJson(
+      `https://archive.org/services/search/v1/scrape?q=collection%3A${encodeURIComponent(target.id)}` +
+        `&fields=${LATEST_FIELDS}&count=100&sorts=addeddate%20desc`,
+      { ...(signal ? { signal } : {}) },
+    );
+    const parsed = scrapeSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new ExtractorError(
+        "invalid-response",
+        `Unexpected listing of “${target.id}” from archive.org`,
+        { cause: parsed.error },
+      );
+    }
+    return collectionMarker(
+      parsed.data.total ?? parsed.data.items.length,
+      newestOf(parsed.data.items.map((item) => item.addeddate)),
+    );
+  }
+
   async function extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
     const target = parseIaUrl(input);
     const signal = options?.signal;
@@ -109,7 +148,7 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
 
     if (isCollection(root)) {
       const { items, total } = await listCollection(target.id, signal);
-      remoteMarker = String(total);
+      remoteMarker = collectionMarker(total, newestOf(items.map((item) => item.addeddate)));
       licenseUrl ??= mostCommon(items.map((item) => item.licenseurl));
       for (const scraped of items) {
         let item: IaItem;
@@ -167,7 +206,9 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
       }
     } else {
       remoteMarker =
-        root.item_last_updated === undefined ? undefined : String(root.item_last_updated);
+        root.item_last_updated === undefined
+          ? `files:${root.files.length}`
+          : String(root.item_last_updated);
       for (const group of [...videoGroups(root.files)].sort((a, b) =>
         a.key.localeCompare(b.key, "en", { numeric: true, sensitivity: "base" }),
       )) {
@@ -266,6 +307,7 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
     limits: { metadataPerSec: 1, downloadsPerHost: 1 },
     canHandle: canHandleUrl,
     extract,
+    remoteMarker,
   };
 }
 
