@@ -3,10 +3,17 @@ import { AbortedError } from "../domain/errors.ts";
 /** At most `limit` holders at a time; the rest wait in order. Waiting can be aborted. */
 export class Semaphore {
   private available: number;
+  private readonly limit: number;
   private readonly waiting: (() => void)[] = [];
 
   constructor(limit: number) {
     this.available = limit;
+    this.limit = limit;
+  }
+
+  /** Nobody holds it and nobody waits for it. */
+  get idle(): boolean {
+    return this.available === this.limit && this.waiting.length === 0;
   }
 
   async acquire(signal?: AbortSignal): Promise<() => void> {

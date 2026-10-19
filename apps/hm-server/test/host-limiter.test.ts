@@ -136,6 +136,65 @@ describe("HostLimiter minimum interval", () => {
   });
 });
 
+describe("HostLimiter.penalize", () => {
+  it("makes the next start of that host wait, even in a lane with no interval of its own", async () => {
+    const { limiter, slept } = limiterWith(() => limits(), { advance: false });
+    limiter.penalize("a.org", 7000);
+    await limiter.run("a.org", "download", undefined, async () => undefined);
+    await limiter.run("a.org", "metadata", undefined, async () => undefined);
+    // Both lanes wait out the same penalty.
+    expect(slept).toEqual([7000, 7000]);
+  });
+
+  it("never shortens a wait that is already longer, and leaves other hosts alone", async () => {
+    const { limiter, slept } = limiterWith(() => limits(), { advance: false });
+    limiter.penalize("a.org", 9000);
+    limiter.penalize("a.org", 2000);
+    await limiter.run("a.org", "download", undefined, async () => undefined);
+    await limiter.run("b.org", "download", undefined, async () => undefined);
+    expect(slept).toEqual([9000]);
+  });
+
+  it("ignores a penalty of nothing", async () => {
+    const { limiter, slept } = limiterWith(() => limits());
+    limiter.penalize("a.org", 0);
+    limiter.penalize("a.org", -5);
+    await limiter.run("a.org", "download", undefined, async () => undefined);
+    expect(slept).toEqual([]);
+  });
+});
+
+describe("HostLimiter housekeeping", () => {
+  it("forgets the hosts that are idle and owe nothing, once there are many", async () => {
+    const { limiter } = limiterWith(() => limits());
+    for (let i = 0; i < 300; i++) {
+      await limiter.run(`host${i}.example`, "download", undefined, async () => undefined);
+    }
+    // Bounded, not growing with every host ever seen.
+    expect(limiter.size).toBeLessThanOrEqual(65);
+  });
+
+  it("keeps a host that is busy, or that still has a penalty to wait out", async () => {
+    const { limiter, clock } = limiterWith(() => limits());
+    const held = await limiter.acquire("busy.example", "download");
+    limiter.penalize("penalised.example", 60_000);
+    for (let i = 0; i < 100; i++) {
+      await limiter.run(`host${i}.example`, "download", undefined, async () => undefined);
+    }
+    clock.advance(1);
+    await limiter.run("one-more.example", "download", undefined, async () => undefined);
+    // The busy one still limits to one at a time; the penalised one still makes the next start wait.
+    const second = limiter.acquire("busy.example", "download");
+    let granted = false;
+    void second.then(() => (granted = true));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(granted).toBe(false);
+    held();
+    (await second)();
+    expect(limiter.size).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("hostLimitsFor", () => {
   const extractors = [
     { hosts: ["archive.org"], limits: { metadataPerSec: 1, downloadsPerHost: 1 } },

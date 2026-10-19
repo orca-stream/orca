@@ -76,6 +76,9 @@ function realSleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/** Above this many (host, lane) pairs, the idle ones that owe no wait are forgotten. */
+const LANE_PRUNE_THRESHOLD = 64;
+
 interface LaneState {
   semaphore: Semaphore;
   nextStartAt: number;
@@ -88,15 +91,37 @@ interface LaneState {
  */
 export class HostLimiter {
   private readonly lanes = new Map<string, LaneState>();
+  /** Until when each host must be left alone (a 429/503 asked for it). */
+  private readonly penalties = new Map<string, number>();
   private readonly options: HostLimiterOptions;
 
   constructor(options: HostLimiterOptions) {
     this.options = options;
   }
 
+  /** How many (host, lane) pairs are remembered. */
+  get size(): number {
+    return this.lanes.size;
+  }
+
+  /** The host asked us to back off (429/503): nothing starts on it for `ms`, in any lane. */
+  penalize(host: string, ms: number): void {
+    if (!(ms > 0)) return;
+    const until = this.options.clock.now() + ms;
+    this.penalties.set(host, Math.max(this.penalties.get(host) ?? 0, until));
+  }
+
+  private prune(now: number): void {
+    for (const [key, state] of this.lanes) {
+      if (state.semaphore.idle && state.nextStartAt <= now) this.lanes.delete(key);
+    }
+    for (const [host, until] of this.penalties) if (until <= now) this.penalties.delete(host);
+  }
+
   async acquire(host: string, lane: Lane, signal?: AbortSignal): Promise<() => void> {
     const limit = this.options.limitsFor(host)[lane];
     const key = `${host}\u0000${lane}`;
+    if (this.lanes.size > LANE_PRUNE_THRESHOLD) this.prune(this.options.clock.now());
     let state = this.lanes.get(key);
     if (!state) {
       state = { semaphore: new Semaphore(limit.concurrency), nextStartAt: 0 };
@@ -104,13 +129,11 @@ export class HostLimiter {
     }
     const release = await state.semaphore.acquire(signal);
     try {
-      if (limit.minIntervalMs > 0) {
-        // Reserve the slot before waiting, so callers queue up one interval apart instead of bursting.
-        const now = this.options.clock.now();
-        const slot = Math.max(now, state.nextStartAt);
-        state.nextStartAt = slot + limit.minIntervalMs;
-        if (slot > now) await (this.options.sleep ?? realSleep)(slot - now, signal);
-      }
+      // Reserve the slot before waiting, so callers queue up one interval apart instead of bursting.
+      const now = this.options.clock.now();
+      const slot = Math.max(now, state.nextStartAt, this.penalties.get(host) ?? 0);
+      if (limit.minIntervalMs > 0) state.nextStartAt = slot + limit.minIntervalMs;
+      if (slot > now) await (this.options.sleep ?? realSleep)(slot - now, signal);
     } catch (error) {
       release();
       throw error;
