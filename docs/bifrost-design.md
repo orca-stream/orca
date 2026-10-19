@@ -454,6 +454,29 @@ Media is synced separately with rsync.
 
 **Other fakes.** `FakeClock` drives restart polling and timeouts. `InMemorySecretStore` holds secrets. The real test is manual against `192.168.1.10`.
 
+## 9. Orca'H&M next to Jellyfin (`bifrost hm up`, plan F3)
+
+The optional `hm:` block adds the H&M container to the same compose file. `bifrost up` stays Jellyfin-only; `bifrost hm up <host> [--dry-run]` is the explicit command.
+
+**Config** (`hm:`): `port` (host side, default 8787, published on `host.address` only), `dataDir` (default `/srv/orca-hm`), `mediaDir` (host path of the TV library), `apiKeySecret` (default `ORCA_HM_JELLYFIN_API_KEY`), `contactEmailSecret` (optional), `source` (git ref, default `HEAD`).
+
+- `mediaDir` is validated: it must sit under one of Jellyfin's media mounts and, as Jellyfin sees it, inside a `tvshows` library path. H&M mounts it **at that same container path** (`MEDIA_ROOT` = `JELLYFIN_MEDIA_ROOT`), so the paths it sends to `postUpdatedMedia` are the ones Jellyfin knows. Jellyfin keeps its own mount (read-only); only H&M writes.
+- There is no `genericDetector` key: hm-server has no such setting yet.
+
+**Steps** (each skipped when already done):
+
+1. Resolve `source` to a commit; the tag is `orca-hm:<first 12 hex>`. If `docker image inspect` finds it, nothing is built.
+2. Otherwise `git archive` of that commit (tracked files only; local edits are not included) is copied to `<dataDir>/src/<tag>.tar` and `docker build -f apps/hm-server/Dockerfile` runs on the host with the extracted tree as context (the Dockerfile expects the repo root). The sources are deleted afterwards.
+3. The system user `orca-hm` is created with primary group `jellyfin`; `<dataDir>/data` is `orca-hm:jellyfin 0750`, `mediaDir` is `orca-hm:jellyfin 2775` (setgid, so what H&M writes stays in the group Jellyfin reads). The data directory is a bind mount, not a named volume: a fresh named volume copies the image's `node` ownership and the container runs as `orca-hm`.
+4. The "Orca H&M" API key is created in Jellyfin (signed in as the admin) if it is missing and stored under `apiKeySecret`.
+5. `<dataDir>/hm.env` (root, `0600`) holds every required variable: `HOST=0.0.0.0` (inside the container), `PORT`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL=http://jellyfin:8096` (compose network), `JELLYFIN_API_KEY` and optionally `CONTACT_EMAIL`. The compose file only names it in `env_file`, so no secret is in the compose file, an argv or a log. `WEB_ROOT` is not set: the image does not ship the panel yet.
+6. `<dataDir>/image` records the deployed tag. The compose file gets the `orca-hm` service only when this marker exists, so a later plain `bifrost up` keeps H&M instead of dropping it (`--remove-orphans`). Without `hm` in the config the file is byte-identical to before.
+7. `docker compose up -d --no-deps orca-hm` (with `--force-recreate` when the env file changed), then wait for the container's health.
+
+Service: `user: <orca-hm uid>:<jellyfin gid>`, `init: true`, `shm_size: 1gb`, `mem_limit: 1536m`, `restart: unless-stopped`, and a `/health` healthcheck.
+
+**Firewall.** Nothing to add to ufw: Docker publishes the port on the LAN address (DNAT happens before ufw), and the bind to `host.address` is the access control, as for Jellyfin.
+
 ## Sources
 
 - Jellyfin server source: `StartupController.cs`, `PackageController.cs`, `BackupController.cs`, `FullSystemBackup/BackupService.cs` (master).
