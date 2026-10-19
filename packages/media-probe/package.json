@@ -1,0 +1,20 @@
+{
+  "name": "@orca/media-probe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Inspects a stream with ffprobe and chooses which tracks ffmpeg should keep",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "~7.0.2",
+    "vite-plus": "catalog:"
+  }
+}
