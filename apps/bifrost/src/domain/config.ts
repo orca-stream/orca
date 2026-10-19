@@ -5,6 +5,11 @@ export { ConfigError };
 
 const record = z.record(z.string(), z.unknown());
 
+/** Paths end up inside shell scripts: keep them boring. */
+const absPath = z
+  .string()
+  .regex(/^\/[\w./-]*$/, "must be an absolute path without spaces or shell characters");
+
 const Repo = z.strictObject({
   name: z.string().min(1),
   url: z.url(),
@@ -49,17 +54,22 @@ const Host = z.strictObject({
       (a) => a !== "0.0.0.0",
       "must be a specific LAN address: ports are never bound to 0.0.0.0",
     ),
-  sshUser: z.string().min(1),
-  lanCidr: z.string().min(1),
+  sshUser: z.string().regex(/^[a-z_][a-z0-9_-]*$/, "must be a unix user name"),
+  lanCidr: z.string().regex(/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/, "must look like 192.168.1.0/24"),
   renderGid: z.number().int().optional(),
-  dataDir: z.string().default("/srv/jellyfin"),
-  mediaDisk: z.strictObject({ uuid: z.string().min(1), mount: z.string().min(1) }).optional(),
+  dataDir: absPath.default("/srv/jellyfin"),
+  mediaDisk: z
+    .strictObject({
+      uuid: z.string().regex(/^[0-9A-Za-z-]+$/, "must be a filesystem UUID"),
+      mount: absPath,
+    })
+    .optional(),
   /** Overrides the default media volume (`<media root>:/media:ro`). */
   mediaMounts: z
     .array(
       z.strictObject({
-        source: z.string().min(1),
-        target: z.string().min(1),
+        source: absPath,
+        target: absPath,
         readOnly: z.boolean().default(true),
       }),
     )
