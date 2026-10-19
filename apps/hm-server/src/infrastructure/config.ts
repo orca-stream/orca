@@ -6,13 +6,13 @@ const bool = z
 const count = (fallback: number) => z.coerce.number().int().min(1).max(32).default(fallback);
 
 const Env = z.object({
-  DB_FILE: z.string().min(1).default("./data/hm.sqlite"),
-  MEDIA_ROOT: z.string().min(1).default("./media/tv"),
+  DB_FILE: z.string().min(1),
+  MEDIA_ROOT: z.string().min(1),
   JELLYFIN_URL: z.url(),
   JELLYFIN_API_KEY: z.string().min(1),
-  JELLYFIN_MEDIA_ROOT: z.string().min(1).optional(),
-  PORT: z.coerce.number().int().min(1).max(65535).default(8787),
-  HOST: z.string().min(1).default("127.0.0.1"),
+  JELLYFIN_MEDIA_ROOT: z.string().min(1),
+  PORT: z.coerce.number().int().min(1).max(65535),
+  HOST: z.string().min(1),
   WEB_ROOT: z.string().min(1).optional(),
   DEVICE_ID: z.string().min(1).optional(),
   CONTACT_EMAIL: z.email().optional(),
@@ -56,7 +56,10 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     const lines = parsed.error.issues.map(
       (issue) => `  ${issue.path.join(".") || "(env)"}: ${issue.message}`,
     );
-    throw new ConfigError(`Invalid configuration:\n${lines.join("\n")}`, { cause: parsed.error });
+    throw new ConfigError(
+      `Invalid configuration (set these in the environment, see .env.example):\n${lines.join("\n")}`,
+      { cause: parsed.error },
+    );
   }
   const e = parsed.data;
   return {
@@ -64,7 +67,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     mediaRoot: e.MEDIA_ROOT,
     jellyfinUrl: e.JELLYFIN_URL.replace(/\/+$/, ""),
     jellyfinApiKey: e.JELLYFIN_API_KEY,
-    jellyfinMediaRoot: e.JELLYFIN_MEDIA_ROOT ?? e.MEDIA_ROOT,
+    jellyfinMediaRoot: e.JELLYFIN_MEDIA_ROOT,
     port: e.PORT,
     host: e.HOST,
     webRoot: e.WEB_ROOT,

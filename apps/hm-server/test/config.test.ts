@@ -1,19 +1,27 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ConfigError, loadConfig, userAgent } from "../src/infrastructure/config.ts";
 
-const minimal = { JELLYFIN_URL: "http://jellyfin:8096", JELLYFIN_API_KEY: "key" };
+const minimal = {
+  JELLYFIN_URL: "http://localhost:8096",
+  JELLYFIN_API_KEY: "key",
+  DB_FILE: "./data/hm.sqlite",
+  MEDIA_ROOT: "./media/tv",
+  JELLYFIN_MEDIA_ROOT: "./media/tv",
+  HOST: "localhost",
+  PORT: "8787",
+};
 
 describe("loadConfig", () => {
-  it("fills in the defaults", () => {
+  it("reads the required values and fills in only tuning knobs", () => {
     const config = loadConfig(minimal);
     expect(config).toMatchObject({
       dbFile: "./data/hm.sqlite",
       mediaRoot: "./media/tv",
-      jellyfinUrl: "http://jellyfin:8096",
+      jellyfinUrl: "http://localhost:8096",
       jellyfinApiKey: "key",
       jellyfinMediaRoot: "./media/tv",
       port: 8787,
-      host: "127.0.0.1",
+      host: "localhost",
       secureCookies: false,
       concurrency: { download: 2, ffmpeg: 1, browser: 1, none: 4 },
       iaHostConcurrency: 1,
@@ -22,6 +30,20 @@ describe("loadConfig", () => {
     // No baked-in device id: it is generated once and stored, unless the environment overrides it.
     expect(config.deviceId).toBeUndefined();
     expect(config.contactEmail).toBeUndefined();
+  });
+
+  it.each([
+    "HOST",
+    "PORT",
+    "DB_FILE",
+    "MEDIA_ROOT",
+    "JELLYFIN_MEDIA_ROOT",
+    "JELLYFIN_URL",
+    "JELLYFIN_API_KEY",
+  ])("refuses to start without %s, and says so", (name) => {
+    const env: Record<string, string | undefined> = { ...minimal };
+    delete env[name];
+    expect(() => loadConfig(env)).toThrow(new RegExp(name));
   });
 
   it("reads everything from the environment", () => {

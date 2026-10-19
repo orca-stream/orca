@@ -21,6 +21,8 @@ WORKDIR /app
 COPY --from=build /out ./
 USER node
 VOLUME ["/data", "/media/tv"]
+# Image layout, not host settings. JELLYFIN_URL, JELLYFIN_API_KEY and JELLYFIN_MEDIA_ROOT come from the
+# environment the container runs in.
 ENV DB_FILE=/data/hm.sqlite MEDIA_ROOT=/media/tv HOST=0.0.0.0 PORT=8787
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
