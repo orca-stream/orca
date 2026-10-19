@@ -1,5 +1,6 @@
 import type { Config } from "../domain/config.ts";
 import { BifrostError } from "../domain/errors.ts";
+import { HM_CREATE_USER_COMMAND, HM_USER, hmDataPath } from "../domain/hm.ts";
 import { waitHealthy } from "./docker.ts";
 import { DryRunRemoteHost } from "./dry-run-remote-host.ts";
 import type { Clock } from "./ports/clock.ts";
@@ -12,6 +13,23 @@ export interface RestoreDeps {
   secrets: SecretStore;
   clock: Clock;
   log: (line: string) => void;
+}
+
+/**
+ * H&M's data comes back while its container is stopped (it shares the compose stack). Snapshots from
+ * before H&M was backed up have no such directory: restoring then would `--delete` the live data for
+ * nothing, so it is skipped. The user is created first because a fresh machine has not run `hm up`.
+ */
+function hmRestoreLines(snapshot: string, hmData: string): string[] {
+  return [
+    `if [ -n "$(restic ls ${snapshot} ${hmData} 2>/dev/null | head -n 1)" ]; then`,
+    `  restic restore ${snapshot} --target / --include ${hmData} --delete`,
+    `  ${HM_CREATE_USER_COMMAND}`,
+    `  chown -R ${HM_USER}:jellyfin ${hmData}`,
+    "else",
+    `  echo "snapshot ${snapshot} has no Orca H&M data; leaving ${hmData} as it is" >&2`,
+    "fi",
+  ];
 }
 
 /** Stops Jellyfin, restores the config directory from a restic snapshot over the live one, starts again. */
@@ -42,6 +60,7 @@ export async function restore(
     ...resticPreamble(b, [`docker compose -f ${compose} up -d`]),
     `docker compose -f ${compose} stop`,
     `restic restore ${opts.snapshot} --target / --include ${configDir} --delete`,
+    ...(cfg.hm ? hmRestoreLines(opts.snapshot, hmDataPath(cfg.hm)) : []),
     // A snapshot of a live SQLite database may carry write-ahead files that no longer match it.
     `find ${configDir} -name '*.db-wal' -delete`,
     `find ${configDir} -name '*.db-shm' -delete`,

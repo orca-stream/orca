@@ -164,3 +164,80 @@ describe("restore", () => {
     expect(remote.mutations()).toEqual([]);
   });
 });
+
+const withHm = (r: any) => {
+  withBackup(r);
+  r.hm = { mediaDir: "/srv/jellyfin/media/tv" };
+};
+const backupScript = (remote: FakeRemoteHost) =>
+  remote.scripts().find((s) => s.includes("restic backup"))!;
+
+describe("backup with Orca'H&M", () => {
+  it("snapshots only the H&M data directory, never its env file or build sources", async () => {
+    const { remote, deps } = setup();
+    await backup(deps, exampleConfig(withHm), { dryRun: false });
+    const script = backupScript(remote);
+    expect(script).toContain("/srv/orca-hm/data");
+    expect(script).not.toContain("hm.env");
+    expect(script).not.toContain("/srv/orca-hm/src");
+    expect(script).not.toContain("restic backup /srv/orca-hm ");
+  });
+
+  it("stops H&M for a consistent SQLite copy and starts it again, even when restic fails", async () => {
+    const { remote, deps } = setup();
+    await backup(deps, exampleConfig(withHm), { dryRun: false });
+    const script = backupScript(remote);
+    const stop = script.indexOf("docker stop orca-hm");
+    const snap = script.indexOf("restic backup");
+    const start = script.indexOf("\nhm_restart\n", snap);
+    expect(stop).toBeGreaterThanOrEqual(0);
+    expect(snap).toBeGreaterThan(stop);
+    expect(start).toBeGreaterThan(snap);
+    expect(script.indexOf("restic forget")).toBeGreaterThan(start);
+    const trap = script.split("\n").find((l) => l.startsWith("trap "))!;
+    expect(trap).toContain("rm -f /run/bifrost/restic.pass");
+    expect(trap).toContain("hm_restart");
+  });
+
+  it("does nothing about H&M without the hm section", async () => {
+    const { remote, deps } = setup();
+    await backup(deps, exampleConfig(withBackup), { dryRun: false });
+    expect(JSON.stringify(remote.scripts())).not.toContain("orca-hm");
+  });
+});
+
+describe("restore with Orca'H&M", () => {
+  const run = async (patch: (r: any) => void) => {
+    const { remote, deps } = setup();
+    await restore(deps, exampleConfig(patch), { dryRun: false, yes: true, snapshot: "abc123" });
+    return remote.scripts().find((s) => s.includes("restic restore"))!;
+  };
+
+  it("restores the H&M data while the stack is stopped, fixes ownership, then starts it", async () => {
+    const script = await run(withHm);
+    const at = (needle: string) => script.indexOf(needle);
+    const stop = at("docker compose -f /srv/jellyfin/compose.yaml stop");
+    const res = at("restic restore abc123 --target / --include /srv/orca-hm/data");
+    const chown = at("chown -R orca-hm:jellyfin /srv/orca-hm/data");
+    const start = script.lastIndexOf("docker compose -f /srv/jellyfin/compose.yaml up -d");
+    expect(stop).toBeGreaterThanOrEqual(0);
+    expect(res).toBeGreaterThan(stop);
+    expect(chown).toBeGreaterThan(res);
+    expect(start).toBeGreaterThan(chown);
+  });
+
+  it("creates the orca-hm user first (a fresh machine does not have it yet)", async () => {
+    const script = await run(withHm);
+    expect(script.indexOf("useradd")).toBeLessThan(script.indexOf("chown -R orca-hm"));
+  });
+
+  it("leaves H&M's data alone when the snapshot has none", async () => {
+    const script = await run(withHm);
+    expect(script).toMatch(/restic ls abc123 \/srv\/orca-hm\/data/);
+  });
+
+  it("does nothing about H&M without the hm section", async () => {
+    const script = await run(withBackup);
+    expect(script).not.toContain("orca-hm");
+  });
+});

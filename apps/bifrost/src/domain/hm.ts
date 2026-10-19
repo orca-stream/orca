@@ -14,10 +14,14 @@ export const HM_SHM_SIZE = "1gb";
 export const HM_MEM_LIMIT = "1536m";
 /** The dedicated system user H&M runs as; its primary group is `jellyfin`, which reads what it writes. */
 export const HM_USER = "orca-hm";
+/** Creates the H&M system user when it is missing (idempotent). */
+export const HM_CREATE_USER_COMMAND = `id -u ${HM_USER} >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid jellyfin ${HM_USER}`;
 export const HM_API_KEY_APP = "Orca H&M";
 /** Files under `hm.dataDir` on the host. */
 export const HM_ENV_FILE = "hm.env";
 export const HM_DATA_SUBDIR = "data";
+/** Absolute host path of the directory bind-mounted into the container: the SQLite database lives here. */
+export const hmDataPath = (hm: { dataDir: string }) => `${hm.dataDir}/${HM_DATA_SUBDIR}`;
 export const HM_SRC_SUBDIR = "src";
 /** Holds the image tag the compose file should run; written once an image is built. */
 export const HM_IMAGE_MARKER = "image";

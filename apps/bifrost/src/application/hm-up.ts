@@ -3,6 +3,7 @@ import { COMPOSE_FILE, renderCompose } from "../domain/compose.ts";
 import { BifrostError } from "../domain/errors.ts";
 import {
   HM_API_KEY_APP,
+  HM_CREATE_USER_COMMAND,
   HM_DATA_SUBDIR,
   HM_DOCKERFILE,
   HM_ENV_FILE,
@@ -189,7 +190,7 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
   // 2. The user the container runs as, and the directories it writes to.
   await remote.exec(
     [
-      `id -u ${HM_USER} >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid jellyfin ${HM_USER}`,
+      HM_CREATE_USER_COMMAND,
       `install -d -m 0755 ${hm.dataDir}`,
       `install -d -o ${HM_USER} -g jellyfin -m 0750 ${hm.dataDir}/${HM_DATA_SUBDIR}`,
       // setgid keeps new series folders in the jellyfin group, which Jellyfin reads through the group bits.
