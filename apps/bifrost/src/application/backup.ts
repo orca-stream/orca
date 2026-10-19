@@ -38,7 +38,7 @@ export async function backup(
   const script = [
     ...resticPreamble(b),
     // Keep only the two newest of Jellyfin's own zips: restic keeps the history.
-    `ls -1t ${configDir}/data/backups/*.zip 2>/dev/null | tail -n +3 | xargs -r rm -f`,
+    `{ ls -1t ${configDir}/data/backups/*.zip 2>/dev/null || true; } | tail -n +3 | xargs -r rm -f`,
     "restic cat config >/dev/null 2>&1 || restic init",
     `restic backup ${configDir} --exclude ${configDir}/log --exclude-caches`,
     `restic forget --keep-daily ${b.keep.daily} --keep-weekly ${b.keep.weekly} --prune`,

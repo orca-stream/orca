@@ -38,9 +38,13 @@ export async function restore(
 
   await stagePassword(remote, secrets, b.passwordSecret);
   const script = [
-    ...resticPreamble(b),
+    // Whatever fails in the middle, Jellyfin is started again when the script ends.
+    ...resticPreamble(b, [`docker compose -f ${compose} up -d`]),
     `docker compose -f ${compose} stop`,
-    `restic restore ${opts.snapshot} --target / --include ${configDir}`,
+    `restic restore ${opts.snapshot} --target / --include ${configDir} --delete`,
+    // A snapshot of a live SQLite database may carry write-ahead files that no longer match it.
+    `find ${configDir} -name '*.db-wal' -delete`,
+    `find ${configDir} -name '*.db-shm' -delete`,
     `chown -R jellyfin:jellyfin ${configDir}`,
     `docker compose -f ${compose} up -d`,
     "",

@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { backup } from "../src/application/backup.ts";
 import { restore } from "../src/application/restore.ts";
@@ -66,6 +70,22 @@ describe("backup", () => {
     );
   });
 
+  it("prunes old Jellyfin zips with a pipeline that survives there being none", async () => {
+    const { remote, deps } = setup();
+    await backup(deps, exampleConfig(withBackup), { dryRun: false });
+    const line = remote
+      .scripts()
+      .find((s) => s.includes("restic backup"))!
+      .split("\n")
+      .find((l) => l.includes("xargs"))!;
+    const empty = mkdtempSync(join(tmpdir(), "bifrost-nozip-"));
+    const code = spawnSync("bash", [
+      "-c",
+      `set -eo pipefail; ${line.replace("/srv/jellyfin/config/data/backups", empty)}`,
+    ]).status;
+    expect(code).toBe(0);
+  });
+
   it("explains what is missing", async () => {
     const { deps, secrets } = setup();
     await expect(backup(deps, exampleConfig(), { dryRun: false })).rejects.toThrow(/backup/);
@@ -105,12 +125,33 @@ describe("restore", () => {
     const stop = at("docker compose -f /srv/jellyfin/compose.yaml stop");
     const res = at("restic restore abc123 --target / --include /srv/jellyfin/config");
     const chown = at("chown -R jellyfin:jellyfin /srv/jellyfin/config");
-    const start = at("docker compose -f /srv/jellyfin/compose.yaml up -d");
+    const start = script.lastIndexOf("docker compose -f /srv/jellyfin/compose.yaml up -d");
     expect(stop).toBeGreaterThanOrEqual(0);
     expect(res).toBeGreaterThan(stop);
     expect(chown).toBeGreaterThan(res);
     expect(start).toBeGreaterThan(chown);
     expect(JSON.stringify(scripts)).not.toContain(PASSWORD);
+  });
+
+  it("deletes what the snapshot does not have, drops stale WAL/SHM files and always brings Jellyfin back", async () => {
+    const { remote, deps } = setup();
+    await restore(deps, exampleConfig(withBackup), {
+      dryRun: false,
+      yes: true,
+      snapshot: "latest",
+    });
+    const script = remote.scripts().find((s) => s.includes("restic restore"))!;
+    expect(script).toContain(
+      "restic restore latest --target / --include /srv/jellyfin/config --delete",
+    );
+    const res = script.indexOf("restic restore");
+    const wal = script.indexOf("-name '*.db-wal'");
+    expect(wal).toBeGreaterThan(res);
+    expect(script.indexOf("-name '*.db-shm'")).toBeGreaterThan(res);
+    // The EXIT trap restarts the stack even when a step in the middle fails.
+    const trap = script.split("\n").find((l) => l.startsWith("trap "))!;
+    expect(trap).toContain("rm -f /run/bifrost/restic.pass");
+    expect(trap).toContain("docker compose -f /srv/jellyfin/compose.yaml up -d");
   });
 
   it("changes nothing on --dry-run", async () => {

@@ -32,11 +32,15 @@ export async function stagePassword(
 }
 
 /** Shell lines that point restic at the repository and clean the password file up however the script ends. */
-export function resticPreamble(backup: NonNullable<Config["backup"]>): string[] {
+export function resticPreamble(
+  backup: NonNullable<Config["backup"]>,
+  /** Extra commands for the EXIT trap, run after the password file is removed. */
+  onExit: string[] = [],
+): string[] {
   return [
     "set -o pipefail",
     `export RESTIC_REPOSITORY='${backup.repository}'`,
     `export RESTIC_PASSWORD_FILE=${RESTIC_PASSWORD_FILE}`,
-    `trap 'rm -f ${RESTIC_PASSWORD_FILE}' EXIT`,
+    `trap '${[`rm -f ${RESTIC_PASSWORD_FILE}`, ...onExit].join("; ")}' EXIT`,
   ];
 }
