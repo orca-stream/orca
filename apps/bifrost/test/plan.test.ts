@@ -35,17 +35,18 @@ function satisfied(): Snapshot {
         ItemId: "f1",
         CollectionType: "movies",
         Locations: ["/media/movies"],
-        LibraryOptions: { EnableTrickplayImageExtraction: false, Enabled: true },
+        LibraryOptions: { ...cfg.libraries[0]!.options, Enabled: true },
       },
       {
         Name: "Series",
         ItemId: "f2",
         CollectionType: "tvshows",
         Locations: ["/media/tv"],
-        LibraryOptions: {},
+        LibraryOptions: { ...cfg.libraries[1]!.options },
       },
     ],
     system: {
+      ...cfg.system,
       ServerName: "Orca",
       UICulture: "es-MX",
       PreferredMetadataLanguage: "es-419",
@@ -185,7 +186,11 @@ describe("planApply", () => {
       r.jellyfin.libraries[1].options = { EnableRealtimeMonitor: true };
     }).jellyfin;
     const snap = satisfied();
-    snap.folders[1]!.LibraryOptions = { PathInfos: [{ Path: "/media/tv" }], Enabled: true };
+    snap.folders[1]!.LibraryOptions = {
+      ...snap.folders[1]!.LibraryOptions,
+      PathInfos: [{ Path: "/media/tv" }],
+      Enabled: true,
+    };
     const change = planApply(cfg, snap).find((c) => c.kind === "updateLibraryOptions");
     expect(change).toMatchObject({ options: { Enabled: true, EnableRealtimeMonitor: true } });
     expect(JSON.stringify(change)).not.toContain("PathInfos");

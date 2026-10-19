@@ -11,7 +11,11 @@ describe("parseConfig", () => {
     expect(cfg.host.address).toBe("192.168.1.10");
     expect(cfg.host.dataDir).toBe("/srv/jellyfin");
     expect(cfg.jellyfin.libraries.map((l) => l.name)).toEqual(["Películas", "Series"]);
-    expect(cfg.jellyfin.libraries[1]?.options).toEqual({});
+    expect(cfg.jellyfin.libraries[1]?.options).toEqual({
+      EnableTrickplayImageExtraction: true,
+      ExtractTrickplayImagesDuringLibraryScan: true,
+      SaveSubtitlesWithMedia: false,
+    });
     expect(cfg.jellyfin.plugins[0]?.enabled).toBe(true);
     expect(cfg.jellyfin.prune).toEqual({
       plugins: false,

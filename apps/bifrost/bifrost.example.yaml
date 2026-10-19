@@ -36,8 +36,18 @@ jellyfin:
     - name: Películas
       type: movies
       paths: [/media/movies]
-      options: { EnableTrickplayImageExtraction: false }
-    - { name: Series, type: tvshows, paths: [/media/tv] }
+      # /media is mounted read-only: subtitles go to Jellyfin's own data, not next to the video.
+      options:
+        EnableTrickplayImageExtraction: true
+        ExtractTrickplayImagesDuringLibraryScan: true
+        SaveSubtitlesWithMedia: false
+    - name: Series
+      type: tvshows
+      paths: [/media/tv]
+      options:
+        EnableTrickplayImageExtraction: true
+        ExtractTrickplayImagesDuringLibraryScan: true
+        SaveSubtitlesWithMedia: false
   encoding:
     HardwareAccelerationType: vaapi
     VaapiDevice: /dev/dri/renderD128
@@ -48,6 +58,9 @@ jellyfin:
     AllowHevcEncoding: false
     EnableTonemapping: true
   network: { EnableRemoteAccess: false, LocalNetworkSubnets: [192.168.1.0/24] }
+  # Decode on the GPU when making trickplay; the JPEG encode stays on the CPU (no VA-API JPEG on AMD).
+  system:
+    TrickplayOptions: { EnableHwAcceleration: true }
 
 # Source path -> path on this server. `dump --from source` applies it forward when it reads the old
 # server (`dump` of the new one leaves paths alone).
