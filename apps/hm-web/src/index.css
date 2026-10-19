@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@orca/ui/theme.css";
+
+/* Workspace packages are symlinked into node_modules, which Tailwind skips: name them. */
+@source "../../../packages/ui/src";
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  body {
+    @apply bg-canvas font-sans text-white antialiased;
+  }
+}
