@@ -139,7 +139,8 @@ const es = {
     notFound: "No se encontró nada en esa dirección.",
     noEpisodes: "No se encontraron episodios en esa dirección.",
     upstream: "El sitio de origen no respondió bien. Inténtalo más tarde.",
-    expired: "La previsualización caducó. Pulsa «Previsualizar» otra vez.",
+    expired:
+      "La previsualización había caducado y se volvió a leer. Revisa los datos y pulsa «Añadir serie» otra vez.",
     alreadyAdded: "Esa serie ya está añadida o su carpeta ya existe. Cambia el título o el año.",
     ackRequired: "Falta confirmar que tienes derecho a descargarla.",
     createFailed: "No se pudo añadir la serie.",
@@ -350,7 +351,8 @@ const en: typeof es = {
     notFound: "Nothing was found at that address.",
     noEpisodes: "No episodes were found at that address.",
     upstream: "The source site did not answer properly. Try again later.",
-    expired: "The preview expired. Press “Preview” again.",
+    expired:
+      "The preview had expired and was read again. Check the details and press “Add series” again.",
     alreadyAdded: "That series is already added or its folder exists. Change the title or year.",
     ackRequired: "Confirm that you have the right to download it first.",
     createFailed: "The series could not be added.",

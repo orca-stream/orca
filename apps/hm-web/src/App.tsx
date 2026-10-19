@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
+import { AddSeriesScreen } from "./series/AddSeriesScreen";
 import { DashboardScreen } from "./dashboard/DashboardScreen";
 import { useLiveEvents } from "./events/use-live-events";
 import { useT } from "./i18n/locale";
@@ -22,6 +23,7 @@ function Panel() {
       <LiveShell>
         <Switch>
           <Route path="/" component={DashboardScreen} />
+          <Route path="/series/new" component={AddSeriesScreen} />
           <Route path="/series">
             <Placeholder title={t.nav.series} />
           </Route>
