@@ -1,7 +1,7 @@
 import type { ProgressDetail } from "@orca/hm-contract";
 import { backoffMs } from "../domain/backoff.ts";
-import { AbortedError, RetryableError } from "../domain/errors.ts";
-import type { Job, Resource } from "../domain/job.ts";
+import { AbortedError, AppError, RetryableError } from "../domain/errors.ts";
+import { isTerminal, type Job, type Resource } from "../domain/job.ts";
 import type { Clock, JobCanceller, JobRepository, QueueSignal, Random } from "./ports.ts";
 
 export interface JobContext {
@@ -37,6 +37,8 @@ export interface QueueOptions {
   heartbeatMs?: number;
   pollMs?: number;
   progressIntervalMs?: number;
+  /** Where background failures (a busy database, a failed hook) are reported. */
+  onError?: (error: unknown) => void;
 }
 
 const RESOURCES: Resource[] = ["browser", "ffmpeg", "download", "none"];
@@ -71,6 +73,7 @@ export class JobQueue implements JobCanceller, QueueSignal {
       heartbeatMs: 15_000,
       pollMs: 2_000,
       progressIntervalMs: 1_000,
+      onError: (error: unknown) => console.error("job queue:", error),
       ...options,
     };
   }
@@ -78,9 +81,9 @@ export class JobQueue implements JobCanceller, QueueSignal {
   /** Recovers what a crash left running, then starts polling for due jobs. */
   async start(): Promise<void> {
     await this.options.jobs.recoverRunning();
-    this.timer = setInterval(() => void this.pump(), this.options.pollMs);
+    this.timer = setInterval(() => this.notify(), this.options.pollMs);
     this.timer.unref();
-    void this.pump();
+    this.notify();
   }
 
   /** Aborts what is running (it stays `running` in the database and is recovered at the next boot). */
@@ -92,7 +95,7 @@ export class JobQueue implements JobCanceller, QueueSignal {
   }
 
   notify(): void {
-    void this.pump();
+    this.pump().catch(this.options.onError);
   }
 
   /** Claims and launches whatever is due and has a free slot. Safe to call from anywhere, any time. */
@@ -111,7 +114,7 @@ export class JobQueue implements JobCanceller, QueueSignal {
   private async runPump(): Promise<void> {
     do {
       this.pumpAgain = false;
-      await this.options.jobs.recoverExpired();
+      await this.options.jobs.recoverExpired([...this.running.keys()]);
       for (const resource of RESOURCES) {
         while (this.active[resource] < this.options.limits[resource]) {
           const job = await this.options.jobs.claim(
@@ -136,34 +139,56 @@ export class JobQueue implements JobCanceller, QueueSignal {
   }
 
   async cancel(id: string): Promise<Job> {
-    const running = this.running.get(id);
-    if (running) {
-      running.controller.abort();
-      await running.done;
-      const job = await this.options.jobs.get(id);
-      if (job) return job;
+    const { jobs, events, handler } = this.options;
+    // A pump can claim the job between any two of these awaits, so try each state in turn.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const running = this.running.get(id);
+      if (running) {
+        running.controller.abort();
+        await running.done;
+        const settled = await jobs.get(id);
+        if (settled) return settled;
+      }
+      const cancelled = await jobs.cancelQueued(id);
+      if (cancelled) {
+        events.updated(cancelled);
+        await this.safely(() => handler.onOutcome?.(cancelled, "cancelled"));
+        return cancelled;
+      }
+      const current = await jobs.get(id);
+      if (!current) throw new AppError("not_found", `No job ${id}`);
+      if (isTerminal(current.status)) return current;
+      if (
+        current.status === "running" &&
+        !this.running.has(id) &&
+        current.leaseOwner !== this.options.owner
+      ) {
+        // Another process's job, or a stale lease: cancel it as its holder.
+        const stale = current.leaseOwner ? await jobs.cancelRunning(id, current.leaseOwner) : null;
+        if (stale) {
+          events.updated(stale);
+          await this.safely(() => handler.onOutcome?.(stale, "cancelled"));
+          return stale;
+        }
+      }
+      // Claimed a moment ago: let the pump finish launching it, then abort it.
+      await new Promise((resolve) => setImmediate(resolve));
     }
-    const current = await this.options.jobs.get(id);
-    if (
-      current &&
-      (current.status === "done" || current.status === "failed" || current.status === "cancelled")
-    ) {
-      return current;
-    }
-    const cancelled = await this.options.jobs.cancel(id);
-    this.options.events.updated(cancelled);
-    await this.safely(() => this.options.handler.onOutcome?.(cancelled, "cancelled"));
-    return cancelled;
+    const last = await jobs.get(id);
+    if (!last) throw new AppError("not_found", `No job ${id}`);
+    return last;
   }
 
   private launch(job: Job): void {
     this.active[job.resource]++;
     const controller = new AbortController();
-    const done = this.execute(job, controller).finally(() => {
-      this.active[job.resource]--;
-      this.running.delete(job.id);
-      void this.pump();
-    });
+    const done = this.execute(job, controller)
+      .catch(this.options.onError)
+      .finally(() => {
+        this.active[job.resource]--;
+        this.running.delete(job.id);
+        this.notify();
+      });
     this.running.set(job.id, { controller, done });
   }
 
@@ -173,7 +198,10 @@ export class JobQueue implements JobCanceller, QueueSignal {
     const heartbeat =
       this.options.heartbeatMs > 0
         ? setInterval(
-            () => void jobs.heartbeat(job.id, this.options.owner, this.options.leaseMs),
+            () =>
+              jobs
+                .heartbeat(job.id, this.options.owner, this.options.leaseMs)
+                .catch(this.options.onError),
             this.options.heartbeatMs,
           )
         : undefined;
@@ -183,38 +211,42 @@ export class JobQueue implements JobCanceller, QueueSignal {
       const now = clock.now();
       if (now - lastProgress < this.options.progressIntervalMs) return;
       lastProgress = now;
-      void jobs.updateProgress(job.id, value, detail);
+      jobs.updateProgress(job.id, value, detail).catch(this.options.onError);
       events.progress(job, value, detail);
+    };
+
+    const owner = this.options.owner;
+    const settled = async (next: Job | null, outcome: JobOutcome): Promise<void> => {
+      // null: the row moved on while the worker ran (cancelled from outside, recovered). Leave it.
+      if (!next) return;
+      events.updated(next);
+      await this.safely(() => handler.onOutcome?.(next, outcome));
     };
 
     try {
       await handler.run(job, { signal: controller.signal, progress });
-      const done = await jobs.complete(job.id);
-      events.updated(done);
-      await this.safely(() => handler.onOutcome?.(done, "done"));
+      await settled(await jobs.complete(job.id, owner), "done");
     } catch (error) {
       if (controller.signal.aborted || error instanceof AbortedError) {
         if (this.stopping) return;
-        const cancelled = await jobs.cancel(job.id);
-        events.updated(cancelled);
-        await this.safely(() => handler.onOutcome?.(cancelled, "cancelled"));
+        await settled(await jobs.cancelRunning(job.id, owner), "cancelled");
         return;
       }
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof RetryableError && job.attempts < job.maxAttempts) {
         const delay = backoffMs(job.attempts, random.next(), error.retryAfterMs);
-        const requeued = await jobs.requeue(job.id, clock.now() + delay, message);
-        events.updated(requeued);
-        await this.safely(() => handler.onOutcome?.(requeued, "requeued"));
+        await settled(await jobs.requeue(job.id, owner, clock.now() + delay, message), "requeued");
         return;
       }
-      const failed = await jobs.fail(
-        job.id,
-        message,
-        error instanceof RetryableError ? "retryable" : "permanent",
+      await settled(
+        await jobs.fail(
+          job.id,
+          owner,
+          message,
+          error instanceof RetryableError ? "retryable" : "permanent",
+        ),
+        "failed",
       );
-      events.updated(failed);
-      await this.safely(() => handler.onOutcome?.(failed, "failed"));
     } finally {
       if (heartbeat) clearInterval(heartbeat);
     }
@@ -224,7 +256,7 @@ export class JobQueue implements JobCanceller, QueueSignal {
     try {
       await action();
     } catch (error) {
-      console.error("job outcome hook failed", error);
+      this.options.onError(error);
     }
   }
 }

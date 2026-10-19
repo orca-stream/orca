@@ -119,6 +119,8 @@ const server = serve({ fetch: app.fetch, port: config.port, hostname: config.hos
   );
 });
 
+process.on("unhandledRejection", (reason) => console.error("unhandled rejection:", reason));
+
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;

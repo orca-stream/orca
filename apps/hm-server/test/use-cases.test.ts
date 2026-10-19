@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AppError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import { addBevhill, BEVHILL, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
 import { FakeDownloader } from "./fakes/ports.ts";
+import { createEnqueueRefresh } from "../src/application/downloads.ts";
 
 let h: Harness;
 beforeEach(async () => {
@@ -335,6 +336,17 @@ describe("downloading (the end-to-end pipeline)", () => {
     h.clock.advance(20_000);
     await h.queue.settle();
     expect(h.mediaServer.updated).toHaveLength(1);
+  });
+
+  it("asks for one follow-up refresh, however many episodes land while a refresh runs", async () => {
+    const { series } = await addBevhill(h);
+    const enqueueRefresh = createEnqueueRefresh(h.deps);
+    await enqueueRefresh(series.id);
+    h.clock.advance(60_000);
+    await h.jobs.claim("none", "w", 60_000); // the first refresh is running now
+    for (let i = 0; i < 5; i++) await enqueueRefresh(series.id);
+    const queued = (await h.jobs.list({ limit: 20, status: ["queued"] })).items;
+    expect(queued.map((j) => j.dedupeKey)).toEqual([`refresh-next:${series.id}`]);
   });
 
   it("retries a failed Jellyfin refresh instead of losing it", async () => {

@@ -55,7 +55,7 @@ describe("DrizzleJobRepository", () => {
     expect((await jobs.enqueue(job({ dedupeKey: "dl:e1" }))).created).toBe(false);
 
     // Free again once it is over.
-    await jobs.complete(first.job.id);
+    await jobs.complete(first.job.id, "w");
     expect((await jobs.enqueue(job({ dedupeKey: "dl:e1" }))).created).toBe(true);
   });
 
@@ -75,7 +75,7 @@ describe("DrizzleJobRepository", () => {
     const a = await jobs.claim("download", "w", 10_000);
     const b = await jobs.claim("download", "w", 60_000);
     clock.advance(20_000);
-    expect(await jobs.recoverExpired()).toBe(1);
+    expect(await jobs.recoverExpired([])).toBe(1);
     expect((await jobs.get(a!.id))?.status).toBe("queued");
     expect((await jobs.get(b!.id))?.status).toBe("running");
   });
@@ -95,7 +95,7 @@ describe("DrizzleJobRepository", () => {
     const { jobs, clock } = testDatabase();
     await jobs.enqueue(job());
     const claimed = await jobs.claim("download", "w", 1000);
-    const requeued = await jobs.requeue(claimed!.id, clock.now() + 30_000, "boom");
+    const requeued = await jobs.requeue(claimed!.id, "w", clock.now() + 30_000, "boom");
     expect(requeued).toMatchObject({
       status: "queued",
       lastError: "boom",
@@ -111,7 +111,7 @@ describe("DrizzleJobRepository", () => {
     const { jobs, clock } = testDatabase();
     const { job: failed } = await jobs.enqueue(job());
     await jobs.claim("download", "w", 1000);
-    await jobs.fail(failed.id, "nope", "permanent");
+    await jobs.fail(failed.id, "w", "nope", "permanent");
     clock.advance(1000);
     const retried = await jobs.retry(failed.id);
     expect(retried).toMatchObject({
@@ -129,6 +129,46 @@ describe("DrizzleJobRepository", () => {
     const { job: queued } = await jobs.enqueue(job({ runAfter: clock.now() + 1000 }));
     await jobs.postpone(queued.id, clock.now() + 9000);
     expect((await jobs.get(queued.id))?.runAfter).toBe(clock.now() + 9000);
+  });
+
+  it("only settles a job its worker still owns, and never a job that moved on", async () => {
+    const { jobs, clock } = testDatabase();
+    const { job: queued } = await jobs.enqueue(job());
+    // Not running yet: nothing to complete, fail or requeue.
+    expect(await jobs.complete(queued.id, "w")).toBeNull();
+    expect(await jobs.fail(queued.id, "w", "x", "permanent")).toBeNull();
+    expect(await jobs.requeue(queued.id, "w", clock.now(), "x")).toBeNull();
+
+    await jobs.claim("download", "w", 1000);
+    // Another worker's lease, or a job already cancelled, can't be settled by the wrong owner.
+    expect(await jobs.complete(queued.id, "intruder")).toBeNull();
+    expect((await jobs.get(queued.id))?.status).toBe("running");
+    expect(await jobs.cancelRunning(queued.id, "w")).toMatchObject({ status: "cancelled" });
+    expect(await jobs.complete(queued.id, "w")).toBeNull();
+    expect((await jobs.get(queued.id))?.status).toBe("cancelled");
+  });
+
+  it("cancels a queued job only while it is still queued", async () => {
+    const { jobs } = testDatabase();
+    const { job: first } = await jobs.enqueue(job());
+    const { job: second } = await jobs.enqueue(job());
+    await jobs.claim("download", "w", 1000); // takes `first`
+    expect(await jobs.cancelQueued(first.id)).toBeNull();
+    expect((await jobs.get(first.id))?.status).toBe("running");
+    expect(await jobs.cancelQueued(second.id)).toMatchObject({ status: "cancelled" });
+    expect(await jobs.cancelQueued(second.id)).toBeNull();
+  });
+
+  it("recovers an expired lease unless the job is still running in this process", async () => {
+    const { jobs, clock } = testDatabase();
+    await jobs.enqueue(job());
+    await jobs.enqueue(job());
+    const a = await jobs.claim("download", "w", 1000);
+    const b = await jobs.claim("download", "w", 1000);
+    clock.advance(5000);
+    expect(await jobs.recoverExpired([a!.id])).toBe(1);
+    expect((await jobs.get(a!.id))?.status).toBe("running");
+    expect((await jobs.get(b!.id))?.status).toBe("queued");
   });
 
   it("lists newest first, filtered by status, with a cursor", async () => {

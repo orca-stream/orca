@@ -252,4 +252,78 @@ describe("JobQueue", () => {
     await queue.settle();
     expect(written).toEqual([0.1, 0.3]);
   });
+
+  it("survives a database that fails on heartbeats, progress writes and pumps (no unhandled rejection)", async () => {
+    const ctx = testDatabase();
+    const logged: unknown[] = [];
+    const flaky = Object.create(ctx.jobs) as typeof ctx.jobs;
+    flaky.heartbeat = () => Promise.reject(new Error("SQLITE_BUSY"));
+    flaky.updateProgress = () => Promise.reject(new Error("SQLITE_BUSY"));
+    const queue = new JobQueue({
+      jobs: flaky,
+      clock: ctx.clock,
+      random: new FixedRandom(),
+      handler: {
+        run: async (_job, { progress }) => {
+          progress(0.5);
+          await new Promise((r) => setTimeout(r, 40));
+        },
+      },
+      events: { updated: () => {}, progress: () => {} },
+      limits: LIMITS,
+      heartbeatMs: 5,
+      onError: (error) => void logged.push(error),
+    });
+    await ctx.jobs.enqueue({ kind: "download_episode", payload: {}, resource: "download" });
+    await queue.settle();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(logged.length).toBeGreaterThan(0);
+  });
+
+  it("leaves a job alone when it was cancelled under the worker's feet", async () => {
+    const gate = deferred();
+    const { queue, add, jobs, outcomes } = setup(async () => gate.promise);
+    const { job } = await add();
+    await queue.pump();
+    // Something else (another process, an operator) cancels the row while the worker is busy.
+    await jobs.cancelRunning(job.id, "test");
+    gate.resolve();
+    await queue.settle();
+    expect((await jobs.get(job.id))?.status).toBe("cancelled");
+    expect(outcomes).toEqual([]);
+  });
+
+  it("doesn't cancel a queued job the pump claimed in the meantime", async () => {
+    const started = deferred();
+    const gate = deferred();
+    const { queue, add, jobs } = setup(async () => {
+      started.resolve();
+      await gate.promise;
+    });
+    const { job } = await add();
+    await queue.pump();
+    await started.promise;
+    // The job is running now; a late "cancel queued" must not touch it.
+    expect(await jobs.cancelQueued(job.id)).toBeNull();
+    expect((await jobs.get(job.id))?.status).toBe("running");
+    gate.resolve();
+    await queue.settle();
+    expect((await jobs.get(job.id))?.status).toBe("done");
+  });
+
+  it("doesn't recover a lease that expired while the job is still running here", async () => {
+    const gate = deferred();
+    let runs = 0;
+    const { queue, add, clock } = setup(async () => {
+      runs++;
+      await gate.promise;
+    });
+    await add();
+    await queue.pump();
+    clock.advance(10 * 60 * 1000); // far past the lease
+    await queue.pump();
+    expect(runs).toBe(1);
+    gate.resolve();
+    await queue.settle();
+  });
 });

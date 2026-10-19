@@ -69,9 +69,10 @@ export function createEnqueueRefresh(deps: Deps) {
     if (created) return;
     if (job.status === "queued") {
       await deps.jobs.postpone(job.id, runAfter);
-    } else {
-      // The running refresh may have scanned before this episode landed: ask for another.
-      await deps.jobs.enqueue(request);
+      return;
     }
+    // The running refresh may have scanned before this episode landed: one follow-up covers them all.
+    const next = await deps.jobs.enqueue({ ...request, dedupeKey: `refresh-next:${seriesId}` });
+    if (!next.created) await deps.jobs.postpone(next.job.id, runAfter);
   };
 }

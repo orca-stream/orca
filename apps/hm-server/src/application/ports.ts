@@ -56,19 +56,30 @@ export interface JobRepository {
   claim(resource: Job["resource"], leaseOwner: string, leaseMs: number): Promise<Job | null>;
   heartbeat(id: string, leaseOwner: string, leaseMs: number): Promise<void>;
   updateProgress(id: string, progress: number | null, detail: ProgressDetail | null): Promise<void>;
-  complete(id: string): Promise<Job>;
-  fail(id: string, error: string, kind: "retryable" | "permanent"): Promise<Job>;
+  /**
+   * The four settling calls below only apply to a job the given worker still holds as `running`;
+   * they return null when it moved on meanwhile (cancelled, recovered), and then change nothing.
+   */
+  complete(id: string, leaseOwner: string): Promise<Job | null>;
+  fail(
+    id: string,
+    leaseOwner: string,
+    error: string,
+    kind: "retryable" | "permanent",
+  ): Promise<Job | null>;
   /** Back to queued, to try again at `runAfter`. */
-  requeue(id: string, runAfter: number, error: string): Promise<Job>;
-  cancel(id: string): Promise<Job>;
+  requeue(id: string, leaseOwner: string, runAfter: number, error: string): Promise<Job | null>;
+  /** Cancels a job only if it is still queued (a pump may have claimed it a moment ago). */
+  cancelQueued(id: string): Promise<Job | null>;
+  cancelRunning(id: string, leaseOwner: string): Promise<Job | null>;
   /** failed or cancelled -> queued with attempts reset. */
   retry(id: string): Promise<Job | null>;
   /** Moves a queued job's run_after later (debounce). */
   postpone(id: string, runAfter: number): Promise<void>;
   /** Boot: jobs a crash left `running` go back to queued, and the crashed try doesn't count. */
   recoverRunning(): Promise<number>;
-  /** Running jobs whose lease ran out (a hung worker). */
-  recoverExpired(): Promise<number>;
+  /** Running jobs whose lease ran out (a hung worker), except the ids still running in this process. */
+  recoverExpired(exceptIds: string[]): Promise<number>;
   get(id: string): Promise<Job | null>;
   list(filter: ListJobsFilter): Promise<{ items: Job[]; nextCursor: string | null }>;
 }

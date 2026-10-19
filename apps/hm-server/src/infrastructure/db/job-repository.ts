@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type { ProgressDetail } from "@orca/hm-contract";
 import type {
   Clock,
@@ -6,7 +6,6 @@ import type {
   JobRepository,
   ListJobsFilter,
 } from "../../application/ports.ts";
-import { AppError } from "../../domain/errors.ts";
 import { uuidv7 } from "../../domain/ids.ts";
 import type { Job, NewJob } from "../../domain/job.ts";
 import type { Database_, Db } from "./client.ts";
@@ -149,19 +148,23 @@ export class DrizzleJobRepository implements JobRepository {
       .run();
   }
 
-  async complete(id: string): Promise<Job> {
-    const now = this.clock.now();
-    return this.finish(id, {
+  async complete(id: string, leaseOwner: string): Promise<Job | null> {
+    return this.settle(id, this.running(leaseOwner), {
       status: "done",
       progress: 1,
-      finishedAt: now,
+      finishedAt: this.clock.now(),
       lastError: null,
       errorKind: null,
     });
   }
 
-  async fail(id: string, error: string, kind: "retryable" | "permanent"): Promise<Job> {
-    return this.finish(id, {
+  async fail(
+    id: string,
+    leaseOwner: string,
+    error: string,
+    kind: "retryable" | "permanent",
+  ): Promise<Job | null> {
+    return this.settle(id, this.running(leaseOwner), {
       status: "failed",
       lastError: error,
       errorKind: kind,
@@ -169,8 +172,13 @@ export class DrizzleJobRepository implements JobRepository {
     });
   }
 
-  async requeue(id: string, runAfter: number, error: string): Promise<Job> {
-    return this.finish(id, {
+  async requeue(
+    id: string,
+    leaseOwner: string,
+    runAfter: number,
+    error: string,
+  ): Promise<Job | null> {
+    return this.settle(id, this.running(leaseOwner), {
       status: "queued",
       runAfter,
       lastError: error,
@@ -180,8 +188,18 @@ export class DrizzleJobRepository implements JobRepository {
     });
   }
 
-  async cancel(id: string): Promise<Job> {
-    return this.finish(id, { status: "cancelled", finishedAt: this.clock.now() });
+  async cancelQueued(id: string): Promise<Job | null> {
+    return this.settle(id, eq(jobs.status, "queued"), {
+      status: "cancelled",
+      finishedAt: this.clock.now(),
+    });
+  }
+
+  async cancelRunning(id: string, leaseOwner: string): Promise<Job | null> {
+    return this.settle(id, this.running(leaseOwner), {
+      status: "cancelled",
+      finishedAt: this.clock.now(),
+    });
   }
 
   async retry(id: string): Promise<Job | null> {
@@ -219,9 +237,10 @@ export class DrizzleJobRepository implements JobRepository {
     return this.recover(sql`${jobs.status} = 'running'`);
   }
 
-  async recoverExpired(): Promise<number> {
+  async recoverExpired(exceptIds: string[]): Promise<number> {
+    const expired = sql`${jobs.status} = 'running' and ${jobs.leaseExpiresAt} < ${this.clock.now()}`;
     return this.recover(
-      sql`${jobs.status} = 'running' and ${jobs.leaseExpiresAt} < ${this.clock.now()}`,
+      exceptIds.length > 0 ? sql`${expired} and ${notInArray(jobs.id, exceptIds)}` : expired,
     );
   }
 
@@ -262,15 +281,19 @@ export class DrizzleJobRepository implements JobRepository {
     return result.changes;
   }
 
-  private finish(id: string, patch: Partial<Row>): Job {
+  private running(leaseOwner: string) {
+    return and(eq(jobs.status, "running"), eq(jobs.leaseOwner, leaseOwner));
+  }
+
+  /** One conditional UPDATE: it only lands if the row is still in the state the caller expects. */
+  private settle(id: string, expected: ReturnType<typeof and>, patch: Partial<Row>): Job | null {
     const updated = this.db
       .update(jobs)
       .set({ leaseOwner: null, leaseExpiresAt: null, ...patch, updatedAt: this.clock.now() })
-      .where(eq(jobs.id, id))
+      .where(and(eq(jobs.id, id), expected))
       .returning()
       .get();
-    if (!updated) throw new AppError("not_found", `No job ${id}`);
-    return toJob(updated);
+    return updated ? toJob(updated) : null;
   }
 }
 
