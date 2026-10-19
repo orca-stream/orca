@@ -85,12 +85,15 @@ export async function restore(
   const script = [
     // H&M alone is stopped with plain docker: its compose service may not exist yet on a new machine.
     ...(only === "hm" ? hmRestartDefinitions() : []),
+    // `stopped` arms the start-on-exit only once the stack is really stopped, so a failed version
+    // check does not start services the operator had stopped.
+    ...(only === "hm" ? [] : ["stopped="]),
     // Whatever fails in the middle, what was stopped is started again when the script ends.
-    ...resticPreamble(b, [only === "hm" ? "hm_restart" : startJellyfin]),
+    ...resticPreamble(b, [only === "hm" ? "hm_restart" : `[ -z "$stopped" ] || ${startJellyfin}`]),
     ...resticVersionCheck(),
     ...(only === "hm"
       ? [`[ -z "$hm_was_running" ] || docker stop ${HM_SERVICE} >/dev/null`]
-      : [`${compose} stop${target}`]),
+      : [`${compose} stop${target}`, "stopped=1"]),
     ...(withJellyfin
       ? [
           `restic restore ${opts.snapshot} --target / --include ${configDir} --delete`,
@@ -101,7 +104,8 @@ export async function restore(
         ]
       : []),
     ...(withHm ? hmRestoreLines(opts.snapshot, hmDataPath(cfg.hm!), only) : []),
-    only === "hm" ? "hm_restart" : startJellyfin,
+    // Started once here; the trap only covers a failure before this point.
+    ...(only === "hm" ? ["hm_restart"] : [startJellyfin, "stopped="]),
     "",
   ].join("\n");
   const res = await remote.exec(script, { sudo: true });

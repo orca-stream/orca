@@ -149,6 +149,10 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
   if (command! in subcommands && !rest[1])
     throw new UsageError(`${command} ${rest[0]} needs the host name`);
 
+  const only = values.only ?? "all";
+  if (command === "restore" && !RESTORE_ONLY.includes(only as RestoreOnly))
+    throw new UsageError(`--only must be one of ${RESTORE_ONLY.join(", ")}, not "${only}"`);
+
   const configPath = resolve(rt.cwd, values.config ?? "bifrost.yaml");
   const cfg = await rt.loadConfig(configPath);
   const secrets = rt.secrets(
@@ -233,9 +237,6 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
       return 0;
     }
     case "restore": {
-      const only = values.only ?? "all";
-      if (!RESTORE_ONLY.includes(only as RestoreOnly))
-        throw new UsageError(`--only must be one of ${RESTORE_ONLY.join(", ")}, not "${only}"`);
       await restore({ remote: rt.remote(cfg), secrets, clock, log }, cfg, {
         dryRun,
         yes: values.yes ?? false,

@@ -20,7 +20,7 @@ const STUBS: Record<string, string> = {
   docker: `echo "docker $*" >> "$LOG"; if [ "$1" = ps ]; then echo "\${HM_RUNNING:+cid}"; fi`,
   restic: `echo "restic $*" >> "$LOG"
 case "$1" in
-  version) echo "restic \${RESTIC_VERSION:-0.18.1} compiled with go1.24" ;;
+  version) [ "\${RESTIC_VERSION:-}" != none ] || exit 127; echo "restic \${RESTIC_VERSION:-0.18.1} compiled with go1.24" ;;
   cat) exit "\${CAT_RC:-0}" ;;
   init) exit "\${INIT_RC:-0}" ;;
   backup) exit "\${BACKUP_RC:-0}" ;;
@@ -194,6 +194,26 @@ describe("generated restore script, executed", () => {
     expect(out.code).toBe(0);
     expect(out.log.join("\n")).not.toContain("orca-hm");
     expect(out.log.join("\n")).toContain("chown -R jellyfin:jellyfin");
+  });
+
+  it("starts nothing the operator stopped when restic is too old", async () => {
+    const sb = sandbox();
+    const out = sb.run(await restoreScript(sb.patch), { RESTIC_VERSION: "0.16.4" });
+    expect(out.log.join("\n")).not.toMatch(/compose.* up -d/);
+  });
+
+  it("explains a missing restic instead of exiting 127", async () => {
+    const sb = sandbox();
+    const out = sb.run(await restoreScript(sb.patch), { RESTIC_VERSION: "none" });
+    expect(out.code).toBe(1);
+    expect(out.stderr).toContain("found: unknown");
+  });
+
+  it("brings the stack up exactly once on success", async () => {
+    const sb = sandbox();
+    const out = sb.run(await restoreScript(sb.patch), { LS_DATA: "1" });
+    expect(out.code).toBe(0);
+    expect(out.log.filter((l) => /compose.* up -d/.test(l))).toHaveLength(1);
   });
 
   it("keeps the failing exit code and still starts Jellyfin", async () => {

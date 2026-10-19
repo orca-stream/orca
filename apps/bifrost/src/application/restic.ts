@@ -52,7 +52,7 @@ export const RESTIC_MIN_VERSION = "0.17";
 /** Fails with a clear message before anything is touched when the host's restic is too old. */
 export function resticVersionCheck(): string[] {
   return [
-    `restic_ver=$(restic version | sed -n 's/^restic \\([0-9]*\\.[0-9]*\\).*/\\1/p')`,
+    `restic_ver=$(restic version 2>/dev/null | sed -n 's/^restic \\([0-9]*\\.[0-9]*\\).*/\\1/p' || true)`,
     `if [ "$(printf '%s\\n${RESTIC_MIN_VERSION}\\n' "$restic_ver" | sort -V | head -n 1)" != "${RESTIC_MIN_VERSION}" ]; then`,
     `  echo "restic >= ${RESTIC_MIN_VERSION} is required to restore (found: \${restic_ver:-unknown})" >&2`,
     "  exit 1",

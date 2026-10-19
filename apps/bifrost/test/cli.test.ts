@@ -176,6 +176,11 @@ describe("cli", () => {
     const a = setup({ JELLYFIN_API_KEY: "key" });
     expect(await run(["restore", "--only", "everything", "--yes"], a.rt)).toBe(2);
     expect(text(a.err)).toMatch(/--only must be one of all, hm, jellyfin/);
+    // Checked before the config is even read.
+    a.rt.loadConfig = async () => {
+      throw new Error("config read");
+    };
+    expect(await run(["restore", "--only", "everything"], a.rt)).toBe(2);
   });
 
   it("migrate needs a migrate.source section", async () => {
