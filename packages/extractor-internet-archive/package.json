@@ -6,7 +6,8 @@
   "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./test/fixtures.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

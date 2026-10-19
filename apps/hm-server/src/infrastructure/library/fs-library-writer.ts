@@ -1,8 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { copyFile, mkdir, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, extname, join, relative, sep } from "node:path";
 import type { LibraryWriter } from "../../application/ports.ts";
 import type { Episode, Series } from "../../domain/series.ts";
-import { episodeFileName, seasonFolderName } from "./naming.ts";
+import { episodeFileName, seasonFolderName } from "../../domain/naming.ts";
 import { episodeNfo, tvshowNfo } from "./nfo.ts";
 
 const STAGING = ".hm-staging";
@@ -76,7 +77,7 @@ export class FsLibraryWriter implements LibraryWriter {
   /** Written beside the target and renamed over it, so Jellyfin never reads half a file. */
   private async atomicWrite(path: string, content: string | Uint8Array): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
-    const temporary = `${path}.tmp`;
+    const temporary = `${path}.${randomBytes(4).toString("hex")}.tmp`;
     await writeFile(temporary, content);
     await rename(temporary, path);
   }

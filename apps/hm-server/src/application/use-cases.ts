@@ -1,0 +1,304 @@
+import { randomBytes } from "node:crypto";
+import type { Extraction } from "@orca/extractor-core";
+import {
+  needsLicenseAck,
+  type CreateSeriesBody,
+  type EpisodeDto,
+  type JobDto,
+  type ListJobsQuery,
+  type Me,
+  type Page,
+  type PreviewDto,
+  type SeriesDto,
+  type SeriesPatch,
+} from "@orca/hm-contract";
+import { AppError } from "../domain/errors.ts";
+import { uuidv7 } from "../domain/ids.ts";
+import type { Job } from "../domain/job.ts";
+import type { Episode, Series, Source } from "../domain/series.ts";
+import { seriesFolderName } from "../domain/naming.ts";
+import type { Deps } from "./deps.ts";
+import { createEnqueueDownloads } from "./downloads.ts";
+import { createJobEvents } from "./job-events.ts";
+import { toEpisodeDto, toJobDto, toPreviewDto, toSeriesDto } from "./presenter.ts";
+
+type ExtractedEpisode = Extraction["episodes"][number];
+
+function sourceOf(episode: ExtractedEpisode): Source {
+  const { media } = episode;
+  return {
+    kind: "direct",
+    url: media.url,
+    fileName: media.fileName,
+    ...(media.sizeBytes !== undefined ? { sizeBytes: media.sizeBytes } : {}),
+    ...(media.md5 ? { md5: media.md5 } : {}),
+    ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
+  };
+}
+
+export function createUseCases(deps: Deps) {
+  const enqueueDownloads = createEnqueueDownloads(deps);
+  const { publishJob } = createJobEvents(deps);
+
+  async function jobDtos(jobs: Job[]): Promise<JobDto[]> {
+    const titles = await deps.series.seriesTitles([
+      ...new Set(jobs.flatMap((job) => (job.seriesId ? [job.seriesId] : []))),
+    ]);
+    const episodes = await deps.series.getEpisodes([
+      ...new Set(jobs.flatMap((job) => (job.episodeId ? [job.episodeId] : []))),
+    ]);
+    const byId = new Map(episodes.map((episode) => [episode.id, episode]));
+    return jobs.map((job) =>
+      toJobDto(
+        job,
+        (job.seriesId && titles.get(job.seriesId)) || null,
+        (job.episodeId && byId.get(job.episodeId)) || null,
+      ),
+    );
+  }
+
+  return {
+    enqueueDownloads,
+
+    listExtractors() {
+      return deps.extractors
+        .list()
+        .map(({ id, name, hosts, example }) => ({ id, name, hosts, example }));
+    },
+
+    /** Runs the extractor and keeps the result for a short while; nothing is persisted. */
+    async previewSeries(url: string, signal?: AbortSignal): Promise<PreviewDto> {
+      const extractor = deps.extractors.find(url);
+      if (!extractor) throw new AppError("bad_request", "No extractor handles this address");
+      const extraction = await extractor.extract(url, signal ? { signal } : undefined);
+      const previewId = deps.previews.put(extraction, extractor.id);
+      return toPreviewDto(extraction, previewId, extractor.id);
+    },
+
+    async addSeries(body: CreateSeriesBody): Promise<SeriesDto> {
+      const preview = deps.previews.get(body.previewId);
+      if (!preview) throw new AppError("gone", "This preview expired: preview the address again");
+      const { extraction, extractorId } = preview;
+
+      if (
+        needsLicenseAck({ license: extraction.license.kind, year: body.year }) &&
+        !body.licenseAck
+      ) {
+        throw new AppError(
+          "bad_request",
+          "license_ack_required: confirm you have the right to download this",
+        );
+      }
+
+      const wanted = new Set(body.episodeKeys);
+      const chosen = extraction.episodes.filter((episode) => wanted.has(episode.sourceRef));
+      if (chosen.length !== wanted.size) {
+        const known = new Set(extraction.episodes.map((episode) => episode.sourceRef));
+        throw new AppError(
+          "bad_request",
+          `Unknown episodes: ${[...wanted].filter((key) => !known.has(key)).join(", ")}`,
+        );
+      }
+
+      if (await deps.series.findByExternal(extractorId, extraction.series.externalId)) {
+        throw new AppError("conflict", "This series was already added");
+      }
+      const folderName = seriesFolderName(body.title, body.year);
+      if (await deps.series.findByFolder(folderName)) {
+        throw new AppError(
+          "conflict",
+          `A series already uses the folder “${folderName}”: change the title or the year`,
+        );
+      }
+
+      const now = deps.clock.now();
+      const series: Series = {
+        id: uuidv7(now),
+        title: body.title,
+        year: body.year,
+        plot: extraction.series.plot ?? null,
+        extractorId,
+        externalId: extraction.series.externalId,
+        sourceUrl: extraction.series.sourceUrl,
+        folderName,
+        hasPoster: false,
+        follow: body.follow,
+        checkIntervalHours: 12,
+        lastCheckedAt: null,
+        remoteMarker: extraction.series.remoteMarker ?? null,
+        createdAt: now,
+      };
+      const episodes: Episode[] = chosen.map((episode) => ({
+        id: uuidv7(now),
+        seriesId: series.id,
+        season: episode.season,
+        episode: episode.episode,
+        title: episode.title,
+        plot: episode.plot ?? null,
+        airDate: episode.airDate ?? null,
+        inferred: episode.inferred,
+        sourceRef: episode.sourceRef,
+        source: sourceOf(episode),
+        durationSec: episode.media.durationSec ?? null,
+        sizeBytes: episode.media.sizeBytes ?? null,
+        format: episode.media.format ?? null,
+        status: "missing",
+        filePath: null,
+        createdAt: now,
+      }));
+
+      await deps.series.create(series, episodes);
+      await deps.library.writeSeries(series);
+
+      let created = series;
+      if (extraction.series.posterUrl) {
+        try {
+          await deps.library.writePoster(
+            series,
+            await deps.images.fetch(extraction.series.posterUrl),
+          );
+          created = (await deps.series.update(series.id, { hasPoster: true })) ?? series;
+        } catch {
+          // A missing cover is not worth failing the add for.
+        }
+      }
+
+      deps.events.publish({ type: "series.updated", seriesId: series.id });
+      if (body.downloadNow) await enqueueDownloads(episodes.map((episode) => episode.id));
+      return toSeriesDto(created, { episodeCount: episodes.length, availableCount: 0 });
+    },
+
+    async listSeries(): Promise<SeriesDto[]> {
+      return (await deps.series.list()).map((series) => toSeriesDto(series));
+    },
+
+    async getSeries(id: string): Promise<SeriesDto> {
+      const series = await deps.series.get(id);
+      if (!series) throw new AppError("not_found", "No such series");
+      const episodes = await deps.series.listEpisodes(id);
+      return toSeriesDto(series, {
+        episodeCount: episodes.length,
+        availableCount: episodes.filter((episode) => episode.status === "available").length,
+      });
+    },
+
+    async patchSeries(id: string, patch: SeriesPatch): Promise<SeriesDto> {
+      const current = await deps.series.get(id);
+      if (!current) throw new AppError("not_found", "No such series");
+      const updated = await deps.series.update(id, patch);
+      if (updated && (patch.title !== undefined || patch.year !== undefined)) {
+        // The folder keeps its name; Jellyfin reads the new title from the nfo.
+        await deps.library.writeSeries(updated);
+      }
+      deps.events.publish({ type: "series.updated", seriesId: id });
+      return this.getSeries(id);
+    },
+
+    async listEpisodes(seriesId: string): Promise<EpisodeDto[]> {
+      if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
+      const episodes = await deps.series.listEpisodes(seriesId);
+      const running = await deps.jobs.list({ status: ["running"], limit: 200 });
+      const progress = new Map(
+        running.items.flatMap((job) =>
+          job.episodeId ? [[job.episodeId, job.progress] as const] : [],
+        ),
+      );
+      return episodes.map((episode) => toEpisodeDto(episode, progress.get(episode.id) ?? null));
+    },
+
+    async downloadSeries(seriesId: string): Promise<JobDto[]> {
+      if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
+      const episodes = await deps.series.listEpisodes(seriesId);
+      const jobs = await enqueueDownloads(
+        episodes.filter((episode) => episode.status !== "available").map((episode) => episode.id),
+      );
+      return jobDtos(jobs);
+    },
+
+    async enqueue(episodeIds: string[]): Promise<JobDto[]> {
+      return jobDtos(await enqueueDownloads(episodeIds));
+    },
+
+    async listJobs(query: ListJobsQuery): Promise<Page<JobDto>> {
+      const page = await deps.jobs.list({
+        ...(query.status ? { status: query.status } : {}),
+        limit: query.limit,
+        cursor: query.cursor,
+      });
+      return { items: await jobDtos(page.items), nextCursor: page.nextCursor };
+    },
+
+    async retryJob(id: string): Promise<JobDto> {
+      const current = await deps.jobs.get(id);
+      if (!current) throw new AppError("not_found", "No such job");
+      let job: Job | null;
+      try {
+        job = await deps.jobs.retry(id);
+      } catch {
+        throw new AppError("conflict", "Another job for the same work is already active");
+      }
+      if (!job) throw new AppError("conflict", "Only failed or cancelled jobs can be retried");
+      if (job.episodeId) await deps.series.setEpisodeStatus(job.episodeId, "queued");
+      await publishJob(job);
+      if (job.seriesId) deps.events.publish({ type: "series.updated", seriesId: job.seriesId });
+      deps.queue.notify();
+      return (await jobDtos([job]))[0] as JobDto;
+    },
+
+    async cancelJob(id: string): Promise<JobDto> {
+      if (!(await deps.jobs.get(id))) throw new AppError("not_found", "No such job");
+      return (await jobDtos([await deps.canceller.cancel(id)]))[0] as JobDto;
+    },
+
+    async login(username: string, password: string): Promise<{ sessionId: string; me: Me }> {
+      const user = await deps.authenticator.authenticate(username, password);
+      const now = deps.clock.now();
+      const sessionId = randomBytes(32).toString("base64url");
+      await deps.sessions.deleteExpired(now);
+      await deps.sessions.create({
+        id: sessionId,
+        userId: user.userId,
+        userName: user.userName,
+        createdAt: now,
+        expiresAt: now + deps.sessionTtlMs,
+        checkedAt: now,
+      });
+      return { sessionId, me: { userId: user.userId, userName: user.userName } };
+    },
+
+    async logout(sessionId: string): Promise<void> {
+      await deps.sessions.delete(sessionId);
+    },
+
+    /** The user behind a session cookie, or null. Re-confirms they are still an administrator hourly. */
+    async resolveSession(sessionId: string): Promise<Me | null> {
+      const session = await deps.sessions.find(sessionId);
+      if (!session) return null;
+      const now = deps.clock.now();
+      if (session.expiresAt <= now) {
+        await deps.sessions.delete(sessionId);
+        return null;
+      }
+      if (now - session.checkedAt >= deps.adminRecheckMs) {
+        try {
+          if (!(await deps.authenticator.isStillAdmin(session.userId))) {
+            await deps.sessions.delete(sessionId);
+            return null;
+          }
+          await deps.sessions.touch(sessionId, now);
+        } catch {
+          // Jellyfin is down: that says nothing about the user, so the session stays.
+        }
+      }
+      return { userId: session.userId, userName: session.userName };
+    },
+
+    async posterOf(seriesId: string): Promise<string | null> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      return deps.library.posterPath(series);
+    },
+  };
+}
+
+export type UseCases = ReturnType<typeof createUseCases>;

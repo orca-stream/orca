@@ -8,7 +8,7 @@ import {
   seasonFolderName,
   sanitizeName,
   seriesFolderName,
-} from "../src/infrastructure/library/naming.ts";
+} from "../src/domain/naming.ts";
 import { episodeNfo, tvshowNfo } from "../src/infrastructure/library/nfo.ts";
 import { aSeries, anEpisode } from "./helpers.ts";
 

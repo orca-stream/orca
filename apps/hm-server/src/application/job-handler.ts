@@ -1,0 +1,108 @@
+import * as z from "zod";
+import { PermanentError } from "../domain/errors.ts";
+import type { Job } from "../domain/job.ts";
+import type { Source } from "../domain/series.ts";
+import type { Deps } from "./deps.ts";
+import { createEnqueueRefresh } from "./downloads.ts";
+import type { JobHandler, JobOutcome } from "./queue.ts";
+
+const DownloadPayload = z.object({ episodeId: z.string() });
+const RefreshPayload = z.object({ seriesId: z.string() });
+
+/** The pipeline for every kind of job. The queue calls `run`; `onOutcome` keeps episodes in line. */
+export function createJobHandler(deps: Deps): JobHandler {
+  const enqueueRefresh = createEnqueueRefresh(deps);
+
+  async function resolveSource(source: Source, signal: AbortSignal): Promise<Source> {
+    if (source.kind !== "page") return source;
+    if (!deps.detector) {
+      throw new PermanentError(
+        "This source needs a browser to find the stream, which is not available yet",
+      );
+    }
+    const streams = await deps.detector.detect(source.url, { signal });
+    const stream =
+      streams.find((candidate) => candidate.kind === "hls") ??
+      streams.find((candidate) => candidate.kind === "direct");
+    if (!stream) throw new PermanentError(`No video stream found on ${source.url}`);
+    return stream.kind === "hls"
+      ? { kind: "hls", url: stream.url, headers: stream.headers }
+      : {
+          kind: "direct",
+          url: stream.url,
+          fileName: new URL(stream.url).pathname.split("/").pop() || "video.mp4",
+        };
+  }
+
+  async function downloadEpisode(
+    job: Job,
+    context: Parameters<JobHandler["run"]>[1],
+  ): Promise<void> {
+    const { episodeId } = DownloadPayload.parse(job.payload);
+    const episode = await deps.series.getEpisode(episodeId);
+    if (!episode) throw new PermanentError("The episode was removed");
+    const series = await deps.series.get(episode.seriesId);
+    if (!series) throw new PermanentError("The series was removed");
+    if (episode.status === "available") return;
+
+    await deps.series.setEpisodeStatus(episode.id, "downloading");
+    deps.events.publish({ type: "series.updated", seriesId: series.id });
+
+    const source = await resolveSource(episode.source, context.signal);
+    const downloader = deps.downloaders.find((candidate) => candidate.canHandle(source));
+    if (!downloader) throw new PermanentError(`No downloader for a ${source.kind} source`);
+
+    const staged = deps.library.stagingPath(episode);
+    await downloader.download(source, staged, {
+      signal: context.signal,
+      onProgress: ({ bytes, total, fraction, speed, eta }) => {
+        const progress = fraction ?? (total ? bytes / total : null);
+        context.progress(progress, {
+          bytes,
+          ...(total !== undefined ? { total } : {}),
+          ...(speed !== undefined ? { speed } : {}),
+          ...(eta !== undefined ? { eta } : {}),
+        });
+      },
+    });
+
+    await deps.library.writeSeries(series);
+    const { relativePath } = await deps.library.commitEpisode(series, episode, staged);
+    await deps.series.setEpisodeStatus(episode.id, "available", relativePath);
+    deps.events.publish({ type: "series.updated", seriesId: series.id });
+    await enqueueRefresh(series.id);
+  }
+
+  async function refreshLibrary(job: Job): Promise<void> {
+    const { seriesId } = RefreshPayload.parse(job.payload);
+    const series = await deps.series.get(seriesId);
+    if (!series) return;
+    await deps.mediaServer.libraryUpdated(deps.library.seriesPath(series));
+  }
+
+  return {
+    async run(job, context) {
+      switch (job.kind) {
+        case "download_episode":
+          return downloadEpisode(job, context);
+        case "refresh_library":
+          return refreshLibrary(job);
+        case "check_series":
+          throw new PermanentError(
+            "Checking followed series for new episodes is not available yet",
+          );
+      }
+    },
+
+    async onOutcome(job: Job, outcome: JobOutcome) {
+      if (job.kind !== "download_episode" || !job.episodeId || outcome === "done") return;
+      const episode = await deps.series.getEpisode(job.episodeId);
+      if (!episode || episode.status === "available") return;
+      if (outcome === "cancelled") await deps.library.discardStaged(episode);
+      const status =
+        outcome === "failed" ? "failed" : outcome === "requeued" ? "queued" : "missing";
+      await deps.series.setEpisodeStatus(episode.id, status);
+      deps.events.publish({ type: "series.updated", seriesId: episode.seriesId });
+    },
+  };
+}
