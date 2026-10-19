@@ -108,6 +108,30 @@ describe("addSeries", () => {
     expect(await h.series.list()).toHaveLength(1);
   });
 
+  it("answers a conflict, not a crash, when the same series is submitted at once under two titles", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    const body = (title: string) => ({
+      previewId: preview.previewId,
+      title,
+      year: 1962,
+      episodeKeys: preview.episodes.map((episode) => episode.key),
+      follow: false,
+      downloadNow: false,
+      licenseAck: true,
+    });
+    const results = await Promise.allSettled([
+      h.useCases.addSeries(body("Show A")),
+      h.useCases.addSeries(body("Show B")),
+    ]);
+    const rejected = results.filter((result) => result.status === "rejected");
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      name: "AppError",
+      code: "conflict",
+    });
+    expect(await h.series.list()).toHaveLength(1);
+  });
+
   it("does not remove files from a folder that was already there when saving fails", async () => {
     const folder = join(h.root, "The Beverly Hillbillies (1962)");
     await mkdir(folder);

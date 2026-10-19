@@ -1,4 +1,5 @@
 import { eq, inArray, sql } from "drizzle-orm";
+import { AppError } from "../../domain/errors.ts";
 import type { EpisodeStatus } from "@orca/hm-contract";
 import type { SeriesRepository, SeriesWithCounts } from "../../application/ports.ts";
 import type { Episode, Series, Source } from "../../domain/series.ts";
@@ -24,10 +25,17 @@ export class DrizzleSeriesRepository implements SeriesRepository {
   }
 
   async create(value: Series, list: Episode[]): Promise<void> {
-    this.db.transaction((tx) => {
-      tx.insert(series).values(value).run();
-      for (const episode of list) tx.insert(episodes).values(episode).run();
-    });
+    try {
+      this.db.transaction((tx) => {
+        tx.insert(series).values(value).run();
+        for (const episode of list) tx.insert(episodes).values(episode).run();
+      });
+    } catch (error) {
+      // Two submits that slipped past the lookups: the unique indexes are the last word.
+      if (/UNIQUE constraint failed: series\./.test(String((error as Error).message)))
+        throw new AppError("conflict", "This series was already added, or its folder is taken");
+      throw error;
+    }
   }
 
   async get(id: string): Promise<Series | null> {
