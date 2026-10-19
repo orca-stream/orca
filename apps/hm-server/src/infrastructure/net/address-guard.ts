@@ -68,6 +68,12 @@ function v6Blocked(bytes: readonly number[]): boolean {
   if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b) {
     if (bytes.slice(4, 12).every((b) => b === 0)) return v4Blocked(bytes.slice(12));
   }
+  // 64:ff9b:1::/48 (local-use NAT64) can wrap any IPv4 address in a prefix operators choose
+  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b) {
+    if (bytes[4] === 0x00 && bytes[5] === 0x01) return true;
+  }
+  // 2001::/32 (Teredo) tunnels IPv4 too
+  if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x00 && bytes[3] === 0x00) return true;
   // 2002::/16 (6to4) carries it in bytes 2..5
   if (bytes[0] === 0x20 && bytes[1] === 0x02) return v4Blocked(bytes.slice(2, 6));
   if ((bytes[0]! & 0xfe) === 0xfc) return true; // fc00::/7 unique local
@@ -147,7 +153,8 @@ export class AddressGuard {
   async isAllowed(input: string): Promise<boolean> {
     if (LOCAL_SCHEMES.has(input.slice(0, input.indexOf(":") + 1).toLowerCase())) return true;
     try {
-      await this.assertUrl(input);
+      // A WebSocket connects to the same host an http(s) request would: check it as one.
+      await this.assertUrl(input.replace(/^ws(s?):/i, "http$1:"));
       return true;
     } catch {
       return false;

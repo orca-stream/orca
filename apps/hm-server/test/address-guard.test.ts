@@ -42,6 +42,11 @@ describe("isBlockedAddress", () => {
     "64:ff9b::7f00:1",
     "0:0:0:0:0:ffff:192.168.0.1",
     "[::1]",
+    // local-use NAT64 and Teredo tunnels, which can wrap any IPv4 address
+    "64:ff9b:1::7f00:1",
+    "64:ff9b:1:ffff::1",
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+    "2001::1",
   ])("blocks %s", (address) => {
     expect(isBlockedAddress(address)).toBe(true);
   });
@@ -60,6 +65,8 @@ describe("isBlockedAddress", () => {
     "2001:db8::1",
     "::ffff:8.8.8.8",
     "::ffff:808:808",
+    "2001:1::1",
+    "2001:4860:4860::8888",
   ])("allows %s", (address) => {
     expect(isBlockedAddress(address)).toBe(false);
   });
@@ -80,6 +87,7 @@ describe("AddressGuard", () => {
   const guard = new AddressGuard({
     resolve: dns({
       "videos.example.com": ["93.184.216.34"],
+      "inside.example.com": ["10.0.0.9"],
       "mixed.example.com": ["93.184.216.34", "10.0.0.7"],
       "rebind.example.com": ["127.0.0.1"],
       "v6.example.com": ["2606:4700:4700::1111"],
@@ -154,6 +162,14 @@ describe("AddressGuard", () => {
     await expect(guard.assertUrl("https://user:pass@videos.example.com/")).rejects.toBeInstanceOf(
       PermanentError,
     );
+  });
+
+  it("reads a WebSocket address as the http(s) address it travels over", async () => {
+    expect(await guard.isAllowed("wss://videos.example.com/live")).toBe(true);
+    expect(await guard.isAllowed("ws://videos.example.com/live")).toBe(true);
+    expect(await guard.isAllowed("ws://127.0.0.1:8096/socket")).toBe(false);
+    expect(await guard.isAllowed("wss://[::1]/socket")).toBe(false);
+    expect(await guard.isAllowed("wss://inside.example.com/x")).toBe(false);
   });
 
   it("answers the browser's yes/no question without throwing", async () => {
