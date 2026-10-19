@@ -6,17 +6,20 @@ import { parseArgs } from "node:util";
 import { apply } from "./application/apply.ts";
 import { backup } from "./application/backup.ts";
 import { dump } from "./application/dump.ts";
+import { hmUp } from "./application/hm-up.ts";
 import { hostPrepare } from "./application/host-prepare.ts";
 import { init } from "./application/init.ts";
 import { migrate } from "./application/migrate.ts";
 import type { Clock } from "./application/ports/clock.ts";
 import type { JellyfinAdmin } from "./application/ports/jellyfin-admin.ts";
 import type { RemoteHost } from "./application/ports/remote-host.ts";
+import type { SourceArchive } from "./application/ports/source-archive.ts";
 import type { SecretStore } from "./application/ports/secret-store.ts";
 import { restore } from "./application/restore.ts";
 import { up } from "./application/up.ts";
 import type { Config } from "./domain/config.ts";
 import { BifrostError } from "./domain/errors.ts";
+import { GitSourceArchive } from "./infrastructure/git-source-archive.ts";
 import { EnvFileSecretStore } from "./infrastructure/env-file-secret-store.ts";
 import { SdkJellyfinAdmin } from "./infrastructure/sdk-jellyfin-admin.ts";
 import { SshRemoteHost } from "./infrastructure/ssh-remote-host.ts";
@@ -34,6 +37,8 @@ export interface Runtime {
   remote(cfg: Config): RemoteHost;
   jellyfin(url: string, token?: string): JellyfinAdmin;
   clock(): Clock;
+  /** The checkout H&M images are built from. */
+  source(): SourceArchive;
   /** Whether a file can be read on this machine. */
   canRead(path: string): Promise<boolean>;
 }
@@ -45,6 +50,7 @@ Provision a Jellyfin server from a YAML config.
 Commands:
   host prepare <host>   Docker, firewall, SSH hardening, restic on the host (idempotent)
   up <host>             Generate the compose file, start Jellyfin, check VA-API
+  hm up <host>          Build Orca'H&M on the host from this repo and run it next to Jellyfin (needs the hm section)
   init                  Run the setup wizard if needed and create the "Bifrost" API key
   dump                  Print the live server as a config (-o FILE to write it)
   apply                 Make the server match the config (repositories, plugins, libraries, settings)
@@ -133,11 +139,13 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
     }
   };
 
-  const known = ["host", "up", "init", "dump", "apply", "backup", "restore", "migrate"];
+  const known = ["host", "hm", "up", "init", "dump", "apply", "backup", "restore", "migrate"];
   if (!known.includes(command!)) throw new UsageError(`unknown command "${command}"`);
-  if (command === "host" && rest[0] !== "prepare")
+  const subcommands: Record<string, string> = { host: "prepare", hm: "up" };
+  if (command! in subcommands && rest[0] !== subcommands[command!])
     throw new UsageError(`unknown command "${positionals.join(" ")}"`);
-  if (command === "host" && !rest[1]) throw new UsageError("host prepare needs the host name");
+  if (command! in subcommands && !rest[1])
+    throw new UsageError(`${command} ${rest[0]} needs the host name`);
 
   const configPath = resolve(rt.cwd, values.config ?? "bifrost.yaml");
   const cfg = await rt.loadConfig(configPath);
@@ -168,6 +176,23 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
     case "up":
       wantsHost(rest[0], cfg);
       await up({ remote: rt.remote(cfg), clock, log }, cfg, { dryRun });
+      return 0;
+    case "hm":
+      wantsHost(rest[1], cfg);
+      if (!cfg.hm)
+        throw new BifrostError("The config has no `hm` section (see bifrost.example.yaml).");
+      await hmUp(
+        {
+          remote: rt.remote(cfg),
+          clock,
+          secrets,
+          source: rt.source(),
+          jellyfin: rt.jellyfin(cfg.jellyfin.url),
+          log,
+        },
+        cfg,
+        { dryRun },
+      );
       return 0;
     case "init":
       await init({ jellyfin: rt.jellyfin(cfg.jellyfin.url), secrets, log }, cfg, { dryRun });
@@ -252,6 +277,7 @@ function systemRuntime(): Runtime {
     remote: (cfg) => new SshRemoteHost({ target: `${cfg.host.sshUser}@${cfg.host.address}` }),
     jellyfin: (url, token) => new SdkJellyfinAdmin({ url, token }),
     clock: () => new SystemClock(),
+    source: () => new GitSourceArchive(),
     canRead: (path) =>
       access(path, constants.R_OK).then(
         () => true,

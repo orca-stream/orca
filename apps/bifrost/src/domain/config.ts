@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ConfigError } from "./errors.ts";
+import { insideAny, jellyfinPathOf } from "./media.ts";
 import { isNetworkCidr } from "./net.ts";
 
 export { ConfigError };
@@ -134,6 +135,29 @@ const Jellyfin = z.strictObject({
     .default({ plugins: false, libraries: false, paths: false, repositories: false }),
 });
 
+/** Host port Orca'H&M is published on when the config doesn't name one. */
+export const DEFAULT_HM_PORT = 8787;
+export const DEFAULT_HM_DATA_DIR = "/srv/orca-hm";
+export const DEFAULT_HM_API_KEY_SECRET = "ORCA_HM_JELLYFIN_API_KEY";
+
+const Hm = z.strictObject({
+  /** Host port the H&M API is published on (the container side is fixed). */
+  port: port.default(DEFAULT_HM_PORT),
+  /** Host directory for H&M's database, env file and build sources. */
+  dataDir: absPath.default(DEFAULT_HM_DATA_DIR),
+  /** The TV library on the host, written by H&M and read by Jellyfin. Must be inside a tvshows library. */
+  mediaDir: absPath,
+  /** SecretStore key of the Jellyfin API key H&M uses (created by `hm up` as "Orca H&M"). */
+  apiKeySecret: z.string().min(1).default(DEFAULT_HM_API_KEY_SECRET),
+  /** SecretStore key holding the contact e-mail that goes in H&M's User-Agent. */
+  contactEmailSecret: z.string().min(1).optional(),
+  /** Git ref of this repository the image is built from. */
+  source: z
+    .string()
+    .regex(/^[\w][\w./@^~-]*$/, "must be a git ref such as HEAD, main or a tag")
+    .default("HEAD"),
+});
+
 const ConfigSchema = z
   .strictObject({
     version: z.literal(1),
@@ -150,6 +174,7 @@ const ConfigSchema = z
         keep: z.strictObject({ daily: z.number().int().min(0), weekly: z.number().int().min(0) }),
       })
       .optional(),
+    hm: Hm.optional(),
     migrate: z
       .strictObject({
         source: z.strictObject({ url: z.url(), apiKeySecret: z.string().min(1) }),
@@ -166,6 +191,26 @@ const ConfigSchema = z
           code: "custom",
           path: ["jellyfin", "port"],
           message: `jellyfin.port (${cfg.jellyfin.port}) differs from the port in jellyfin.url (${urlPort}) on the host's own address: Bifröst would publish one port and talk to another`,
+        });
+      }
+    }
+    if (cfg.hm) {
+      const inJellyfin = jellyfinPathOf(cfg.host, cfg.hm.mediaDir);
+      const tvPaths = cfg.jellyfin.libraries
+        .filter((l) => l.type === "tvshows")
+        .flatMap((l) => l.paths);
+      if (inJellyfin === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["hm", "mediaDir"],
+          message:
+            "is not under any of Jellyfin's media mounts, so Jellyfin could not see what H&M writes",
+        });
+      } else if (!insideAny(inJellyfin, tvPaths)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["hm", "mediaDir"],
+          message: `becomes ${inJellyfin} inside Jellyfin, which is not inside any tvshows library path (${tvPaths.join(", ") || "none declared"})`,
         });
       }
     }

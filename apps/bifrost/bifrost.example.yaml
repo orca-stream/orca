@@ -64,3 +64,13 @@ pathMap: { /data/jellyfin/movies: /media/movies, /data/jellyfin/tv: /media/tv }
 
 # migrate:
 #   source: { url: http://192.168.1.100:8096, apiKeySecret: JELLYFIN_SOURCE_API_KEY }
+
+# Orca'H&M (scrapers + ingest), built on the host from this repo and run next to Jellyfin by
+# `bifrost hm up <host>`. Its media dir is mounted into both containers at the same path.
+# hm:
+#   port: 8787 # published on host.address only (default)
+#   dataDir: /srv/orca-hm # database, env file and build sources on the host (default)
+#   mediaDir: /srv/jellyfin/media/tv # host path of the TV library; must be inside a tvshows library
+#   apiKeySecret: ORCA_HM_JELLYFIN_API_KEY # filled in by `hm up` (the "Orca H&M" API key; default)
+#   contactEmailSecret: HM_CONTACT_EMAIL # optional: .env key holding the e-mail for the User-Agent
+#   source: HEAD # git ref of this repo to build (default)

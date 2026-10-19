@@ -4,7 +4,8 @@ import { BifrostError } from "../domain/errors.ts";
 import { DryRunRemoteHost } from "./dry-run-remote-host.ts";
 import type { Clock } from "./ports/clock.ts";
 import type { RemoteHost } from "./ports/remote-host.ts";
-import { waitHealthy } from "./docker.ts";
+import { readNumber, waitHealthy } from "./docker.ts";
+import { readDeployedHm } from "./hm-up.ts";
 
 export interface UpDeps {
   remote: RemoteHost;
@@ -14,12 +15,6 @@ export interface UpDeps {
 
 const vainfoCommand = (renderDevice: string): string =>
   `docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device ${renderDevice}`;
-
-async function readNumber(remote: RemoteHost, script: string): Promise<number | undefined> {
-  const res = await remote.exec(script, { readOnly: true });
-  const n = Number.parseInt(res.stdout.trim(), 10);
-  return res.code === 0 && Number.isFinite(n) ? n : undefined;
-}
 
 /** Generates the compose file from the config, starts Jellyfin, waits until healthy and checks VA-API. */
 export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): Promise<void> {
@@ -61,7 +56,9 @@ export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): 
     }
   }
 
-  const compose = renderCompose(cfg, { uid, gid, renderGid });
+  // `up` never builds H&M, but it must not drop a deployed one from the file (--remove-orphans would stop it).
+  const hm = cfg.hm ? await readDeployedHm(remote, cfg, gid) : undefined;
+  const compose = renderCompose(cfg, { uid, gid, renderGid }, hm);
   if (opts.dryRun) log(`compose file ${composePath}:\n${compose}`);
 
   await remote.exec(

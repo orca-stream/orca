@@ -10,6 +10,7 @@ import { FakeClock } from "./fakes/clock.ts";
 import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
 import { FakeRemoteHost } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
+import { FakeSourceArchive } from "./fakes/source-archive.ts";
 import { exampleConfig } from "./fixtures.ts";
 
 const OLD_URL = "http://old:8096";
@@ -64,6 +65,7 @@ function setup(
       }),
     canRead: async () => true,
     clock: () => new FakeClock(),
+    source: () => new FakeSourceArchive(),
   };
   return { rt, out, err, server, oldServer, remote, written, loaded, envFiles };
 }
@@ -218,5 +220,17 @@ describe("cli", () => {
     const link = join(mkdtempSync(join(tmpdir(), "bifrost-link-")), "cli.ts");
     symlinkSync(here, link);
     expect(isEntryPoint(import.meta.url, link)).toBe(true);
+  });
+
+  it("hm up needs a host name and an hm section; --dry-run changes nothing", async () => {
+    const none = setup();
+    expect(await run(["hm", "up"], none.rt)).toBe(2);
+    expect(await run(["hm", "up", "homelab"], none.rt)).toBe(1);
+    expect(text(none.err)).toMatch(/hm. section/);
+
+    const a = setup(undefined, (r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv" }));
+    expect(await run(["hm", "up", "homelab", "--dry-run"], a.rt)).toBe(0);
+    expect(a.remote.mutations()).toEqual([]);
+    expect(await run(["hm", "down", "homelab"], a.rt)).toBe(2);
   });
 });
