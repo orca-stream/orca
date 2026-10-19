@@ -9,6 +9,8 @@ export type Source =
       sizeBytes?: number;
       md5?: string;
       durationSec?: number;
+      /** Request headers a browser used for it (Referer, Cookie…), when it came from a page. */
+      headers?: Record<string, string>;
     }
   | { kind: "hls"; url: string; headers?: Record<string, string>; durationSec?: number }
   | { kind: "page"; url: string };

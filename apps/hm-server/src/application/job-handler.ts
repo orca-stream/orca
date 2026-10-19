@@ -4,11 +4,26 @@ import type { Job } from "../domain/job.ts";
 import { episodeCode, type Series, type Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createCheckSeries } from "./check-series.ts";
-import { createEnqueueRefresh } from "./downloads.ts";
+import { createEnqueueRefresh, resourceFor } from "./downloads.ts";
+import { createJobEvents } from "./job-events.ts";
 import type { StreamPrefs } from "./ports.ts";
 import type { JobHandler, JobOutcome } from "./queue.ts";
 
-const DownloadPayload = z.object({ episodeId: z.string() });
+/** A stream found on a page, kept in the follow-up job so it need not be found again. */
+const ResolvedSource = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("hls"),
+    url: z.string(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+  z.object({
+    kind: z.literal("direct"),
+    url: z.string(),
+    fileName: z.string(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+]);
+const DownloadPayload = z.object({ episodeId: z.string(), resolved: ResolvedSource.optional() });
 const RefreshPayload = z.object({ seriesId: z.string() });
 const CheckPayload = z.object({ seriesId: z.string() });
 
@@ -16,27 +31,32 @@ const CheckPayload = z.object({ seriesId: z.string() });
 export function createJobHandler(deps: Deps): JobHandler {
   const enqueueRefresh = createEnqueueRefresh(deps);
   const checkSeries = createCheckSeries(deps);
+  const { publishJob } = createJobEvents(deps);
 
-  async function resolveSource(source: Source, signal: AbortSignal): Promise<Source> {
-    if (source.kind !== "page") return source;
+  /**
+   * The stream a page plays. The detector ranks its findings best first, so the first one is taken
+   * whatever its kind, and its address goes through the guard before anything else sees it.
+   */
+  async function detectStream(
+    pageUrl: string,
+    signal: AbortSignal,
+  ): Promise<z.infer<typeof ResolvedSource>> {
     if (!deps.detector) {
       throw new PermanentError(
         "This source needs a browser to find the stream, which is not available yet",
       );
     }
-    const streams = await deps.detector.detect(source.url, { signal });
-    const stream =
-      streams.find((candidate) => candidate.kind === "hls") ??
-      streams.find((candidate) => candidate.kind === "dash") ??
-      streams.find((candidate) => candidate.kind === "direct");
-    if (!stream) throw new PermanentError(`No video stream found on ${source.url}`);
+    const stream = (await deps.detector.detect(pageUrl, { signal }))[0];
+    if (!stream) throw new PermanentError(`No video stream found on ${pageUrl}`);
+    const url = await deps.guard.assertUrl(stream.url);
     // ffmpeg reads DASH manifests as it reads HLS playlists.
     return stream.kind === "hls" || stream.kind === "dash"
-      ? { kind: "hls", url: stream.url, headers: stream.headers }
+      ? { kind: "hls", url: url.href, headers: stream.headers }
       : {
           kind: "direct",
-          url: stream.url,
-          fileName: new URL(stream.url).pathname.split("/").pop() || "video.mp4",
+          url: url.href,
+          fileName: url.pathname.split("/").pop() || "video.mp4",
+          headers: stream.headers,
         };
   }
 
@@ -57,7 +77,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     job: Job,
     context: Parameters<JobHandler["run"]>[1],
   ): Promise<void> {
-    const { episodeId } = DownloadPayload.parse(job.payload);
+    const { episodeId, resolved } = DownloadPayload.parse(job.payload);
     const episode = await deps.series.getEpisode(episodeId);
     if (!episode) throw new PermanentError("The episode was removed");
     const series = await deps.series.get(episode.seriesId);
@@ -67,7 +87,25 @@ export function createJobHandler(deps: Deps): JobHandler {
     await deps.series.setEpisodeStatus(episode.id, "downloading");
     deps.events.publish({ type: "series.updated", seriesId: series.id });
 
-    const source = await resolveSource(episode.source, context.signal);
+    if (!resolved && episode.source.kind === "page") {
+      // Finding the stream is the browser's job; the long download is not, so it goes to a job of
+      // its own under the resource that fits it, and the browser slot is free again at once.
+      const found = await detectStream(episode.source.url, context.signal);
+      const { job: next } = await deps.jobs.enqueue({
+        kind: "download_episode",
+        payload: { episodeId: episode.id, resolved: found },
+        seriesId: series.id,
+        episodeId: episode.id,
+        resource: resourceFor(found),
+        dedupeKey: `dlr:${episode.id}`,
+      });
+      await deps.series.setEpisodeStatus(episode.id, "queued");
+      await publishJob(next);
+      deps.events.publish({ type: "series.updated", seriesId: series.id });
+      deps.queue.notify();
+      return;
+    }
+    const source: Source = resolved ?? episode.source;
     const downloader = deps.downloaders.find((candidate) => candidate.canHandle(source));
     if (!downloader) throw new PermanentError(`No downloader for a ${source.kind} source`);
 

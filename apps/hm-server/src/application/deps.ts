@@ -18,6 +18,7 @@ import type {
   SessionRepository,
   StreamDetector,
   StreamPrefs,
+  UrlGuard,
 } from "./ports.ts";
 
 /** Everything the use cases need from the outside, as ports. The composition root wires adapters in. */
@@ -36,6 +37,8 @@ export interface Deps {
   downloaders: Downloader[];
   /** Absent until the browser-based detector exists. */
   detector: StreamDetector | null;
+  /** Checks every address a page or stream hands us before anything connects to it. */
+  guard: UrlGuard;
   /** The track choices of a series that has none of its own. */
   streamDefaults: StreamPrefs;
   events: EventBus;

@@ -137,6 +137,7 @@ const deps: Deps = {
     }),
   ],
   detector,
+  guard,
   streamDefaults: config.streamDefaults,
   events,
   // The panel's channel is the only one; ntfy and the like would be added to this list.

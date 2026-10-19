@@ -225,6 +225,12 @@ export interface Authenticator {
   isStillAdmin(userId: string): Promise<boolean>;
 }
 
+/** Refuses addresses a server-side fetch must not reach (this machine, the LAN, metadata services). */
+export interface UrlGuard {
+  /** The parsed address, or a PermanentError / RetryableError saying why not. */
+  assertUrl(url: string): Promise<URL>;
+}
+
 export interface DetectedStream {
   url: string;
   kind: "hls" | "dash" | "direct";

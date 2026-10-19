@@ -122,8 +122,10 @@ export class FakeImageFetcher implements ImageFetcher {
 
 export class FakeStreamDetector implements StreamDetector {
   streams: DetectedStream[] = [];
+  readonly calls: string[] = [];
 
-  async detect(): Promise<DetectedStream[]> {
+  async detect(pageUrl: string): Promise<DetectedStream[]> {
+    this.calls.push(pageUrl);
     return this.streams;
   }
 }

@@ -23,7 +23,7 @@ import {
   FakeStreamDetector,
 } from "./fakes/ports.ts";
 import { fakeHttp, fixture, metadataUrl } from "@orca/extractor-internet-archive/testing";
-import { testDatabase } from "./helpers.ts";
+import { testDatabase, testGuard } from "./helpers.ts";
 import type { HmEvent } from "@orca/hm-contract";
 
 export const BEVHILL = "bevhill-s01e01-36";
@@ -72,6 +72,7 @@ export async function createHarness(
     mediaServer,
     downloaders: [downloader],
     detector,
+    guard: testGuard(),
     streamDefaults: {},
     events: bus,
     notifications: new NotificationService({
