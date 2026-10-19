@@ -92,7 +92,14 @@ export interface SessionRepository {
 
 export interface DownloadContext {
   signal: AbortSignal;
-  onProgress(progress: { bytes: number; total?: number; speed?: number; eta?: number }): void;
+  /** `fraction` (0..1) is for downloads measured in media time, not bytes (ffmpeg). */
+  onProgress(progress: {
+    bytes: number;
+    total?: number;
+    fraction?: number;
+    speed?: number;
+    eta?: number;
+  }): void;
 }
 
 export interface Downloader {
@@ -100,7 +107,8 @@ export interface Downloader {
   /**
    * Writes the source to `destPath`: through a `.part` file that is checked and then renamed, so
    * `destPath` only ever exists complete. Resumes a `.part` left by an interrupted try when it can.
-   * Throws RetryableError / PermanentError; on abort removes the `.part` and throws AbortedError.
+   * Throws RetryableError / PermanentError. On abort it throws AbortedError and keeps the `.part`, so a
+   * stop can resume; the caller discards it when the job was cancelled.
    */
   download(source: Source, destPath: string, context: DownloadContext): Promise<{ bytes: number }>;
 }
