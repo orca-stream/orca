@@ -4,7 +4,6 @@
 .github
 .claude
 .memory
-docs-hm-design.md
 apps/jp
 **/.env
 **/.env.*

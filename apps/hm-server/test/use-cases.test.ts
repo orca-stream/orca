@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
@@ -431,6 +432,15 @@ describe("sessions", () => {
     expect(await h.useCases.resolveSession(sessionId)).toEqual(me);
     await h.useCases.logout(sessionId);
     expect(await h.useCases.resolveSession(sessionId)).toBeNull();
+  });
+
+  it("stores only a hash of the session id, so a leaked database can't be replayed", async () => {
+    const { sessionId } = await h.useCases.login("sam", "secret");
+    const rows = h.database.sqlite.prepare("select id from sessions").all() as { id: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).not.toBe(sessionId);
+    expect(rows[0]?.id).toBe(createHash("sha256").update(sessionId).digest("hex"));
+    expect(await h.useCases.resolveSession(rows[0]!.id)).toBeNull();
   });
 
   it("refuses wrong credentials and unknown sessions", async () => {

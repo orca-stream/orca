@@ -88,6 +88,10 @@ describe("nfo", () => {
     expect(episodeNfo(aSeries(), anEpisode())).not.toContain("<aired>");
   });
 
+  it("escapes quotes in attributes", () => {
+    expect(tvshowNfo(aSeries({ extractorId: 'a"b' }))).toContain('type="a&quot;b"');
+  });
+
   it("drops characters XML cannot carry", () => {
     expect(tvshowNfo(aSeries({ title: "A\u0000B\u0008C" }))).toContain("<title>ABC</title>");
   });

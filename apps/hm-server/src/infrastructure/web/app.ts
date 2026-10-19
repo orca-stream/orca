@@ -11,16 +11,19 @@ import {
 } from "@orca/hm-contract";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
-import { Hono, type MiddlewareHandler } from "hono";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { secureHeaders } from "hono/secure-headers";
 import { streamSSE } from "hono/streaming";
 import type { ZodType } from "zod";
+import { AppError } from "../../domain/errors.ts";
 import type { EventBus } from "../../application/ports.ts";
 import type { UseCases } from "../../application/use-cases.ts";
 import { describeError } from "./errors.ts";
+import { LoginRateLimiter } from "./rate-limit.ts";
 import { serveWeb } from "./static.ts";
 
 export const SESSION_COOKIE = "hm_session";
@@ -41,6 +44,8 @@ export interface AppDeps {
   sessionTtlMs: number;
   /** Absolute path of the built panel. When set it is served from the same origin. */
   webRoot?: string;
+  /** Brake on password guessing. A default one is made when left out. */
+  loginLimiter?: LoginRateLimiter;
 }
 
 type Env = { Variables: { me: Me } };
@@ -62,6 +67,15 @@ function validate<Target extends "json" | "query", Schema extends ZodType>(
     };
     return c.json(body, 400);
   });
+}
+
+/** The peer address; behind a reverse proxy this is the proxy's, which is the best we can trust. */
+function clientAddress(c: Context): string {
+  try {
+    return getConnInfo(c).remote.address ?? "unknown";
+  } catch {
+    return "unknown";
+  }
 }
 
 export function createApp(deps: AppDeps) {
@@ -87,9 +101,31 @@ export function createApp(deps: AppDeps) {
   api.use((c, next) => (c.req.header("origin") ? checkOrigin(c, next) : next()));
 
   // --- auth (login and logout are the only routes open without a session)
+  const limiter = deps.loginLimiter ?? new LoginRateLimiter();
   api.post("/auth/login", validate("json", LoginBody), async (c) => {
     const { username, password } = c.req.valid("json");
-    const { sessionId, me } = await useCases.login(username, password);
+    const address = clientAddress(c);
+    const decision = limiter.check(address, username);
+    if (!decision.allowed) {
+      c.header("Retry-After", String(decision.retryAfterSec));
+      return c.json(
+        {
+          error: "too_many_attempts",
+          message: "Too many sign-in attempts: wait a while and try again",
+        } satisfies ApiErrorBody,
+        429,
+      );
+    }
+    let session;
+    try {
+      session = await useCases.login(username, password);
+    } catch (error) {
+      if (error instanceof AppError && error.code === "unauthorized")
+        limiter.recordFailure(address, username);
+      throw error;
+    }
+    limiter.recordSuccess(address, username);
+    const { sessionId, me } = session;
     setCookie(c, SESSION_COOKIE, sessionId, {
       httpOnly: true,
       sameSite: "Strict",

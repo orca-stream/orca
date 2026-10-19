@@ -12,6 +12,8 @@ function escape(value: string): string {
   );
 }
 
+const attribute = (value: string): string => escape(value).replace(/"/g, "&quot;");
+
 const tag = (name: string, value: string | number | null | undefined, attributes = ""): string[] =>
   value === null || value === undefined || value === ""
     ? []
@@ -31,7 +33,11 @@ export function tvshowNfo(series: Series): string {
     ...tag("originaltitle", series.title),
     ...tag("year", series.year),
     ...tag("plot", series.plot),
-    ...tag("uniqueid", series.externalId, ` type="${escape(series.extractorId)}" default="true"`),
+    ...tag(
+      "uniqueid",
+      series.externalId,
+      ` type="${attribute(series.extractorId)}" default="true"`,
+    ),
     "  <lockdata>true</lockdata>",
   ]);
 }
@@ -45,7 +51,7 @@ export function episodeNfo(series: Series, episode: Episode): string {
     ...tag("episode", episode.episode),
     ...tag("aired", episode.airDate),
     ...tag("plot", episode.plot),
-    ...tag("uniqueid", episode.sourceRef, ` type="${escape(series.extractorId)}"`),
+    ...tag("uniqueid", episode.sourceRef, ` type="${attribute(series.extractorId)}"`),
     "  <lockdata>true</lockdata>",
   ]);
 }

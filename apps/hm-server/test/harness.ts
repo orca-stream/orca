@@ -47,7 +47,7 @@ export async function createHarness(
   const detector = new FakeStreamDetector();
   const library = new FsLibraryWriter(root);
 
-  const deps = {
+  const deps: Deps = {
     clock: db.clock,
     random: new FixedRandom(1),
     series: db.series,
@@ -65,7 +65,9 @@ export async function createHarness(
     refreshDebounceMs: 60_000,
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     adminRecheckMs: 3600 * 1000,
-  } as unknown as Deps;
+    queue: { notify: () => queue.notify() },
+    canceller: { cancel: (id) => queue.cancel(id) },
+  };
 
   const { queueEvents } = createJobEvents(deps);
   const queue = new JobQueue({
@@ -78,8 +80,6 @@ export async function createHarness(
     heartbeatMs: 0,
     owner: "harness",
   });
-  deps.queue = queue;
-  deps.canceller = queue;
   const useCases = createUseCases(deps);
 
   return {

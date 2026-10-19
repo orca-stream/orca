@@ -19,6 +19,8 @@ describe("loadConfig", () => {
       iaHostConcurrency: 1,
     });
     expect(config.webRoot).toBeUndefined();
+    // No baked-in device id: it is generated once and stored, unless the environment overrides it.
+    expect(config.deviceId).toBeUndefined();
   });
 
   it("reads everything from the environment", () => {
@@ -31,6 +33,7 @@ describe("loadConfig", () => {
       HOST: "0.0.0.0",
       WEB_ROOT: "/app/web",
       SECURE_COOKIES: "true",
+      DEVICE_ID: "nas-1",
       DOWNLOAD_CONCURRENCY: "3",
     });
     expect(config).toMatchObject({
@@ -41,6 +44,7 @@ describe("loadConfig", () => {
       host: "0.0.0.0",
       webRoot: "/app/web",
       secureCookies: true,
+      deviceId: "nas-1",
     });
     expect(config.concurrency.download).toBe(3);
   });

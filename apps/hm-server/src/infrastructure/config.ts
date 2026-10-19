@@ -14,7 +14,7 @@ const Env = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   HOST: z.string().min(1).default("127.0.0.1"),
   WEB_ROOT: z.string().min(1).optional(),
-  DEVICE_ID: z.string().min(1).default("orca-hm"),
+  DEVICE_ID: z.string().min(1).optional(),
   SECURE_COOKIES: bool.default(false),
   DOWNLOAD_CONCURRENCY: count(2),
   FFMPEG_CONCURRENCY: count(1),
@@ -32,7 +32,8 @@ export interface Config {
   port: number;
   host: string;
   webRoot: string | undefined;
-  deviceId: string;
+  /** Only set when the environment overrides the id generated and stored in the database. */
+  deviceId: string | undefined;
   secureCookies: boolean;
   concurrency: { download: number; ffmpeg: number; browser: number; none: number };
   iaHostConcurrency: number;

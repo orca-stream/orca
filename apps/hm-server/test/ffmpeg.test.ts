@@ -126,6 +126,10 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
     const ctx = context();
     await downloader.download(hls, join(dir, "out.mkv"), ctx);
     expect(args.join(" ")).toContain("-progress pipe:1");
+    // Only network protocols may be read as input: never file: or anything local.
+    const whitelist = args[args.indexOf("-protocol_whitelist") + 1];
+    expect(whitelist).toBe("http,https,tcp,tls,crypto");
+    expect(args.indexOf("-protocol_whitelist")).toBeLessThan(args.indexOf("-i"));
     expect(args).toContain("Referer: https://site.example/\r\n");
     expect(args).toContain("https://cdn.example/master.m3u8");
     expect(ctx.progress.map((p) => p.fraction)).toEqual([0.25, 1]);

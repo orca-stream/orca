@@ -7,6 +7,8 @@ import type { Source } from "../../domain/series.ts";
 import { createProgressParser, outTimeSeconds } from "./ffmpeg-progress.ts";
 
 type Spawn = typeof nodeSpawn;
+
+const INPUT_PROTOCOLS = "http,https,tcp,tls,crypto";
 type StreamSource = Extract<Source, { kind: "hls" }>;
 
 export interface FfmpegDownloaderOptions {
@@ -72,6 +74,9 @@ export class FfmpegDownloader implements Downloader {
       "-nostats",
       "-progress",
       "pipe:1",
+      // Read the network only: no file:, no local playlists or keys.
+      "-protocol_whitelist",
+      INPUT_PROTOCOLS,
       "-user_agent",
       this.userAgent,
       ...(headers ? ["-headers", headers] : []),

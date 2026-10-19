@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Extraction } from "@orca/extractor-core";
 import {
   needsLicenseAck,
@@ -35,6 +35,9 @@ function sourceOf(episode: ExtractedEpisode): Source {
     ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
   };
 }
+
+/** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
+const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
 
 export function createUseCases(deps: Deps) {
   // One admin re-check per session at a time: a burst of requests shares the answer.
@@ -266,7 +269,7 @@ export function createUseCases(deps: Deps) {
       const sessionId = randomBytes(32).toString("base64url");
       await deps.sessions.deleteExpired(now);
       await deps.sessions.create({
-        id: sessionId,
+        id: hashSessionId(sessionId),
         userId: user.userId,
         userName: user.userName,
         createdAt: now,
@@ -277,11 +280,12 @@ export function createUseCases(deps: Deps) {
     },
 
     async logout(sessionId: string): Promise<void> {
-      await deps.sessions.delete(sessionId);
+      await deps.sessions.delete(hashSessionId(sessionId));
     },
 
     /** The user behind a session cookie, or null. Re-confirms they are still an administrator hourly. */
-    async resolveSession(sessionId: string): Promise<Me | null> {
+    async resolveSession(cookieValue: string): Promise<Me | null> {
+      const sessionId = hashSessionId(cookieValue);
       const session = await deps.sessions.find(sessionId);
       if (!session) return null;
       const now = deps.clock.now();

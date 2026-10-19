@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createApp } from "../src/infrastructure/web/app.ts";
+import { LoginRateLimiter } from "../src/infrastructure/web/rate-limit.ts";
 import { addBevhill, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -15,6 +16,7 @@ function build(webRoot?: string) {
     events: h.bus,
     secureCookies: false,
     sessionTtlMs: 7 * 24 * 3600 * 1000,
+    loginLimiter: new LoginRateLimiter({ now: () => h.clock.now() }),
     ...(webRoot ? { webRoot } : {}),
   });
 }
@@ -151,6 +153,28 @@ describe("auth", () => {
     ).toBe(401);
     h.clock.advance(8 * 24 * 3600 * 1000);
     expect((await get("/api/auth/me")).status).toBe(401);
+  });
+});
+
+describe("login rate limit", () => {
+  const login = (username: string, password: string) =>
+    app.request("/api/auth/login", json({ username, password }));
+
+  it("answers 429 with Retry-After after five wrong passwords, even for the right one", async () => {
+    for (let i = 0; i < 5; i++) expect((await login("sam", "wrong")).status).toBe(401);
+    const blocked = await login("sam", "secret");
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(await blocked.json()).toMatchObject({ error: "too_many_attempts" });
+    // Another account is still served.
+    h.authenticator.admins.set("ana", "pw");
+    expect((await login("ana", "pw")).status).toBe(200);
+  });
+
+  it("lets the user in again after the window", async () => {
+    for (let i = 0; i < 5; i++) await login("sam", "wrong");
+    h.clock.advance(15 * 60 * 1000 + 1000);
+    expect((await login("sam", "secret")).status).toBe(200);
   });
 });
 

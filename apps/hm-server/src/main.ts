@@ -9,11 +9,13 @@ import { createJobEvents } from "./application/job-events.ts";
 import { createJobHandler } from "./application/job-handler.ts";
 import { JobQueue } from "./application/queue.ts";
 import { createUseCases } from "./application/use-cases.ts";
+import { resolveDeviceId } from "./application/device-id.ts";
 import { loadConfig } from "./infrastructure/config.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "./infrastructure/db/job-repository.ts";
 import { DrizzleSeriesRepository } from "./infrastructure/db/series-repository.ts";
 import { DrizzleSessionRepository } from "./infrastructure/db/session-repository.ts";
+import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts";
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
@@ -45,15 +47,21 @@ const database = openDatabase({
   file: resolve(config.dbFile),
   migrationsFolder: resolve(appRoot, "drizzle"),
 });
+const deviceId = await resolveDeviceId({
+  settings: new DrizzleSettingsRepository(database.db),
+  override: config.deviceId,
+});
 const jellyfin = createJellyfin({
   clientInfo: { name: "Orca'H&M", version },
-  deviceInfo: { id: config.deviceId, name: hostname() },
+  deviceInfo: { id: deviceId, name: hostname() },
 });
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);
 
-const deps = {
+// The queue needs the use cases' handler and they need the queue to wake it: the two ports below
+// close over `queue`, which exists by the time anything calls them.
+const deps: Deps = {
   clock: systemClock,
   random: systemRandom,
   series,
@@ -87,7 +95,9 @@ const deps = {
   refreshDebounceMs: 60_000,
   sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
   adminRecheckMs: 60 * 60 * 1000,
-} as unknown as Deps;
+  queue: { notify: () => queue.notify() },
+  canceller: { cancel: (id) => queue.cancel(id) },
+};
 
 // --- queue and use cases
 const { queueEvents } = createJobEvents(deps);
@@ -99,8 +109,6 @@ const queue = new JobQueue({
   events: queueEvents,
   limits: config.concurrency,
 });
-deps.queue = queue;
-deps.canceller = queue;
 const useCases = createUseCases(deps);
 
 // --- http

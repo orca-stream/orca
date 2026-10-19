@@ -96,3 +96,9 @@ export const sessions = sqliteTable("sessions", {
   /** Last time the user was confirmed to still be an administrator. */
   checkedAt: integer("checked_at").notNull(),
 });
+
+/** Small key/value facts about this install, e.g. the device id Jellyfin sees. */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});

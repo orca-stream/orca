@@ -101,6 +101,11 @@ export interface SessionRepository {
   deleteExpired(now: number): Promise<void>;
 }
 
+export interface SettingsRepository {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+}
+
 export interface DownloadContext {
   signal: AbortSignal;
   /** `fraction` (0..1) is for downloads measured in media time, not bytes (ffmpeg). */
