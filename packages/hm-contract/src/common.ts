@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { licenseNeedsAck, type LicenseKind } from "@orca/extractor-core";
+import type { LicenseKind } from "@orca/extractor-core";
 
 export const ApiErrorBody = z.object({
   error: z.string(),
@@ -21,15 +21,3 @@ export const LICENSE_KINDS = [
   "unknown",
 ] as const satisfies readonly LicenseKind[];
 export const LicenseKindSchema = z.enum(LICENSE_KINDS);
-
-/**
- * Whether adding a series needs the "I have the right to download this" confirmation: an unknown
- * license, a show newer than 1977, or no year at all. The server re-checks it; the panel uses it to
- * decide whether to show the box.
- */
-export function needsLicenseAck(input: {
-  license: LicenseKind;
-  year: number | null | undefined;
-}): boolean {
-  return licenseNeedsAck(input.license, input.year ?? undefined);
-}

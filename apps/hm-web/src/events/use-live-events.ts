@@ -1,4 +1,4 @@
-import { HmEvent } from "@orca/hm-contract";
+import { HM_EVENT_TYPES, isHmEvent } from "@orca/hm-contract/rules";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { keys } from "../api/keys";
@@ -9,7 +9,7 @@ import { connectEvents, type EventSourceConstructor, type SseStatus } from "./ss
 
 export const EVENTS_URL = "/api/events";
 /** Each variant of the contract's event union is sent as an SSE event named by its `type`. */
-const EVENT_TYPES = HmEvent.options.map((option) => option.shape.type.value);
+const EVENT_TYPES = [...HM_EVENT_TYPES];
 
 function applyOp(queryClient: QueryClient, op: Op) {
   switch (op.type) {
@@ -80,15 +80,15 @@ export function useLiveEvents({ EventSource }: Options = {}): SseStatus {
         void queryClient.invalidateQueries({ queryKey: keys.series });
       },
       onEvent: (_type, data) => {
-        let parsed: ReturnType<typeof HmEvent.safeParse>;
+        let event: unknown;
         try {
-          parsed = HmEvent.safeParse(JSON.parse(data));
+          event = JSON.parse(data);
         } catch {
           return;
         }
-        if (!parsed.success) return;
-        for (const op of planEvent(parsed.data, lastSeq)) applyOp(queryClient, op);
-        lastSeq = parsed.data.seq;
+        if (!isHmEvent(event)) return;
+        for (const op of planEvent(event, lastSeq)) applyOp(queryClient, op);
+        lastSeq = event.seq;
       },
     });
     return () => connection.close();

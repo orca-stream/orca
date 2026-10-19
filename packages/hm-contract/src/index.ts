@@ -1,4 +1,4 @@
-export { ApiErrorBody, LICENSE_KINDS, LicenseKindSchema, needsLicenseAck, Page } from "./common.ts";
+export { ApiErrorBody, LICENSE_KINDS, LicenseKindSchema, Page } from "./common.ts";
 export { LoginBody, Me } from "./auth.ts";
 export { ExtractorDto } from "./extractors.ts";
 export {
@@ -16,3 +16,4 @@ export {
 } from "./series.ts";
 export { EnqueueBody, JobDto, JobKind, JobStatus, ListJobsQuery, ProgressDetail } from "./jobs.ts";
 export { HmEvent } from "./events.ts";
+export { HM_EVENT_TYPES, isHmEvent, needsLicenseAck } from "./rules.ts";

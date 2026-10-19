@@ -5,11 +5,12 @@ import {
   HmEvent,
   ListJobsQuery,
   LoginBody,
-  needsLicenseAck,
   Page,
   SeriesPatch,
 } from "./index.ts";
 import * as z from "zod";
+import { readFileSync } from "node:fs";
+import { HM_EVENT_TYPES, isHmEvent, needsLicenseAck } from "./rules.ts";
 
 describe("needsLicenseAck", () => {
   it.each([
@@ -107,5 +108,71 @@ describe("Page and errors", () => {
     expect(
       ApiErrorBody.parse({ error: "bad_request", issues: [{ path: "url", message: "x" }] }),
     ).toBeTruthy();
+  });
+});
+
+describe("the rules module", () => {
+  it("is exported on its own and still re-exported by the main entry", async () => {
+    const main = await import("./index.ts");
+    expect(main.needsLicenseAck).toBe(needsLicenseAck);
+  });
+
+  it("imports nothing from zod, so the panel can use it without the schemas", () => {
+    const source = readFileSync(new URL("./rules.ts", import.meta.url), "utf8");
+    expect(source).not.toMatch(/from\s+["']zod["']/);
+    // Relative imports are fine only as `import type`, which is erased.
+    expect(source).not.toMatch(/^import\s+(?!type\b)[^;]*from\s+["']\./m);
+  });
+
+  it("lists the same event types as the HmEvent schema", () => {
+    expect([...HM_EVENT_TYPES].sort()).toEqual(
+      HmEvent.options.map((option) => option.shape.type.value).sort(),
+    );
+  });
+});
+
+describe("isHmEvent", () => {
+  const job = {
+    id: "j1",
+    kind: "download_episode",
+    status: "running",
+    seriesId: "s1",
+    seriesTitle: "S",
+    episodeId: "e1",
+    episodeCode: "S01E01",
+    progress: 0.5,
+    progressDetail: null,
+    attempts: 1,
+    maxAttempts: 5,
+    lastError: null,
+    errorKind: null,
+    runAfter: 0,
+    createdAt: 0,
+    startedAt: 0,
+    finishedAt: null,
+  };
+  const valid = [
+    { type: "job.updated", seq: 1, job },
+    { type: "job.progress", seq: 2, jobId: "j1", progress: 0.5, detail: null },
+    { type: "series.updated", seq: 3, seriesId: "s1" },
+  ];
+
+  it.each(valid)("accepts what the schema accepts: $type", (event) => {
+    expect(HmEvent.safeParse(event).success).toBe(true);
+    expect(isHmEvent(event)).toBe(true);
+  });
+
+  it.each([
+    null,
+    "job.updated",
+    {},
+    { type: "nope", seq: 1 },
+    { type: "series.updated", seq: "1", seriesId: "s1" },
+    { type: "series.updated", seq: 1 },
+    { type: "job.updated", seq: 1, job: null },
+    { type: "job.updated", seq: 1, job: { id: 3 } },
+    { type: "job.progress", seq: 1, jobId: "j1", progress: "x", detail: null },
+  ])("rejects %j", (event) => {
+    expect(isHmEvent(event)).toBe(false);
   });
 });

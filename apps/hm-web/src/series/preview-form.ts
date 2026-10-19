@@ -1,10 +1,5 @@
-import {
-  needsLicenseAck,
-  type CreateSeriesBody,
-  type ExtractorDto,
-  type PreviewDto,
-  type PreviewWarning,
-} from "@orca/hm-contract";
+import { needsLicenseAck } from "@orca/hm-contract/rules";
+import type { CreateSeriesBody, ExtractorDto, PreviewDto, PreviewWarning } from "@orca/hm-contract";
 
 /** What the person edits in the preview before adding the series. The year stays text while typed. */
 export interface PreviewForm {
