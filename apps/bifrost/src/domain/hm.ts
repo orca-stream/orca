@@ -72,11 +72,12 @@ export function hmService(cfg: Config, rt: HmRuntime): Record<string, unknown> {
     depends_on: { [JELLYFIN_SERVICE]: { condition: "service_started" } },
     restart: "unless-stopped",
     healthcheck: {
+      // On the host network H&M binds only to the LAN address (HOST), so loopback never answers.
       test: [
         "CMD",
         "node",
         "-e",
-        `fetch('http://127.0.0.1:${hm.port}/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))`,
+        `fetch('http://${cfg.host.address}:${hm.port}/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))`,
       ],
       interval: "30s",
       timeout: "5s",

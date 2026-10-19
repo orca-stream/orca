@@ -41,7 +41,9 @@ describe("compose with hm", () => {
     });
     expect(s).not.toHaveProperty("ports");
     expect(s).not.toHaveProperty("init");
-    expect(s.healthcheck.test.join(" ")).toContain("127.0.0.1:8787/health");
+    // H&M listens on the LAN address only (HOST), so loopback would never answer.
+    expect(s.healthcheck.test.join(" ")).toContain("http://192.168.1.10:8787/health");
+    expect(s.healthcheck.test.join(" ")).not.toContain("127.0.0.1");
   });
 
   it("uses host networking, publishes nothing and never mentions 0.0.0.0", () => {
@@ -57,7 +59,7 @@ describe("compose with hm", () => {
   it("uses the configured host port in the healthcheck", () => {
     const cfg = exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", port: 9000 }));
     const s = parse(renderCompose(cfg, ids, hm)).services["orca-hm"];
-    expect(s.healthcheck.test.join(" ")).toContain("127.0.0.1:9000/health");
+    expect(s.healthcheck.test.join(" ")).toContain("http://192.168.1.10:9000/health");
   });
 
   it("maps the media dir through a disk mount to the same path in both containers", () => {

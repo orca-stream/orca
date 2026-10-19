@@ -381,7 +381,7 @@ VOLUME ["/data", "/media"]
 # Image layout, not host settings:
 ENV DB_FILE=/data/hm.sqlite MEDIA_ROOT=/media/tv HOST=0.0.0.0 PORT=8787
 EXPOSE 8787
-HEALTHCHECK CMD node -e "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+HEALTHCHECK CMD node -e "const h=process.env.HOST;fetch('http://'+(h==='0.0.0.0'?'127.0.0.1':h)+':'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 ENTRYPOINT ["tini","--"]
 CMD ["node","dist/main.mjs"]
 ```
