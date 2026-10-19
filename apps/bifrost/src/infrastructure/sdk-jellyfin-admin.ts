@@ -9,7 +9,8 @@ import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api.js";
 import { getPluginApi } from "@jellyfin/sdk/lib/utils/api/plugin-api.js";
 import { getStartupApi } from "@jellyfin/sdk/lib/utils/api/startup-api.js";
 import { getSystemApi } from "@jellyfin/sdk/lib/utils/api/system-api.js";
-import type { AxiosInstance } from "axios";
+import { isAxiosError, type AxiosInstance } from "axios";
+import { BifrostError } from "../domain/errors.ts";
 import type { JellyfinAdmin, WizardInput } from "../application/ports/jellyfin-admin.ts";
 import type { LibraryType } from "../domain/config.ts";
 import type {
@@ -41,6 +42,9 @@ export class SdkJellyfinAdmin implements JellyfinAdmin {
 
   constructor(opts: SdkJellyfinAdminOptions) {
     this.api = this.jellyfin.createApi(opts.url, opts.token, opts.axios);
+    this.api.axiosInstance.interceptors.response.use(undefined, (e: unknown) =>
+      Promise.reject(translateError(e, opts.url)),
+    );
   }
 
   async publicInfo(): Promise<PublicInfo> {
@@ -250,4 +254,24 @@ export class SdkJellyfinAdmin implements JellyfinAdmin {
       backupRestoreRequestDto: { ArchiveFileName: archiveFileName },
     });
   }
+}
+
+/** SDK and axios failures become messages for the person at the terminal, not stack traces. */
+function translateError(e: unknown, baseUrl: string): unknown {
+  if (!isAxiosError(e)) return e;
+  const path = (() => {
+    try {
+      return new URL(e.config?.url ?? "", baseUrl).pathname;
+    } catch {
+      return e.config?.url ?? "";
+    }
+  })();
+  const call = `${(e.config?.method ?? "get").toUpperCase()} ${path}`;
+  if (e.response) {
+    const hint = e.response.status === 401 ? " (is the API key valid? run `bifrost init`)" : "";
+    return new BifrostError(
+      `Jellyfin ${call} failed: ${e.response.status} ${e.response.statusText}${hint}`,
+    );
+  }
+  return new BifrostError(`Cannot reach Jellyfin at ${baseUrl} (${call}: ${e.code ?? e.message})`);
 }

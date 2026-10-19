@@ -38,4 +38,13 @@ describe("EnvFileSecretStore", () => {
     expect(readFileSync(file, "utf8")).toBe('# keep me\nTOKEN="new value"\nOTHER=1\nADDED=x\n');
     expect(await store.get("TOKEN")).toBe("new value");
   });
+
+  it("drops trailing comments from unquoted values but keeps # inside quotes", async () => {
+    const file = join(dir(), ".env");
+    writeFileSync(file, 'A=1 # the number\nB="x # y" # note\nC=a#b\n');
+    const store = new EnvFileSecretStore(file, {});
+    expect(await store.get("A")).toBe("1");
+    expect(await store.get("B")).toBe("x # y");
+    expect(await store.get("C")).toBe("a#b");
+  });
 });

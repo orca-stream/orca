@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { BifrostError } from "../src/domain/errors.ts";
 import { SdkJellyfinAdmin } from "../src/infrastructure/sdk-jellyfin-admin.ts";
 import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
 
@@ -109,5 +110,21 @@ describe("SdkJellyfinAdmin", () => {
     expect(server.find("post", "/Backup/Restore")[0]?.body).toEqual({
       ArchiveFileName: "jellyfin-backup-1.zip",
     });
+  });
+
+  it("turns HTTP failures into a BifrostError that names the call", async () => {
+    const { admin, server } = setup("key");
+    server.validToken = "other";
+    const err = await admin.getRepositories().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BifrostError);
+    expect((err as Error).message).toMatch(/GET \/Repositories.*401/);
+  });
+
+  it("turns an unreachable server into a BifrostError", async () => {
+    const { admin, server } = setup();
+    server.downPolls = 1;
+    const err = await admin.publicInfo().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BifrostError);
+    expect((err as Error).message).toMatch(/cannot reach/i);
   });
 });

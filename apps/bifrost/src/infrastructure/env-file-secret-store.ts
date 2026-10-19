@@ -4,14 +4,22 @@ import type { SecretStore } from "../application/ports/secret-store.ts";
 function parseValue(raw: string): string {
   const v = raw.trim();
   if (v.startsWith('"')) {
-    try {
-      return JSON.parse(v) as string;
-    } catch {
-      return v.slice(1, -1);
+    // A double-quoted value ends at its closing quote; anything after it is a comment.
+    const m = /^"((?:[^"\\]|\\.)*)"/.exec(v);
+    if (m) {
+      try {
+        return JSON.parse(m[0]) as string;
+      } catch {
+        return m[1]!;
+      }
     }
+    return v.slice(1, -1);
   }
-  if (v.startsWith("'") && v.endsWith("'") && v.length >= 2) return v.slice(1, -1);
-  return v;
+  if (v.startsWith("'")) {
+    const end = v.indexOf("'", 1);
+    return end > 0 ? v.slice(1, end) : v.slice(1);
+  }
+  return v.replace(/\s+#.*$/, "");
 }
 
 function parseLine(line: string): [string, string] | undefined {
