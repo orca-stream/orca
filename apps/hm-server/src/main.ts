@@ -6,7 +6,7 @@ import type { SiteExtractor } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createJellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
-import { PlaywrightStreamDetector } from "@orca/stream-detector";
+import { GuardedProxy, PlaywrightStreamDetector } from "@orca/stream-detector";
 import type { Deps } from "./application/deps.ts";
 import { createJobEvents } from "./application/job-events.ts";
 import { createJobHandler } from "./application/job-handler.ts";
@@ -25,7 +25,7 @@ import { DrizzleSessionRepository } from "./infrastructure/db/session-repository
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts";
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
-import { AddressGuard } from "./infrastructure/net/address-guard.ts";
+import { AddressGuard, isBlockedAddress } from "./infrastructure/net/address-guard.ts";
 import { GenericPageExtractor } from "./infrastructure/generic-page-extractor.ts";
 import { PlaywrightDetectorAdapter } from "./infrastructure/playwright-detector-adapter.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
@@ -86,22 +86,31 @@ const limiter = new HostLimiter({
 extractors.push(
   createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent, limiter }) }),
 );
+// Everything the browser and ffmpeg fetch goes through this proxy, which checks each address it is
+// asked for (redirects, segments and keys included) and connects to the IP it checked.
+const proxy = config.detector ? new GuardedProxy({ isBlockedAddress }) : null;
+await proxy?.start();
+
 // The browser exists only when HM_GENERIC_DETECTOR is on, and so does the extractor that needs it.
-const detector = config.detector
-  ? new PlaywrightDetectorAdapter(
-      new PlaywrightStreamDetector({
-        maxConcurrent: config.detector.maxConcurrent,
-        timeoutMs: config.detector.timeoutMs,
-        settleMs: config.detector.settleMs,
-        isAllowed: (url) => guard.isAllowed(url),
-        ...(config.detector.userAgent ? { userAgent: config.detector.userAgent } : {}),
-        launchOptions: {
-          ...(config.detector.chromiumPath ? { executablePath: config.detector.chromiumPath } : {}),
-          ...(config.detector.noSandbox ? { args: ["--no-sandbox"] } : {}),
-        },
-      }),
-    )
-  : null;
+const detector =
+  config.detector && proxy
+    ? new PlaywrightDetectorAdapter(
+        new PlaywrightStreamDetector({
+          maxConcurrent: config.detector.maxConcurrent,
+          timeoutMs: config.detector.timeoutMs,
+          settleMs: config.detector.settleMs,
+          isAllowed: (url) => guard.isAllowed(url),
+          proxyUrl: proxy.url,
+          ...(config.detector.userAgent ? { userAgent: config.detector.userAgent } : {}),
+          launchOptions: {
+            ...(config.detector.chromiumPath
+              ? { executablePath: config.detector.chromiumPath }
+              : {}),
+            ...(config.detector.noSandbox ? { args: ["--no-sandbox"] } : {}),
+          },
+        }),
+      )
+    : null;
 if (detector) extractors.push(new GenericPageExtractor({ guard }));
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
@@ -137,7 +146,11 @@ const deps: Deps = {
     new FfmpegDownloader({
       userAgent: agent,
       guard,
-      inspector: new FfprobeInspector({ timeoutMs: PROBE_TIMEOUT_MS }),
+      ...(proxy ? { httpProxy: proxy.url } : {}),
+      inspector: new FfprobeInspector({
+        timeoutMs: PROBE_TIMEOUT_MS,
+        ...(proxy ? { httpProxy: proxy.url } : {}),
+      }),
       externalSubtitles: config.externalSubtitles,
     }),
   ],
@@ -200,6 +213,7 @@ async function shutdown(signal: string): Promise<void> {
   // A tick still running would write to a database that is about to close.
   await scheduler.stop();
   await detector?.dispose();
+  await proxy?.close();
   database.close();
   process.exit(0);
 }

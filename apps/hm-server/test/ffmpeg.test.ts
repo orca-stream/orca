@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { FfprobeInspector, MediaProbeError, type ProbeResult } from "@orca/media-probe";
+import { GuardedProxy } from "@orca/stream-detector";
 import { describe, expect, it } from "vite-plus/test";
 import { AbortedError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import {
@@ -369,6 +370,37 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     });
   });
 
+  it("runs ffmpeg through the guarded proxy, with the protocol it needs to reach it", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        httpProxy: "http://127.0.0.1:4040",
+      });
+      await downloader.download(hls, join(dir, "out.mkv"), context());
+      const args = runs[0]!;
+      expect(args[args.indexOf("-http_proxy") + 1]).toBe("http://127.0.0.1:4040");
+      expect(args.indexOf("-http_proxy")).toBeLessThan(args.indexOf("-i"));
+      expect(args[args.indexOf("-protocol_whitelist") + 1]).toBe(
+        "http,https,tcp,tls,crypto,httpproxy",
+      );
+    });
+  });
+
+  it("runs ffmpeg without a proxy flag when there is no proxy", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      await new FfmpegDownloader({ guard: allowAll, userAgent: "x", spawn }).download(
+        hls,
+        join(dir, "out.mkv"),
+        context(),
+      );
+      expect(runs[0]).not.toContain("-http_proxy");
+    });
+  });
+
   it("refuses a stream address the guard refuses, before probing or running anything", async () => {
     await withDir(async (dir) => {
       const inspector = fakeInspector(probeFixture("mp4-single-audio"));
@@ -669,6 +701,128 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
         expect(tracks(out)).toEqual(["video:", "audio:eng", "audio:spa"]);
         expect(result.sidecars?.map((s) => s.language)).toEqual(["eng", "spa"]);
         expect(await readFile(result.sidecars![1]!.path, "utf8")).toContain("Hola");
+      });
+    });
+  },
+);
+
+describe.skipIf(!hasFfmpeg || !hasFfprobe)(
+  "ffmpeg and ffprobe behind the guarded proxy (opt-in: needs both, and 127.0.0.2)",
+  () => {
+    const PUBLIC = "127.0.0.2";
+    const PRIVATE = "127.0.0.1";
+
+    async function withSites(
+      run: (sites: {
+        publicUrl: string;
+        redirectUrl: string;
+        privateUrl: string;
+        privateHits: string[];
+        proxy: GuardedProxy;
+        dir: string;
+      }) => Promise<void>,
+    ) {
+      const dir = await mkdtemp(join(tmpdir(), "hm-ff-proxy-"));
+      const made = spawnSync("ffmpeg", [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=2:size=64x64:rate=10",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=2",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        join(dir, "clip.mkv"),
+      ]);
+      expect(made.status).toBe(0);
+      const file = await readFile(join(dir, "clip.mkv"));
+      const privateHits: string[] = [];
+      const serve = (onRequest?: (url: string) => string | null) =>
+        createServer((req, res) => {
+          const redirect = onRequest?.(req.url ?? "/");
+          if (redirect) res.writeHead(302, { location: redirect }).end();
+          else res.writeHead(200, { "content-length": file.length }).end(file);
+        });
+      const privateServer = createServer((req, res) => {
+        privateHits.push(req.url ?? "/");
+        res.writeHead(200, { "content-length": file.length }).end(file);
+      });
+      await new Promise<void>((resolve) => privateServer.listen(0, PRIVATE, resolve));
+      const privatePort = (privateServer.address() as AddressInfo).port;
+      const publicServer = serve((url) =>
+        url.startsWith("/bounce") ? `http://${PRIVATE}:${privatePort}/clip.mkv` : null,
+      );
+      await new Promise<void>((resolve) => publicServer.listen(0, PUBLIC, resolve));
+      const publicPort = (publicServer.address() as AddressInfo).port;
+      const proxy = new GuardedProxy({ isBlockedAddress: (address) => address !== PUBLIC });
+      await proxy.start();
+      try {
+        await run({
+          publicUrl: `http://${PUBLIC}:${publicPort}/clip.mkv`,
+          redirectUrl: `http://${PUBLIC}:${publicPort}/bounce`,
+          privateUrl: `http://${PRIVATE}:${privatePort}/clip.mkv`,
+          privateHits,
+          proxy,
+          dir,
+        });
+      } finally {
+        await proxy.close();
+        publicServer.close();
+        privateServer.close();
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    const downloaderFor = (proxy: GuardedProxy) =>
+      new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "OrcaHM/test",
+        httpProxy: proxy.url,
+        inspector: new FfprobeInspector({ httpProxy: proxy.url, timeoutMs: 30_000 }),
+      });
+
+    it("reads a stream on an allowed address", async () => {
+      await withSites(async ({ publicUrl, proxy, dir }) => {
+        const out = join(dir, "out.mkv");
+        const result = await downloaderFor(proxy).download(
+          { kind: "hls", url: publicUrl },
+          out,
+          context(),
+        );
+        expect(result.bytes).toBeGreaterThan(0);
+      });
+    });
+
+    it("never reaches a private address named directly", async () => {
+      await withSites(async ({ privateUrl, privateHits, proxy, dir }) => {
+        await expect(
+          downloaderFor(proxy).download(
+            { kind: "hls", url: privateUrl },
+            join(dir, "o.mkv"),
+            context(),
+          ),
+        ).rejects.toThrow();
+        expect(privateHits).toEqual([]);
+      });
+    });
+
+    it("never follows ffmpeg's own redirect from an allowed address to a private one", async () => {
+      await withSites(async ({ redirectUrl, privateHits, proxy, dir }) => {
+        await expect(
+          downloaderFor(proxy).download(
+            { kind: "hls", url: redirectUrl },
+            join(dir, "o.mkv"),
+            context(),
+          ),
+        ).rejects.toThrow();
+        expect(privateHits).toEqual([]);
       });
     });
   },

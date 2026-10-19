@@ -32,6 +32,11 @@ export interface FfmpegDownloaderOptions {
   spawn?: Spawn;
   /** Looks inside a stream before copying it, to keep only the wanted tracks. Absent: ffmpeg's own pick. */
   inspector?: Pick<StreamInspector, "inspect">;
+  /**
+   * The guarded proxy (`http://127.0.0.1:port`) ffmpeg fetches through: the playlist, every segment
+   * and key it lists, and its own redirects are then checked like any other request.
+   */
+  httpProxy?: string;
   /** Write text subtitles as files beside the video (`Show S01E01.es.srt`) instead of inside it. */
   externalSubtitles?: boolean;
 }
@@ -88,6 +93,7 @@ const withoutExtension = (path: string) => path.slice(0, path.length - extname(p
 export class FfmpegDownloader implements Downloader {
   private readonly userAgent: string;
   private readonly guard: UrlGuard;
+  private readonly httpProxy: string | undefined;
   private readonly ffmpegPath: string;
   private readonly spawn: Spawn;
   private readonly inspector: Pick<StreamInspector, "inspect"> | undefined;
@@ -96,6 +102,7 @@ export class FfmpegDownloader implements Downloader {
   constructor(options: FfmpegDownloaderOptions) {
     this.userAgent = options.userAgent;
     this.guard = options.guard;
+    this.httpProxy = options.httpProxy;
     this.ffmpegPath = options.ffmpegPath ?? "ffmpeg";
     this.spawn = options.spawn ?? nodeSpawn;
     this.inspector = options.inspector;
@@ -245,7 +252,9 @@ export class FfmpegDownloader implements Downloader {
       "pipe:1",
       // Read the network only: no file:, no local playlists or keys.
       "-protocol_whitelist",
-      INPUT_PROTOCOLS,
+      // Reaching the proxy is a protocol of its own in ffmpeg.
+      this.httpProxy === undefined ? INPUT_PROTOCOLS : `${INPUT_PROTOCOLS},httpproxy`,
+      ...(this.httpProxy === undefined ? [] : ["-http_proxy", this.httpProxy]),
       "-user_agent",
       this.userAgent,
       ...(headers ? ["-headers", headers] : []),

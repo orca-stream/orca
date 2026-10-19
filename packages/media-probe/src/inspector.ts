@@ -20,6 +20,7 @@ export function buildFfprobeArgs(
   url: string,
   headers: Record<string, string>,
   protocolWhitelist: string,
+  httpProxy?: string,
 ): string[] {
   const entries = Object.entries(headers);
   for (const [name, value] of entries) {
@@ -35,7 +36,9 @@ export function buildFfprobeArgs(
     "-v",
     "error",
     "-protocol_whitelist",
-    protocolWhitelist,
+    // Reaching the proxy is its own protocol in ffmpeg.
+    httpProxy === undefined ? protocolWhitelist : `${protocolWhitelist},httpproxy`,
+    ...(httpProxy === undefined ? [] : ["-http_proxy", httpProxy]),
     ...headerArgs,
     "-show_programs",
     "-show_streams",
@@ -50,6 +53,8 @@ export type RunFfprobe = (args: string[], signal: AbortSignal) => Promise<{ stdo
 export interface FfprobeInspectorOptions {
   ffprobePath?: string;
   protocolWhitelist?: string;
+  /** Fetch everything through this HTTP proxy (`http://host:port`), redirects and segments included. */
+  httpProxy?: string;
   /** Kill ffprobe after this long. Absent: only the caller's signal stops it. */
   timeoutMs?: number;
   /** Replaces the process spawn. Meant for tests. */
@@ -59,12 +64,14 @@ export interface FfprobeInspectorOptions {
 export class FfprobeInspector implements StreamInspector {
   private readonly ffprobePath: string;
   private readonly protocolWhitelist: string;
+  private readonly httpProxy: string | undefined;
   private readonly timeoutMs: number | undefined;
   private readonly run: RunFfprobe;
 
   constructor(options: FfprobeInspectorOptions = {}) {
     this.ffprobePath = options.ffprobePath ?? FFPROBE_COMMAND;
     this.protocolWhitelist = options.protocolWhitelist ?? DEFAULT_PROTOCOL_WHITELIST;
+    this.httpProxy = options.httpProxy;
     this.timeoutMs = options.timeoutMs;
     this.run = options.run ?? ((args, signal) => this.spawnFfprobe(args, signal));
   }
@@ -74,7 +81,12 @@ export class FfprobeInspector implements StreamInspector {
     options: { signal: AbortSignal; headers?: Record<string, string> },
   ): Promise<ProbeResult> {
     if (options.signal.aborted) throw new MediaProbeError("aborted", "Inspection aborted");
-    const args = buildFfprobeArgs(url, options.headers ?? {}, this.protocolWhitelist);
+    const args = buildFfprobeArgs(
+      url,
+      options.headers ?? {},
+      this.protocolWhitelist,
+      this.httpProxy,
+    );
     const timeout = this.timeoutMs === undefined ? undefined : AbortSignal.timeout(this.timeoutMs);
     const signal = timeout ? AbortSignal.any([options.signal, timeout]) : options.signal;
 
