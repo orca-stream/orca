@@ -109,7 +109,7 @@ const LOCAL_SCHEMES = new Set(["data:", "blob:", "about:"]);
  * Keeps server-side fetches (the headless browser, ffmpeg, ffprobe, the downloader) away from this
  * machine and its network: only http(s) addresses whose every resolved IP is public. The check and
  * the later connection resolve the name separately, so DNS rebinding can still slip through: see
- * "Residual risks" in docs/hm-server-design.md.
+ * "What the generic detector can reach" in docs/hm-server-design.md.
  */
 export class AddressGuard {
   private readonly resolve: (host: string) => Promise<string[]>;

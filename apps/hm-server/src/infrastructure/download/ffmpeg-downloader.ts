@@ -26,7 +26,7 @@ type StreamSource = Extract<Source, { kind: "hls" }>;
 
 export interface FfmpegDownloaderOptions {
   userAgent: string;
-  /** Checks the manifest address. The segments it lists are out of reach: see docs "Residual risks". */
+  /** Checks the manifest address. The segments it lists are covered by `httpProxy`, not by this. */
   guard: UrlGuard;
   ffmpegPath?: string;
   spawn?: Spawn;
