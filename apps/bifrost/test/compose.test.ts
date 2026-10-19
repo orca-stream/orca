@@ -21,6 +21,18 @@ describe("renderCompose", () => {
     expect(svc.environment.JELLYFIN_PublishedServerUrl).toBe("http://192.168.1.10:8096");
   });
 
+  it("publishes the configured ports and maps the configured render device", () => {
+    const svc = compose((r) => {
+      r.jellyfin.port = 9096;
+      r.jellyfin.discoveryPort = 7360;
+      r.host.renderDevice = "/dev/dri/renderD129";
+    });
+    // The container side stays 8096 and 7359: those are Jellyfin's own ports.
+    expect(svc.ports).toEqual(["192.168.1.10:9096:8096/tcp", "192.168.1.10:7360:7359/udp"]);
+    expect(svc.devices).toEqual(["/dev/dri/renderD129:/dev/dri/renderD129"]);
+    expect(svc.healthcheck.test).toContain("http://localhost:8096/health");
+  });
+
   it("never publishes a port on 0.0.0.0 or on every interface", () => {
     const ports: string[] = compose().ports;
     expect(ports).toEqual(["192.168.1.10:8096:8096/tcp", "192.168.1.10:7359:7359/udp"]);

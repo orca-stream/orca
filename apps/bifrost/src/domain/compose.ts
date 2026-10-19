@@ -6,12 +6,14 @@ export interface ComposeIds {
   /** uid and gid of the dedicated `jellyfin` system user on the host. */
   uid: number;
   gid: number;
-  /** GID of the host's `render` group, so the container can open /dev/dri/renderD128. */
+  /** GID of the host's `render` group, so the container can open the render device. */
   renderGid: number;
 }
 
 export const COMPOSE_FILE = "compose.yaml";
-const RENDER_NODE = "/dev/dri/renderD128";
+/** The ports Jellyfin listens on inside its container; only the host side is configurable. */
+export const JELLYFIN_CONTAINER_HTTP_PORT = 8096;
+export const JELLYFIN_CONTAINER_DISCOVERY_PORT = 7359;
 
 /** The media directory when no disk is configured: part of the data dir, owned by root, read-only to Jellyfin. */
 export function mediaRoot(host: Config["host"]): string {
@@ -37,17 +39,27 @@ export function renderCompose(cfg: Config, ids: ComposeIds): string {
         container_name: "jellyfin",
         user: `${ids.uid}:${ids.gid}`,
         group_add: [String(ids.renderGid)],
-        devices: [`${RENDER_NODE}:${RENDER_NODE}`],
+        devices: [`${host.renderDevice}:${host.renderDevice}`],
         volumes: [
           `${host.dataDir}/config:/config`,
           `${host.dataDir}/cache:/cache`,
           ...media.map((m) => `${m.source}:${m.target}${m.readOnly ? ":ro" : ""}`),
         ],
-        ports: [`${host.address}:8096:8096/tcp`, `${host.address}:7359:7359/udp`],
+        ports: [
+          `${host.address}:${jellyfin.port}:${JELLYFIN_CONTAINER_HTTP_PORT}/tcp`,
+          `${host.address}:${jellyfin.discoveryPort}:${JELLYFIN_CONTAINER_DISCOVERY_PORT}/udp`,
+        ],
         environment: { JELLYFIN_PublishedServerUrl: jellyfin.url },
         restart: "unless-stopped",
         healthcheck: {
-          test: ["CMD", "curl", "--noproxy", "localhost", "-fsS", "http://localhost:8096/health"],
+          test: [
+            "CMD",
+            "curl",
+            "--noproxy",
+            "localhost",
+            "-fsS",
+            `http://localhost:${JELLYFIN_CONTAINER_HTTP_PORT}/health`,
+          ],
           interval: "30s",
           timeout: "10s",
           retries: 3,

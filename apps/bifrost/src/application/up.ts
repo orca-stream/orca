@@ -12,8 +12,8 @@ export interface UpDeps {
   log: (line: string) => void;
 }
 
-const VAINFO =
-  "docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128";
+const vainfoCommand = (renderDevice: string): string =>
+  `docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device ${renderDevice}`;
 
 async function readNumber(remote: RemoteHost, script: string): Promise<number | undefined> {
   const res = await remote.exec(script, { readOnly: true });
@@ -92,7 +92,10 @@ export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): 
   log("Waiting for the container to become healthy...");
   await waitHealthy(remote, clock);
 
-  const vainfo = await remote.exec(VAINFO, { sudo: true, readOnly: true });
+  const vainfo = await remote.exec(vainfoCommand(host.renderDevice), {
+    sudo: true,
+    readOnly: true,
+  });
   if (vainfo.code !== 0) {
     throw new BifrostError(
       `VA-API check failed inside the container (hardware transcoding will not work):\n${(vainfo.stderr || vainfo.stdout).trim()}`,

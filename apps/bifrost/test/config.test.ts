@@ -22,6 +22,39 @@ describe("parseConfig", () => {
     expect(cfg.jellyfin.apiKeySecret).toBe("JELLYFIN_API_KEY");
   });
 
+  it("defaults the published ports and the render device, and lets the config change them", () => {
+    const defaults = parseConfig(structuredClone(example));
+    expect(defaults.jellyfin.port).toBe(8096);
+    expect(defaults.jellyfin.discoveryPort).toBe(7359);
+    expect(defaults.host.renderDevice).toBe("/dev/dri/renderD128");
+
+    const custom = structuredClone(example);
+    custom.jellyfin.port = 9096;
+    custom.jellyfin.discoveryPort = 7360;
+    custom.host.renderDevice = "/dev/dri/renderD129";
+    const cfg = parseConfig(custom);
+    expect([cfg.jellyfin.port, cfg.jellyfin.discoveryPort, cfg.host.renderDevice]).toEqual([
+      9096,
+      7360,
+      "/dev/dri/renderD129",
+    ]);
+  });
+
+  it("rejects ports out of range and a render device that is not a /dev path", () => {
+    for (const patch of [
+      (c: any) => (c.jellyfin.port = 0),
+      (c: any) => (c.jellyfin.port = 70000),
+      (c: any) => (c.jellyfin.discoveryPort = 1.5),
+      (c: any) => (c.host.renderDevice = "renderD128"),
+      (c: any) => (c.host.renderDevice = "/dev/dri/x; rm -rf /"),
+      (c: any) => (c.host.renderDevice = "/etc/passwd"),
+    ]) {
+      const bad = structuredClone(example);
+      patch(bad);
+      expect(() => parseConfig(bad)).toThrow(ConfigError);
+    }
+  });
+
   it("rejects unknown keys with a readable path", () => {
     const bad = structuredClone(example);
     bad.host.adress = "x";

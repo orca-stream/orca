@@ -61,6 +61,18 @@ describe("up", () => {
     expect(clock.sleeps.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("checks VA-API on the configured render device", async () => {
+    const remote = new FakeRemoteHost({ answers: hostAnswers() });
+    const { promise } = run(remote, {
+      patch: (r) => (r.host.renderDevice = "/dev/dri/renderD129"),
+    });
+    await promise;
+    const vainfo = remote.calls.map((c) => c.cmd).find((c) => c.includes("vainfo"));
+    expect(vainfo).toBe(
+      "docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD129",
+    );
+  });
+
   it("does not rewrite an identical compose file", async () => {
     const same = renderCompose(exampleConfig(), { uid: 998, gid: 998, renderGid: 991 });
     const remote = new FakeRemoteHost({

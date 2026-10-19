@@ -8,6 +8,7 @@ host:
   sshUser: user
   lanCidr: 192.168.1.0/24
   renderGid: 991 # fallback; `up` reads the real GID of the `render` group from the host
+  renderDevice: /dev/dri/renderD128 # the GPU render node passed to the container (this is the default)
   dataDir: /srv/jellyfin
   # Only used with `bifrost host prepare <host> --with-disk`, once the disk is connected.
   # mediaDisk: { uuid: 00000000-0000-0000-0000-000000000000, mount: /mnt/media }
@@ -15,6 +16,8 @@ host:
 jellyfin:
   image: jellyfin/jellyfin:12.2.20261005-225228 # dated tags are immutable; there is no 12.2.0 tag
   url: http://192.168.1.10:8096
+  port: 8096 # host port the UI/API are published on (default; the container side stays 8096)
+  discoveryPort: 7359 # host UDP port for client discovery (default)
   server: { name: Orca, uiCulture: es-MX, metadataLanguage: es-419, metadataCountry: HN }
   admin: { username: admin, passwordSecret: JELLYFIN_ADMIN_PASSWORD }
   apiKeySecret: JELLYFIN_API_KEY # filled in by `bifrost init`
