@@ -25,10 +25,7 @@ describe("DrizzleJobRepository", () => {
     // Queued and running both count.
     expect(await jobs.claim("download", "w", 1000)).toMatchObject({ id: first.job.id });
     let counts = await jobs.countActiveDownloads();
-    expect([...counts.entries()].sort()).toEqual([
-      ["a", 3],
-      ["b", 1],
-    ]);
+    expect(Object.fromEntries(counts)).toEqual({ a: 3, b: 1 });
 
     // Settled ones don't.
     await jobs.complete(first.job.id, "w");
