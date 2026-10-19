@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "identifier": "S2E13FATHERIMAGE",
+    "mediatype": "movies",
+    "collection": ["onestepbeyondcomplete", "classic_tv", "television"],
+    "description": "<p class=\"MsoNormal\">Following the death of his father, young lawyer Dan Gardner\ndiscovers that his father had bought an old vaudeville theatre which has been\nshut down for many years. Unable to work out his father's interest in the\nbuilding, he travels back in time to discover a romantic secret from the old\nman's past.</p>",
+    "scanner": "Internet Archive HTML5 Uploader 1.6.3",
+    "subject": ["One Step Beyond", "classic TV"],
+    "title": "One Step Beyond S2 E13 FATHER IMAGE",
+    "publicdate": "2018-04-19 00:18:42",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-04-19 00:18:42",
+    "curation": "[curator]validator@archive.org[/curator][date]20180419001952[/date][comment]checked for malware[/comment]",
+    "backup_location": "ia906703_18"
+  },
+  "item_last_updated": 1781112672,
+  "files": [
+    {
+      "name": "S2E13 - FATHER IMAGE.mp4",
+      "source": "original",
+      "mtime": "1524097122",
+      "size": "54818594",
+      "md5": "81c07f12fd49d76e303128eab44a5964",
+      "crc32": "b52e82b7",
+      "sha1": "49c134a660cefed0e42c55a1bd2e81f4f586c764",
+      "format": "MPEG4",
+      "length": "1207.48",
+      "height": "240",
+      "width": "320"
+    },
+    {
+      "name": "S2E13 - FATHER IMAGE.ogv",
+      "source": "derivative",
+      "format": "Ogg Video",
+      "original": "S2E13 - FATHER IMAGE.mp4",
+      "mtime": "1524098521",
+      "size": "88001449",
+      "md5": "63de96ff007f9717c4913443d9d9ccb6",
+      "crc32": "c556d86c",
+      "sha1": "dc90046a21e4c8b6b79f7f7c486aec17364ed2cf",
+      "length": "1207.48",
+      "height": "300",
+      "width": "400"
+    },
+    {
+      "name": "__ia_thumb.jpg",
+      "source": "original",
+      "mtime": "1553387554",
+      "size": "6587",
+      "format": "JPEG Thumb",
+      "rotation": "0",
+      "md5": "cb3f401ca7fef24733554ddb55858437",
+      "crc32": "766284cd",
+      "sha1": "5ecf680d92880ab661a0eb45618f446eaa80d447"
+    }
+  ]
+}

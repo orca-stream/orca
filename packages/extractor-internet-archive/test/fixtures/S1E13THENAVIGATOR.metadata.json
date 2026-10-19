@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "identifier": "S1E13THENAVIGATOR",
+    "mediatype": "movies",
+    "collection": ["onestepbeyondcomplete", "classic_tv", "television"],
+    "description": "<p class=\"MsoNormal\">The crew of a nineteenth century sailing ship find that\nsomebody has altered its course before catching a stowaway, -- a mute, soaking wet\nOriental whom they clap in irons. The alteration in course leads them to rescue\nsurvivors of a ship sunk by an iceberg, though that ship's navigator is dead\nand is the spitting image of the Oriental, who has mysteriously disappeared.</p>",
+    "scanner": "Internet Archive HTML5 Uploader 1.6.3",
+    "subject": ["One Step Beyond", "classic TV"],
+    "title": "One Step Beyond S  E13 THE NAVIGATOR",
+    "publicdate": "2018-04-18 05:03:43",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-04-18 05:03:43",
+    "curation": "[curator]validator@archive.org[/curator][date]20180418050446[/date][comment]checked for malware[/comment]",
+    "backup_location": "ia906703_17"
+  },
+  "item_last_updated": 1724877371,
+  "files": [
+    {
+      "name": "S1E13 - THE NAVIGATOR.m4v",
+      "source": "original",
+      "mtime": "1524027823",
+      "size": "402739235",
+      "md5": "4df4d144e79804b66c85a921da41633a",
+      "crc32": "8b082b4a",
+      "sha1": "d467c37f12afdc7c7614776ed2f912d14c549b94",
+      "format": "MPEG4",
+      "length": "1528",
+      "height": "240",
+      "width": "320"
+    },
+    {
+      "name": "S1E13 - THE NAVIGATOR.mp4",
+      "source": "derivative",
+      "format": "h.264",
+      "original": "S1E13 - THE NAVIGATOR.m4v",
+      "mtime": "1524029710",
+      "size": "158555434",
+      "md5": "b861a0088c3db940b867383938d53e0a",
+      "crc32": "1bdb9043",
+      "sha1": "0cd343356949f639bbf757d3b11d91b5cbfacb8a",
+      "length": "1528.01",
+      "height": "480",
+      "width": "640"
+    },
+    {
+      "name": "S1E13 - THE NAVIGATOR.ogv",
+      "source": "derivative",
+      "format": "Ogg Video",
+      "original": "S1E13 - THE NAVIGATOR.m4v",
+      "mtime": "1524030859",
+      "size": "114053313",
+      "md5": "ff6793d71b6da809b79b7de0969d53af",
+      "crc32": "6089ffa5",
+      "sha1": "07736c6df1bea357e0e91cf09d71f39219f0da23",
+      "length": "1528.01",
+      "height": "300",
+      "width": "400"
+    },
+    {
+      "name": "__ia_thumb.jpg",
+      "source": "original",
+      "mtime": "1549496233",
+      "size": "6559",
+      "format": "JPEG Thumb",
+      "rotation": "0",
+      "md5": "d5bfe9aec5e83154d2a4f1b61c4fedce",
+      "crc32": "58a02fe2",
+      "sha1": "0b2bfa751481e7c93834b8ef3b7bbab324299dbd"
+    }
+  ]
+}

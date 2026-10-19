@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "identifier": "S1E1THEBRIDEPOSSESSED",
+    "mediatype": "movies",
+    "collection": ["onestepbeyondcomplete", "classic_tv", "television"],
+    "description": "<span style=\"font-size:12pt;font-family:Arial, 'sans-serif';\">Matt Conroy is startled when on their honeymoon his wide-eyed,\nLouisiana-drawling wife Sally suddenly becomes a determined and demanding woman\nwith no accent who denies even knowing him.</span>",
+    "scanner": "Internet Archive HTML5 Uploader 1.6.3",
+    "subject": ["One Step Beyond", "classic TV"],
+    "title": "One Step Beyond S1 E1 THE BRIDE POSSESSED",
+    "publicdate": "2018-04-18 03:04:17",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-04-18 03:04:17",
+    "curation": "[curator]validator@archive.org[/curator][date]20180418030534[/date][comment]checked for malware[/comment]",
+    "backup_location": "ia906703_17"
+  },
+  "item_last_updated": 1724015362,
+  "files": [
+    {
+      "name": "S1E1 - THE BRIDE POSSESSED.mp4",
+      "source": "original",
+      "mtime": "1524020656",
+      "size": "79190883",
+      "md5": "5821f5d8718771c94e48ad2cb897f590",
+      "crc32": "bd7a2358",
+      "sha1": "e3c3256c610a902d352defc55caf4bd9b2ff35d6",
+      "format": "MPEG4",
+      "length": "1541.94",
+      "height": "360",
+      "width": "480"
+    },
+    {
+      "name": "S1E1 - THE BRIDE POSSESSED.ogv",
+      "source": "derivative",
+      "format": "Ogg Video",
+      "original": "S1E1 - THE BRIDE POSSESSED.mp4",
+      "mtime": "1524022176",
+      "size": "114301390",
+      "md5": "a303b01de502ae5e1d01896f364eabe4",
+      "crc32": "750ad672",
+      "sha1": "04418fe8bee65bdce52d0713e711ecf493e16a79",
+      "length": "1541.94",
+      "height": "300",
+      "width": "400"
+    },
+    {
+      "name": "__ia_thumb.jpg",
+      "source": "original",
+      "mtime": "1530327800",
+      "size": "6692",
+      "md5": "93b66c6773bc7ed7ced83e6212698150",
+      "crc32": "43a85a80",
+      "sha1": "2fbc46b5e9d896ac2eaab224d034943f250dd099",
+      "format": "JPEG Thumb",
+      "rotation": "0"
+    }
+  ]
+}

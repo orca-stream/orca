@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "identifier": "onestepbeyondcomplete",
+    "hidden": "true",
+    "mediatype": "collection",
+    "title": "One Step Beyond: The Complete Series",
+    "collection": ["classic_tv", "television", "movies"],
+    "publicdate": "2018-05-07 18:20:49",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-05-07 18:20:49",
+    "description": "This collection comprises all 96 episodes of the classic television program, “One Step Beyond.” The files were gathered from numerous sources (not least the Archive itself); you will find several file types and differing levels of quality. A few of them appear to be edited syndication-prints, which were the only versions I could find.",
+    "subject": "One Step Beyond",
+    "backup_location": "ia906704_24"
+  },
+  "is_collection": true,
+  "files": []
+}

@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "identifier": "S1E16THEBURNINGGIRL_201804",
+    "mediatype": "movies",
+    "collection": ["onestepbeyondcomplete", "classic_tv", "television"],
+    "description": "<p class=\"MsoNormal\">Cult actress Luana Anders plays a teenager trying to fit\ninto a new community, make new friends and coexist with her abusive aunt and\ninsensitive father, who insists she's a pyromaniac despite her pleas of\ninnocence. Things are certain to get hot sooner than later.</p>",
+    "scanner": "Internet Archive HTML5 Uploader 1.6.3",
+    "subject": ["One Step Beyond", "classic TV"],
+    "title": "One Step Beyond S1 E16 THE BURNING GIRL ",
+    "publicdate": "2018-04-18 20:45:54",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-04-18 20:45:54",
+    "curation": "[curator]validator@archive.org[/curator][date]20180418204703[/date][comment]checked for malware[/comment]",
+    "backup_location": "ia906703_18"
+  },
+  "item_last_updated": 1780796424,
+  "files": [
+    {
+      "name": "S1E16 - THE BURNING GIRL.mp4",
+      "source": "original",
+      "mtime": "1524084354",
+      "size": "497129343",
+      "md5": "29846da7ddfe2a44dc8589ea8fece40c",
+      "crc32": "25b55307",
+      "sha1": "3bbd62844ed44cd62e348357a1526bc3d8c4790c",
+      "format": "MPEG4",
+      "length": "1495.13",
+      "height": "720",
+      "width": "986"
+    },
+    {
+      "name": "S1E16 - THE BURNING GIRL.ogv",
+      "source": "derivative",
+      "format": "Ogg Video",
+      "original": "S1E16 - THE BURNING GIRL.mp4",
+      "mtime": "1524087543",
+      "size": "117936091",
+      "md5": "0eccf147d95bee1464d90edd41c4f69e",
+      "crc32": "557f52f1",
+      "sha1": "865808f90182d5cdd9a5a12d32361df384ab7071",
+      "length": "1495.08",
+      "height": "300",
+      "width": "411"
+    },
+    {
+      "name": "__ia_thumb.jpg",
+      "source": "original",
+      "mtime": "1551754694",
+      "size": "6655",
+      "format": "JPEG Thumb",
+      "rotation": "0",
+      "md5": "9004545e3df62b239dbd5c9d45c8c651",
+      "crc32": "9fabaf7c",
+      "sha1": "96e9714a01d38efc98a21ef28802ef0673a5d02d"
+    }
+  ]
+}

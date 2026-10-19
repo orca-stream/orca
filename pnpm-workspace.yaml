@@ -5,7 +5,15 @@ packages:
 catalog:
   "@jellyfin/sdk": 1.0.0
   "@types/node": ^24.13.3
+  "@hono/node-server": 2.1.5
+  "@hono/zod-validator": 0.9.1
+  "@types/better-sqlite3": 9.6.0
   axios: 1.20.0
+  better-sqlite3: 13.0.3
+  drizzle-kit: 0.31.11
+  drizzle-orm: 0.45.4
+  hono: 4.13.13
+  zod: 4.6.7
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vite-plus: 1.1.0
 overrides:

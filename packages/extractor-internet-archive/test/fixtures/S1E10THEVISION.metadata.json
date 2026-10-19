@@ -1,0 +1,57 @@
+{
+  "metadata": {
+    "identifier": "S1E10THEVISION",
+    "mediatype": "movies",
+    "collection": ["onestepbeyondcomplete", "classic_tv", "television"],
+    "description": "<p class=\"MsoNormal\">On a battlefield during the first World War, a group of\nFrench soldiers experience something which causes them to drop their weapons\nand walk away from the fight. During their subsequent court-martial, each gives\nhis differing account of what he saw, which all seem impossible to believe.</p>\n\n<p class=\"MsoNormal\"> </p>",
+    "scanner": "Internet Archive HTML5 Uploader 1.6.3",
+    "subject": ["One Step Beyond", "classic TV"],
+    "title": "One Step Beyond S1 E10 THE VISION",
+    "publicdate": "2018-04-18 04:46:39",
+    "uploader": "uploader-b@example.com",
+    "addeddate": "2018-04-18 04:46:39",
+    "curation": "[curator]validator@archive.org[/curator][date]20180418044803[/date][comment]checked for malware[/comment]",
+    "backup_location": "ia906703_17"
+  },
+  "item_last_updated": 1782156020,
+  "files": [
+    {
+      "name": "S1E10 - THE VISION.mp4",
+      "source": "original",
+      "mtime": "1524026798",
+      "size": "498610476",
+      "md5": "fa227c45e1b4c030e266a30cfb841a81",
+      "crc32": "ba30c85a",
+      "sha1": "0894f2494326ab3fce13652fed0f39b1f6d4b4a0",
+      "format": "MPEG4",
+      "length": "1507.11",
+      "height": "720",
+      "width": "986"
+    },
+    {
+      "name": "S1E10 - THE VISION.ogv",
+      "source": "derivative",
+      "format": "Ogg Video",
+      "original": "S1E10 - THE VISION.mp4",
+      "mtime": "1524029073",
+      "size": "116581461",
+      "md5": "a6c976a4c23df1c341e141686d8c31e9",
+      "crc32": "7fd26d81",
+      "sha1": "7a625b7dd51d003c298420a0376831f031d4323f",
+      "length": "1507.07",
+      "height": "300",
+      "width": "411"
+    },
+    {
+      "name": "__ia_thumb.jpg",
+      "source": "original",
+      "mtime": "1549396778",
+      "size": "4457",
+      "format": "JPEG Thumb",
+      "rotation": "0",
+      "md5": "d66a9210e07fac2233b30e60e0113944",
+      "crc32": "f000366d",
+      "sha1": "1e29f15602b3e1766ad3ee177659d8787c6dcda4"
+    }
+  ]
+}
