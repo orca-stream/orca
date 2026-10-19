@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { resumeSession, SessionExpiredError } from "./client";
-import { fakeServer, testJellyfin, type Route } from "./fake-server";
+import { fakeServer, testJellyfin, type Route } from "@orca/jellyfin/testing";
 import type { Session } from "./session";
 import { loadEpisodes, loadTitle, setFavorite, setLiked } from "./title";
 

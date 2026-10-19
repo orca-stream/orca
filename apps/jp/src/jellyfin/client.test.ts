@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { AxiosError, AxiosHeaders } from "axios";
-import {
-  avatarUrl,
-  isUnreachable,
-  refreshSession,
-  resumeSession,
-  SessionExpiredError,
-} from "./client";
-import { fakeServer, testJellyfin, type Route } from "./fake-server";
+import { avatarUrl, refreshSession, resumeSession, SessionExpiredError } from "./client";
+import { fakeServer, testJellyfin, type Route } from "@orca/jellyfin/testing";
 import type { Session } from "./session";
 
 const session: Session = {
@@ -62,23 +55,6 @@ describe("avatarUrl", () => {
   it("is null when the user has no avatar", () => {
     const { imageTag: _, ...withoutAvatar } = session;
     expect(avatarUrl(withoutAvatar)).toBeNull();
-  });
-});
-
-describe("isUnreachable", () => {
-  const config = { headers: new AxiosHeaders() };
-
-  it("is true when the server never answered", () => {
-    expect(isUnreachable(new AxiosError("timeout", "ECONNABORTED", config))).toBe(true);
-    expect(isUnreachable(new AxiosError("Network Error", "ERR_NETWORK", config))).toBe(true);
-  });
-
-  it("is false when the server answered, even with an error", () => {
-    const response = { status: 500, statusText: "", headers: {}, config, data: "" };
-    expect(isUnreachable(new AxiosError("boom", "ERR_BAD_RESPONSE", config, null, response))).toBe(
-      false,
-    );
-    expect(isUnreachable(new Error("not axios"))).toBe(false);
   });
 });
 

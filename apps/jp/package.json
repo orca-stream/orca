@@ -31,6 +31,7 @@
     "@jellyfin/sdk": "catalog:",
     "@noriginmedia/norigin-spatial-navigation-core": "4.1.2",
     "@noriginmedia/norigin-spatial-navigation-react": "3.3.0",
+    "@orca/jellyfin": "workspace:*",
     "axios": "catalog:",
     "hls.js": "1.7.3",
     "react": "^19.2.8",
@@ -40,7 +41,7 @@
   "devDependencies": {
     "@capacitor/cli": "8.5.3",
     "@tailwindcss/vite": "4.3.3",
-    "@types/node": "^24.13.3",
+    "@types/node": "catalog:",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",

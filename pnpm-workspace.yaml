@@ -4,6 +4,7 @@ packages:
 
 catalog:
   "@jellyfin/sdk": 1.0.0
+  "@types/node": ^24.13.3
   axios: 1.20.0
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vite-plus: 1.1.0

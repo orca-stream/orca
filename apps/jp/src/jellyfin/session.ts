@@ -1,3 +1,4 @@
+import type { Session } from "@orca/jellyfin";
 import { readItem, writeItem, type KeyValueStore } from "../storage";
 
 /** Every account signed in on this device: the profiles of the "who's watching" screen. */
@@ -5,16 +6,7 @@ const SESSIONS_KEY = "orca.sessions";
 /** The single session stored before profiles existed; migrated on first read. */
 const LEGACY_SESSION_KEY = "orca.session";
 
-/** What's needed to resume a signed-in session without asking for the password again. */
-export interface Session {
-  serverUrl: string;
-  serverName: string;
-  accessToken: string;
-  userId: string;
-  userName: string;
-  /** Tag of the user's avatar on the server; absent when the user has none. */
-  imageTag?: string;
-}
+export type { Session };
 
 const REQUIRED = ["serverUrl", "serverName", "accessToken", "userId", "userName"] as const;
 

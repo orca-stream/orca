@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { resumeSession, SessionExpiredError } from "./client";
-import { fakeServer, testJellyfin, type Route } from "./fake-server";
+import { fakeServer, testJellyfin, type Route } from "@orca/jellyfin/testing";
 import {
   approveQuickConnect,
   ApproveError,
@@ -14,7 +14,7 @@ import {
   type QuickConnectRequest,
 } from "./quick-connect";
 import type { Session } from "./session";
-import { SignInError } from "./sign-in";
+import { SignInError } from "@orca/jellyfin";
 
 const PUBLIC_INFO = { Id: "srv-1", Version: "12.2.0", ServerName: "Casa" };
 const INITIATED = { Authenticated: false, Code: "922779", Secret: "secret-1" };

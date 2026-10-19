@@ -3,7 +3,7 @@ import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-naviga
 import { useEffect, useState, type FormEvent } from "react";
 import { t } from "../i18n/locale";
 import { jellyfin } from "../jellyfin/client";
-import { normalizeServerUrl } from "../jellyfin/server-url";
+import { normalizeServerUrl } from "@orca/jellyfin";
 import { probeServer, serverKind, type ServerKind, type ServerProbe } from "../jellyfin/servers";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";

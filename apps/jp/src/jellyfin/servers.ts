@@ -1,7 +1,7 @@
 import type { Jellyfin } from "@jellyfin/sdk";
 import axios, { type AxiosInstance } from "axios";
-import { normalizeServerUrl } from "./server-url";
-import { connectToServer, SignInError, type SignInFailure } from "./sign-in";
+import { normalizeServerUrl } from "@orca/jellyfin";
+import { connectToServer, SignInError, type SignInFailure } from "@orca/jellyfin";
 
 /** Offered on the server picker even before anyone signed in on this device. */
 export const DEFAULT_SERVERS: readonly string[] = [

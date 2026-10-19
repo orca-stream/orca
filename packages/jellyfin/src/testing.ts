@@ -1,7 +1,7 @@
 import { Jellyfin } from "@jellyfin/sdk";
 import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from "axios";
 
-// Test-only helpers: nothing in the app imports this file, so it never reaches the bundle.
+// Test-only helpers (import from "@orca/jellyfin/testing"): the fake axios adapter and a test SDK.
 
 export const testJellyfin = new Jellyfin({
   clientInfo: { name: "orca", version: "test" },

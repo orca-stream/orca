@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { loadGenre, loadGenres, search, spotlights } from "./browse";
 import { resumeSession } from "./client";
-import { fakeServer, testJellyfin } from "./fake-server";
+import { fakeServer, testJellyfin } from "@orca/jellyfin/testing";
 import type { Session } from "./session";
 
 const session: Session = {

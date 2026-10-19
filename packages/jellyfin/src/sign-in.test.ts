@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { fakeServer, testJellyfin as jellyfin } from "./fake-server";
-import { signIn, SignInError, type SignInFailure } from "./sign-in";
+import { fakeServer, testJellyfin as jellyfin } from "./testing.ts";
+import { signIn, SignInError, type SignInFailure } from "./sign-in.ts";
 
 const PUBLIC_INFO = { Id: "srv-1", Version: "12.2.0", ServerName: "Casa" };
 const AUTH_RESULT = {

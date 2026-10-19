@@ -1,15 +1,15 @@
-import { Jellyfin, type Api } from "@jellyfin/sdk";
-import { getSessionApi } from "@jellyfin/sdk/lib/utils/api/session-api";
-import { getUserApi } from "@jellyfin/sdk/lib/utils/api/user-api";
+import type { Api, Jellyfin } from "@jellyfin/sdk";
+import { getSessionApi } from "@jellyfin/sdk/lib/utils/api/session-api.js";
+import { getUserApi } from "@jellyfin/sdk/lib/utils/api/user-api.js";
 import axios, { isAxiosError, type AxiosInstance } from "axios";
 import { uwpHost } from "../host";
 import { locale } from "../i18n/locale";
 import { browserStore } from "../storage";
 import { detectDeviceName, getOrCreateDeviceId } from "./device";
-import type { Session } from "./session";
+import { createJellyfin, type Session } from "@orca/jellyfin";
 
 /** The app's single SDK instance: identifies Orca'JP and this device to every server it talks to. */
-export const jellyfin = new Jellyfin({
+export const jellyfin = createJellyfin({
   clientInfo: { name: "Orca'JP", version: __APP_VERSION__ },
   deviceInfo: {
     id: getOrCreateDeviceId(browserStore()),
@@ -33,11 +33,6 @@ export function resumeSession(
   axiosInstance: AxiosInstance = axios.create({ timeout: REQUEST_TIMEOUT_MS }),
 ): Connection {
   return sdk.createApi(session.serverUrl, session.accessToken, axiosInstance);
-}
-
-/** The server never answered: offline, another network, refused, timed out. Not a server error. */
-export function isUnreachable(error: unknown): boolean {
-  return isAxiosError(error) && !error.response;
 }
 
 /** The server no longer accepts the stored token (revoked, or the user was removed). */

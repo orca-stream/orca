@@ -2,7 +2,7 @@ import type { InternalAxiosRequestConfig } from "axios";
 import { describe, expect, it } from "vite-plus/test";
 import { resumeSession, SessionExpiredError } from "./client";
 import { browserDeviceProfile } from "./device-profile";
-import { fakeServer, testJellyfin, type Route } from "./fake-server";
+import { fakeServer, testJellyfin, type Route } from "@orca/jellyfin/testing";
 import {
   nextEpisode,
   PlaybackError,

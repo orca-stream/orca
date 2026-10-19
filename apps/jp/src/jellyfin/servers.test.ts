@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { fakeServer, testJellyfin } from "./fake-server";
+import { fakeServer, testJellyfin } from "@orca/jellyfin/testing";
 import { probeServer, serverChoices, serverKind } from "./servers";
 
 describe("serverChoices", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { normalizeServerUrl } from "./server-url";
+import { normalizeServerUrl } from "./server-url.ts";
 
 describe("normalizeServerUrl", () => {
   it("keeps a clean https origin as is", () => {

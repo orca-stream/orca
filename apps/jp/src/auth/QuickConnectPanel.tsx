@@ -10,7 +10,7 @@ import {
   type QuickConnectRequest,
 } from "../jellyfin/quick-connect";
 import type { Session } from "../jellyfin/session";
-import { SignInError, type SignInFailure } from "../jellyfin/sign-in";
+import { SignInError, type SignInFailure } from "@orca/jellyfin";
 import { CodeBoxes } from "../ui/CodeInput";
 import { QrCode } from "../ui/QrCode";
 

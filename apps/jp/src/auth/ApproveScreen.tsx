@@ -9,7 +9,7 @@ import {
   type QuickConnectLink,
 } from "../jellyfin/quick-connect";
 import { sessionId, type Session } from "../jellyfin/session";
-import { connectToServer } from "../jellyfin/sign-in";
+import { connectToServer } from "@orca/jellyfin";
 import { FocusButton } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
 import { Avatar } from "../profiles/Avatar";

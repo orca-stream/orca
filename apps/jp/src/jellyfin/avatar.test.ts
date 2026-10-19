@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { AvatarForbiddenError, removeAvatar, toBase64, uploadAvatar } from "./avatar";
 import { resumeSession, SessionExpiredError } from "./client";
-import { fakeServer, testJellyfin, type Route } from "./fake-server";
+import { fakeServer, testJellyfin, type Route } from "@orca/jellyfin/testing";
 import type { Session } from "./session";
 
 const session: Session = {

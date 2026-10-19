@@ -1,10 +1,10 @@
 import type { Api, Jellyfin } from "@jellyfin/sdk";
-import type { AuthenticationResult } from "@jellyfin/sdk/lib/generated-client/models/authentication-result";
-import { getAuthenticationApi } from "@jellyfin/sdk/lib/utils/api/authentication-api";
-import { getSystemApi } from "@jellyfin/sdk/lib/utils/api/system-api";
+import type { AuthenticationResult } from "@jellyfin/sdk/lib/generated-client/models/authentication-result.js";
+import { getAuthenticationApi } from "@jellyfin/sdk/lib/utils/api/authentication-api.js";
+import { getSystemApi } from "@jellyfin/sdk/lib/utils/api/system-api.js";
 import { isAxiosError, type AxiosInstance } from "axios";
-import { normalizeServerUrl } from "./server-url";
-import type { Session } from "./session";
+import { normalizeServerUrl } from "./server-url.ts";
+import type { Session } from "./session.ts";
 
 /** Why signing in failed; each reason has its own message in `t.errors`. */
 export type SignInFailure =
