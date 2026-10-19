@@ -6,6 +6,7 @@ import { DrizzleSeriesRepository } from "../src/infrastructure/db/series-reposit
 import { DrizzleSettingsRepository } from "../src/infrastructure/db/settings-repository.ts";
 import { DrizzleSessionRepository } from "../src/infrastructure/db/session-repository.ts";
 import type { Episode, Series } from "../src/domain/series.ts";
+import { AddressGuard } from "../src/infrastructure/net/address-guard.ts";
 import { HostLimiter, type HostLimits } from "../src/infrastructure/host-limiter.ts";
 import { ManualClock } from "./fakes/clock.ts";
 
@@ -97,4 +98,23 @@ export function testLimiter(
     },
   });
   return { limiter, clock, slept };
+}
+
+/** A guard whose DNS knows a few public names and one that points inside, and nothing else. */
+export function testGuard() {
+  const table: Record<string, string[]> = {
+    "videos.example.com": ["93.184.216.34"],
+    "cdn.example": ["93.184.216.35"],
+    "cdn.example.com": ["93.184.216.35"],
+    "other.example": ["93.184.216.36"],
+    "inside.example.com": ["10.0.0.9"],
+    localhost: ["127.0.0.1", "::1"],
+  };
+  return new AddressGuard({
+    resolve: async (host) => {
+      const found = table[host];
+      if (!found) throw new Error(`ENOTFOUND ${host}`);
+      return found;
+    },
+  });
 }

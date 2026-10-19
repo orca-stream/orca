@@ -24,6 +24,7 @@ import { DrizzleSessionRepository } from "./infrastructure/db/session-repository
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts";
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
+import { AddressGuard } from "./infrastructure/net/address-guard.ts";
 import { GenericPageExtractor } from "./infrastructure/generic-page-extractor.ts";
 import { PlaywrightDetectorAdapter } from "./infrastructure/playwright-detector-adapter.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
@@ -70,6 +71,8 @@ const jellyfin = createJellyfin({
   clientInfo: { name: "Orca'H&M", version },
   deviceInfo: { id: deviceId, name: hostname() },
 });
+// Every address a page or a stream gives us goes through this before anything connects to it.
+const guard = new AddressGuard();
 const extractors: SiteExtractor[] = [];
 // Reads `extractors` when a host is first seen, so it may be filled in after the limiter exists.
 const limiter = new HostLimiter({
@@ -94,7 +97,7 @@ const detector = config.detector
       }),
     )
   : null;
-if (detector) extractors.push(new GenericPageExtractor());
+if (detector) extractors.push(new GenericPageExtractor({ guard }));
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);

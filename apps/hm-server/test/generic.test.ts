@@ -5,11 +5,12 @@ import { AbortedError, PermanentError, RetryableError } from "../src/domain/erro
 import { GenericPageExtractor } from "../src/infrastructure/generic-page-extractor.ts";
 import { PlaywrightDetectorAdapter } from "../src/infrastructure/playwright-detector-adapter.ts";
 import { createHarness, type Harness } from "./harness.ts";
+import { testGuard } from "./helpers.ts";
 
 const PAGE = "https://videos.example.com/watch/my-first_video.html?autoplay=1";
 
 describe("GenericPageExtractor", () => {
-  const extractor = new GenericPageExtractor();
+  const extractor = new GenericPageExtractor({ guard: testGuard() });
 
   it("never claims an address by itself: the user has to choose it", () => {
     expect(extractor.canHandle(PAGE)).toBe(false);
@@ -40,6 +41,25 @@ describe("GenericPageExtractor", () => {
     expect((await extractor.extract("https://videos.example.com/")).series.title).toBe(
       "videos.example.com",
     );
+  });
+
+  it("refuses an address that points inside the machine or its network, as the panel's 400", async () => {
+    for (const bad of [
+      "http://127.0.0.1:8096/",
+      "http://localhost/admin",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://192.168.1.145:8096/",
+      "http://[::1]/",
+      "https://inside.example.com/page",
+    ]) {
+      await expect(extractor.extract(bad), bad).rejects.toMatchObject({ code: "unsupported-url" });
+    }
+  });
+
+  it("says a name that does not resolve is a network problem, not a bad address", async () => {
+    await expect(extractor.extract("https://nowhere.example.com/x")).rejects.toMatchObject({
+      code: "network",
+    });
   });
 
   it("refuses what is not a web page address", async () => {
@@ -98,7 +118,7 @@ describe("PlaywrightDetectorAdapter", () => {
 describe("choosing the generic extractor", () => {
   let h: Harness;
   beforeEach(async () => {
-    h = await createHarness({ extractors: [new GenericPageExtractor()] });
+    h = await createHarness({ extractors: [new GenericPageExtractor({ guard: testGuard() })] });
     h.deps.queue = { notify: () => {} };
   });
   afterEach(() => h.cleanup());

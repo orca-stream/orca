@@ -1,3 +1,5 @@
+import { PermanentError, RetryableError } from "../domain/errors.ts";
+import type { AddressGuard } from "./net/address-guard.ts";
 import {
   ExtractorError,
   type Extraction,
@@ -7,19 +9,6 @@ import {
 
 /** Placeholder: the real name comes from the stream the browser finds. */
 const PLACEHOLDER_FILE_NAME = "video";
-
-function parseWebUrl(input: string): URL {
-  let url: URL;
-  try {
-    url = new URL(input.trim());
-  } catch {
-    throw new ExtractorError("unsupported-url", `Not a web address: ${input.trim()}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new ExtractorError("unsupported-url", "Only http and https addresses can be opened");
-  }
-  return url;
-}
 
 /** A readable name from the last piece of the path, or the host when the path says nothing. */
 function titleOf(url: URL): string {
@@ -48,13 +37,18 @@ export class GenericPageExtractor implements SiteExtractor {
   readonly hosts: string[] = [];
   readonly example = "https://example.com/watch/my-video";
   readonly explicitOnly = true;
+  private readonly guard: AddressGuard;
+
+  constructor(options: { guard: AddressGuard }) {
+    this.guard = options.guard;
+  }
 
   canHandle(_url: string): boolean {
     return false;
   }
 
   async extract(input: string): Promise<Extraction> {
-    const url = parseWebUrl(input);
+    const url = await this.open(input);
     const address = url.href;
     const warnings: ExtractionWarning[] = [
       {
@@ -83,5 +77,20 @@ export class GenericPageExtractor implements SiteExtractor {
       license: { kind: "unknown", requiresAck: true },
       warnings,
     };
+  }
+
+  /** The page address, if it is a public web address; the panel gets the reason otherwise. */
+  private async open(input: string): Promise<URL> {
+    try {
+      return await this.guard.assertUrl(input);
+    } catch (error) {
+      if (error instanceof PermanentError) {
+        throw new ExtractorError("unsupported-url", error.message, { cause: error });
+      }
+      if (error instanceof RetryableError) {
+        throw new ExtractorError("network", error.message, { cause: error });
+      }
+      throw error;
+    }
   }
 }
