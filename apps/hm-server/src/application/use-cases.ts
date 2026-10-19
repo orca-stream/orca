@@ -40,6 +40,18 @@ function sourceOf(episode: ExtractedEpisode): Source {
 const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
 
 export function createUseCases(deps: Deps) {
+  /** Runs `task` after every earlier task for the same key has settled (in this process only). */
+  const folderTails = new Map<string, Promise<unknown>>();
+  async function withFolderLock<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const run = (folderTails.get(key) ?? Promise.resolve()).then(task, task);
+    const tail = run.catch(() => undefined);
+    folderTails.set(key, tail);
+    try {
+      return await run;
+    } finally {
+      if (folderTails.get(key) === tail) folderTails.delete(key);
+    }
+  }
   // One admin re-check per session at a time: a burst of requests shares the answer.
   const rechecks = new Map<string, Promise<boolean>>();
 
@@ -106,62 +118,68 @@ export function createUseCases(deps: Deps) {
         );
       }
 
-      if (await deps.series.findByExternal(extractorId, extraction.series.externalId)) {
-        throw new AppError("conflict", "This series was already added");
-      }
       const folderName = seriesFolderName(body.title, body.year);
-      if (await deps.series.findByFolder(folderName)) {
-        throw new AppError(
-          "conflict",
-          `A series already uses the folder “${folderName}”: change the title or the year`,
-        );
-      }
+      // Two submits for the same folder must not interleave: the check, the write and the save run
+      // one after the other, so the second sees the first and a failed save only undoes its own files.
+      const { series, episodes } = await withFolderLock(folderName, async () => {
+        if (await deps.series.findByExternal(extractorId, extraction.series.externalId)) {
+          throw new AppError("conflict", "This series was already added");
+        }
+        if (await deps.series.findByFolder(folderName)) {
+          throw new AppError(
+            "conflict",
+            `A series already uses the folder “${folderName}”: change the title or the year`,
+          );
+        }
 
-      const now = deps.clock.now();
-      const series: Series = {
-        id: uuidv7(now),
-        title: body.title,
-        year: body.year,
-        plot: extraction.series.plot ?? null,
-        extractorId,
-        externalId: extraction.series.externalId,
-        sourceUrl: extraction.series.sourceUrl,
-        folderName,
-        hasPoster: false,
-        follow: body.follow,
-        checkIntervalHours: 12,
-        lastCheckedAt: null,
-        remoteMarker: extraction.series.remoteMarker ?? null,
-        createdAt: now,
-      };
-      const episodes: Episode[] = chosen.map((episode) => ({
-        id: uuidv7(now),
-        seriesId: series.id,
-        season: episode.season,
-        episode: episode.episode,
-        title: episode.title,
-        plot: episode.plot ?? null,
-        airDate: episode.airDate ?? null,
-        inferred: episode.inferred,
-        sourceRef: episode.sourceRef,
-        source: sourceOf(episode),
-        durationSec: episode.media.durationSec ?? null,
-        sizeBytes: episode.media.sizeBytes ?? null,
-        format: episode.media.format ?? null,
-        status: "missing",
-        filePath: null,
-        createdAt: now,
-      }));
+        const now = deps.clock.now();
+        const series: Series = {
+          id: uuidv7(now),
+          title: body.title,
+          year: body.year,
+          plot: extraction.series.plot ?? null,
+          extractorId,
+          externalId: extraction.series.externalId,
+          sourceUrl: extraction.series.sourceUrl,
+          folderName,
+          hasPoster: false,
+          follow: body.follow,
+          checkIntervalHours: 12,
+          lastCheckedAt: null,
+          remoteMarker: extraction.series.remoteMarker ?? null,
+          createdAt: now,
+        };
+        const episodes: Episode[] = chosen.map((episode) => ({
+          id: uuidv7(now),
+          seriesId: series.id,
+          season: episode.season,
+          episode: episode.episode,
+          title: episode.title,
+          plot: episode.plot ?? null,
+          airDate: episode.airDate ?? null,
+          inferred: episode.inferred,
+          sourceRef: episode.sourceRef,
+          source: sourceOf(episode),
+          durationSec: episode.media.durationSec ?? null,
+          sizeBytes: episode.media.sizeBytes ?? null,
+          format: episode.media.format ?? null,
+          status: "missing",
+          filePath: null,
+          createdAt: now,
+        }));
 
-      // The folder first: if it can't be written there is nothing to undo. If saving then fails,
-      // take the folder away again, so a retry doesn't meet a half-made series.
-      await deps.library.writeSeries(series);
-      try {
-        await deps.series.create(series, episodes);
-      } catch (error) {
-        await deps.library.removeSeries(series).catch(() => undefined);
-        throw error;
-      }
+        // The folder first: if it can't be written there is nothing to undo. If saving then fails,
+        // take the folder away again (when it was ours), so a retry doesn't meet a half-made series.
+        const { createdFolder } = await deps.library.writeSeries(series);
+        try {
+          await deps.series.create(series, episodes);
+        } catch (error) {
+          // Only a folder this call made is this call's to undo.
+          if (createdFolder) await deps.library.removeSeries(series).catch(() => undefined);
+          throw error;
+        }
+        return { series, episodes };
+      });
 
       let created = series;
       if (extraction.series.posterUrl) {

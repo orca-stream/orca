@@ -134,10 +134,13 @@ export interface LibraryWriter {
   stagingPath(episode: Episode): string;
   /** Absolute path of a series' folder. */
   seriesPath(series: Series): string;
-  /** Creates the series folder and writes tvshow.nfo. */
-  writeSeries(series: Series): Promise<void>;
+  /**
+   * Creates the series folder and writes tvshow.nfo. `createdFolder` is false when the folder was
+   * already there, so a caller undoing its work knows the folder is not its own to remove.
+   */
+  writeSeries(series: Series): Promise<{ createdFolder: boolean }>;
   writePoster(series: Series, image: FetchedImage): Promise<void>;
-  /** Deletes a series folder this server just made and that holds nothing but its own files. */
+  /** Deletes the files of a series folder this server just made (`createdFolder`), and the folder if it ends up empty. */
   removeSeries(series: Series): Promise<void>;
   /** The poster image on disk, if the series has one. */
   posterPath(series: Series): Promise<string | null>;

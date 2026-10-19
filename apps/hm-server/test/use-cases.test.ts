@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AppError, PermanentError, RetryableError } from "../src/domain/errors.ts";
@@ -85,6 +85,38 @@ describe("addSeries", () => {
     };
     await expect(addBevhill(h)).rejects.toThrow(/SQLITE_FULL/);
     expect(await exists(join(h.root, "The Beverly Hillbillies (1962)"))).toBe(false);
+  });
+
+  it("keeps the first series' files when the same one is submitted twice at once", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    const body = {
+      previewId: preview.previewId,
+      title: "The Beverly Hillbillies",
+      year: 1962,
+      episodeKeys: preview.episodes.map((episode) => episode.key),
+      follow: false,
+      downloadNow: false,
+      licenseAck: true,
+    };
+    const results = await Promise.allSettled([
+      h.useCases.addSeries(body),
+      h.useCases.addSeries(body),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+    const folder = join(h.root, "The Beverly Hillbillies (1962)");
+    expect(await exists(join(folder, "tvshow.nfo"))).toBe(true);
+    expect(await h.series.list()).toHaveLength(1);
+  });
+
+  it("does not remove files from a folder that was already there when saving fails", async () => {
+    const folder = join(h.root, "The Beverly Hillbillies (1962)");
+    await mkdir(folder);
+    await writeFile(join(folder, "poster.jpg"), "someone else's");
+    h.deps.series.create = async () => {
+      throw new Error("SQLITE_FULL");
+    };
+    await expect(addBevhill(h)).rejects.toThrow(/SQLITE_FULL/);
+    expect(await readFile(join(folder, "poster.jpg"), "utf8")).toBe("someone else's");
   });
 
   it("still adds the series when the poster can't be fetched", async () => {

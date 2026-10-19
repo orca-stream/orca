@@ -44,8 +44,10 @@ export class FsLibraryWriter implements LibraryWriter {
     return join(this.root, series.folderName);
   }
 
-  async writeSeries(series: Series): Promise<void> {
+  async writeSeries(series: Series): Promise<{ createdFolder: boolean }> {
+    const createdFolder = !(await stat(this.seriesPath(series)).catch(() => null));
     await this.atomicWrite(join(this.seriesPath(series), "tvshow.nfo"), tvshowNfo(series));
+    return { createdFolder };
   }
 
   async writePoster(series: Series, image: FetchedImage): Promise<void> {
