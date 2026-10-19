@@ -93,7 +93,7 @@ Example of tier 2: the `The_Beverly_Hillbillies` item has `X.MPG` (MPEG1 origina
 
 There is no official number for the rate limit (the search turned up only third-party Wayback pages). Conservative defaults:
 
-- `User-Agent: OrcaHM/<version> (+contact: 352633863+selkiecode@users.noreply.github.com)`.
+- `User-Agent: OrcaHM/<version> (+contact: <CONTACT_EMAIL>)`. The address comes from the optional `CONTACT_EMAIL` environment variable; without it the contact part is left out.
 - At most 1 metadata or scrape request per second.
 - At most 1 concurrent download per IA host. Allow 2 as a config option.
 - Honor `429`/`503` + `Retry-After`, then exponential backoff (§5).
@@ -244,7 +244,7 @@ migrate(db, { migrationsFolder: join(import.meta.dirname, "../drizzle") });
 **Refresh** (`@jellyfin/sdk` 1.0.0 `library-api` plus the server source):
 
 - **Targeted, preferred:** `getLibraryApi(api).postUpdatedMedia({ mediaUpdateInfoDto: { Updates: [{ Path: "/media/tv/Show (1962)", UpdateType: "Created" }] } })`, which is `POST /Library/Media/Updated` (`[Authorize]`).
-  - `Path` must be **the path as Jellyfin sees it** (its container path). Use a config mapping `JELLYFIN_MEDIA_ROOT` in addition to H&M's own `MEDIA_ROOT`.
+  - `Path` must be **the path as Jellyfin sees it** (its container path). Use a config mapping `JELLYFIN_MEDIA_ROOT` in addition to H&M's own `MEDIA_ROOT`; both are required, with the same value when the two containers mount the folder at the same path.
 - **One library:**
   1. `getLibraryStructureApi(api).getVirtualFolders()` and pick the `VirtualFolderInfo.ItemId` for the TV library. You can match `Locations` against the media root.
   2. `getLibraryApi(api).refreshItem({ itemId, metadataRefreshMode: "Default", imageRefreshMode: "Default" })`, which is `POST /Items/{id}/Refresh` and queues the refresh at High priority. The SDK and the server have **no `recursive` parameter**: refreshing a folder validates its children.
@@ -378,7 +378,8 @@ COPY --from=build /out ./
 RUN npx -y playwright@1.64.1 install --with-deps --only-shell chromium && chown -R node /ms-playwright
 USER node
 VOLUME ["/data", "/media"]
-ENV DB_FILE=/data/hm.sqlite MEDIA_ROOT=/media/tv
+# Image layout, not host settings:
+ENV DB_FILE=/data/hm.sqlite MEDIA_ROOT=/media/tv HOST=0.0.0.0 PORT=8787
 EXPOSE 8787
 HEALTHCHECK CMD node -e "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 ENTRYPOINT ["tini","--"]
@@ -392,6 +393,8 @@ CMD ["node","dist/main.mjs"]
   - Ports on the **LAN IP only**.
   - Volumes: `hm-data:/data` and the 1 TB disk's TV folder mounted at **the same path inside both containers**, e.g. `/media/tv` in H&M and Jellyfin. That keeps the `Library/Media/Updated` paths identical. If the paths differ, use `JELLYFIN_MEDIA_ROOT`.
   - Env from `.env`: `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `SESSION_SECRET`.
+- **Configuration is environment-only, with no environment defaults in code.** Required, validated by Zod at boot (the error lists everything missing): `HOST`, `PORT`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL`, `JELLYFIN_API_KEY`. Optional: `CONTACT_EMAIL` (User-Agent contact), `DEVICE_ID` (otherwise a UUID is generated once and stored in the database `settings` table), `WEB_ROOT`, `SECURE_COOKIES`, and the tuning knobs `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`, `IA_HOST_CONCURRENCY`, which keep named-constant defaults. `apps/hm-server/.env.example` has example values.
+- The panel (`apps/jp`) takes its suggested servers only from `VITE_JELLYFIN_SERVERS` (comma-separated; `VITE_JELLYFIN_SERVER_URL` still works and is listed first). Unset, it offers only servers already signed in to, plus manual entry.
 - Write files as the UID Jellyfin reads with (`PUID`), or set group-readable permissions.
 
 ## 8. Testing without network (Vitest under `vp test`)

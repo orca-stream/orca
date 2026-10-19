@@ -136,6 +136,7 @@ const Config = z.strictObject({
     sshUser: z.string(),
     lanCidr: z.string(),
     renderGid: z.number().int().optional(),
+    renderDevice: devicePath.default("/dev/dri/renderD128"), // the GPU render node passed to the container
     dataDir: z.string().default("/srv/jellyfin"),
     mediaDisk: z.strictObject({ uuid: z.string(), mount: z.string() }).optional(),
   }),
@@ -187,11 +188,14 @@ host:
     sshUser: user,
     lanCidr: 192.168.1.0/24,
     renderGid: 991,
+    renderDevice: /dev/dri/renderD128,
     dataDir: /srv/jellyfin,
   }
 jellyfin:
   image: jellyfin/jellyfin:12.2.20261005-225228
   url: http://192.168.1.10:8096
+  port: 8096 # host port for the UI and API (default; the container side is always 8096)
+  discoveryPort: 7359 # host UDP port for client discovery (default; the container side is 7359)
   server: { name: Orca, uiCulture: es-MX, metadataLanguage: es-419, metadataCountry: HN }
   admin: { username: admin, passwordSecret: JELLYFIN_ADMIN_PASSWORD }
   repositories:
@@ -265,7 +269,7 @@ The second run must print "0 changes" and send no POST; a test asserts this.
   - `VOLUME /config /cache`, with `JELLYFIN_DATA_DIR=/config` and `JELLYFIN_CONFIG_DIR=/config/config`.
   - It ships a HEALTHCHECK: curl against `${HEALTHCHECK_URL}` = `http://localhost:8096/health`, every 30s, timeout 30s, start period 10s, 3 retries.
   - The Mesa VA drivers are included.
-- To verify VA-API: `docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device /dev/dri/renderD128`.
+- To verify VA-API: `docker exec jellyfin /usr/lib/jellyfin-ffmpeg/vainfo --display drm --device ${host.renderDevice}`.
 
 **Compose file** (bridge network, ports bound only to the LAN IP):
 
@@ -276,14 +280,14 @@ services:
     container_name: jellyfin
     user: "${JF_UID}:${JF_GID}" # dedicated 'jellyfin' system user created by host prepare
     group_add: ["991"] # render GID, read by `getent group render | cut -d: -f3`
-    devices: ["/dev/dri/renderD128:/dev/dri/renderD128"]
+    devices: ["${host.renderDevice}:${host.renderDevice}"] # default /dev/dri/renderD128
     volumes:
       - /srv/jellyfin/config:/config
       - /srv/jellyfin/cache:/cache
       - /mnt/media:/media:ro # 1 TB disk (by UUID) once connected; NVMe dir until then
     ports:
-      - "192.168.1.10:8096:8096/tcp"
-      - "192.168.1.10:7359:7359/udp" # optional LAN autodiscovery
+      - "192.168.1.10:${jellyfin.port}:8096/tcp" # host side configurable, container side fixed
+      - "192.168.1.10:${jellyfin.discoveryPort}:7359/udp" # optional LAN autodiscovery
     environment:
       JELLYFIN_PublishedServerUrl: http://192.168.1.10:8096
     restart: unless-stopped
