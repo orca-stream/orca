@@ -20,7 +20,7 @@ export function buildFfprobeArgs(
   url: string,
   headers: Record<string, string>,
   protocolWhitelist: string,
-  httpProxy?: string,
+  viaProxy = false,
 ): string[] {
   const entries = Object.entries(headers);
   for (const [name, value] of entries) {
@@ -37,8 +37,7 @@ export function buildFfprobeArgs(
     "error",
     "-protocol_whitelist",
     // Reaching the proxy is its own protocol in ffmpeg.
-    httpProxy === undefined ? protocolWhitelist : `${protocolWhitelist},httpproxy`,
-    ...(httpProxy === undefined ? [] : ["-http_proxy", httpProxy]),
+    viaProxy ? `${protocolWhitelist},httpproxy` : protocolWhitelist,
     ...headerArgs,
     "-show_programs",
     "-show_streams",
@@ -48,12 +47,21 @@ export function buildFfprobeArgs(
   ];
 }
 
-export type RunFfprobe = (args: string[], signal: AbortSignal) => Promise<{ stdout: string }>;
+/** `env` is the child's environment when it differs from ours (a proxy), else undefined. */
+export type RunFfprobe = (
+  args: string[],
+  signal: AbortSignal,
+  env?: NodeJS.ProcessEnv,
+) => Promise<{ stdout: string }>;
 
 export interface FfprobeInspectorOptions {
   ffprobePath?: string;
   protocolWhitelist?: string;
-  /** Fetch everything through this HTTP proxy (`http://host:port`), redirects and segments included. */
+  /**
+   * Fetch everything through this HTTP proxy (`http://user:pass@host:port`), redirects and segments
+   * included. It reaches ffprobe through its `http_proxy` environment variable, not its arguments,
+   * so the credentials do not show in `ps`.
+   */
   httpProxy?: string;
   /** Kill ffprobe after this long. Absent: only the caller's signal stops it. */
   timeoutMs?: number;
@@ -73,7 +81,7 @@ export class FfprobeInspector implements StreamInspector {
     this.protocolWhitelist = options.protocolWhitelist ?? DEFAULT_PROTOCOL_WHITELIST;
     this.httpProxy = options.httpProxy;
     this.timeoutMs = options.timeoutMs;
-    this.run = options.run ?? ((args, signal) => this.spawnFfprobe(args, signal));
+    this.run = options.run ?? ((args, signal, env) => this.spawnFfprobe(args, signal, env));
   }
 
   async inspect(
@@ -85,14 +93,19 @@ export class FfprobeInspector implements StreamInspector {
       url,
       options.headers ?? {},
       this.protocolWhitelist,
-      this.httpProxy,
+      this.httpProxy !== undefined,
     );
+    const env =
+      this.httpProxy === undefined
+        ? undefined
+        : // Nothing is exempt from the proxy, whatever the machine's own settings say.
+          { ...process.env, http_proxy: this.httpProxy, no_proxy: "", NO_PROXY: "" };
     const timeout = this.timeoutMs === undefined ? undefined : AbortSignal.timeout(this.timeoutMs);
     const signal = timeout ? AbortSignal.any([options.signal, timeout]) : options.signal;
 
     let stdout: string;
     try {
-      ({ stdout } = await this.run(args, signal));
+      ({ stdout } = await this.run(args, signal, env));
     } catch (error) {
       if (error instanceof MediaProbeError) throw error;
       if (timeout?.aborted) {
@@ -117,9 +130,17 @@ export class FfprobeInspector implements StreamInspector {
     }
   }
 
-  private spawnFfprobe(args: string[], signal: AbortSignal): Promise<{ stdout: string }> {
+  private spawnFfprobe(
+    args: string[],
+    signal: AbortSignal,
+    env?: NodeJS.ProcessEnv,
+  ): Promise<{ stdout: string }> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.ffprobePath, args, { signal, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(this.ffprobePath, args, {
+        signal,
+        stdio: ["ignore", "pipe", "pipe"],
+        ...(env ? { env } : {}),
+      });
       const out: Buffer[] = [];
       let size = 0;
       let stderr = "";

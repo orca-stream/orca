@@ -76,11 +76,16 @@ describe("ffmpeg -progress parser", () => {
 });
 
 function fakeSpawn(script: (child: FakeChild) => void) {
-  return ((_command: string, args: string[], options: { signal?: AbortSignal }) => {
+  return ((
+    _command: string,
+    args: string[],
+    options: { signal?: AbortSignal; env?: NodeJS.ProcessEnv },
+  ) => {
     const child = new EventEmitter() as FakeChild;
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
     child.args = args;
+    child.env = options.env;
     options.signal?.addEventListener("abort", () => {
       const error = new Error("aborted");
       error.name = "AbortError";
@@ -94,6 +99,7 @@ interface FakeChild extends EventEmitter {
   stdout: PassThrough;
   stderr: PassThrough;
   args: string[];
+  env?: NodeJS.ProcessEnv | undefined;
 }
 
 const hls = {
@@ -147,6 +153,8 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
     ["Connection timed out", RetryableError],
     ["Server returned 503 Service Unavailable", RetryableError],
     ["Server returned 429 Too Many Requests", RetryableError],
+    // What ffmpeg says for a 4xx it has no name for, such as a proxy's 407.
+    ["Server returned 4XX Client Error, but not one of 40{0,1,3,4}", PermanentError],
   ])("classifies %s", async (message, expected) => {
     const dir = await mkdtemp(join(tmpdir(), "hm-ff-"));
     const downloader = new FfmpegDownloader({
@@ -226,8 +234,10 @@ function fakeInspector(result: ProbeResult | Error) {
 /** A fake ffmpeg that writes its output file, remembering every run's arguments. */
 function recordingSpawn(options: { failWhen?: (args: string[]) => boolean } = {}) {
   const runs: string[][] = [];
+  const envs: (NodeJS.ProcessEnv | undefined)[] = [];
   const spawn = fakeSpawn((child) => {
     runs.push(child.args);
+    envs.push(child.env);
     if (options.failWhen?.(child.args)) {
       child.stderr.write("Subtitle conversion failed\n");
       child.stdout.end();
@@ -238,7 +248,7 @@ function recordingSpawn(options: { failWhen?: (args: string[]) => boolean } = {}
     child.stdout.end();
     setTimeout(() => child.emit("close", 0), 1);
   });
-  return { runs, spawn };
+  return { runs, envs, spawn };
 }
 
 const mapsOf = (args: string[]) => args.flatMap((arg, i) => (args[i - 1] === "-map" ? [arg] : []));
@@ -370,19 +380,22 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     });
   });
 
-  it("runs ffmpeg through the guarded proxy, with the protocol it needs to reach it", async () => {
+  it("runs ffmpeg through the guarded proxy, given in its environment and not on the command line", async () => {
     await withDir(async (dir) => {
-      const { runs, spawn } = recordingSpawn();
+      const { runs, envs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
         guard: allowAll,
         userAgent: "x",
         spawn,
-        httpProxy: "http://127.0.0.1:4040",
+        httpProxy: "http://user:secret@127.0.0.1:4040",
       });
       await downloader.download(hls, join(dir, "out.mkv"), context());
       const args = runs[0]!;
-      expect(args[args.indexOf("-http_proxy") + 1]).toBe("http://127.0.0.1:4040");
-      expect(args.indexOf("-http_proxy")).toBeLessThan(args.indexOf("-i"));
+      // `ps` shows arguments to everyone; the environment is for the process alone.
+      expect(args.join(" ")).not.toContain("secret");
+      expect(args).not.toContain("-http_proxy");
+      expect(envs[0]?.["http_proxy"]).toBe("http://user:secret@127.0.0.1:4040");
+      expect(envs[0]?.["no_proxy"]).toBe("");
       expect(args[args.indexOf("-protocol_whitelist") + 1]).toBe(
         "http,https,tcp,tls,crypto,httpproxy",
       );
@@ -391,13 +404,14 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
 
   it("runs ffmpeg without a proxy flag when there is no proxy", async () => {
     await withDir(async (dir) => {
-      const { runs, spawn } = recordingSpawn();
+      const { runs, envs, spawn } = recordingSpawn();
       await new FfmpegDownloader({ guard: allowAll, userAgent: "x", spawn }).download(
         hls,
         join(dir, "out.mkv"),
         context(),
       );
       expect(runs[0]).not.toContain("-http_proxy");
+      expect(envs[0]).toBeUndefined();
     });
   });
 

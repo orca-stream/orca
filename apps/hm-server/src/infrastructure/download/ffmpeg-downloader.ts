@@ -33,8 +33,10 @@ export interface FfmpegDownloaderOptions {
   /** Looks inside a stream before copying it, to keep only the wanted tracks. Absent: ffmpeg's own pick. */
   inspector?: Pick<StreamInspector, "inspect">;
   /**
-   * The guarded proxy (`http://127.0.0.1:port`) ffmpeg fetches through: the playlist, every segment
-   * and key it lists, and its own redirects are then checked like any other request.
+   * The guarded proxy (`http://user:pass@127.0.0.1:port`) ffmpeg fetches through: the playlist, every
+   * segment and key it lists, and its own redirects are then checked like any other request. It
+   * reaches ffmpeg through the `http_proxy` environment variable, so the credentials are not in the
+   * arguments `ps` shows.
    */
   httpProxy?: string;
   /** Write text subtitles as files beside the video (`Show S01E01.es.srt`) instead of inside it. */
@@ -62,7 +64,9 @@ const DEFAULT_PLAN: Plan = {
 /** Last lines of ffmpeg's stderr decide whether a failure is worth retrying. */
 function classify(stderr: string, code: number | null): Error {
   const message = stderr.trim().split("\n").slice(-3).join(" | ") || `ffmpeg exited with ${code}`;
-  const status = /Server returned (\d{3})/.exec(stderr)?.[1];
+  // "4XX" is how ffmpeg words a 4xx it has no name for ("Server returned 4XX Client Error, but not
+  // one of 40{0,1,3,4}"), such as the proxy's 407.
+  const status = /Server returned (\d{3}|4XX)/.exec(stderr)?.[1];
   if (status && status.startsWith("4") && status !== "429" && status !== "408") {
     return new PermanentError(`Stream refused: ${message}`);
   }
@@ -254,7 +258,6 @@ export class FfmpegDownloader implements Downloader {
       "-protocol_whitelist",
       // Reaching the proxy is a protocol of its own in ffmpeg.
       this.httpProxy === undefined ? INPUT_PROTOCOLS : `${INPUT_PROTOCOLS},httpproxy`,
-      ...(this.httpProxy === undefined ? [] : ["-http_proxy", this.httpProxy]),
       "-user_agent",
       this.userAgent,
       ...(headers ? ["-headers", headers] : []),
@@ -269,7 +272,13 @@ export class FfmpegDownloader implements Downloader {
     onProgress?: (block: Record<string, string>) => void,
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const child = this.spawn(this.ffmpegPath, args, { signal: context.signal });
+      const child = this.spawn(this.ffmpegPath, args, {
+        signal: context.signal,
+        ...(this.httpProxy === undefined
+          ? {}
+          : // Nothing is exempt from the proxy, whatever the machine's own settings say.
+            { env: { ...process.env, http_proxy: this.httpProxy, no_proxy: "", NO_PROXY: "" } }),
+      });
       let stderr = "";
       let settled = false;
       const settle = (action: () => void) => {

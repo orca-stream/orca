@@ -183,6 +183,18 @@ describe("a page source", () => {
     expect(episode?.status).toBe("available");
   });
 
+  it("treats ffmpeg's wording for a 4xx it has no name for as a refusal too", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.downloader.once(async () => {
+      throw new PermanentError(
+        "Stream refused: Server returned 4XX Client Error, but not one of 40{0,1,3,4}",
+      );
+    });
+    await addPage(PAGE, "One");
+    await h.queue.settle();
+    expect(h.detector.calls).toHaveLength(2);
+  });
+
   it("does not keep finding it again: a second 4xx is the end of it", async () => {
     h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
     h.downloader.once(async () => {

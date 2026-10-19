@@ -31,7 +31,7 @@ const DownloadPayload = z.object({
 });
 
 /** A failure that says the server refused the stream it was given (it may just have expired). */
-const REFUSED_BY_SERVER = /\b(?:HTTP|returned) 4\d\d\b/;
+const REFUSED_BY_SERVER = /\b(?:HTTP|returned) 4(?:\d\d|XX)\b/;
 const RefreshPayload = z.object({ seriesId: z.string() });
 const CheckPayload = z.object({ seriesId: z.string() });
 

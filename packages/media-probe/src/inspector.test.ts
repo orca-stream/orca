@@ -29,19 +29,12 @@ describe("buildFfprobeArgs", () => {
     expect(at).toBeLessThan(args.indexOf("https://cdn.test/a.m3u8"));
   });
 
-  it("goes through an HTTP proxy when given one, which needs the httpproxy protocol too", () => {
-    const args = buildFfprobeArgs(
-      "https://cdn.test/a.m3u8",
-      {},
-      "http,https,tcp,tls,crypto",
-      "http://127.0.0.1:4040",
-    );
-    const at = args.indexOf("-http_proxy");
-    expect(args[at + 1]).toBe("http://127.0.0.1:4040");
-    expect(at).toBeLessThan(args.indexOf("https://cdn.test/a.m3u8"));
+  it("allows the proxy protocol when it goes through one, and leaves the address off the command line", () => {
+    const args = buildFfprobeArgs("https://cdn.test/a.m3u8", {}, "http,https,tcp,tls,crypto", true);
     const whitelist = args[args.indexOf("-protocol_whitelist") + 1]!.split(",");
     expect(whitelist).toContain("httpproxy");
     expect(whitelist).toContain("http");
+    expect(args).not.toContain("-http_proxy");
   });
 
   it("does not add the proxy protocol when there is no proxy", () => {
@@ -58,18 +51,36 @@ describe("buildFfprobeArgs", () => {
 });
 
 describe("FfprobeInspector with a proxy", () => {
-  it("runs ffprobe through the proxy it was given", async () => {
-    let seen: string[] = [];
+  it("hands the proxy to ffprobe in its environment, where `ps` does not show it", async () => {
+    let seenArgs: string[] = [];
+    let seenEnv: NodeJS.ProcessEnv | undefined;
     const inspector = new FfprobeInspector({
-      httpProxy: "http://127.0.0.1:4040",
-      run: (args) => {
-        seen = args;
+      httpProxy: "http://user:secret@127.0.0.1:4040",
+      run: (args, _signal, env) => {
+        seenArgs = args;
+        seenEnv = env;
         return Promise.resolve({ stdout: JSON.stringify(fixture("mp4-single-audio")) });
       },
     });
     await inspector.inspect("https://cdn.test/a.mp4", { signal: new AbortController().signal });
-    expect(seen[seen.indexOf("-http_proxy") + 1]).toBe("http://127.0.0.1:4040");
-    expect(seen[seen.indexOf("-protocol_whitelist") + 1]).toContain("httpproxy");
+    expect(seenEnv?.["http_proxy"]).toBe("http://user:secret@127.0.0.1:4040");
+    // Nothing may route around it, and nothing is exempt from it.
+    expect(seenEnv?.["no_proxy"]).toBe("");
+    expect(seenArgs.join(" ")).not.toContain("secret");
+    expect(seenArgs).not.toContain("-http_proxy");
+    expect(seenArgs[seenArgs.indexOf("-protocol_whitelist") + 1]).toContain("httpproxy");
+  });
+
+  it("changes nothing in the environment without a proxy", async () => {
+    let seenEnv: NodeJS.ProcessEnv | undefined = {};
+    const inspector = new FfprobeInspector({
+      run: (_args, _signal, env) => {
+        seenEnv = env;
+        return Promise.resolve({ stdout: JSON.stringify(fixture("mp4-single-audio")) });
+      },
+    });
+    await inspector.inspect("https://cdn.test/a.mp4", { signal: new AbortController().signal });
+    expect(seenEnv).toBeUndefined();
   });
 });
 
