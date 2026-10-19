@@ -157,8 +157,9 @@ const ConfigSchema = z
       .optional(),
   })
   .superRefine((cfg, ctx) => {
-    const url = new URL(cfg.jellyfin.url);
-    if (url.hostname === cfg.host.address) {
+    // An unparsable url is reported by its own field check; nothing to compare then.
+    const url = URL.canParse(cfg.jellyfin.url) ? new URL(cfg.jellyfin.url) : null;
+    if (url && url.hostname === cfg.host.address) {
       const urlPort = Number(url.port || (url.protocol === "https:" ? 443 : 80));
       if (urlPort !== cfg.jellyfin.port) {
         ctx.addIssue({

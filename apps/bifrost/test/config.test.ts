@@ -98,6 +98,12 @@ describe("parseConfig", () => {
     expect(() => parseConfig(bad)).not.toThrow();
   });
 
+  it("reports an invalid jellyfin.url as a ConfigError, not a raw TypeError", () => {
+    const bad = structuredClone(example);
+    bad.jellyfin.url = "not a url";
+    expect(() => parseConfig(bad)).toThrow(ConfigError);
+  });
+
   it("rejects a plugin that points to an undeclared repository", () => {
     const bad = structuredClone(example);
     bad.jellyfin.plugins[0].repository = "Nope";
