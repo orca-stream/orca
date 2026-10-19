@@ -78,6 +78,10 @@ export function createUseCases(deps: Deps) {
     );
   }
 
+  /** The hosts an extractor may name images on; none for an extractor that's gone. */
+  const hostsOf = (extractorId: string): readonly string[] =>
+    deps.extractors.list().find((extractor) => extractor.id === extractorId)?.hosts ?? [];
+
   return {
     enqueueDownloads,
 
@@ -101,11 +105,11 @@ export function createUseCases(deps: Deps) {
     async previewPoster(previewId: string, signal?: AbortSignal): Promise<FetchedImage> {
       const preview = deps.previews.get(previewId);
       if (!preview) throw new AppError("gone", "This preview expired: preview the address again");
-      const hosts = deps.extractors.list().find((e) => e.id === preview.extractorId)?.hosts ?? [];
+      const hosts = hostsOf(preview.extractorId);
       const url = trustedPosterUrl(preview.extraction.series.posterUrl, hosts);
       if (!url) throw new AppError("not_found", "This preview has no poster");
       try {
-        return await deps.images.fetch(url, signal ? { signal } : undefined);
+        return await deps.images.fetch(url, { hosts, ...(signal ? { signal } : {}) });
       } catch (error) {
         throw new AppError("upstream", "The poster could not be fetched", { cause: error });
       }
@@ -200,12 +204,11 @@ export function createUseCases(deps: Deps) {
       });
 
       let created = series;
-      if (extraction.series.posterUrl) {
+      const hosts = hostsOf(extractorId);
+      const posterUrl = trustedPosterUrl(extraction.series.posterUrl, hosts);
+      if (posterUrl) {
         try {
-          await deps.library.writePoster(
-            series,
-            await deps.images.fetch(extraction.series.posterUrl),
-          );
+          await deps.library.writePoster(series, await deps.images.fetch(posterUrl, { hosts }));
           created = (await deps.series.update(series.id, { hasPoster: true })) ?? series;
         } catch {
           // A missing cover is not worth failing the add for.

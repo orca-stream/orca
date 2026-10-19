@@ -190,7 +190,14 @@ export interface FetchedImage {
 }
 
 export interface ImageFetcher {
-  fetch(url: string, options?: { signal?: AbortSignal }): Promise<FetchedImage>;
+  /**
+   * Fetches an image. `hosts` are the hosts the address, and every redirect on the way to the image,
+   * must stay on (a host or any of its subdomains), over https.
+   */
+  fetch(
+    url: string,
+    options: { hosts: readonly string[]; signal?: AbortSignal },
+  ): Promise<FetchedImage>;
 }
 
 export interface EventBus {

@@ -134,6 +134,8 @@ describe("FetchHttpClient", () => {
   });
 });
 
+const ALLOWED = { hosts: ["archive.org", "a.org"] };
+
 describe("FetchImageFetcher", () => {
   const image = (
     body: ConstructorParameters<typeof Response>[0],
@@ -144,16 +146,21 @@ describe("FetchImageFetcher", () => {
   it("returns the bytes and the extension its content type implies", async () => {
     const fetcher = (response: Response) =>
       new FetchImageFetcher({ userAgent: "x", fetch: responder(response).fetchImpl });
-    const jpeg = await fetcher(image(new Uint8Array([1, 2, 3]))).fetch("https://archive.org/img");
+    const jpeg = await fetcher(image(new Uint8Array([1, 2, 3]))).fetch(
+      "https://archive.org/img",
+      ALLOWED,
+    );
     expect([...jpeg.bytes]).toEqual([1, 2, 3]);
     expect(jpeg.extension).toBe(".jpg");
     expect(
-      (await fetcher(image(new Uint8Array([1]), "image/png")).fetch("https://a.org/i")).extension,
+      (await fetcher(image(new Uint8Array([1]), "image/png")).fetch("https://a.org/i", ALLOWED))
+        .extension,
     ).toBe(".png");
     expect(
       (
         await fetcher(image(new Uint8Array([1]), "image/webp; charset=binary")).fetch(
           "https://a.org/i",
+          ALLOWED,
         )
       ).extension,
     ).toBe(".webp");
@@ -166,15 +173,15 @@ describe("FetchImageFetcher", () => {
         ...(maxBytes ? { maxBytes } : {}),
         fetch: responder(response).fetchImpl,
       });
-    await expect(make(image("<html>", "text/html")).fetch("https://a.org/i")).rejects.toThrow(
-      /not an image/i,
-    );
     await expect(
-      make(new Response("", { status: 404 })).fetch("https://a.org/i"),
+      make(image("<html>", "text/html")).fetch("https://a.org/i", ALLOWED),
+    ).rejects.toThrow(/not an image/i);
+    await expect(
+      make(new Response("", { status: 404 })).fetch("https://a.org/i", ALLOWED),
     ).rejects.toThrow();
-    await expect(make(image(new Uint8Array(5)), 2).fetch("https://a.org/i")).rejects.toThrow(
-      /too large/,
-    );
+    await expect(
+      make(image(new Uint8Array(5)), 2).fetch("https://a.org/i", ALLOWED),
+    ).rejects.toThrow(/too large/);
   });
 
   it("rejects on Content-Length alone, closing the body unread", async () => {
@@ -195,7 +202,7 @@ describe("FetchImageFetcher", () => {
       maxBytes: 100,
       fetch: responder(response).fetchImpl,
     });
-    await expect(fetcher.fetch("https://a.org/i")).rejects.toThrow(/too large/);
+    await expect(fetcher.fetch("https://a.org/i", ALLOWED)).rejects.toThrow(/too large/);
     expect(cancelled).toBe(true);
   });
 
@@ -213,7 +220,72 @@ describe("FetchImageFetcher", () => {
       maxBytes: 100,
       fetch: responder(image(body)).fetchImpl,
     });
-    await expect(fetcher.fetch("https://a.org/i")).rejects.toThrow(/too large/);
+    await expect(fetcher.fetch("https://a.org/i", ALLOWED)).rejects.toThrow(/too large/);
     expect(chunks).toBeLessThan(10);
+  });
+
+  describe("redirects", () => {
+    const redirect = (location: string) =>
+      new Response(null, { status: 302, headers: { location } });
+    const run = (responses: Response[]) => {
+      const { fetchImpl, calls } = responder(...responses);
+      const fetcher = new FetchImageFetcher({ userAgent: "x", fetch: fetchImpl });
+      return { calls, fetch: (url: string) => fetcher.fetch(url, ALLOWED) };
+    };
+
+    it("follows them by hand, one hop at a time, staying on the extractor's hosts", async () => {
+      const { calls, fetch } = run([
+        redirect("https://ia800000.us.archive.org/img.jpg"),
+        redirect("/final.jpg"),
+        image(new Uint8Array([7])),
+      ]);
+      const done = await fetch("https://archive.org/services/img/x");
+      expect([...done.bytes]).toEqual([7]);
+      expect(calls.map((call) => call.url)).toEqual([
+        "https://archive.org/services/img/x",
+        "https://ia800000.us.archive.org/img.jpg",
+        "https://ia800000.us.archive.org/final.jpg",
+      ]);
+    });
+
+    it("asks the runtime not to follow redirects itself", async () => {
+      const seen: RequestInit["redirect"][] = [];
+      const fetchImpl = ((_url: string, init?: RequestInit) => {
+        seen.push(init?.redirect);
+        return Promise.resolve(image(new Uint8Array([1])));
+      }) as typeof fetch;
+      await new FetchImageFetcher({ userAgent: "x", fetch: fetchImpl }).fetch(
+        "https://a.org/i",
+        ALLOWED,
+      );
+      expect(seen).toEqual(["manual"]);
+    });
+
+    it.each([
+      ["another host", "https://evil.example/i.jpg"],
+      ["plain http", "http://archive.org/i.jpg"],
+      ["a file address", "file:///etc/passwd"],
+      ["an internal address", "https://169.254.169.254/latest"],
+    ])("refuses a hop to %s without requesting it", async (_label, location) => {
+      const { calls, fetch } = run([redirect(location), image(new Uint8Array([1]))]);
+      await expect(fetch("https://archive.org/i")).rejects.toThrow(/redirect/i);
+      expect(calls).toHaveLength(1);
+    });
+
+    it("gives up after three hops", async () => {
+      const hop = () => redirect("https://archive.org/next");
+      const { calls, fetch } = run([hop(), hop(), hop(), hop(), image(new Uint8Array([1]))]);
+      await expect(fetch("https://archive.org/i")).rejects.toThrow(/too many redirects/i);
+      expect(calls).toHaveLength(4);
+    });
+
+    it("refuses a redirect without a Location, and a first address off the hosts", async () => {
+      await expect(
+        run([new Response(null, { status: 302 })]).fetch("https://archive.org/i"),
+      ).rejects.toThrow(/redirect/i);
+      const off = run([image(new Uint8Array([1]))]);
+      await expect(off.fetch("https://evil.example/i")).rejects.toThrow(/not allowed/i);
+      expect(off.calls).toHaveLength(0);
+    });
   });
 });

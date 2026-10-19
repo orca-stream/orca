@@ -1,3 +1,4 @@
+import { trustedPosterUrl } from "../application/poster-url.ts";
 import type { FetchedImage, ImageFetcher } from "../application/ports.ts";
 
 export interface FetchImageFetcherOptions {
@@ -16,6 +17,9 @@ const EXTENSIONS: Record<string, string> = {
 /** Largest cover we accept: more than any poster needs, little enough to hold in memory. */
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 
+/** Redirects followed after the first request: a CDN hop or two is normal, more is a trap. */
+const MAX_REDIRECTS = 3;
+
 export class FetchImageFetcher implements ImageFetcher {
   private readonly userAgent: string;
   private readonly maxBytes: number;
@@ -27,11 +31,36 @@ export class FetchImageFetcher implements ImageFetcher {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
-  async fetch(url: string, options?: { signal?: AbortSignal }): Promise<FetchedImage> {
-    const response = await this.fetchImpl(url, {
-      headers: { "user-agent": this.userAgent },
-      ...(options?.signal ? { signal: options.signal } : {}),
-    });
+  async fetch(
+    url: string,
+    options: { hosts: readonly string[]; signal?: AbortSignal },
+  ): Promise<FetchedImage> {
+    const { hosts, signal } = options;
+    // Redirects are followed by hand so that every hop is checked against the allowed hosts: the
+    // runtime would follow one to anywhere, including this machine's own network.
+    let current = trustedPosterUrl(url, hosts);
+    if (!current) throw new Error("Image address not allowed");
+    let response: Response;
+    for (let hops = 0; ; hops++) {
+      response = await this.fetchImpl(current, {
+        headers: { "user-agent": this.userAgent },
+        redirect: "manual",
+        ...(signal ? { signal } : {}),
+      });
+      if (response.status < 300 || response.status >= 400) break;
+      await response.body?.cancel();
+      const location = response.headers.get("location");
+      if (!location) throw new Error("Image redirect without a Location");
+      if (hops >= MAX_REDIRECTS) throw new Error("Too many redirects fetching the image");
+      let next: string | null = null;
+      try {
+        next = trustedPosterUrl(new URL(location, current).href, hosts);
+      } catch {
+        // an unparsable Location is refused below
+      }
+      if (!next) throw new Error("Image redirect to an address that is not allowed");
+      current = next;
+    }
     if (!response.ok) throw new Error(`Image request answered ${response.status}`);
 
     const type =

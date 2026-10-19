@@ -103,9 +103,11 @@ export class FakeAuthenticator implements Authenticator {
 export class FakeImageFetcher implements ImageFetcher {
   fail = false;
   readonly requested: string[] = [];
+  readonly hosts: (readonly string[])[] = [];
 
-  async fetch(url: string): Promise<FetchedImage> {
+  async fetch(url: string, options: { hosts: readonly string[] }): Promise<FetchedImage> {
     this.requested.push(url);
+    this.hosts.push(options.hosts);
     if (this.fail) throw new Error("no image");
     return { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" };
   }

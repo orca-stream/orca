@@ -116,6 +116,33 @@ describe("the preview's poster", () => {
   });
 });
 
+describe("addSeries and the poster", () => {
+  it("doesn't fetch a poster that is off the extractor's hosts, and still adds the series", async () => {
+    const real = h.deps.extractors.find(BEVHILL_URL)!;
+    h.deps.extractors = new StaticExtractorRegistry([
+      {
+        ...real,
+        extract: async (url, options) => {
+          const extraction = await real.extract(url, options);
+          return {
+            ...extraction,
+            series: { ...extraction.series, posterUrl: "https://evil.example/poster.jpg" },
+          };
+        },
+      },
+    ]);
+    const { series } = await addBevhill(h);
+    expect(series.hasPoster).toBe(false);
+    expect(h.images.requested).toEqual([]);
+  });
+
+  it("passes the extractor's hosts to the fetcher, which checks every redirect hop", async () => {
+    await addBevhill(h);
+    expect(h.images.requested).toEqual([`https://archive.org/services/img/${BEVHILL}`]);
+    expect(h.images.hosts).toEqual([["archive.org"]]);
+  });
+});
+
 describe("addSeries", () => {
   it("stores the series and its episodes, writes the folder and tvshow.nfo, and fetches the poster", async () => {
     const { series } = await addBevhill(h);
