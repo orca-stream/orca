@@ -49,6 +49,14 @@ describe("bodies", () => {
     expect(LoginBody.safeParse({ username: "sam", password: "x" }).success).toBe(true);
   });
 
+  it("caps credential length so a login cannot bloat the server's memory", () => {
+    expect(LoginBody.safeParse({ username: "a".repeat(257), password: "x" }).success).toBe(false);
+    expect(LoginBody.safeParse({ username: "a".repeat(256), password: "x" }).success).toBe(true);
+    expect(LoginBody.safeParse({ username: "sam", password: "x".repeat(1025) }).success).toBe(
+      false,
+    );
+  });
+
   it("defaults the optional flags of a new series to false", () => {
     const body = CreateSeriesBody.parse({
       previewId: "p1",

@@ -160,8 +160,8 @@ describe("login rate limit", () => {
   const login = (username: string, password: string) =>
     app.request("/api/auth/login", json({ username, password }));
 
-  it("answers 429 with Retry-After after five wrong passwords, even for the right one", async () => {
-    for (let i = 0; i < 5; i++) expect((await login("sam", "wrong")).status).toBe(401);
+  it("answers 429 with Retry-After after two wrong passwords, even for the right one", async () => {
+    for (let i = 0; i < 2; i++) expect((await login("sam", "wrong")).status).toBe(401);
     const blocked = await login("sam", "secret");
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
@@ -172,7 +172,7 @@ describe("login rate limit", () => {
   });
 
   it("lets the user in again after the window", async () => {
-    for (let i = 0; i < 5; i++) await login("sam", "wrong");
+    for (let i = 0; i < 2; i++) await login("sam", "wrong");
     h.clock.advance(15 * 60 * 1000 + 1000);
     expect((await login("sam", "secret")).status).toBe(200);
   });
