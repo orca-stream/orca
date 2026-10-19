@@ -3,6 +3,7 @@ import * as z from "zod";
 export const NotificationKind = z.enum([
   "new_episodes",
   "episodes_skipped",
+  "episodes_learned",
   "series_downloaded",
   "job_failed",
 ]);

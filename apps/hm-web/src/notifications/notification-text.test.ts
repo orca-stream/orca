@@ -76,6 +76,16 @@ describe("notificationText", () => {
     );
   });
 
+  it("says what a first check of an older series learned", () => {
+    const n = make({ kind: "episodes_learned", data: { seriesTitle: "Show", count: 3 } });
+    expect(notificationText(n, es).body).toBe(
+      "Show: ahora conozco 3 episodios más del sitio; no se descargó ninguno automáticamente",
+    );
+    expect(notificationText(make({ ...n, data: { seriesTitle: "Show", count: 1 } }), en).body).toBe(
+      "Show: now aware of 1 more episode on the site; none was downloaded automatically",
+    );
+  });
+
   it("falls back to the server's English text when the data is missing", () => {
     expect(notificationText(make({ data: {} }), es)).toEqual({
       title: "New episodes",

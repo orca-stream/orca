@@ -228,6 +228,7 @@ describe("notifications", () => {
 
   it("knows the kind for episodes that could not be added", () => {
     expect(NotificationDto.safeParse({ ...dto, kind: "episodes_skipped" }).success).toBe(true);
+    expect(NotificationDto.safeParse({ ...dto, kind: "episodes_learned" }).success).toBe(true);
   });
 
   it("marks some notifications read, or all of them when no ids are given", () => {

@@ -67,6 +67,18 @@ export class NotificationService {
     });
   }
 
+  /** A series from before known_refs was read for the first time: nothing was added, so say so. */
+  async episodesLearned(series: { id: string; title: string }, count: number): Promise<void> {
+    await this.send({
+      kind: "episodes_learned",
+      title: "Series checked for the first time",
+      body: `${series.title}: now aware of ${count} more ${count === 1 ? "episode" : "episodes"} on the site; none was downloaded automatically`,
+      seriesId: series.id,
+      jobId: null,
+      data: { seriesTitle: series.title, count },
+    });
+  }
+
   /** New episodes a check found but could not add: another episode already has their number. */
   async episodesSkipped(series: { id: string; title: string }, count: number): Promise<void> {
     await this.send({

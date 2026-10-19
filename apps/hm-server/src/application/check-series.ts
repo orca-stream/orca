@@ -129,6 +129,14 @@ export function createCheckSeries(deps: Deps) {
         .newEpisodes({ id: series.id, title: series.title }, add)
         .catch((error: unknown) => console.error("notification failed:", error));
     }
+    if (learning) {
+      const learned = extraction.episodes.filter((found) => !known.has(found.sourceRef)).length;
+      if (learned > 0) {
+        await deps.notifications
+          .episodesLearned({ id: series.id, title: series.title }, learned)
+          .catch((error: unknown) => console.error("notification failed:", error));
+      }
+    }
     if (skipped > 0) {
       await deps.notifications
         .episodesSkipped({ id: series.id, title: series.title }, skipped)

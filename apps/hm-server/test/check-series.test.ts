@@ -141,6 +141,14 @@ describe("CheckSeries: the series changed", () => {
     expect(stored?.remoteMarker).toBe("m2");
     expect(stored?.knownRefs).toEqual(["show/e1.mp4", "show/e2.mp4", "show/e3.mp4"]);
 
+    // The person is told what happened, since nothing new was downloaded.
+    const learned = (await h.notifications.list(10)).filter((n) => n.kind === "episodes_learned");
+    expect(learned).toHaveLength(1);
+    expect(learned[0]).toMatchObject({
+      seriesId: created.id,
+      data: { seriesTitle: "Fake Show", count: 2 },
+    });
+
     // From here on it behaves like any other series: only what is truly new is added.
     site.marker = "m3";
     site.episodes = [...site.episodes, fakeEpisode(4)];
@@ -149,6 +157,14 @@ describe("CheckSeries: the series changed", () => {
       "show/e1.mp4",
       "show/e4.mp4",
     ]);
+  });
+
+  it("says nothing when a legacy series has nothing it did not already have", async () => {
+    const created = await addFake({ follow: false });
+    await h.series.update(created.id, { knownRefs: null, remoteMarker: "old-form" });
+    site.marker = "m2";
+    await check(created.id);
+    expect((await h.notifications.list(10)).map((n) => n.kind)).toEqual([]);
   });
 
   it("keeps an empty known list apart from a missing one", async () => {

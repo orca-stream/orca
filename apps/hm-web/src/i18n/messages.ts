@@ -159,6 +159,9 @@ const es = {
     episodesSkippedTitle: "Episodios sin añadir",
     episodesSkipped: (series: string, count: number) =>
       `${series}: ${count} ${count === 1 ? "episodio nuevo no se añadió" : "episodios nuevos no se añadieron"} porque su número ya está en uso`,
+    episodesLearnedTitle: "Serie revisada por primera vez",
+    episodesLearned: (series: string, count: number) =>
+      `${series}: ahora conozco ${count} ${count === 1 ? "episodio más" : "episodios más"} del sitio; no se descargó ninguno automáticamente`,
     seriesDownloadedTitle: "Descargas terminadas",
     seriesDownloaded: (series: string, available: number, total: number) =>
       `${series}: ${available} de ${total} episodios disponibles`,
@@ -424,6 +427,9 @@ const en: typeof es = {
     episodesSkippedTitle: "Episodes not added",
     episodesSkipped: (series: string, count: number) =>
       `${series}: ${count} new ${count === 1 ? "episode was" : "episodes were"} not added because ${count === 1 ? "its number is" : "their numbers are"} already taken`,
+    episodesLearnedTitle: "Series checked for the first time",
+    episodesLearned: (series: string, count: number) =>
+      `${series}: now aware of ${count} more ${count === 1 ? "episode" : "episodes"} on the site; none was downloaded automatically`,
     seriesDownloadedTitle: "Downloads finished",
     seriesDownloaded: (series: string, available: number, total: number) =>
       `${series}: ${available} of ${total} episodes are available`,

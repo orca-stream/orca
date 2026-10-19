@@ -32,6 +32,11 @@ export function notificationText(
       if (series === null || count === null) return fallback;
       return { title: t.episodesSkippedTitle, body: t.episodesSkipped(series, count) };
     }
+    case "episodes_learned": {
+      const count = num(data.count);
+      if (series === null || count === null) return fallback;
+      return { title: t.episodesLearnedTitle, body: t.episodesLearned(series, count) };
+    }
     case "series_downloaded": {
       const available = num(data.available);
       const total = num(data.total);
