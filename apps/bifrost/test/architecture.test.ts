@@ -10,10 +10,13 @@ function files(dir: string): string[] {
   );
 }
 
+// Matches `import x from "m"`, `export * from "m"` and side-effect `import "m"`.
 const imports = (file: string) =>
-  [...readFileSync(file, "utf8").matchAll(/^\s*(?:import|export)\s[^;]*?from\s+"([^"]+)"/gm)].map(
-    (m) => m[1]!,
-  );
+  [
+    ...readFileSync(file, "utf8").matchAll(
+      /^\s*(?:import|export)\s+(?:[^;]*?\sfrom\s+)?"([^"]+)"/gm,
+    ),
+  ].map((m) => m[1]!);
 
 describe("architecture", () => {
   const all = files(src).map((f) => ({ file: relative(src, f), imports: imports(f) }));
