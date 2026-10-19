@@ -248,7 +248,21 @@ export function createApp(deps: AppDeps) {
   api.post("/notifications/read", async (c) => {
     // The body is optional: no body at all means "all of them".
     const text = await c.req.text();
-    const parsed = MarkReadBody.safeParse(text === "" ? {} : JSON.parse(text));
+    let body: unknown = {};
+    if (text !== "") {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return c.json(
+          {
+            error: "bad_request",
+            message: "The request body is not valid JSON",
+          } satisfies ApiErrorBody,
+          400,
+        );
+      }
+    }
+    const parsed = MarkReadBody.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "bad_request", message: "The request is not valid" } satisfies ApiErrorBody,

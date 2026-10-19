@@ -179,4 +179,50 @@ describe("a page source", () => {
     await h.queue.settle();
     expect(h.detector.calls).toHaveLength(2);
   });
+
+  it("does not queue a second download for an episode whose handoff job is waiting", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.deps.queue = { notify: () => {} };
+    const created = await addPage(PAGE, "One");
+    const [episode] = await h.series.listEpisodes(created.id);
+    // Run only the detection: the handoff job (dlr:) is queued, ffmpeg slot not yet taken.
+    await h.queue.pump();
+    await until(async () =>
+      (await jobsOf(["queued"])).some((j) => j.dedupeKey === `dlr:${episode!.id}`),
+    );
+    const [handoff] = await jobsOf(["queued"]);
+
+    const jobs = await h.useCases.enqueue([episode!.id]);
+
+    expect(jobs.map((job) => job.id)).toEqual([handoff!.id]);
+    expect(await jobsOf(["queued"])).toHaveLength(1);
+    await h.queue.settle();
+  });
+
+  it("leaves the status alone when the handoff job already existed", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.deps.queue = { notify: () => {} };
+    const created = await addPage(PAGE, "One", false);
+    const [episode] = await h.series.listEpisodes(created.id);
+    h.downloader.once(FakeDownloader.hangUntilAborted);
+    await h.jobs.enqueue({
+      kind: "download_episode",
+      payload: { episodeId: episode!.id, resolved: { kind: "hls", url: MASTER } },
+      seriesId: created.id,
+      episodeId: episode!.id,
+      resource: "ffmpeg",
+      dedupeKey: `dlr:${episode!.id}`,
+    });
+    await h.jobs.enqueue({
+      kind: "download_episode",
+      payload: { episodeId: episode!.id },
+      seriesId: created.id,
+      episodeId: episode!.id,
+      resource: "browser",
+    });
+    await h.queue.pump();
+    await until(async () => (await jobsOf(["done"])).length === 1);
+    expect((await h.series.getEpisode(episode!.id))?.status).toBe("downloading");
+    await h.queue.stop();
+  });
 });

@@ -266,6 +266,23 @@ export class DrizzleJobRepository implements JobRepository {
     return { items, nextCursor: rows.length > filter.limit && last ? last.id : null };
   }
 
+  async activeDownloadJobs(episodeIds: string[]): Promise<Job[]> {
+    if (episodeIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.kind, "download_episode"),
+          inArray(jobs.status, ["queued", "running"]),
+          inArray(jobs.episodeId, episodeIds),
+        ),
+      )
+      .orderBy(jobs.createdAt)
+      .all()
+      .map(toJob);
+  }
+
   async countActiveDownloads(): Promise<Map<string, number>> {
     const rows = this.db
       .select({ seriesId: jobs.seriesId, count: sql<number>`count(*)` })

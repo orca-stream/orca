@@ -22,8 +22,18 @@ export function createEnqueueDownloads(deps: Deps) {
     }
 
     const jobs: Job[] = [];
+    // An episode already being fetched, under any dedupe key (a handoff job has its own), is left alone.
+    const active = new Map<string, Job>();
+    for (const job of await deps.jobs.activeDownloadJobs(unique)) {
+      if (job.episodeId && !active.has(job.episodeId)) active.set(job.episodeId, job);
+    }
     for (const episode of episodes) {
       if (episode.status === "available") continue;
+      const running = active.get(episode.id);
+      if (running) {
+        jobs.push(running);
+        continue;
+      }
       const { job, created } = await deps.jobs.enqueue({
         kind: "download_episode",
         payload: { episodeId: episode.id },

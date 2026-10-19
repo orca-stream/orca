@@ -91,7 +91,7 @@ export function createJobHandler(deps: Deps): JobHandler {
       // Finding the stream is the browser's job; the long download is not, so it goes to a job of
       // its own under the resource that fits it, and the browser slot is free again at once.
       const found = await detectStream(episode.source.url, context.signal);
-      const { job: next } = await deps.jobs.enqueue({
+      const { job: next, created } = await deps.jobs.enqueue({
         kind: "download_episode",
         payload: { episodeId: episode.id, resolved: found },
         seriesId: series.id,
@@ -99,8 +99,10 @@ export function createJobHandler(deps: Deps): JobHandler {
         resource: resourceFor(found),
         dedupeKey: `dlr:${episode.id}`,
       });
-      await deps.series.setEpisodeStatus(episode.id, "queued");
-      await publishJob(next);
+      if (created) {
+        await deps.series.setEpisodeStatus(episode.id, "queued");
+        await publishJob(next);
+      }
       deps.events.publish({ type: "series.updated", seriesId: series.id });
       deps.queue.notify();
       return;

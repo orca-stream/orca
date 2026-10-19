@@ -224,6 +224,11 @@ describe("the API", () => {
       expect(res.status, bad).toBe(400);
       expect(await res.json()).toMatchObject({ error: "bad_request" });
     }
+    const broken = await send("{not json");
+    expect(await broken.json()).toEqual({
+      error: "bad_request",
+      message: "The request body is not valid JSON",
+    });
     const tooMany = await send(
       JSON.stringify({ ids: Array.from({ length: 501 }, (_, i) => `n${i}`) }),
     );
