@@ -108,6 +108,12 @@ export function createCheckSeries(deps: Deps) {
       await enqueueDownloads(add.map((episode) => episode.id));
     }
     deps.events.publish({ type: "series.updated", seriesId: series.id });
+    if (add.length > 0) {
+      // The episodes are stored: a notification that cannot be made must not turn this into a retry.
+      await deps.notifications
+        .newEpisodes({ id: series.id, title: series.title }, add)
+        .catch((error: unknown) => console.error("notification failed:", error));
+    }
     return { changed: true, added: add.length, newEpisodes: add, skipped };
   };
 }

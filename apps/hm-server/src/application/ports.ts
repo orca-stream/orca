@@ -1,6 +1,7 @@
 import type { Extraction, SiteExtractor } from "@orca/extractor-core";
 import type { EpisodeStatus, HmEvent, JobStatus, ProgressDetail } from "@orca/hm-contract";
 import type { Job, NewJob } from "../domain/job.ts";
+import type { Notification, NotificationKind } from "../domain/notification.ts";
 import type { Episode, Series, Source } from "../domain/series.ts";
 
 // Every port below is implemented by an adapter in src/infrastructure and by a fake in test/fakes.
@@ -217,6 +218,22 @@ export interface ImageFetcher {
     url: string,
     options: { hosts: readonly string[]; signal?: AbortSignal },
   ): Promise<FetchedImage>;
+}
+
+export interface NotificationRepository {
+  insert(notification: Notification): Promise<void>;
+  /** Newest first. */
+  list(limit: number): Promise<Notification[]>;
+  unreadCount(): Promise<number>;
+  /** `ids` absent: every unread one. Returns how many changed. */
+  markRead(at: number, ids?: string[]): Promise<number>;
+  /** The newest notification of a kind for a series. */
+  latest(kind: NotificationKind, seriesId: string): Promise<Notification | null>;
+}
+
+/** A channel a notification goes out on. The panel's is always on; others (ntfy) can be added. */
+export interface Notifier {
+  notify(notification: Notification): Promise<void>;
 }
 
 export interface EventBus {

@@ -4,6 +4,7 @@ import {
   EnqueueBody,
   ListJobsQuery,
   LoginBody,
+  MarkReadBody,
   PreviewRequest,
   SeriesPatch,
   type ApiErrorBody,
@@ -29,6 +30,8 @@ import { serveWeb } from "./static.ts";
 export const SESSION_COOKIE = "hm_session";
 const MAX_BODY_BYTES = 1024 * 1024;
 const PING_MS = 25_000;
+/** How many notifications the bell lists. */
+const NOTIFICATIONS_SHOWN = 50;
 const POSTER_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".png": "image/png",
@@ -164,6 +167,8 @@ export function createApp(deps: AppDeps) {
     "/series/*",
     "/jobs",
     "/jobs/*",
+    "/notifications",
+    "/notifications/*",
     "/events",
   ]) {
     api.use(path, requireSession);
@@ -235,6 +240,23 @@ export function createApp(deps: AppDeps) {
 
   api.post("/jobs/:id/retry", async (c) => c.json(await useCases.retryJob(c.req.param("id"))));
   api.post("/jobs/:id/cancel", async (c) => c.json(await useCases.cancelJob(c.req.param("id"))));
+
+  // --- notifications
+  api.get("/notifications", async (c) =>
+    c.json(await useCases.listNotifications(NOTIFICATIONS_SHOWN)),
+  );
+  api.post("/notifications/read", async (c) => {
+    // The body is optional: no body at all means "all of them".
+    const text = await c.req.text();
+    const parsed = MarkReadBody.safeParse(text === "" ? {} : JSON.parse(text));
+    if (!parsed.success) {
+      return c.json(
+        { error: "bad_request", message: "The request is not valid" } satisfies ApiErrorBody,
+        400,
+      );
+    }
+    return c.json(await useCases.markNotificationsRead(parsed.data.ids));
+  });
 
   // --- server-sent events
   api.get("/events", (c) =>

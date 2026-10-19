@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { openDatabase } from "../src/infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "../src/infrastructure/db/job-repository.ts";
+import { DrizzleNotificationRepository } from "../src/infrastructure/db/notification-repository.ts";
 import { DrizzleSeriesRepository } from "../src/infrastructure/db/series-repository.ts";
 import { DrizzleSettingsRepository } from "../src/infrastructure/db/settings-repository.ts";
 import { DrizzleSessionRepository } from "../src/infrastructure/db/session-repository.ts";
@@ -20,6 +21,7 @@ export function testDatabase(clock = new ManualClock()) {
     series: new DrizzleSeriesRepository(database.db),
     sessions: new DrizzleSessionRepository(database.db),
     settings: new DrizzleSettingsRepository(database.db),
+    notifications: new DrizzleNotificationRepository(database.db),
   };
 }
 

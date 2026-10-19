@@ -22,6 +22,13 @@
       "when": 1792393203757,
       "tag": "0002_known_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792393470158,
+      "tag": "0003_notifications",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import type { NotificationService } from "./notifications.ts";
 import type {
   Authenticator,
   Clock,
@@ -9,6 +10,7 @@ import type {
   JobRepository,
   LibraryWriter,
   MediaServer,
+  NotificationRepository,
   PreviewStore,
   QueueSignal,
   Random,
@@ -34,6 +36,9 @@ export interface Deps {
   /** Absent until the browser-based detector exists. */
   detector: StreamDetector | null;
   events: EventBus;
+  notifications: NotificationService;
+  /** Read side of the notifications: the bell lists and marks them. */
+  notificationRepository: NotificationRepository;
   queue: QueueSignal;
   canceller: JobCanceller;
   /** How long a burst of finished episodes is allowed to keep postponing the library refresh. */

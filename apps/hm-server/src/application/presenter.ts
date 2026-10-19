@@ -1,5 +1,13 @@
 import type { Extraction, ExtractionWarning } from "@orca/extractor-core";
-import type { EpisodeDto, JobDto, PreviewDto, PreviewWarning, SeriesDto } from "@orca/hm-contract";
+import type {
+  EpisodeDto,
+  JobDto,
+  NotificationDto,
+  PreviewDto,
+  PreviewWarning,
+  SeriesDto,
+} from "@orca/hm-contract";
+import type { Notification } from "../domain/notification.ts";
 import type { Job } from "../domain/job.ts";
 import { episodeCode, type Episode, type Series } from "../domain/series.ts";
 import type { SeriesWithCounts } from "./ports.ts";
@@ -119,4 +127,8 @@ export function toJobDto(job: Job, seriesTitle: string | null, episode: Episode 
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,
   };
+}
+
+export function toNotificationDto(notification: Notification): NotificationDto {
+  return { ...notification, data: { ...notification.data } };
 }

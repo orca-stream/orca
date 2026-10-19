@@ -8,6 +8,7 @@ import type { Deps } from "../src/application/deps.ts";
 import { createJobEvents } from "../src/application/job-events.ts";
 import { createJobHandler } from "../src/application/job-handler.ts";
 import { JobQueue } from "../src/application/queue.ts";
+import { NotificationService, PanelNotifier } from "../src/application/notifications.ts";
 import { InMemoryEventBus } from "../src/infrastructure/event-bus.ts";
 import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registry.ts";
 import { InMemoryPreviewStore } from "../src/infrastructure/preview-store.ts";
@@ -18,6 +19,7 @@ import {
   FakeDownloader,
   FakeImageFetcher,
   FakeMediaServer,
+  RecordingNotifier,
   FakeStreamDetector,
 } from "./fakes/ports.ts";
 import { fakeHttp, fixture, metadataUrl } from "@orca/extractor-internet-archive/testing";
@@ -51,6 +53,7 @@ export async function createHarness(
   const images = new FakeImageFetcher();
   const detector = new FakeStreamDetector();
   const library = new FsLibraryWriter(root);
+  const extraNotifier = new RecordingNotifier();
 
   const deps: Deps = {
     clock: db.clock,
@@ -70,6 +73,13 @@ export async function createHarness(
     downloaders: [downloader],
     detector,
     events: bus,
+    notifications: new NotificationService({
+      notifiers: [new PanelNotifier(db.notifications, bus), extraNotifier],
+      clock: db.clock,
+      repository: db.notifications,
+      onError: () => {},
+    }),
+    notificationRepository: db.notifications,
     refreshDebounceMs: 60_000,
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     adminRecheckMs: 3600 * 1000,
@@ -105,6 +115,7 @@ export async function createHarness(
     images,
     detector,
     library,
+    extraNotifier,
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 }

@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { PermanentError } from "../domain/errors.ts";
 import type { Job } from "../domain/job.ts";
-import type { Source } from "../domain/series.ts";
+import { episodeCode, type Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createCheckSeries } from "./check-series.ts";
 import { createEnqueueRefresh } from "./downloads.ts";
@@ -83,6 +83,35 @@ export function createJobHandler(deps: Deps): JobHandler {
     await deps.mediaServer.libraryUpdated(deps.library.seriesPath(series));
   }
 
+  /** A job that gave up (permanent error, or retries spent) is worth a notification; a retry is not. */
+  async function notifyFailure(job: Job): Promise<void> {
+    const titles = job.seriesId
+      ? await deps.series.seriesTitles([job.seriesId])
+      : new Map<string, string>();
+    const episode = job.episodeId ? await deps.series.getEpisode(job.episodeId) : null;
+    await deps.notifications.jobFailed(job, {
+      seriesTitle: (job.seriesId && titles.get(job.seriesId)) || null,
+      episodeCode: episode ? episodeCode(episode.season, episode.episode) : null,
+    });
+  }
+
+  /** When the last queued download of a series has finished, the batch is over. */
+  async function notifyIfBatchDone(job: Job): Promise<void> {
+    if (!job.seriesId) return;
+    if (((await deps.jobs.countActiveDownloads()).get(job.seriesId) ?? 0) > 0) return;
+    const series = await deps.series.get(job.seriesId);
+    if (!series) return;
+    const episodes = await deps.series.listEpisodes(series.id);
+    await deps.notifications.seriesDownloaded(
+      { id: series.id, title: series.title },
+      {
+        available: episodes.filter((episode) => episode.status === "available").length,
+        total: episodes.length,
+      },
+      job.finishedAt ?? deps.clock.now(),
+    );
+  }
+
   return {
     async run(job, context) {
       switch (job.kind) {
@@ -99,6 +128,8 @@ export function createJobHandler(deps: Deps): JobHandler {
     },
 
     async onOutcome(job: Job, outcome: JobOutcome) {
+      if (outcome === "failed") await notifyFailure(job);
+      if (job.kind === "download_episode" && outcome === "done") await notifyIfBatchDone(job);
       if (job.kind === "check_series" && outcome === "failed" && job.seriesId) {
         // Counts as a look: otherwise a broken series is queued again on every tick.
         await deps.series.update(job.seriesId, { lastCheckedAt: deps.clock.now() });

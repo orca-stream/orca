@@ -6,6 +6,7 @@ import {
   type EpisodeDto,
   type JobDto,
   type ListJobsQuery,
+  type NotificationList,
   type Me,
   type Page,
   type PreviewDto,
@@ -24,7 +25,13 @@ import { createEnqueueDownloads } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
 import { newEpisode } from "./episodes.ts";
 import { createEnqueueCheck } from "./checks.ts";
-import { toEpisodeDto, toJobDto, toPreviewDto, toSeriesDto } from "./presenter.ts";
+import {
+  toEpisodeDto,
+  toJobDto,
+  toNotificationDto,
+  toPreviewDto,
+  toSeriesDto,
+} from "./presenter.ts";
 
 /** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
 const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
@@ -287,6 +294,20 @@ export function createUseCases(deps: Deps) {
     async cancelJob(id: string): Promise<JobDto> {
       if (!(await deps.jobs.get(id))) throw new AppError("not_found", "No such job");
       return (await jobDtos([await deps.canceller.cancel(id)]))[0] as JobDto;
+    },
+
+    async listNotifications(limit: number): Promise<NotificationList> {
+      const [items, unreadCount] = await Promise.all([
+        deps.notificationRepository.list(limit),
+        deps.notificationRepository.unreadCount(),
+      ]);
+      return { items: items.map(toNotificationDto), unreadCount };
+    },
+
+    /** No ids: every unread one. Returns what is still unread. */
+    async markNotificationsRead(ids?: string[]): Promise<{ unreadCount: number }> {
+      await deps.notificationRepository.markRead(deps.clock.now(), ids);
+      return { unreadCount: await deps.notificationRepository.unreadCount() };
     },
 
     async login(username: string, password: string): Promise<{ sessionId: string; me: Me }> {

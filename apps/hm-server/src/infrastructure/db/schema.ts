@@ -103,3 +103,19 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    seriesId: text("series_id").references(() => series.id, { onDelete: "set null" }),
+    jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    data: text("data", { mode: "json" }).notNull().$type<Record<string, string | number | null>>(),
+    createdAt: integer("created_at").notNull(),
+    readAt: integer("read_at"),
+  },
+  (t) => [index("notifications_recent").on(t.createdAt)],
+);

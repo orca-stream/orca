@@ -9,12 +9,14 @@ import type { Deps } from "./application/deps.ts";
 import { createJobEvents } from "./application/job-events.ts";
 import { createJobHandler } from "./application/job-handler.ts";
 import { Scheduler, SCHEDULER_TICK_MS } from "./application/scheduler.ts";
+import { NotificationService, PanelNotifier } from "./application/notifications.ts";
 import { JobQueue } from "./application/queue.ts";
 import { createUseCases } from "./application/use-cases.ts";
 import { resolveDeviceId } from "./application/device-id.ts";
 import { loadConfig, userAgent } from "./infrastructure/config.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "./infrastructure/db/job-repository.ts";
+import { DrizzleNotificationRepository } from "./infrastructure/db/notification-repository.ts";
 import { DrizzleSeriesRepository } from "./infrastructure/db/series-repository.ts";
 import { DrizzleSessionRepository } from "./infrastructure/db/session-repository.ts";
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
@@ -73,6 +75,7 @@ extractors.push(
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);
+const notificationRepository = new DrizzleNotificationRepository(database.db);
 
 // The queue needs the use cases' handler and they need the queue to wake it: the two ports below
 // close over `queue`, which exists by the time anything calls them.
@@ -105,6 +108,13 @@ const deps: Deps = {
   // The Playwright detector arrives with the later phase; page sources fail clearly until then.
   detector: null,
   events,
+  // The panel's channel is the only one; ntfy and the like would be added to this list.
+  notifications: new NotificationService({
+    notifiers: [new PanelNotifier(notificationRepository, events)],
+    clock: systemClock,
+    repository: notificationRepository,
+  }),
+  notificationRepository,
   refreshDebounceMs: 60_000,
   sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
   adminRecheckMs: 60 * 60 * 1000,

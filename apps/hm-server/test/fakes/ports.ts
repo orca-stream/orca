@@ -8,9 +8,11 @@ import type {
   FetchedImage,
   ImageFetcher,
   MediaServer,
+  Notifier,
   StreamDetector,
   DetectedStream,
 } from "../../src/application/ports.ts";
+import type { Notification } from "../../src/domain/notification.ts";
 import { AbortedError, AppError } from "../../src/domain/errors.ts";
 import type { Source } from "../../src/domain/series.ts";
 
@@ -118,5 +120,16 @@ export class FakeStreamDetector implements StreamDetector {
 
   async detect(): Promise<DetectedStream[]> {
     return this.streams;
+  }
+}
+
+/** A second channel next to the panel's: remembers what it was sent, and can be told to fail. */
+export class RecordingNotifier implements Notifier {
+  readonly sent: Notification[] = [];
+  fail = false;
+
+  async notify(notification: Notification): Promise<void> {
+    if (this.fail) throw new Error("channel down");
+    this.sent.push(notification);
   }
 }
