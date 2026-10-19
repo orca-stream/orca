@@ -5,6 +5,9 @@ import {
   HmEvent,
   ListJobsQuery,
   LoginBody,
+  MarkReadBody,
+  NotificationDto,
+  NotificationList,
   Page,
   PreviewDto,
   SeriesDto,
@@ -163,10 +166,22 @@ describe("isHmEvent", () => {
     startedAt: 0,
     finishedAt: null,
   };
+  const notification = {
+    id: "n1",
+    kind: "new_episodes",
+    title: "New episodes",
+    body: "Show: 2 new episodes",
+    seriesId: "s1",
+    jobId: null,
+    data: { seriesTitle: "Show", count: 2 },
+    createdAt: 1,
+    readAt: null,
+  };
   const valid = [
     { type: "job.updated", seq: 1, job },
     { type: "job.progress", seq: 2, jobId: "j1", progress: 0.5, detail: null },
     { type: "series.updated", seq: 3, seriesId: "s1" },
+    { type: "notification.created", seq: 4, notification },
   ];
 
   it.each(valid)("accepts what the schema accepts: $type", (event) => {
@@ -184,7 +199,36 @@ describe("isHmEvent", () => {
     { type: "job.updated", seq: 1, job: null },
     { type: "job.updated", seq: 1, job: { id: 3 } },
     { type: "job.progress", seq: 1, jobId: "j1", progress: "x", detail: null },
+    { type: "notification.created", seq: 1 },
+    { type: "notification.created", seq: 1, notification: { id: 3 } },
   ])("rejects %j", (event) => {
     expect(isHmEvent(event)).toBe(false);
+  });
+});
+
+describe("notifications", () => {
+  const dto = {
+    id: "n1",
+    kind: "job_failed",
+    title: "A download failed",
+    body: "Show S01E01: HTTP 404",
+    seriesId: null,
+    jobId: "j1",
+    data: { episodeCode: "S01E01", count: null },
+    createdAt: 5,
+    readAt: null,
+  };
+
+  it("describes a notification, its kinds and the list with its unread count", () => {
+    expect(NotificationDto.safeParse(dto).success).toBe(true);
+    expect(NotificationDto.safeParse({ ...dto, kind: "other" }).success).toBe(false);
+    expect(NotificationList.safeParse({ items: [dto], unreadCount: 1 }).success).toBe(true);
+    expect(NotificationList.safeParse({ items: [dto] }).success).toBe(false);
+  });
+
+  it("marks some notifications read, or all of them when no ids are given", () => {
+    expect(MarkReadBody.parse({})).toEqual({});
+    expect(MarkReadBody.parse({ ids: ["a"] })).toEqual({ ids: ["a"] });
+    expect(MarkReadBody.safeParse({ ids: [] }).success).toBe(false);
   });
 });

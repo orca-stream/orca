@@ -26,7 +26,12 @@ export function needsLicenseAck(input: {
 export const LICENSE_ACK_REQUIRED = "license_ack_required";
 
 /** Every `type` the event stream sends; each is also the SSE event name. */
-export const HM_EVENT_TYPES = ["job.updated", "job.progress", "series.updated"] as const;
+export const HM_EVENT_TYPES = [
+  "job.updated",
+  "job.progress",
+  "series.updated",
+  "notification.created",
+] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -52,6 +57,13 @@ export function isHmEvent(value: unknown): value is HmEvent {
       return isString(value.jobId) && isNumberOrNull(value.progress);
     case "series.updated":
       return isString(value.seriesId);
+    case "notification.created":
+      return (
+        isRecord(value.notification) &&
+        isString(value.notification.id) &&
+        isString(value.notification.kind) &&
+        isString(value.notification.title)
+      );
     default:
       return false;
   }

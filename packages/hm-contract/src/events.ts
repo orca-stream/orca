@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { JobDto, ProgressDetail } from "./jobs.ts";
+import { NotificationDto } from "./notifications.ts";
 
 export const HmEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("job.updated"), seq: z.number().int(), job: JobDto }),
@@ -11,5 +12,10 @@ export const HmEvent = z.discriminatedUnion("type", [
     detail: ProgressDetail.nullable(),
   }),
   z.object({ type: z.literal("series.updated"), seq: z.number().int(), seriesId: z.string() }),
+  z.object({
+    type: z.literal("notification.created"),
+    seq: z.number().int(),
+    notification: NotificationDto,
+  }),
 ]);
 export type HmEvent = z.infer<typeof HmEvent>;
