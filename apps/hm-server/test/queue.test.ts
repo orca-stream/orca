@@ -311,6 +311,18 @@ describe("JobQueue", () => {
     expect((await jobs.get(job.id))?.status).toBe("done");
   });
 
+  it("reports a conflict when the pump claimed the job but it never became cancellable", async () => {
+    const { queue, add, jobs } = setup(async () => {});
+    const { job } = await add();
+    // Claimed by this queue's owner but not launched: neither queued nor running here.
+    expect(await jobs.claim("download", "test", 60_000)).not.toBeNull();
+    await expect(queue.cancel(job.id)).rejects.toMatchObject({
+      name: "AppError",
+      code: "conflict",
+    });
+    expect((await jobs.get(job.id))?.status).toBe("running");
+  });
+
   it("doesn't recover a lease that expired while the job is still running here", async () => {
     const gate = deferred();
     let runs = 0;

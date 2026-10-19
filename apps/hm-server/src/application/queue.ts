@@ -176,7 +176,9 @@ export class JobQueue implements JobCanceller, QueueSignal {
     }
     const last = await jobs.get(id);
     if (!last) throw new AppError("not_found", `No job ${id}`);
-    return last;
+    if (isTerminal(last.status)) return last;
+    // Still live after every attempt: say so instead of handing back a job that did not stop.
+    throw new AppError("conflict", `Job ${id} is still ${last.status}; try cancelling it again`);
   }
 
   private launch(job: Job): void {
