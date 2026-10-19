@@ -266,6 +266,8 @@ export interface NotificationRepository {
   unreadCount(): Promise<number>;
   /** `ids` absent: every unread one. Returns how many changed. */
   markRead(at: number, ids?: string[]): Promise<number>;
+  /** Removes every notification created before `cutoff`. */
+  deleteOlderThan(cutoff: number): Promise<void>;
   /** The newest notification of a kind for a series. */
   latest(kind: NotificationKind, seriesId: string): Promise<Notification | null>;
 }

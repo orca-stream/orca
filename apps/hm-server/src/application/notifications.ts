@@ -24,6 +24,9 @@ export class PanelNotifier implements Notifier {
   }
 }
 
+/** How long a notification is kept; the bell only lists the latest ones anyway. */
+export const NOTIFICATION_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 type Draft = Pick<Notification, "kind" | "title" | "body" | "seriesId" | "jobId" | "data">;
 
 export interface NotificationServiceOptions {
@@ -126,6 +129,13 @@ export class NotificationService {
         error,
       },
     });
+  }
+
+  /** Deletes the notifications older than the retention. */
+  async prune(): Promise<void> {
+    await this.options.repository.deleteOlderThan(
+      this.options.clock.now() - NOTIFICATION_RETENTION_MS,
+    );
   }
 
   private async send(draft: Draft): Promise<void> {

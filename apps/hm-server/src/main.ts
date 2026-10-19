@@ -192,8 +192,9 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`${signal}: shutting down`);
   server.close();
   if ("closeAllConnections" in server) server.closeAllConnections();
-  scheduler.stop();
   await queue.stop();
+  // A tick still running would write to a database that is about to close.
+  await scheduler.stop();
   await detector?.dispose();
   database.close();
   process.exit(0);

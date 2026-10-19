@@ -53,6 +53,13 @@ export class DrizzleNotificationRepository implements NotificationRepository {
       .run().changes;
   }
 
+  async deleteOlderThan(cutoff: number): Promise<void> {
+    this.db
+      .delete(notifications)
+      .where(sql`${notifications.createdAt} < ${cutoff}`)
+      .run();
+  }
+
   async latest(kind: NotificationKind, seriesId: string): Promise<Notification | null> {
     const row = this.db
       .select()

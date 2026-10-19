@@ -189,13 +189,23 @@ export function createJobHandler(deps: Deps): JobHandler {
     },
 
     async onOutcome(job: Job, outcome: JobOutcome) {
-      if (outcome === "failed") await notifyFailure(job);
-      if (job.kind === "download_episode" && outcome === "done") await notifyIfBatchDone(job);
-      if (job.kind === "check_series" && outcome === "failed" && job.seriesId) {
-        // Counts as a look: otherwise a broken series is queued again on every tick.
+      if (
+        job.kind === "check_series" &&
+        (outcome === "failed" || outcome === "cancelled") &&
+        job.seriesId
+      ) {
+        // First, and whatever else goes wrong below: it counts as a look, otherwise a broken or
+        // cancelled check is queued again on every tick.
         await deps.series.update(job.seriesId, { lastCheckedAt: deps.clock.now() });
-        return;
       }
+      if (outcome === "failed") {
+        // Telling the panel is best effort; it must not keep the rest of this from happening.
+        await notifyFailure(job).catch((error: unknown) =>
+          console.error("notification failed:", error),
+        );
+      }
+      if (job.kind === "download_episode" && outcome === "done") await notifyIfBatchDone(job);
+      if (job.kind === "check_series") return;
       if (job.kind !== "download_episode" || !job.episodeId || outcome === "done") return;
       const episode = await deps.series.getEpisode(job.episodeId);
       if (!episode || episode.status === "available") return;

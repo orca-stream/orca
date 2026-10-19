@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { NOTIFICATION_RETENTION_MS } from "../src/application/notifications.ts";
 import { Scheduler } from "../src/application/scheduler.ts";
 import { ExtractorError } from "@orca/extractor-core";
 import { createHarness, type Harness } from "./harness.ts";
@@ -109,6 +110,36 @@ describe("Scheduler", () => {
     expect(timers[0]!.cancelled).toBe(true);
   });
 
+  it("waits for a tick that is in flight when it is stopped, so the database can close after it", async () => {
+    let finish!: () => void;
+    const slow = new Promise<void>((resolve) => (finish = resolve));
+    const findDue = h.deps.series.findDueSeries.bind(h.deps.series);
+    h.deps.series.findDueSeries = async (now) => {
+      await slow;
+      return findDue(now);
+    };
+    const scheduler = new Scheduler(h.deps);
+    scheduler.start({ everyMs: 300_000, every: () => () => {} });
+    let stopped = false;
+    const stopping = scheduler.stop().then(() => (stopped = true));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(stopped).toBe(false);
+    finish();
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it("removes notifications older than the retention on each tick, and keeps the recent ones", async () => {
+    await h.deps.notifications.newEpisodes({ id: null, title: "Old" }, [{ season: 1, episode: 1 }]);
+    h.clock.advance(NOTIFICATION_RETENTION_MS - 1000);
+    await h.deps.notifications.newEpisodes({ id: null, title: "Recent" }, [
+      { season: 1, episode: 2 },
+    ]);
+    h.clock.advance(2000);
+    await new Scheduler(h.deps).tick();
+    expect((await h.notifications.list(10)).map((n) => n.data.seriesTitle)).toEqual(["Recent"]);
+  });
+
   it("wakes the queue when it queued something, and not when it did not", async () => {
     let notified = 0;
     h.deps.queue = { notify: () => void notified++ };
@@ -172,6 +203,30 @@ describe("the scheduler and the queue together", () => {
     await h.queue.settle();
     const failed = (await h.jobs.list({ status: ["failed"], limit: 50 })).items;
     expect(failed.map((job) => job.kind)).toEqual(["check_series"]);
+    expect((await h.series.get(created.id))?.lastCheckedAt).toBe(h.clock.now());
+    expect(await scheduler.tick()).toBe(0);
+  });
+
+  it("stamps last_checked_at even when the failure notification itself blows up", async () => {
+    const created = await addFollowed();
+    h.clock.advance(13 * HOUR);
+    site.failMarker = new ExtractorError("not-found", "gone");
+    h.deps.notifications.jobFailed = async () => {
+      throw new Error("notifications table is locked");
+    };
+    await new Scheduler(h.deps).tick();
+    await h.queue.settle();
+    expect((await h.series.get(created.id))?.lastCheckedAt).toBe(h.clock.now());
+  });
+
+  it("stamps last_checked_at for a check that was cancelled, so it is not queued again at once", async () => {
+    const created = await addFollowed();
+    h.clock.advance(13 * HOUR);
+    const scheduler = new Scheduler(h.deps);
+    h.deps.queue = { notify: () => {} };
+    await scheduler.tick();
+    const [job] = (await h.jobs.list({ status: ["queued"], limit: 5 })).items;
+    await h.queue.cancel(job!.id);
     expect((await h.series.get(created.id))?.lastCheckedAt).toBe(h.clock.now());
     expect(await scheduler.tick()).toBe(0);
   });
