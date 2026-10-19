@@ -39,3 +39,6 @@ dist-ssr
 apps/jp/xbox/Orca/bin
 apps/jp/xbox/Orca/obj
 apps/jp/xbox/out
+
+# Bifrost: the real config names hosts and addresses; only bifrost.example.yaml is versioned
+apps/bifrost/bifrost.yaml
