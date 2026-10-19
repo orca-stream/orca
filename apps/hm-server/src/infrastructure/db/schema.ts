@@ -17,6 +17,7 @@ export const series = sqliteTable(
     checkIntervalHours: integer("check_interval_hours").notNull().default(12),
     lastCheckedAt: integer("last_checked_at"),
     remoteMarker: text("last_remote_marker"),
+    knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

@@ -8,6 +8,7 @@ import { createJellyfin } from "@orca/jellyfin";
 import type { Deps } from "./application/deps.ts";
 import { createJobEvents } from "./application/job-events.ts";
 import { createJobHandler } from "./application/job-handler.ts";
+import { Scheduler, SCHEDULER_TICK_MS } from "./application/scheduler.ts";
 import { JobQueue } from "./application/queue.ts";
 import { createUseCases } from "./application/use-cases.ts";
 import { resolveDeviceId } from "./application/device-id.ts";
@@ -133,6 +134,8 @@ const app = createApp({
 });
 
 await queue.start();
+const scheduler = new Scheduler(deps);
+scheduler.start({ everyMs: SCHEDULER_TICK_MS });
 const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
   console.log(
     `Orca'H&M ${version} listening on http://${info.address}:${info.port} (media: ${mediaRoot})`,
@@ -146,6 +149,7 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`${signal}: shutting down`);
   server.close();
   if ("closeAllConnections" in server) server.closeAllConnections();
+  scheduler.stop();
   await queue.stop();
   database.close();
   process.exit(0);

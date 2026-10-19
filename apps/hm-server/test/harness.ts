@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SiteExtractor } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createUseCases } from "../src/application/use-cases.ts";
 import type { Deps } from "../src/application/deps.ts";
@@ -31,7 +32,11 @@ export const BEVHILL_URL = `https://archive.org/details/${BEVHILL}`;
  * fixture, real library on a temp folder; fake downloader, Jellyfin and image fetcher.
  */
 export async function createHarness(
-  options: { limits?: Partial<Record<"browser" | "ffmpeg" | "download" | "none", number>> } = {},
+  options: {
+    limits?: Partial<Record<"browser" | "ffmpeg" | "download" | "none", number>>;
+    /** Extra sites next to Internet Archive. */
+    extractors?: SiteExtractor[];
+  } = {},
 ) {
   const db = testDatabase();
   const root = await mkdtemp(join(tmpdir(), "hm-harness-"));
@@ -53,7 +58,10 @@ export async function createHarness(
     series: db.series,
     jobs: db.jobs,
     sessions: db.sessions,
-    extractors: new StaticExtractorRegistry([createInternetArchiveExtractor({ http })]),
+    extractors: new StaticExtractorRegistry([
+      createInternetArchiveExtractor({ http }),
+      ...(options.extractors ?? []),
+    ]),
     previews: new InMemoryPreviewStore(db.clock),
     library,
     images,

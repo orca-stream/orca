@@ -215,6 +215,10 @@ export function createApp(deps: AppDeps) {
     });
   });
 
+  api.post("/series/:id/check", async (c) =>
+    c.json(await useCases.checkSeriesNow(c.req.param("id")), 202),
+  );
+
   api.post("/series/:id/download", async (c) =>
     c.json(await useCases.downloadSeries(c.req.param("id")), 201),
   );

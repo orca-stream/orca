@@ -28,6 +28,11 @@ export interface Series {
   checkIntervalHours: number;
   lastCheckedAt: number | null;
   remoteMarker: string | null;
+  /**
+   * Every episode key the site listed when the series was last read, chosen or not. A check adds only
+   * keys outside this list (plus the series' own episodes), so an episode the user left out stays out.
+   */
+  knownRefs: string[];
   createdAt: number;
 }
 

@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Extraction } from "@orca/extractor-core";
 import {
   LICENSE_ACK_REQUIRED,
   needsLicenseAck,
@@ -16,28 +15,16 @@ import {
 import { AppError } from "../domain/errors.ts";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Job } from "../domain/job.ts";
-import type { Episode, Series, Source } from "../domain/series.ts";
+import type { Episode, Series } from "../domain/series.ts";
 import { seriesFolderName } from "../domain/naming.ts";
 import type { Deps } from "./deps.ts";
 import { trustedPosterUrl } from "./poster-url.ts";
 import type { FetchedImage } from "./ports.ts";
 import { createEnqueueDownloads } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
+import { newEpisode } from "./episodes.ts";
+import { createEnqueueCheck } from "./checks.ts";
 import { toEpisodeDto, toJobDto, toPreviewDto, toSeriesDto } from "./presenter.ts";
-
-type ExtractedEpisode = Extraction["episodes"][number];
-
-function sourceOf(episode: ExtractedEpisode): Source {
-  const { media } = episode;
-  return {
-    kind: "direct",
-    url: media.url,
-    fileName: media.fileName,
-    ...(media.sizeBytes !== undefined ? { sizeBytes: media.sizeBytes } : {}),
-    ...(media.md5 ? { md5: media.md5 } : {}),
-    ...(media.durationSec !== undefined ? { durationSec: media.durationSec } : {}),
-  };
-}
 
 /** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
 const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
@@ -59,6 +46,7 @@ export function createUseCases(deps: Deps) {
   const rechecks = new Map<string, Promise<boolean>>();
 
   const enqueueDownloads = createEnqueueDownloads(deps);
+  const enqueueCheck = createEnqueueCheck(deps);
   const { publishJob } = createJobEvents(deps);
 
   async function jobDtos(jobs: Job[]): Promise<JobDto[]> {
@@ -169,26 +157,10 @@ export function createUseCases(deps: Deps) {
           checkIntervalHours: 12,
           lastCheckedAt: null,
           remoteMarker: extraction.series.remoteMarker ?? null,
+          knownRefs: extraction.episodes.map((episode) => episode.sourceRef),
           createdAt: now,
         };
-        const episodes: Episode[] = chosen.map((episode) => ({
-          id: uuidv7(now),
-          seriesId: series.id,
-          season: episode.season,
-          episode: episode.episode,
-          title: episode.title,
-          plot: episode.plot ?? null,
-          airDate: episode.airDate ?? null,
-          inferred: episode.inferred,
-          sourceRef: episode.sourceRef,
-          source: sourceOf(episode),
-          durationSec: episode.media.durationSec ?? null,
-          sizeBytes: episode.media.sizeBytes ?? null,
-          format: episode.media.format ?? null,
-          status: "missing",
-          filePath: null,
-          createdAt: now,
-        }));
+        const episodes: Episode[] = chosen.map((episode) => newEpisode(series.id, episode, now));
 
         // The folder first: if it can't be written there is nothing to undo. If saving then fails,
         // take the folder away again (when it was ours), so a retry doesn't meet a half-made series.
@@ -252,6 +224,13 @@ export function createUseCases(deps: Deps) {
       }
       deps.events.publish({ type: "series.updated", seriesId: id });
       return this.getSeries(id);
+    },
+
+    /** "Check now": queues the same job the scheduler does, so it shares its dedupe and its limits. */
+    async checkSeriesNow(seriesId: string): Promise<JobDto> {
+      if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
+      const { job } = await enqueueCheck(seriesId);
+      return (await jobDtos([job]))[0] as JobDto;
     },
 
     async listEpisodes(seriesId: string): Promise<EpisodeDto[]> {

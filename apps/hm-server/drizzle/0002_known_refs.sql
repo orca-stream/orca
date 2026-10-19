@@ -1,0 +1,1 @@
+ALTER TABLE `series` ADD `known_refs` text;

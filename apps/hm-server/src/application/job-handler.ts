@@ -3,15 +3,18 @@ import { PermanentError } from "../domain/errors.ts";
 import type { Job } from "../domain/job.ts";
 import type { Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
+import { createCheckSeries } from "./check-series.ts";
 import { createEnqueueRefresh } from "./downloads.ts";
 import type { JobHandler, JobOutcome } from "./queue.ts";
 
 const DownloadPayload = z.object({ episodeId: z.string() });
 const RefreshPayload = z.object({ seriesId: z.string() });
+const CheckPayload = z.object({ seriesId: z.string() });
 
 /** The pipeline for every kind of job. The queue calls `run`; `onOutcome` keeps episodes in line. */
 export function createJobHandler(deps: Deps): JobHandler {
   const enqueueRefresh = createEnqueueRefresh(deps);
+  const checkSeries = createCheckSeries(deps);
 
   async function resolveSource(source: Source, signal: AbortSignal): Promise<Source> {
     if (source.kind !== "page") return source;
@@ -87,14 +90,20 @@ export function createJobHandler(deps: Deps): JobHandler {
           return downloadEpisode(job, context);
         case "refresh_library":
           return refreshLibrary(job);
-        case "check_series":
-          throw new PermanentError(
-            "Checking followed series for new episodes is not available yet",
-          );
+        case "check_series": {
+          const { seriesId } = CheckPayload.parse(job.payload);
+          await checkSeries(seriesId, context.signal);
+          return;
+        }
       }
     },
 
     async onOutcome(job: Job, outcome: JobOutcome) {
+      if (job.kind === "check_series" && outcome === "failed" && job.seriesId) {
+        // Counts as a look: otherwise a broken series is queued again on every tick.
+        await deps.series.update(job.seriesId, { lastCheckedAt: deps.clock.now() });
+        return;
+      }
       if (job.kind !== "download_episode" || !job.episodeId || outcome === "done") return;
       const episode = await deps.series.getEpisode(job.episodeId);
       if (!episode || episode.status === "available") return;

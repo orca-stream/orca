@@ -28,8 +28,27 @@ export interface SeriesRepository {
   list(): Promise<SeriesWithCounts[]>;
   update(
     id: string,
-    patch: Partial<Pick<Series, "title" | "year" | "follow" | "checkIntervalHours" | "hasPoster">>,
+    patch: Partial<
+      Pick<
+        Series,
+        | "title"
+        | "year"
+        | "follow"
+        | "checkIntervalHours"
+        | "hasPoster"
+        | "lastCheckedAt"
+        | "remoteMarker"
+        | "knownRefs"
+      >
+    >,
   ): Promise<Series | null>;
+  /** Followed series never checked, or last checked more than their interval ago. */
+  findDueSeries(now: number): Promise<Series[]>;
+  /**
+   * Stores what a re-check found, together: existing episodes (matched by `sourceRef` upstream) get
+   * their site metadata refreshed, but never their status, file or number; new ones are inserted.
+   */
+  upsertEpisodes(seriesId: string, changes: { update: Episode[]; add: Episode[] }): Promise<void>;
   listEpisodes(seriesId: string): Promise<Episode[]>;
   getEpisode(id: string): Promise<Episode | null>;
   getEpisodes(ids: string[]): Promise<Episode[]>;

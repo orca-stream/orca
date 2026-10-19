@@ -10,7 +10,7 @@ type SeriesRow = typeof series.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
 
 function toSeries(row: SeriesRow): Series {
-  return { ...row };
+  return { ...row, knownRefs: row.knownRefs ?? [] };
 }
 
 function toEpisode(row: EpisodeRow): Episode {
@@ -78,13 +78,49 @@ export class DrizzleSeriesRepository implements SeriesRepository {
 
   async update(
     id: string,
-    patch: Partial<Pick<Series, "title" | "year" | "follow" | "checkIntervalHours" | "hasPoster">>,
+    patch: Parameters<SeriesRepository["update"]>[1],
   ): Promise<Series | null> {
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (Object.keys(defined).length > 0) {
       this.db.update(series).set(defined).where(eq(series.id, id)).run();
     }
     return this.get(id);
+  }
+
+  async findDueSeries(now: number): Promise<Series[]> {
+    return this.db
+      .select()
+      .from(series)
+      .where(
+        sql`${series.follow} = 1 and (${series.lastCheckedAt} is null or ${series.lastCheckedAt} + ${series.checkIntervalHours} * 3600000 <= ${now})`,
+      )
+      .orderBy(series.lastCheckedAt, series.id)
+      .all()
+      .map(toSeries);
+  }
+
+  async upsertEpisodes(
+    seriesId: string,
+    changes: { update: Episode[]; add: Episode[] },
+  ): Promise<void> {
+    this.db.transaction((tx) => {
+      for (const episode of changes.update) {
+        tx.update(episodes)
+          .set({
+            title: episode.title,
+            plot: episode.plot,
+            airDate: episode.airDate,
+            inferred: episode.inferred,
+            source: episode.source,
+            durationSec: episode.durationSec,
+            sizeBytes: episode.sizeBytes,
+            format: episode.format,
+          })
+          .where(sql`${episodes.id} = ${episode.id} and ${episodes.seriesId} = ${seriesId}`)
+          .run();
+      }
+      for (const episode of changes.add) tx.insert(episodes).values(episode).run();
+    });
   }
 
   async listEpisodes(seriesId: string): Promise<Episode[]> {

@@ -1,0 +1,178 @@
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { Scheduler } from "../src/application/scheduler.ts";
+import { ExtractorError } from "@orca/extractor-core";
+import { createHarness, type Harness } from "./harness.ts";
+import { FakeExtractor, FAKE_URL } from "./fakes/extractor.ts";
+import { aSeries } from "./helpers.ts";
+
+let h: Harness;
+beforeEach(async () => {
+  h = await createHarness();
+  // These tests look at queued jobs: keep the real queue from picking them up.
+  h.deps.queue = { notify: () => {} };
+});
+afterEach(() => h.cleanup());
+
+const HOUR = 3_600_000;
+
+async function seed(overrides: Parameters<typeof aSeries>[0]) {
+  const series = aSeries({ createdAt: h.clock.now(), ...overrides });
+  await h.series.create(series, []);
+  return series;
+}
+
+const checkJobs = async () =>
+  (await h.jobs.list({ status: ["queued", "running"], limit: 50 })).items.filter(
+    (job) => job.kind === "check_series",
+  );
+
+describe("findDueSeries", () => {
+  it("returns followed series never checked, and those whose interval ran out", async () => {
+    const now = h.clock.now();
+    await seed({ id: "never", folderName: "a", externalId: "a", follow: true });
+    await seed({
+      id: "due",
+      folderName: "b",
+      externalId: "b",
+      follow: true,
+      checkIntervalHours: 12,
+      lastCheckedAt: now - 12 * HOUR,
+    });
+    await seed({
+      id: "fresh",
+      folderName: "c",
+      externalId: "c",
+      follow: true,
+      checkIntervalHours: 12,
+      lastCheckedAt: now - 12 * HOUR + 1,
+    });
+    const due = await h.series.findDueSeries(now);
+    expect(due.map((series) => series.id).sort()).toEqual(["due", "never"]);
+  });
+
+  it("never returns a series that is not followed", async () => {
+    await seed({ id: "x", follow: false, lastCheckedAt: null });
+    expect(await h.series.findDueSeries(h.clock.now())).toEqual([]);
+  });
+});
+
+describe("Scheduler", () => {
+  it("queues one check_series job per due series, with the check:{id} dedupe key", async () => {
+    await seed({ id: "s1", follow: true });
+    const scheduler = new Scheduler(h.deps);
+    expect(await scheduler.tick()).toBe(1);
+    const [job] = await checkJobs();
+    expect(job).toMatchObject({
+      kind: "check_series",
+      seriesId: "s1",
+      dedupeKey: "check:s1",
+      resource: "none",
+      payload: { seriesId: "s1" },
+    });
+  });
+
+  it("queues a single job when two ticks come in a row", async () => {
+    await seed({ id: "s1", follow: true });
+    const scheduler = new Scheduler(h.deps);
+    await scheduler.tick();
+    expect(await scheduler.tick()).toBe(0);
+    expect(await checkJobs()).toHaveLength(1);
+  });
+
+  it("does nothing for series that are not due", async () => {
+    await seed({ id: "s1", follow: true, lastCheckedAt: h.clock.now() });
+    expect(await new Scheduler(h.deps).tick()).toBe(0);
+  });
+
+  it("ticks once when it starts and then on every interval, until stopped", async () => {
+    await seed({ id: "s1", follow: true });
+    const scheduler = new Scheduler(h.deps);
+    const timers: { fn: () => void; ms: number; cancelled: boolean }[] = [];
+    scheduler.start({
+      everyMs: 300_000,
+      every: (fn, ms) => {
+        const timer = { fn, ms, cancelled: false };
+        timers.push(timer);
+        return () => void (timer.cancelled = true);
+      },
+    });
+    await scheduler.idle();
+    expect(timers.map((timer) => timer.ms)).toEqual([300_000]);
+    expect(await checkJobs()).toHaveLength(1);
+
+    await h.jobs.cancelQueued((await checkJobs())[0]!.id);
+    timers[0]!.fn();
+    await scheduler.idle();
+    expect(await checkJobs()).toHaveLength(1);
+
+    scheduler.stop();
+    expect(timers[0]!.cancelled).toBe(true);
+  });
+
+  it("wakes the queue when it queued something, and not when it did not", async () => {
+    let notified = 0;
+    h.deps.queue = { notify: () => void notified++ };
+    const scheduler = new Scheduler(h.deps);
+    await scheduler.tick();
+    expect(notified).toBe(0);
+    await seed({ id: "s1", follow: true });
+    await scheduler.tick();
+    expect(notified).toBe(1);
+  });
+});
+
+describe("the scheduler and the queue together", () => {
+  let site: FakeExtractor;
+  beforeEach(async () => {
+    await h.cleanup();
+    site = new FakeExtractor();
+    h = await createHarness({ extractors: [site] });
+  });
+
+  async function addFollowed() {
+    const preview = await h.useCases.previewSeries(FAKE_URL);
+    return h.useCases.addSeries({
+      previewId: preview.previewId,
+      title: "Fake Show",
+      year: 1960,
+      episodeKeys: preview.episodes.map((episode) => episode.key),
+      follow: true,
+      downloadNow: false,
+      licenseAck: true,
+    });
+  }
+
+  it("runs a due check as a job: a changed marker downloads only the new episode", async () => {
+    const created = await addFollowed();
+    h.clock.advance(13 * HOUR);
+    site.marker = "m2";
+    site.episodes = [
+      ...site.episodes,
+      { ...site.episodes[0]!, episode: 3, sourceRef: "show/e3.mp4" },
+    ];
+    await new Scheduler(h.deps).tick();
+    await h.queue.settle();
+    const checks = (await h.jobs.list({ status: ["done"], limit: 50 })).items.filter(
+      (job) => job.kind === "check_series",
+    );
+    expect(checks).toHaveLength(1);
+    expect((await h.series.listEpisodes(created.id)).map((e) => e.status)).toEqual([
+      "missing",
+      "missing",
+      "available",
+    ]);
+  });
+
+  it("stamps last_checked_at when a check fails for good, so the next tick does not repeat it", async () => {
+    const created = await addFollowed();
+    h.clock.advance(13 * HOUR);
+    site.failMarker = new ExtractorError("not-found", "gone");
+    const scheduler = new Scheduler(h.deps);
+    await scheduler.tick();
+    await h.queue.settle();
+    const failed = (await h.jobs.list({ status: ["failed"], limit: 50 })).items;
+    expect(failed.map((job) => job.kind)).toEqual(["check_series"]);
+    expect((await h.series.get(created.id))?.lastCheckedAt).toBe(h.clock.now());
+    expect(await scheduler.tick()).toBe(0);
+  });
+});

@@ -38,6 +38,7 @@ export function aSeries(overrides: Partial<Series> = {}): Series {
     checkIntervalHours: 12,
     lastCheckedAt: null,
     remoteMarker: null,
+    knownRefs: [],
     createdAt: 1,
     ...overrides,
   };

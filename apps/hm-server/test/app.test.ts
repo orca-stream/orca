@@ -481,3 +481,23 @@ describe("serving the panel (webRoot)", () => {
     expect((await app.request("/")).status).toBe(404);
   });
 });
+
+describe("POST /api/series/:id/check", () => {
+  it("queues the series' check job, once, and answers with it", async () => {
+    h.deps.queue = { notify: () => {} };
+    const { series } = await addBevhill(h);
+    const first = await app.request(`/api/series/${series.id}/check`, authed({ method: "POST" }));
+    expect(first.status).toBe(202);
+    const job = (await first.json()) as { id: string; kind: string; seriesId: string };
+    expect(job).toMatchObject({ kind: "check_series", seriesId: series.id });
+    const second = await app.request(`/api/series/${series.id}/check`, authed({ method: "POST" }));
+    expect(((await second.json()) as { id: string }).id).toBe(job.id);
+  });
+
+  it("is a 404 for an unknown series and needs a session", async () => {
+    expect((await app.request("/api/series/nope/check", authed({ method: "POST" }))).status).toBe(
+      404,
+    );
+    expect((await app.request("/api/series/nope/check", { method: "POST" })).status).toBe(401);
+  });
+});
