@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ConfigError } from "./errors.ts";
-import { insideAny, jellyfinPathOf } from "./media.ts";
+import { insideAny, jellyfinPathOf, mediaMounts, mediaRoot, overlaps } from "./media.ts";
 import { isNetworkCidr } from "./net.ts";
 
 export { ConfigError };
@@ -10,7 +10,12 @@ const record = z.record(z.string(), z.unknown());
 /** Paths end up inside shell scripts: keep them boring. */
 const absPath = z
   .string()
-  .regex(/^\/[\w./-]*$/, "must be an absolute path without spaces or shell characters");
+  .regex(/^\/[\w./-]*$/, "must be an absolute path without spaces or shell characters")
+  .refine(
+    (p) => p === "/" || (!p.endsWith("/") && !p.includes("//")),
+    "must not end with a slash or contain //",
+  )
+  .refine((p) => !p.split("/").includes(".."), "must not contain .. segments");
 
 const Repo = z.strictObject({
   name: z.string().min(1),
@@ -211,6 +216,26 @@ const ConfigSchema = z
           code: "custom",
           path: ["hm", "mediaDir"],
           message: `becomes ${inJellyfin} inside Jellyfin, which is not inside any tvshows library path (${tvPaths.join(", ") || "none declared"})`,
+        });
+      }
+    }
+    if (cfg.hm) {
+      // H&M's own directory must stay clear of everything Jellyfin owns and of every media root.
+      const taken = [
+        "/",
+        cfg.host.dataDir,
+        mediaRoot(cfg.host),
+        cfg.hm.mediaDir,
+        ...mediaMounts(cfg.host).map((m) => m.source),
+      ];
+      const clash = taken.find((t) =>
+        t === "/" ? cfg.hm!.dataDir === "/" : overlaps(cfg.hm!.dataDir, t),
+      );
+      if (clash !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["hm", "dataDir"],
+          message: `overlaps ${clash}: it must be its own directory, apart from host.dataDir and the media`,
         });
       }
     }

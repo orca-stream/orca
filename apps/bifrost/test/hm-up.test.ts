@@ -30,6 +30,8 @@ function answers(extra: Answer[] = []): Answer[] {
     [`cat '${COMPOSE}'`, { code: 1 }],
     ["cat '/srv/orca-hm/image'", { code: 1 }],
     ["docker inspect", { stdout: "healthy\n" }],
+    ["ufw status", { code: 1 }],
+    ["docker image ls", { stdout: `${IMAGE}\norca-hm:aaaaaaaaaaaa\norca-hm:bbbbbbbbbbbb\n` }],
   ];
 }
 
@@ -84,7 +86,7 @@ describe("hm up", () => {
         },
       ),
     );
-    expect(t.remote.scripts().at(-1)).toContain(
+    expect(t.remote.scripts().find((s) => s.includes("docker compose"))).toContain(
       `docker compose -f ${COMPOSE} up -d --force-recreate --no-deps orca-hm`,
     );
     // The build precedes the start; the start precedes the health wait.
@@ -92,7 +94,68 @@ describe("hm up", () => {
     expect(cmds.findIndex((c) => c.includes("docker build"))).toBeLessThan(
       cmds.findIndex((c) => c.includes("up -d")),
     );
-    expect(cmds.at(-1)).toContain("docker inspect -f '{{.State.Health.Status}}' orca-hm");
+    expect(
+      cmds.some((c) => c.includes("docker inspect -f '{{.State.Health.Status}}' orca-hm")),
+    ).toBe(true);
+  });
+
+  it("extracts the tarball without taking its owner or modes", async () => {
+    const t = setup();
+    await t.run();
+    const build = t.remote.scripts().find((s) => s.includes("docker build"))!;
+    expect(build).toContain("tar -xf");
+    expect(build).toContain("--no-same-owner --no-same-permissions");
+  });
+
+  it("clears leftover tarballs from earlier runs before copying", async () => {
+    const t = setup();
+    await t.run();
+    const cmds = t.remote.calls.map((c) => c.kind + ":" + c.cmd);
+    const clean = cmds.findIndex((c) => c.includes("-name '*.tar'") && c.includes("rm -rf {} +"));
+    expect(clean).toBeGreaterThanOrEqual(0);
+    expect(clean).toBeLessThan(cmds.findIndex((c) => c.startsWith("copy:")));
+  });
+
+  it("allows the LAN to reach H&M's port in ufw, once", async () => {
+    const t = setup();
+    await t.run();
+    const rule = t.remote.scripts().find((s) => s.startsWith("ufw allow"))!;
+    expect(rule.trim()).toBe("ufw allow from 192.168.1.0/24 to 192.168.1.10 port 8787 proto tcp");
+    const probe = t.remote.calls.find((c) => c.cmd.includes("ufw status"))!;
+    expect(probe.readOnly).toBe(true);
+
+    const present = new FakeRemoteHost({ answers: answers([["ufw status", { code: 0 }]]) });
+    await setup({ remote: present }).run();
+    expect(present.scripts().some((s) => s.includes("ufw allow"))).toBe(false);
+  });
+
+  it("fails loudly when Jellyfin does not answer 200 from inside the container", async () => {
+    const remote = new FakeRemoteHost({
+      answers: answers([["docker exec orca-hm", { code: 1, stderr: "Jellyfin answered 403" }]]),
+    });
+    await expect(setup({ remote }).run()).rejects.toThrow(/403/);
+  });
+
+  it("checks Jellyfin from inside the container with the key from its environment, not argv", async () => {
+    const t = setup();
+    await t.run();
+    const check = t.remote.calls.find((c) => c.cmd.includes("docker exec orca-hm"))!;
+    expect(check.cmd).toContain("process.env.JELLYFIN_API_KEY");
+    expect(check.cmd).toContain("/System/Info");
+    expect(check.cmd).not.toContain(t.server.keys[0]!.AccessToken);
+  });
+
+  it("removes old images, keeping the current and the previous one", async () => {
+    const t = setup({
+      remote: new FakeRemoteHost({
+        answers: answers([["cat '/srv/orca-hm/image'", { stdout: "orca-hm:aaaaaaaaaaaa\n" }]]),
+      }),
+    });
+    await t.run();
+    const rmi = t.remote.scripts().filter((s) => s.includes("docker rmi"));
+    expect(rmi.join("\n")).toContain("orca-hm:bbbbbbbbbbbb");
+    expect(rmi.join("\n")).not.toContain("orca-hm:aaaaaaaaaaaa");
+    expect(rmi.join("\n")).not.toContain(IMAGE);
   });
 
   it("creates a dedicated API key once and stores it", async () => {
@@ -118,12 +181,12 @@ describe("hm up", () => {
     );
     const key = t.server.keys[0]!.AccessToken;
     expect(lines).toEqual({
-      HOST: "0.0.0.0",
+      HOST: "192.168.1.10",
       PORT: "8787",
       DB_FILE: "/data/hm.sqlite",
       MEDIA_ROOT: "/media/tv",
       JELLYFIN_MEDIA_ROOT: "/media/tv",
-      JELLYFIN_URL: "http://jellyfin:8096",
+      JELLYFIN_URL: "http://192.168.1.10:8096",
       JELLYFIN_API_KEY: key,
       CONTACT_EMAIL: "me@example.org",
     });
@@ -154,6 +217,7 @@ describe("hm up", () => {
         [`cat '${ENV}'`, { stdout: written[ENV]! }],
         [`cat '${COMPOSE}'`, { stdout: written[COMPOSE]! }],
         ["cat '/srv/orca-hm/image'", { stdout: written["/srv/orca-hm/image"]! }],
+        ["ufw status", { code: 0 }],
       ]),
     });
     const t = setup({ remote, secrets: Object.fromEntries(first.secrets.values) });
@@ -163,8 +227,9 @@ describe("hm up", () => {
     expect(remote.calls.some((c) => c.kind === "copy" || c.kind === "write")).toBe(false);
     expect(remote.scripts().some((s) => s.includes("docker build"))).toBe(false);
     expect(t.source.archived).toEqual([]);
-    expect(remote.scripts().at(-1)).toContain("up -d --no-deps orca-hm");
-    expect(remote.scripts().at(-1)).not.toContain("--force-recreate");
+    const start = remote.scripts().find((s) => s.includes("docker compose"))!;
+    expect(start).toContain("up -d --no-deps orca-hm");
+    expect(start).not.toContain("--force-recreate");
   });
 
   it("--dry-run changes nothing on the host and hides no read", async () => {

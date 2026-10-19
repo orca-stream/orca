@@ -22,8 +22,26 @@ export function mediaMounts(
   );
 }
 
-const isUnder = (path: string, root: string): boolean =>
-  path === root || path.startsWith(root.endsWith("/") ? root : `${root}/`);
+/** The segments of an absolute path with `.` and `..` resolved, so `/a/b/../c` is compared as `/a/c`. */
+function segments(path: string): string[] {
+  const out: string[] = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
+  }
+  return out;
+}
+
+/** Whether `path` is `root` or inside it, after resolving `.` and `..`. */
+export function isUnder(path: string, root: string): boolean {
+  const p = segments(path);
+  const r = segments(root);
+  return r.length <= p.length && r.every((part, i) => p[i] === part);
+}
+
+/** Whether one path contains the other (or they are the same). */
+export const overlaps = (a: string, b: string): boolean => isUnder(a, b) || isUnder(b, a);
 
 /**
  * The path a host directory has inside Jellyfin's container, through the longest mount that contains
@@ -35,7 +53,7 @@ export function jellyfinPathOf(host: MediaHost, hostPath: string): string | unde
     .sort((a, b) => b.source.length - a.source.length);
   const best = mounts[0];
   if (!best) return undefined;
-  const rest = hostPath.slice(best.source.length).replace(/^\/+/, "");
+  const rest = segments(hostPath).slice(segments(best.source).length).join("/");
   const base = best.target.replace(/\/+$/, "");
   return rest ? `${base}/${rest}` : best.target;
 }

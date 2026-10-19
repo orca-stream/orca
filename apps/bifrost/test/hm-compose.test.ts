@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parse } from "yaml";
 import { renderCompose } from "../src/domain/compose.ts";
+import { insideAny, jellyfinPathOf } from "../src/domain/media.ts";
 import { hmEnvFile } from "../src/domain/hm.ts";
 import { ConfigError } from "../src/domain/errors.ts";
 import { exampleConfig } from "./fixtures.ts";
@@ -31,29 +32,32 @@ describe("compose with hm", () => {
       image: "orca-hm:0123456789ab",
       container_name: "orca-hm",
       user: "996:997",
-      init: true,
+      network_mode: "host",
       shm_size: "1gb",
       mem_limit: "1536m",
       restart: "unless-stopped",
-      ports: ["192.168.1.10:8787:8787/tcp"],
       env_file: ["/srv/orca-hm/hm.env"],
       volumes: ["/srv/orca-hm/data:/data", "/srv/jellyfin/media/tv:/media/tv"],
     });
-    expect(s.healthcheck.test.join(" ")).toContain("/health");
+    expect(s).not.toHaveProperty("ports");
+    expect(s).not.toHaveProperty("init");
+    expect(s.healthcheck.test.join(" ")).toContain("127.0.0.1:8787/health");
   });
 
-  it("publishes only on host.address, never 0.0.0.0", () => {
+  it("uses host networking, publishes nothing and never mentions 0.0.0.0", () => {
     const text = renderCompose(exampleConfig(withHm), ids, hm);
-    const ports: string[] = Object.values<any>(parse(text).services).flatMap((s) => s.ports);
-    for (const p of ports) expect(p.startsWith("192.168.1.10:")).toBe(true);
+    const services = parse(text).services;
+    expect(services["orca-hm"].network_mode).toBe("host");
+    expect(services["orca-hm"].ports).toBeUndefined();
+    // Jellyfin keeps its own LAN-bound ports.
+    for (const p of services.jellyfin.ports) expect(p.startsWith("192.168.1.10:")).toBe(true);
     expect(text).not.toContain("0.0.0.0");
   });
 
-  it("uses the configured host port", () => {
+  it("uses the configured host port in the healthcheck", () => {
     const cfg = exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", port: 9000 }));
-    expect(parse(renderCompose(cfg, ids, hm)).services["orca-hm"].ports).toEqual([
-      "192.168.1.10:9000:8787/tcp",
-    ]);
+    const s = parse(renderCompose(cfg, ids, hm)).services["orca-hm"];
+    expect(s.healthcheck.test.join(" ")).toContain("127.0.0.1:9000/health");
   });
 
   it("maps the media dir through a disk mount to the same path in both containers", () => {
@@ -89,6 +93,36 @@ describe("hm config", () => {
   it("rejects a git ref that looks like an option", () => {
     expect(() =>
       exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", source: "--output=x" })),
+    ).toThrow(ConfigError);
+  });
+  it("rejects .. segments and trailing slashes in paths", () => {
+    for (const mediaDir of [
+      "/srv/jellyfin/media/tv/../../../../etc",
+      "/srv/jellyfin/media/tv/",
+      "/srv/jellyfin/media//tv",
+    ]) {
+      expect(() => exampleConfig((r) => (r.hm = { mediaDir }))).toThrow(ConfigError);
+    }
+    expect(() =>
+      exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", dataDir: "/srv/x/../y" })),
+    ).toThrow(ConfigError);
+  });
+  it("does not let a library path escape through ..", () => {
+    expect(jellyfinPathOf({ dataDir: "/srv/jellyfin" }, "/srv/jellyfin/media/tv")).toBe(
+      "/media/tv",
+    );
+    expect(insideAny("/media/tv/../movies", ["/media/tv"])).toBe(false);
+  });
+  it.each([
+    "/",
+    "/srv/jellyfin",
+    "/srv/jellyfin/orca-hm",
+    "/srv",
+    "/srv/jellyfin/media",
+    "/srv/jellyfin/media/tv/hm",
+  ])("rejects hm.dataDir %s that overlaps Jellyfin's directories or the media", (dataDir) => {
+    expect(() =>
+      exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", dataDir })),
     ).toThrow(ConfigError);
   });
   it("refuses env values that could break the file", () => {

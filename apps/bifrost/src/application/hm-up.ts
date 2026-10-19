@@ -7,6 +7,7 @@ import {
   HM_DOCKERFILE,
   HM_ENV_FILE,
   HM_IMAGE_MARKER,
+  HM_IMAGE_REPOSITORY,
   HM_SERVICE,
   HM_SRC_SUBDIR,
   HM_USER,
@@ -33,6 +34,11 @@ export interface HmUpDeps {
   jellyfin: JellyfinAdmin;
   log: (line: string) => void;
 }
+
+const JELLYFIN_CHECK =
+  "fetch(process.env.JELLYFIN_URL+'/System/Info',{headers:{Authorization:'MediaBrowser Token=\"'+process.env.JELLYFIN_API_KEY+'\"'}})" +
+  ".then(r=>{if(r.status===200)process.exit(0);console.error('Jellyfin answered '+r.status);process.exit(1)}," +
+  "e=>{console.error('Jellyfin unreachable: '+e.message);process.exit(1)})";
 
 const markerPath = (cfg: Config) => `${cfg.hm!.dataDir}/${HM_IMAGE_MARKER}`;
 
@@ -134,6 +140,10 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
   const short = image.slice(image.indexOf(":") + 1);
   log(`Orca'H&M ${hm.source} -> ${commit.slice(0, 12)}, image ${image}`);
 
+  const previousImage = (
+    await remote.exec(`cat ${shQuote(markerPath(cfg))}`, { readOnly: true })
+  ).stdout.trim();
+
   // 1. The image, built on the host (there is no registry).
   const built = await remote.exec(`docker image inspect ${image}`, { sudo: true, readOnly: true });
   if (built.code === 0) {
@@ -143,9 +153,16 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
   } else {
     const dir = `${hm.dataDir}/${HM_SRC_SUBDIR}/${short}`;
     const tar = `${dir}.tar`;
-    await remote.exec(`install -d -m 0755 ${hm.dataDir} ${hm.dataDir}/${HM_SRC_SUBDIR}\n`, {
-      sudo: true,
-    });
+    const srcDir = `${hm.dataDir}/${HM_SRC_SUBDIR}`;
+    await remote.exec(
+      [
+        `install -d -m 0755 ${hm.dataDir} ${srcDir}`,
+        // A build that died before its cleanup leaves its tarball and tree behind.
+        `find ${srcDir} -mindepth 1 -maxdepth 1 \\( -name '*.tar' -o -type d \\) -exec rm -rf {} +`,
+        "",
+      ].join("\n"),
+      { sudo: true },
+    );
     const tarball = await source.archive(commit);
     try {
       log(`Copying the sources to the host...`);
@@ -160,7 +177,7 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
         `trap 'rm -rf ${dir} ${tar}' EXIT`,
         `rm -rf ${dir}`,
         `mkdir -p ${dir}`,
-        `tar -xf ${tar} -C ${dir}`,
+        `tar -xf ${tar} -C ${dir} --no-same-owner --no-same-permissions`,
         `docker build -f ${dir}/${HM_DOCKERFILE} -t ${image} ${dir}`,
         "",
       ].join("\n"),
@@ -175,7 +192,7 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
       `id -u ${HM_USER} >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin --gid jellyfin ${HM_USER}`,
       `install -d -m 0755 ${hm.dataDir}`,
       `install -d -o ${HM_USER} -g jellyfin -m 0750 ${hm.dataDir}/${HM_DATA_SUBDIR}`,
-      // setgid keeps new series folders in the jellyfin group; group-writable so both can manage them.
+      // setgid keeps new series folders in the jellyfin group, which Jellyfin reads through the group bits.
       `install -d -o ${HM_USER} -g jellyfin -m 2775 ${hm.mediaDir}`,
       "",
     ].join("\n"),
@@ -220,7 +237,14 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
     log,
   });
 
-  // 5. Start it. Compose does not notice a changed env file, so a rewrite forces the recreate.
+  // 5. The LAN reaches H&M through ufw: host networking skips Docker's DNAT, so the firewall applies.
+  const ufwRule = `from ${host.lanCidr} to ${host.address} port ${hm.port} proto tcp`;
+  const ufwProbe = `ufw status | grep -qE '^${host.address.replaceAll(".", "\\.")} ${hm.port}/tcp +ALLOW +${host.lanCidr.replaceAll(".", "\\.")}'`;
+  const ruled = await remote.exec(ufwProbe, { sudo: true, readOnly: true });
+  if (ruled.code === 0) log(`ok     ufw already allows ${host.lanCidr} to port ${hm.port}`);
+  else await remote.exec(`ufw allow ${ufwRule}\n`, { sudo: true });
+
+  // 6. Start it. Compose does not notice a changed env file, so a rewrite forces the recreate.
   const started = await remote.exec(
     `docker compose -f ${composePath} up -d${wroteEnv ? " --force-recreate" : ""} --no-deps ${HM_SERVICE}`,
     { sudo: true },
@@ -230,5 +254,36 @@ export async function hmUp(deps: HmUpDeps, cfg: Config, opts: { dryRun: boolean 
   if (opts.dryRun) return;
   log(`Waiting for ${HM_SERVICE} to become healthy...`);
   await waitHealthy(remote, clock, HM_SERVICE);
+
+  // Healthy only says H&M runs. Jellyfin refuses requests from outside its local networks, so ask it
+  // the way H&M will: from inside the container, with the container's own key (read from its
+  // environment, so it never appears in a command line).
+  const reach = await remote.exec(`docker exec ${HM_SERVICE} node -e ${shQuote(JELLYFIN_CHECK)}`, {
+    sudo: true,
+    readOnly: true,
+  });
+  if (reach.code !== 0) {
+    throw new BifrostError(
+      `${HM_SERVICE} cannot use Jellyfin (it must answer 200 to an authenticated /System/Info):\n${(reach.stderr || reach.stdout).trim()}`,
+    );
+  }
+
+  // Keep the running image and the one before it, so a bad build can be rolled back.
+  const listed = await remote.exec(
+    `docker image ls ${HM_IMAGE_REPOSITORY} --format '{{.Repository}}:{{.Tag}}'`,
+    {
+      sudo: true,
+      readOnly: true,
+    },
+  );
+  const keep = new Set([image, previousImage]);
+  const stale = listed.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((t) => t.startsWith(`${HM_IMAGE_REPOSITORY}:`) && !keep.has(t));
+  for (const tag of stale) {
+    await remote.exec(`docker rmi ${tag}\n`, { sudo: true });
+    log(`removed old image ${tag}`);
+  }
   log(`Orca'H&M is up: http://${host.address}:${hm.port} (library ${mediaPath})`);
 }

@@ -1,12 +1,11 @@
 import type { Config } from "./config.ts";
-import { JELLYFIN_CONTAINER_HTTP_PORT, JELLYFIN_SERVICE } from "./containers.ts";
+import { JELLYFIN_SERVICE } from "./containers.ts";
 import { BifrostError } from "./errors.ts";
 import { jellyfinPathOf } from "./media.ts";
 
 /** Names and paths that are properties of the H&M image, not of the host. */
 export const HM_SERVICE = "orca-hm";
 export const HM_IMAGE_REPOSITORY = "orca-hm";
-export const HM_CONTAINER_PORT = 8787;
 export const HM_CONTAINER_DB_FILE = "/data/hm.sqlite";
 export const HM_CONTAINER_DATA_DIR = "/data";
 /** Where the repository keeps the Dockerfile, relative to the build context (the repo root). */
@@ -56,7 +55,9 @@ export function hmService(cfg: Config, rt: HmRuntime): Record<string, unknown> {
     image: rt.image,
     container_name: HM_SERVICE,
     user: `${rt.uid}:${rt.gid}`,
-    init: true,
+    // The compose bridge would make H&M reach Jellyfin from 172.x, which Jellyfin's local-network
+    // list rejects. On the host network it connects from the LAN address like any other client.
+    network_mode: "host",
     shm_size: HM_SHM_SIZE,
     mem_limit: HM_MEM_LIMIT,
     env_file: [`${hm.dataDir}/${HM_ENV_FILE}`],
@@ -64,7 +65,6 @@ export function hmService(cfg: Config, rt: HmRuntime): Record<string, unknown> {
       `${hm.dataDir}/${HM_DATA_SUBDIR}:${HM_CONTAINER_DATA_DIR}`,
       `${hm.mediaDir}:${mediaPath}`,
     ],
-    ports: [`${cfg.host.address}:${hm.port}:${HM_CONTAINER_PORT}/tcp`],
     depends_on: { [JELLYFIN_SERVICE]: { condition: "service_started" } },
     restart: "unless-stopped",
     healthcheck: {
@@ -72,7 +72,7 @@ export function hmService(cfg: Config, rt: HmRuntime): Record<string, unknown> {
         "CMD",
         "node",
         "-e",
-        `fetch('http://127.0.0.1:${HM_CONTAINER_PORT}/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))`,
+        `fetch('http://127.0.0.1:${hm.port}/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))`,
       ],
       interval: "30s",
       timeout: "5s",
@@ -93,13 +93,13 @@ export function hmEnvFile(
   const hm = cfg.hm!;
   const mediaPath = hmMediaPath(cfg, hm);
   const entries: [string, string][] = [
-    // Inside the container: the host side is only a published port.
-    ["HOST", "0.0.0.0"],
-    ["PORT", String(HM_CONTAINER_PORT)],
+    // Host networking: it listens on the LAN address itself, never on every interface.
+    ["HOST", cfg.host.address],
+    ["PORT", String(hm.port)],
     ["DB_FILE", HM_CONTAINER_DB_FILE],
     ["MEDIA_ROOT", mediaPath],
     ["JELLYFIN_MEDIA_ROOT", mediaPath],
-    ["JELLYFIN_URL", `http://${JELLYFIN_SERVICE}:${JELLYFIN_CONTAINER_HTTP_PORT}`],
+    ["JELLYFIN_URL", `http://${cfg.host.address}:${cfg.jellyfin.port}`],
     ["JELLYFIN_API_KEY", secrets.apiKey],
   ];
   if (secrets.contactEmail) entries.push(["CONTACT_EMAIL", secrets.contactEmail]);
