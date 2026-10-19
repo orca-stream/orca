@@ -15,7 +15,8 @@ import { NotificationService, PanelNotifier } from "./application/notifications.
 import { JobQueue } from "./application/queue.ts";
 import { createUseCases } from "./application/use-cases.ts";
 import { resolveDeviceId } from "./application/device-id.ts";
-import { loadConfig, userAgent } from "./infrastructure/config.ts";
+import { assertChromium } from "./infrastructure/chromium-check.ts";
+import { deprecatedEnvWarnings, loadConfig, userAgent } from "./infrastructure/config.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "./infrastructure/db/job-repository.ts";
 import { DrizzleNotificationRepository } from "./infrastructure/db/notification-repository.ts";
@@ -49,6 +50,9 @@ const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "u
 };
 
 const config = loadConfig(process.env);
+for (const warning of deprecatedEnvWarnings(process.env)) console.warn(warning);
+// Fail at boot, not on the first page job, when the browser the detector needs is not there.
+if (config.detector) await assertChromium(config.detector);
 const agent = userAgent(version, config.contactEmail);
 
 mkdirSync(dirname(resolve(config.dbFile)), { recursive: true });

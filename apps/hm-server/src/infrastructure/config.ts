@@ -164,3 +164,14 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
 export function userAgent(version: string, contactEmail: string | undefined): string {
   return contactEmail ? `OrcaHM/${version} (+contact: ${contactEmail})` : `OrcaHM/${version}`;
 }
+
+/** Variables that used to do something and now are ignored, so a deployment is told rather than surprised. */
+export function deprecatedEnvWarnings(env: Record<string, string | undefined>): string[] {
+  const warnings: string[] = [];
+  if (env["IA_HOST_CONCURRENCY"] !== undefined) {
+    warnings.push(
+      "IA_HOST_CONCURRENCY is ignored now: each extractor declares its own limits, and DOWNLOADS_PER_HOST / METADATA_PER_SEC override them.",
+    );
+  }
+  return warnings;
+}
