@@ -65,6 +65,13 @@ describe("SshRemoteHost", () => {
     expect(statSync(target).mode & 0o777).toBe(0o600);
   });
 
+  it("creates missing parent directories, like a fresh docker.service.d", async () => {
+    const { host, dir } = stubs();
+    const target = join(dir, "docker.service.d", "override.conf");
+    await host.writeFile(target, "[Unit]\n");
+    expect(readFileSync(target, "utf8")).toBe("[Unit]\n");
+  });
+
   it("copies a local file through scp", async () => {
     const { host, dir } = stubs();
     const local = join(dir, "local.zip");

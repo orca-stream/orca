@@ -83,7 +83,7 @@ export class SshRemoteHost implements RemoteHost {
     const p = shQuote(path);
     // Create the file with its final mode first, so a secret is never briefly world-readable.
     const res = await this.remote(
-      `${sudo}install -m ${mode} /dev/null ${p} && ${sudo}tee ${p} >/dev/null`,
+      `${sudo}install -D -m ${mode} /dev/null ${p} && ${sudo}tee ${p} >/dev/null`,
       content,
     );
     if (res.code !== 0) throw new BifrostError(`Could not write ${path}: ${res.stderr.trim()}`);

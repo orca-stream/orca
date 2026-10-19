@@ -30,8 +30,10 @@ describe("hostPrepare", () => {
 
     const scripts = remote.scripts().join("\n");
     expect(scripts).toContain(
-      "apt-get install -y -qq ca-certificates curl ufw restic unattended-upgrades",
+      "apt-get -o DPkg::Lock::Timeout=300 install -y -qq ca-certificates curl ufw restic unattended-upgrades",
     );
+    // A fresh boot often has unattended-upgrades holding the dpkg lock: every apt-get waits for it.
+    expect(scripts.match(/apt-get (?!-o DPkg::Lock::Timeout=300 )/g)).toBeNull();
     expect(scripts).toContain("download.docker.com/linux/ubuntu");
     expect(scripts).toMatch(
       /docker-ce docker-ce-cli containerd\.io docker-buildx-plugin docker-compose-plugin/,
