@@ -1,0 +1,29 @@
+{
+  "name": "@orca/bifrost",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Declarative provisioning of a Jellyfin server: host, Docker, configuration and backups",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "scripts": {
+    "bifrost": "node src/cli.ts",
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vp test run",
+    "test:watch": "vp test watch"
+  },
+  "dependencies": {
+    "@jellyfin/sdk": "catalog:",
+    "axios": "catalog:",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~7.0.2",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

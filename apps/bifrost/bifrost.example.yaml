@@ -1,0 +1,57 @@
+# Copy to bifrost.yaml (gitignored) and adjust. Secrets never go here: *Secret keys name entries in
+# the gitignored .env (see EnvFileSecretStore); the values live only there.
+version: 1
+
+host:
+  name: homelab
+  address: 192.168.1.10 # published ports bind to this address only, never to 0.0.0.0
+  sshUser: user
+  lanCidr: 192.168.1.0/24
+  renderGid: 991 # fallback; `up` reads the real GID of the `render` group from the host
+  dataDir: /srv/jellyfin
+  # Only used with `bifrost host prepare <host> --with-disk`, once the disk is connected.
+  # mediaDisk: { uuid: 00000000-0000-0000-0000-000000000000, mount: /mnt/media }
+
+jellyfin:
+  image: jellyfin/jellyfin:12.2.20261005-225228 # dated tags are immutable; there is no 12.2.0 tag
+  url: http://192.168.1.10:8096
+  server: { name: Orca, uiCulture: es-MX, metadataLanguage: es-419, metadataCountry: HN }
+  admin: { username: admin, passwordSecret: JELLYFIN_ADMIN_PASSWORD }
+  apiKeySecret: JELLYFIN_API_KEY # filled in by `bifrost init`
+  repositories:
+    - { name: Jellyfin Stable, url: https://repo.jellyfin.org/files/plugin/manifest.json }
+    - { name: Intro Skipper, url: https://intro-skipper.org/manifest.json } # check it before `apply`
+  plugins:
+    - {
+        name: Open Subtitles,
+        guid: 4b9ed42f-5185-48b5-9803-6ff2989014c4,
+        repository: Jellyfin Stable,
+      }
+    - { name: Intro Skipper, guid: c83d86bb-a1e0-4c35-a113-e2101cf4ee6b, repository: Intro Skipper }
+  libraries:
+    - name: Películas
+      type: movies
+      paths: [/media/movies]
+      options: { EnableTrickplayImageExtraction: false }
+    - { name: Series, type: tvshows, paths: [/media/tv] }
+  encoding:
+    HardwareAccelerationType: vaapi
+    VaapiDevice: /dev/dri/renderD128
+    HardwareDecodingCodecs: [h264, hevc, mpeg2video, vc1, vp8, vp9] # Vega/Renoir: no AV1
+    EnableDecodingColorDepth10Hevc: true
+    EnableDecodingColorDepth10Vp9: true
+    EnableHardwareEncoding: true
+    AllowHevcEncoding: false
+    EnableTonemapping: true
+  network: { EnableRemoteAccess: false, LocalNetworkSubnets: [192.168.1.0/24] }
+
+# Source path -> path on this server. `dump` applies it forward; `dump --reverse` applies it back.
+pathMap: { /data/jellyfin/movies: /media/movies, /data/jellyfin/tv: /media/tv }
+
+# backup:
+#   repository: /mnt/backup/restic
+#   passwordSecret: RESTIC_PASSWORD
+#   keep: { daily: 7, weekly: 4 }
+
+# migrate:
+#   source: { url: http://192.168.1.100:8096, apiKeySecret: JELLYFIN_SOURCE_API_KEY }
