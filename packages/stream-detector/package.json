@@ -1,0 +1,23 @@
+{
+  "name": "@orca/stream-detector",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Finds the media stream a web page plays: a pure candidate matcher plus a Playwright adapter",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vp test run"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "~7.0.2",
+    "vite-plus": "catalog:"
+  }
+}

@@ -264,7 +264,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   apps/bifrost:
     dependencies:
@@ -289,7 +289,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   apps/hm-server:
     dependencies:
@@ -344,7 +344,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   apps/hm-web:
     dependencies:
@@ -405,7 +405,7 @@ importers:
         version: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   apps/jp:
     dependencies:
@@ -481,7 +481,7 @@ importers:
         version: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/extractor-core:
     devDependencies:
@@ -493,7 +493,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/extractor-internet-archive:
     dependencies:
@@ -512,7 +512,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/hm-contract:
     dependencies:
@@ -531,7 +531,7 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/jellyfin:
     dependencies:
@@ -550,7 +550,23 @@ importers:
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
-        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  packages/stream-detector:
+    dependencies:
+      playwright:
+        specifier: 1.64.1
+        version: 1.64.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   packages/ui:
     devDependencies:
@@ -2988,6 +3004,16 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.64.1:
+    resolution: {integrity: sha512-HCrVhHr5QQuwYoswEUGTb7gGp522yflbv/ST8nF4sFWGuLjQCt17Q/EubpGGSNKYn1tsTCPZxqHhHCfVURu7UA==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   plist@3.1.1:
     resolution: {integrity: sha512-ZIfcLJC+7E7FBFnDxm9MPmt7D+DidyQ26lewieO75AdhA2ayMtsJSES0iWzqJQbcVRSrTufQoy0DR94xHue0oA==}
     engines: {node: '>=10.4.0'}
@@ -5098,7 +5124,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)):
+  oxfmt@0.72.0(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)):
     dependencies:
       tinypool: 2.2.0
     optionalDependencies:
@@ -5121,7 +5147,7 @@ snapshots:
       '@oxfmt/binding-win32-arm64-msvc': 0.72.0
       '@oxfmt/binding-win32-ia32-msvc': 0.72.0
       '@oxfmt/binding-win32-x64-msvc': 0.72.0
-      vite-plus: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+      vite-plus: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   oxlint-tsgolint@7.0.2003:
     optionalDependencies:
@@ -5132,7 +5158,7 @@ snapshots:
       '@oxlint-tsgolint/win32-arm64': 7.0.2003
       '@oxlint-tsgolint/win32-x64': 7.0.2003
 
-  oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)):
+  oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)):
     optionalDependencies:
       '@oxlint/binding-android-arm-eabi': 1.87.0
       '@oxlint/binding-android-arm64': 1.87.0
@@ -5154,7 +5180,7 @@ snapshots:
       '@oxlint/binding-win32-ia32-msvc': 1.87.0
       '@oxlint/binding-win32-x64-msvc': 1.87.0
       oxlint-tsgolint: 7.0.2003
-      vite-plus: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+      vite-plus: 1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
 
   package-json-from-dist@1.0.1: {}
 
@@ -5183,6 +5209,12 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.64.1: {}
+
+  playwright@1.64.1:
+    dependencies:
+      playwright-core: 1.64.1
 
   plist@3.1.1:
     dependencies:
@@ -5405,7 +5437,7 @@ snapshots:
 
   verkit@0.5.0: {}
 
-  vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1):
+  vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1):
     dependencies:
       '@oxc-project/types': 0.153.0
       '@oxlint/plugins': 1.79.0
@@ -5416,8 +5448,8 @@ snapshots:
       '@vitest/snapshot': 5.0.3
       '@vitest/spy': 5.0.3
       '@vitest/utils': 5.0.3
-      oxfmt: 0.72.0(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
-      oxlint: 1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
+      oxfmt: 0.72.0(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
+      oxlint: 1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@24.19.2)(@vitest/ui@5.0.3)(esbuild@0.28.2)(happy-dom@21.0.3)(jiti@2.6.1)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
       oxlint-tsgolint: 7.0.2003
       vite: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
       vitest: 5.0.3(@types/node@24.19.2)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(happy-dom@21.0.3)
@@ -5430,6 +5462,7 @@ snapshots:
       '@voidzero-dev/vite-plus-linux-x64-musl': 1.1.0
       '@voidzero-dev/vite-plus-win32-arm64-msvc': 1.1.0
       '@voidzero-dev/vite-plus-win32-x64-msvc': 1.1.0
+      playwright: 1.64.1
     transitivePeerDependencies:
       - '@arethetypeswrong/core'
       - '@edge-runtime/vm'
