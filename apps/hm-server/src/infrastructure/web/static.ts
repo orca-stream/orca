@@ -25,7 +25,7 @@ async function fileAt(path: string): Promise<Buffer | null> {
 
 /**
  * Serves the built panel from `webRoot` (an absolute path) with a history-routing fallback to
- * index.html. Anything that is not a GET/HEAD, and everything under /api and /health, passes through.
+ * index.html (but not for missing files: see below). Anything that is not a GET/HEAD, and everything under /api and /health, passes through.
  */
 export function serveWeb(webRoot: string): MiddlewareHandler {
   const root = resolve(webRoot);
@@ -49,6 +49,10 @@ export function serveWeb(webRoot: string): MiddlewareHandler {
     // Anything that would climb out of the root is just another history route.
     const inside = candidate === root || candidate.startsWith(root + sep);
     const file = inside ? await fileAt(candidate) : null;
+    // A path that names a file (or lives under /assets) is never a history route: if it isn't on
+    // disk it is a 404, so a stale bundle gets an error instead of index.html masquerading as script.
+    const namesFile = relative.startsWith("assets/") || extname(relative) !== "";
+    if (!file && namesFile) return next();
     if (file) {
       return c.body(new Uint8Array(file), 200, {
         "content-type": TYPES[extname(candidate).toLowerCase()] ?? "application/octet-stream",

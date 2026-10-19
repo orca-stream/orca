@@ -445,6 +445,19 @@ describe("serving the panel (webRoot)", () => {
     expect(await escaped.text()).toContain("<title>panel</title>");
   });
 
+  it("answers 404, not the panel, for a missing asset or any path that names a file", async () => {
+    for (const path of ["/assets/nope.js", "/assets/nope", "/favicon.ico", "/deep/missing.css"]) {
+      const res = await app.request(path);
+      expect(res.status, path).toBe(404);
+      expect(await res.text(), path).not.toContain("<title>panel</title>");
+    }
+    expect((await app.request("/assets/nope.js", { method: "HEAD" })).status).toBe(404);
+    // A history route may contain a dot in the middle; only the last segment's extension counts.
+    expect((await app.request("/series/v1.2/episodes")).status).toBe(200);
+    // Real files are still served.
+    expect((await app.request("/assets/app.js")).status).toBe(200);
+  });
+
   it("doesn't serve a panel when none is configured", async () => {
     app = build();
     expect((await app.request("/")).status).toBe(404);
