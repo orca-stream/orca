@@ -151,20 +151,63 @@ describe("a page source", () => {
     expect((await jobsOf(["failed"]))[0]?.errorKind).toBe("permanent");
   });
 
-  it("keeps the resolved stream when its download job is retried, without opening the page again", async () => {
+  it("opens the page again when a download job is retried by hand, not the stream it froze", async () => {
     h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
     h.downloader.once(async () => {
-      throw new PermanentError("the stream was refused");
+      throw new PermanentError("ffmpeg is not installed");
     });
     await addPage(PAGE, "One");
     await h.queue.settle();
     const [failed] = await jobsOf(["failed"]);
     expect(failed?.resource).toBe("ffmpeg");
-    await h.useCases.retryJob(failed!.id);
+    const retried = await h.useCases.retryJob(failed!.id);
+    expect(retried.id).not.toBe(failed!.id);
+    await h.queue.settle();
+    expect(h.detector.calls).toHaveLength(2);
+    expect(h.downloader.calls).toHaveLength(2);
+  });
+
+  const refused = () => new PermanentError("Stream refused: Server returned 403 Forbidden", {});
+
+  it("finds the stream again, once, when the one it found is refused with a 4xx", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.downloader.once(async () => {
+      throw refused();
+    });
+    const created = await addPage(PAGE, "One");
+    await h.queue.settle();
+    // The second try opened the page again and got a fresh stream.
+    expect(h.detector.calls).toHaveLength(2);
+    expect(h.downloader.calls).toHaveLength(2);
+    const [episode] = await h.series.listEpisodes(created.id);
+    expect(episode?.status).toBe("available");
+  });
+
+  it("does not keep finding it again: a second 4xx is the end of it", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.downloader.once(async () => {
+      throw refused();
+    });
+    h.downloader.once(async () => {
+      throw refused();
+    });
+    const created = await addPage(PAGE, "One");
+    await h.queue.settle();
+    expect(h.detector.calls).toHaveLength(2);
+    expect(h.downloader.calls).toHaveLength(2);
+    const [episode] = await h.series.listEpisodes(created.id);
+    expect(episode?.status).toBe("failed");
+    expect(await jobsOf(["queued"])).toEqual([]);
+  });
+
+  it("does not look again for a failure that is not the stream's fault", async () => {
+    h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
+    h.downloader.once(async () => {
+      throw new PermanentError("ffmpeg is not installed");
+    });
+    await addPage(PAGE, "One");
     await h.queue.settle();
     expect(h.detector.calls).toHaveLength(1);
-    expect(h.downloader.calls).toHaveLength(2);
-    expect(h.downloader.calls[1]?.source).toMatchObject({ url: MASTER });
   });
 
   it("starts from the page again when the episode is queued anew", async () => {

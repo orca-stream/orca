@@ -36,6 +36,12 @@ import {
 /** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
 const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
 
+/** A download job that carries the stream a browser found (see the page handoff in the job handler). */
+function hasResolvedStream(job: Job): boolean {
+  const payload = job.payload;
+  return typeof payload === "object" && payload !== null && "resolved" in payload;
+}
+
 export function createUseCases(deps: Deps) {
   /** Runs `task` after every earlier task for the same key has settled (in this process only). */
   const folderTails = new Map<string, Promise<unknown>>();
@@ -293,6 +299,13 @@ export function createUseCases(deps: Deps) {
     async retryJob(id: string): Promise<JobDto> {
       const current = await deps.jobs.get(id);
       if (!current) throw new AppError("not_found", "No such job");
+      // A download of a stream found on a page froze that stream's address, which may have expired:
+      // retrying it by hand starts over from the page like any new download.
+      if (current.kind === "download_episode" && current.episodeId && hasResolvedStream(current)) {
+        const [fresh] = await enqueueDownloads([current.episodeId]);
+        if (!fresh) throw new AppError("conflict", "That episode is already downloaded");
+        return (await jobDtos([fresh]))[0] as JobDto;
+      }
       let job: Job | null;
       try {
         job = await deps.jobs.retry(id);

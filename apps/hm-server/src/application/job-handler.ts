@@ -23,7 +23,15 @@ const ResolvedSource = z.discriminatedUnion("kind", [
     headers: z.record(z.string(), z.string()).optional(),
   }),
 ]);
-const DownloadPayload = z.object({ episodeId: z.string(), resolved: ResolvedSource.optional() });
+const DownloadPayload = z.object({
+  episodeId: z.string(),
+  resolved: ResolvedSource.optional(),
+  /** This download already started over from the page once: a second refusal is final. */
+  redetected: z.boolean().optional(),
+});
+
+/** A failure that says the server refused the stream it was given (it may just have expired). */
+const REFUSED_BY_SERVER = /\b(?:HTTP|returned) 4\d\d\b/;
 const RefreshPayload = z.object({ seriesId: z.string() });
 const CheckPayload = z.object({ seriesId: z.string() });
 
@@ -77,7 +85,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     job: Job,
     context: Parameters<JobHandler["run"]>[1],
   ): Promise<void> {
-    const { episodeId, resolved } = DownloadPayload.parse(job.payload);
+    const { episodeId, resolved, redetected } = DownloadPayload.parse(job.payload);
     const episode = await deps.series.getEpisode(episodeId);
     if (!episode) throw new PermanentError("The episode was removed");
     const series = await deps.series.get(episode.seriesId);
@@ -93,7 +101,11 @@ export function createJobHandler(deps: Deps): JobHandler {
       const found = await detectStream(episode.source.url, context.signal);
       const { job: next, created } = await deps.jobs.enqueue({
         kind: "download_episode",
-        payload: { episodeId: episode.id, resolved: found },
+        payload: {
+          episodeId: episode.id,
+          resolved: found,
+          ...(redetected ? { redetected: true } : {}),
+        },
         seriesId: series.id,
         episodeId: episode.id,
         resource: resourceFor(found),
@@ -144,6 +156,32 @@ export function createJobHandler(deps: Deps): JobHandler {
     const series = await deps.series.get(seriesId);
     if (!series) return;
     await deps.mediaServer.libraryUpdated(deps.library.seriesPath(series));
+  }
+
+  /**
+   * A stream the server refused with a 4xx has probably expired. Once, the episode starts over from
+   * its page (a new detection) instead of failing; the new job remembers it already did.
+   */
+  async function redetectAfterRefusal(job: Job): Promise<boolean> {
+    const payload = DownloadPayload.safeParse(job.payload);
+    if (!payload.success || !payload.data.resolved || payload.data.redetected) return false;
+    if (!job.lastError || !REFUSED_BY_SERVER.test(job.lastError) || !job.episodeId) return false;
+    const episode = await deps.series.getEpisode(job.episodeId);
+    if (!episode || episode.source.kind !== "page" || episode.status === "available") return false;
+    const { job: next, created } = await deps.jobs.enqueue({
+      kind: "download_episode",
+      payload: { episodeId: episode.id, redetected: true },
+      seriesId: episode.seriesId,
+      episodeId: episode.id,
+      resource: resourceFor(episode.source),
+      dedupeKey: `dl:${episode.id}`,
+    });
+    if (!created) return false;
+    await deps.series.setEpisodeStatus(episode.id, "queued");
+    await publishJob(next);
+    deps.events.publish({ type: "series.updated", seriesId: episode.seriesId });
+    deps.queue.notify();
+    return true;
   }
 
   /** A job that gave up (permanent error, or retries spent) is worth a notification; a retry is not. */
@@ -199,6 +237,13 @@ export function createJobHandler(deps: Deps): JobHandler {
         // First, and whatever else goes wrong below: it counts as a look, otherwise a broken or
         // cancelled check is queued again on every tick.
         await deps.series.update(job.seriesId, { lastCheckedAt: deps.clock.now() });
+      }
+      if (
+        outcome === "failed" &&
+        job.kind === "download_episode" &&
+        (await redetectAfterRefusal(job))
+      ) {
+        return;
       }
       if (outcome === "failed") {
         // Telling the panel is best effort; it must not keep the rest of this from happening.
