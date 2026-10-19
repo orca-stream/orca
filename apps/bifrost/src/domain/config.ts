@@ -112,7 +112,9 @@ const ConfigSchema = z
     pathMap: z.record(z.string(), z.string()).default({}),
     backup: z
       .strictObject({
-        repository: z.string().min(1),
+        repository: z
+          .string()
+          .regex(/^[^'\n]+$/, "must be non-empty and contain no single quote or newline"),
         passwordSecret: z.string().min(1),
         keep: z.strictObject({ daily: z.number().int().min(0), weekly: z.number().int().min(0) }),
       })

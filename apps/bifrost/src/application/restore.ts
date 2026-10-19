@@ -1,0 +1,53 @@
+import type { Config } from "../domain/config.ts";
+import { BifrostError } from "../domain/errors.ts";
+import { waitHealthy } from "./docker.ts";
+import { DryRunRemoteHost } from "./dry-run-remote-host.ts";
+import type { Clock } from "./ports/clock.ts";
+import type { RemoteHost } from "./ports/remote-host.ts";
+import type { SecretStore } from "./ports/secret-store.ts";
+import { backupConfig, resticPreamble, stagePassword } from "./restic.ts";
+
+export interface RestoreDeps {
+  remote: RemoteHost;
+  secrets: SecretStore;
+  clock: Clock;
+  log: (line: string) => void;
+}
+
+/** Stops Jellyfin, restores the config directory from a restic snapshot over the live one, starts again. */
+export async function restore(
+  deps: RestoreDeps,
+  cfg: Config,
+  opts: { dryRun: boolean; yes: boolean; snapshot: string },
+): Promise<void> {
+  const { secrets, clock, log } = deps;
+  const remote = opts.dryRun ? new DryRunRemoteHost(deps.remote, log) : deps.remote;
+  const b = backupConfig(cfg);
+  if (!opts.dryRun && !opts.yes) {
+    throw new BifrostError(
+      `Restoring replaces ${cfg.host.dataDir}/config with snapshot "${opts.snapshot}". Pass --yes to go ahead.`,
+    );
+  }
+  if (!/^[A-Za-z0-9]+$/.test(opts.snapshot)) {
+    throw new BifrostError(
+      `"${opts.snapshot}" is not a restic snapshot id (use "latest" or a hex id).`,
+    );
+  }
+  const configDir = `${cfg.host.dataDir}/config`;
+  const compose = `${cfg.host.dataDir}/compose.yaml`;
+
+  await stagePassword(remote, secrets, b.passwordSecret);
+  const script = [
+    ...resticPreamble(b),
+    `docker compose -f ${compose} stop`,
+    `restic restore ${opts.snapshot} --target / --include ${configDir}`,
+    `chown -R jellyfin:jellyfin ${configDir}`,
+    `docker compose -f ${compose} up -d`,
+    "",
+  ].join("\n");
+  const res = await remote.exec(script, { sudo: true });
+  if (res.code !== 0)
+    throw new BifrostError(`restore failed (exit ${res.code}):\n${res.stderr.trim()}`);
+  if (!opts.dryRun) await waitHealthy(remote, clock);
+  log(`Restored snapshot ${opts.snapshot}.`);
+}

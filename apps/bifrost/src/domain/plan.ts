@@ -7,6 +7,7 @@ import type {
   VirtualFolder,
 } from "./jellyfin.ts";
 import { deepEqual, deepMerge, type Rec } from "./merge.ts";
+import { compareVersions } from "./version.ts";
 
 type JellyfinConfig = Config["jellyfin"];
 
@@ -64,14 +65,7 @@ const normGuid = (g: string) => g.replaceAll("-", "").toLowerCase();
 
 /** "25.0.0.0" and "25.0.0" are the same version. */
 export function sameVersion(a: string, b: string): boolean {
-  const parts = (v: string) => {
-    const n = v.split(".").map(Number);
-    while (n.length < 4) n.push(0);
-    return n;
-  };
-  const pa = parts(a);
-  const pb = parts(b);
-  return pa.length === pb.length && pa.every((x, i) => x === pb[i]);
+  return compareVersions(a, b) === 0;
 }
 
 function findPlugin(installed: PluginInfo[], want: { guid?: string | undefined; name: string }) {

@@ -56,4 +56,20 @@ describe("parseConfig", () => {
     bad.jellyfin.libraries[1].type = "games";
     expect(() => parseConfig(bad)).toThrow(/libraries/);
   });
+
+  it("keeps shell-hostile characters out of values that end up in scripts", () => {
+    const bad = structuredClone(example);
+    bad.host.lanCidr = "192.168.1.0/24; reboot";
+    bad.host.dataDir = "/srv/jellyfin && rm -rf /";
+    bad.backup = { repository: "it's", passwordSecret: "X", keep: { daily: 1, weekly: 1 } };
+    try {
+      parseConfig(bad);
+      expect.unreachable();
+    } catch (e) {
+      const msg = (e as Error).message;
+      expect(msg).toContain("host.lanCidr");
+      expect(msg).toContain("host.dataDir");
+      expect(msg).toContain("backup.repository");
+    }
+  });
 });

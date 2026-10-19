@@ -4,7 +4,7 @@ import { BifrostError } from "../domain/errors.ts";
 import { DryRunRemoteHost } from "./dry-run-remote-host.ts";
 import type { Clock } from "./ports/clock.ts";
 import type { RemoteHost } from "./ports/remote-host.ts";
-import { waitFor } from "./wait.ts";
+import { waitHealthy } from "./docker.ts";
 
 export interface UpDeps {
   remote: RemoteHost;
@@ -79,18 +79,7 @@ export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): 
   if (opts.dryRun) return;
 
   log("Waiting for the container to become healthy...");
-  await waitFor(
-    clock,
-    "the jellyfin container to become healthy",
-    async () => {
-      const res = await remote.exec("docker inspect -f '{{.State.Health.Status}}' jellyfin", {
-        sudo: true,
-        readOnly: true,
-      });
-      return res.stdout.trim() === "healthy";
-    },
-    { timeoutMs: 300_000, intervalMs: 5_000 },
-  );
+  await waitHealthy(remote, clock);
 
   const vainfo = await remote.exec(VAINFO, { sudo: true, readOnly: true });
   if (vainfo.code !== 0) {

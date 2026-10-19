@@ -12,6 +12,8 @@ export interface Call {
   readOnly: boolean;
   /** File content for write; the local path for copy. */
   stdin?: string;
+  /** File mode for write. */
+  mode?: string;
 }
 
 /** A result, or a function of how many times this answer has matched so far (1 on the first). */
@@ -65,6 +67,7 @@ export class FakeRemoteHost implements RemoteHost {
       sudo: !!opts.sudo,
       readOnly: false,
       stdin: content,
+      ...(opts.mode ? { mode: opts.mode } : {}),
     });
   }
 
