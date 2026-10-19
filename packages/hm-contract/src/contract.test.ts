@@ -226,10 +226,18 @@ describe("notifications", () => {
     expect(NotificationList.safeParse({ items: [dto] }).success).toBe(false);
   });
 
+  it("knows the kind for episodes that could not be added", () => {
+    expect(NotificationDto.safeParse({ ...dto, kind: "episodes_skipped" }).success).toBe(true);
+  });
+
   it("marks some notifications read, or all of them when no ids are given", () => {
     expect(MarkReadBody.parse({})).toEqual({});
     expect(MarkReadBody.parse({ ids: ["a"] })).toEqual({ ids: ["a"] });
     expect(MarkReadBody.safeParse({ ids: [] }).success).toBe(false);
+    // A bound on what one request can carry.
+    expect(MarkReadBody.safeParse({ ids: Array(500).fill("a") }).success).toBe(true);
+    expect(MarkReadBody.safeParse({ ids: Array(501).fill("a") }).success).toBe(false);
+    expect(MarkReadBody.safeParse({ ids: ["a".repeat(201)] }).success).toBe(false);
   });
 });
 

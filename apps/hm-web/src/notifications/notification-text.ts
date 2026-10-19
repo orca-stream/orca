@@ -27,6 +27,11 @@ export function notificationText(
       if (series === null || count === null || codes === null) return fallback;
       return { title: t.newEpisodesTitle, body: t.newEpisodes(series, count, codes) };
     }
+    case "episodes_skipped": {
+      const count = num(data.count);
+      if (series === null || count === null) return fallback;
+      return { title: t.episodesSkippedTitle, body: t.episodesSkipped(series, count) };
+    }
     case "series_downloaded": {
       const available = num(data.available);
       const total = num(data.total);

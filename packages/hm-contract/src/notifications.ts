@@ -1,6 +1,11 @@
 import * as z from "zod";
 
-export const NotificationKind = z.enum(["new_episodes", "series_downloaded", "job_failed"]);
+export const NotificationKind = z.enum([
+  "new_episodes",
+  "episodes_skipped",
+  "series_downloaded",
+  "job_failed",
+]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
 export const NotificationDto = z.object({
@@ -27,6 +32,11 @@ export const NotificationList = z.object({
 });
 export type NotificationList = z.infer<typeof NotificationList>;
 
+/** How many ids one request may name; more than the bell ever lists. */
+export const MAX_MARK_READ_IDS = 500;
+
 /** No ids: every unread notification. */
-export const MarkReadBody = z.object({ ids: z.array(z.string()).min(1).optional() });
+export const MarkReadBody = z.object({
+  ids: z.array(z.string().max(200)).min(1).max(MAX_MARK_READ_IDS).optional(),
+});
 export type MarkReadBody = z.infer<typeof MarkReadBody>;

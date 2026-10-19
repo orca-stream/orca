@@ -63,6 +63,19 @@ describe("notificationText", () => {
     expect(notificationText(check, en).body).toBe("Check series: gone");
   });
 
+  it("says episodes that could not be added", () => {
+    const n = make({
+      kind: "episodes_skipped",
+      data: { seriesTitle: "Show", count: 2 },
+    });
+    expect(notificationText(n, es).body).toBe(
+      "Show: 2 episodios nuevos no se añadieron porque su número ya está en uso",
+    );
+    expect(notificationText(make({ ...n, data: { seriesTitle: "Show", count: 1 } }), en).body).toBe(
+      "Show: 1 new episode was not added because its number is already taken",
+    );
+  });
+
   it("falls back to the server's English text when the data is missing", () => {
     expect(notificationText(make({ data: {} }), es)).toEqual({
       title: "New episodes",

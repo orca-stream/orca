@@ -64,6 +64,18 @@ export class NotificationService {
     });
   }
 
+  /** New episodes a check found but could not add: another episode already has their number. */
+  async episodesSkipped(series: { id: string; title: string }, count: number): Promise<void> {
+    await this.send({
+      kind: "episodes_skipped",
+      title: "Episodes not added",
+      body: `${series.title}: ${count} new ${count === 1 ? "episode was" : "episodes were"} not added because their number is already taken`,
+      seriesId: series.id,
+      jobId: null,
+      data: { seriesTitle: series.title, count },
+    });
+  }
+
   /**
    * The last queued download of a series just finished. `finishedAt` is when that job finished: a
    * notification made since then already covers it (two episodes ended together).

@@ -10,7 +10,7 @@ type SeriesRow = typeof series.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
 
 function toSeries(row: SeriesRow): Series {
-  return { ...row, knownRefs: row.knownRefs ?? [] };
+  return { ...row, knownRefs: row.knownRefs ?? null };
 }
 
 function toEpisode(row: EpisodeRow): Episode {

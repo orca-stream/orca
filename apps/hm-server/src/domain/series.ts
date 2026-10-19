@@ -33,8 +33,9 @@ export interface Series {
   /**
    * Every episode key the site listed when the series was last read, chosen or not. A check adds only
    * keys outside this list (plus the series' own episodes), so an episode the user left out stays out.
+   * Null is a series from before the column existed: its first check only learns what is listed.
    */
-  knownRefs: string[];
+  knownRefs: string[] | null;
   /** The series' own track choices; null follows the server's defaults. Languages are ISO 639-2. */
   maxHeight: number | null;
   audioLangs: string[] | null;

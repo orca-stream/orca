@@ -124,6 +124,41 @@ describe("CheckSeries: the series changed", () => {
     ]);
   });
 
+  it("treats a series from before known_refs as 'everything listed now is known': nothing is added, nothing forced", async () => {
+    const created = await addFake({ only: ["show/e1.mp4"], follow: false });
+    // A row as migration 0002 left it: the column is NULL, and the marker is an older kind.
+    await h.series.update(created.id, { knownRefs: null, remoteMarker: "old-form" });
+    site.marker = "m2";
+    site.episodes = [fakeEpisode(1), fakeEpisode(2), fakeEpisode(3)];
+
+    const result = await check(created.id);
+
+    expect(result).toMatchObject({ changed: true, added: 0, skipped: 0 });
+    expect((await h.series.listEpisodes(created.id)).map((e) => e.sourceRef)).toEqual([
+      "show/e1.mp4",
+    ]);
+    const stored = await h.series.get(created.id);
+    expect(stored?.remoteMarker).toBe("m2");
+    expect(stored?.knownRefs).toEqual(["show/e1.mp4", "show/e2.mp4", "show/e3.mp4"]);
+
+    // From here on it behaves like any other series: only what is truly new is added.
+    site.marker = "m3";
+    site.episodes = [...site.episodes, fakeEpisode(4)];
+    expect(await check(created.id)).toMatchObject({ added: 1 });
+    expect((await h.series.listEpisodes(created.id)).map((e) => e.sourceRef)).toEqual([
+      "show/e1.mp4",
+      "show/e4.mp4",
+    ]);
+  });
+
+  it("keeps an empty known list apart from a missing one", async () => {
+    const created = await addFake({ follow: false });
+    await h.series.update(created.id, { knownRefs: [] });
+    expect((await h.series.get(created.id))?.knownRefs).toEqual([]);
+    await h.series.update(created.id, { knownRefs: null });
+    expect((await h.series.get(created.id))?.knownRefs).toBeNull();
+  });
+
   it("skips a new episode whose number is taken by another one, and says so", async () => {
     const created = await addFake({ follow: false });
     site.marker = "m2";
@@ -134,6 +169,32 @@ describe("CheckSeries: the series changed", () => {
     ];
     const result = await check(created.id);
     expect(result).toMatchObject({ added: 0, skipped: 1 });
+    // Not "known": once its number is free it is added, rather than lost for good.
+    expect((await h.series.get(created.id))?.knownRefs).not.toContain("show/other.mp4");
+    site.marker = "m3";
+    site.episodes = [
+      fakeEpisode(1),
+      fakeEpisode(2),
+      fakeEpisode(3, { sourceRef: "show/other.mp4" }),
+    ];
+    expect(await check(created.id)).toMatchObject({ added: 1, skipped: 0 });
+  });
+
+  it("tells the panel about episodes it could not add, once per check", async () => {
+    const created = await addFake({ follow: false });
+    site.marker = "m2";
+    site.episodes = [
+      fakeEpisode(1),
+      fakeEpisode(2),
+      fakeEpisode(2, { sourceRef: "show/other.mp4" }),
+    ];
+    await check(created.id);
+    const rows = await h.notifications.list(10);
+    expect(rows.map((n) => n.kind)).toEqual(["episodes_skipped"]);
+    expect(rows[0]).toMatchObject({
+      seriesId: created.id,
+      data: { seriesTitle: "Fake Show", count: 1 },
+    });
   });
 
   it("re-extracts every time when the extractor has no cheap marker", async () => {

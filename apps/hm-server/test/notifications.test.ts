@@ -216,6 +216,21 @@ describe("the API", () => {
     expect((await stored()).every((n) => n.readAt === h.clock.now())).toBe(true);
   });
 
+  it("answers 400 to a body that is not JSON or not the right shape", async () => {
+    const send = (body: string) =>
+      app.request("/api/notifications/read", authed({ method: "POST", body }));
+    for (const bad of ["{not json", "[]", '{"ids":"a"}', '{"ids":[]}', '{"ids":[1]}']) {
+      const res = await send(bad);
+      expect(res.status, bad).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "bad_request" });
+    }
+    const tooMany = await send(
+      JSON.stringify({ ids: Array.from({ length: 501 }, (_, i) => `n${i}`) }),
+    );
+    expect(tooMany.status).toBe(400);
+    expect((await send("")).status).toBe(200);
+  });
+
   it("needs a session", async () => {
     expect((await app.request("/api/notifications")).status).toBe(401);
     expect((await app.request("/api/notifications/read", { method: "POST" })).status).toBe(401);

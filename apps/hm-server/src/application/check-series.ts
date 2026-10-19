@@ -13,9 +13,16 @@ export interface CheckResult {
   newEpisodes: Episode[];
   /** New episodes left out because their season and number belong to another episode. */
   skipped: number;
+  skippedRefs: string[];
 }
 
-const UNCHANGED: CheckResult = { changed: false, added: 0, newEpisodes: [], skipped: 0 };
+const UNCHANGED: CheckResult = {
+  changed: false,
+  added: 0,
+  newEpisodes: [],
+  skipped: 0,
+  skippedRefs: [],
+};
 
 /** A site that is down or confused is worth another try; a series that is gone is not. */
 function toJobError(error: unknown): unknown {
@@ -66,12 +73,15 @@ export function createCheckSeries(deps: Deps) {
     const now = deps.clock.now();
     const existing = await deps.series.listEpisodes(series.id);
     const byRef = new Map(existing.map((episode) => [episode.sourceRef, episode]));
-    const known = new Set([...series.knownRefs, ...byRef.keys()]);
+    // A series from before `known_refs` has no list: what the site shows now is all "known", so the
+    // first check learns it instead of adding every episode that was once declined.
+    const learning = series.knownRefs === null;
+    const known = new Set([...(series.knownRefs ?? []), ...byRef.keys()]);
     const taken = new Set(existing.map((episode) => `${episode.season}:${episode.episode}`));
 
     const update: Episode[] = [];
     const add: Episode[] = [];
-    let skipped = 0;
+    const skippedRefs: string[] = [];
     for (const found of extraction.episodes) {
       const current = byRef.get(found.sourceRef);
       if (current) {
@@ -86,25 +96,27 @@ export function createCheckSeries(deps: Deps) {
           sizeBytes: found.media.sizeBytes ?? null,
           format: found.media.format ?? null,
         });
-      } else if (!known.has(found.sourceRef)) {
+      } else if (!learning && !known.has(found.sourceRef)) {
         const number = `${found.season}:${found.episode}`;
         if (taken.has(number)) {
-          skipped++;
+          skippedRefs.push(found.sourceRef);
           continue;
         }
         taken.add(number);
         add.push(newEpisode(series.id, found, now));
       }
     }
+    const skipped = skippedRefs.length;
 
     await deps.series.upsertEpisodes(series.id, { update, add });
     // Only now: had the upsert failed, the stale marker makes the next check read the series again.
     await deps.series.update(series.id, {
       remoteMarker: extraction.series.remoteMarker ?? marker ?? null,
       lastCheckedAt: now,
-      knownRefs: [...known, ...extraction.episodes.map((found) => found.sourceRef)].filter(
-        (ref, index, all) => all.indexOf(ref) === index,
-      ),
+      // A skipped episode is not known yet: it is added by a later check once its number is free.
+      knownRefs: [
+        ...new Set([...known, ...extraction.episodes.map((found) => found.sourceRef)]),
+      ].filter((ref) => !skippedRefs.includes(ref)),
     });
 
     if (add.length > 0 && series.follow) {
@@ -117,6 +129,11 @@ export function createCheckSeries(deps: Deps) {
         .newEpisodes({ id: series.id, title: series.title }, add)
         .catch((error: unknown) => console.error("notification failed:", error));
     }
-    return { changed: true, added: add.length, newEpisodes: add, skipped };
+    if (skipped > 0) {
+      await deps.notifications
+        .episodesSkipped({ id: series.id, title: series.title }, skipped)
+        .catch((error: unknown) => console.error("notification failed:", error));
+    }
+    return { changed: true, added: add.length, newEpisodes: add, skipped, skippedRefs };
   };
 }
