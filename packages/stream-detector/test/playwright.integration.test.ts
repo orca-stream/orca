@@ -3,7 +3,12 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { chromium, type Browser } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-import { PlaywrightStreamDetector, StreamDetectionError } from "../src/index.ts";
+import {
+  buildLaunchOptions,
+  GuardedProxy,
+  PlaywrightStreamDetector,
+  StreamDetectionError,
+} from "../src/index.ts";
 
 // Opt-in: needs `HM_PLAYWRIGHT=1` and a Chromium installed (`pnpm exec playwright install chromium`).
 // CI installs no browser, so the whole file is skipped there.
@@ -85,5 +90,68 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () =
     const error = await pending;
     expect((error as StreamDetectionError).reason).toBe("aborted");
     expect(browser.contexts()).toHaveLength(0);
+  });
+});
+
+// The real thing the proxy is for: Chromium follows a redirect on its own, and `context.route` only
+// ever sees the first URL. Here the "public" site is 127.0.0.2 and the "private" one 127.0.0.1.
+describe.skipIf(!enabled)("PlaywrightStreamDetector behind the guarded proxy", () => {
+  const PUBLIC = "127.0.0.2";
+  const PRIVATE = "127.0.0.1";
+  let publicServer: Server;
+  let privateServer: Server;
+  let proxy: GuardedProxy;
+  let browser: Browser;
+  let privateHits: string[];
+  let publicPort: number;
+  let privatePort: number;
+
+  beforeAll(async () => {
+    privateHits = [];
+    privateServer = createServer((req, res) => {
+      privateHits.push(req.url ?? "");
+      res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl" }).end(MASTER);
+    });
+    await new Promise<void>((resolve) => privateServer.listen(0, PRIVATE, resolve));
+    privatePort = (privateServer.address() as AddressInfo).port;
+    publicServer = createServer((req, res) => {
+      const path = new URL(req.url ?? "/", "http://x").pathname;
+      if (path === "/page") {
+        res
+          .writeHead(200, { "content-type": "text/html" })
+          .end(`<script>fetch("/hop.m3u8").catch(() => {});</script>`);
+      } else if (path === "/hop.m3u8") {
+        res.writeHead(302, { location: `http://${PRIVATE}:${privatePort}/inner.m3u8` }).end();
+      } else {
+        res.writeHead(404).end();
+      }
+    });
+    await new Promise<void>((resolve) => publicServer.listen(0, PUBLIC, resolve));
+    publicPort = (publicServer.address() as AddressInfo).port;
+    proxy = new GuardedProxy({ isBlockedAddress: (address) => address !== PUBLIC });
+    await proxy.start();
+    browser = await chromium.launch(buildLaunchOptions(undefined, proxy.url));
+  });
+  afterAll(async () => {
+    await browser?.close();
+    await proxy?.close();
+    publicServer?.close();
+    privateServer?.close();
+  });
+
+  it("never lets a redirect from an allowed site reach the private one", async () => {
+    const detector = new PlaywrightStreamDetector({
+      maxConcurrent: 1,
+      timeoutMs: 6_000,
+      settleMs: 300,
+      // The route lets the first URL by, as it only sees that one: the proxy is what stops the hop.
+      isAllowed: () => Promise.resolve(true),
+      proxyUrl: proxy.url,
+      launch: () => Promise.resolve(browser as never),
+    });
+    await detector
+      .detect(`http://${PUBLIC}:${publicPort}/page`, { signal: new AbortController().signal })
+      .catch(() => null);
+    expect(privateHits).toEqual([]);
   });
 });
