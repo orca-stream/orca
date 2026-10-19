@@ -41,8 +41,10 @@ const authenticator = (route: Route) => {
   };
 };
 
-const header = (config: { headers?: unknown }) =>
-  String((config.headers as Record<string, unknown>)?.Authorization ?? "");
+const header = (config: { headers?: unknown }): string => {
+  const value = (config.headers as Record<string, unknown> | undefined)?.Authorization;
+  return typeof value === "string" ? value : "";
+};
 
 describe("JellyfinAuthenticator", () => {
   it("accepts an administrator and revokes the Jellyfin token right away", async () => {
