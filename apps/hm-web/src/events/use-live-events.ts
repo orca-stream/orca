@@ -78,6 +78,7 @@ export function useLiveEvents({ EventSource }: Options = {}): SseStatus {
         lastSeq = null;
         void queryClient.invalidateQueries({ queryKey: keys.jobs });
         void queryClient.invalidateQueries({ queryKey: keys.series });
+        void queryClient.invalidateQueries({ queryKey: keys.notifications });
       },
       onEvent: (_type, data) => {
         let event: unknown;

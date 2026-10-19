@@ -73,12 +73,30 @@ describe("planEvent", () => {
     ]);
   });
 
+  it("refreshes the bell on notification.created", () => {
+    const notification = {
+      id: "n1",
+      kind: "new_episodes",
+      title: "New episodes",
+      body: "x",
+      seriesId: "s1",
+      jobId: null,
+      data: {},
+      createdAt: 1,
+      readAt: null,
+    } as const;
+    expect(planEvent({ type: "notification.created", seq: 3, notification }, 2)).toEqual([
+      { type: "invalidate", key: keys.notifications },
+    ]);
+  });
+
   it("refetches everything on a gap in the sequence, then still applies the event", () => {
     const ops = planEvent({ type: "series.updated", seq: 9, seriesId: "s9" }, 4);
     expect(ops.slice(0, 2)).toEqual([
       { type: "invalidate", key: keys.jobs },
       { type: "invalidate", key: keys.series },
     ]);
+    expect(ops).toContainEqual({ type: "invalidate", key: keys.notifications });
     expect(ops.length).toBeGreaterThan(2);
   });
 

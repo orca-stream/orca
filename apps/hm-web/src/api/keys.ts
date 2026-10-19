@@ -6,6 +6,7 @@ export const keys = {
   jobsActive: ["jobs", "active"] as const,
   jobsFailed: ["jobs", "failed"] as const,
   jobsHistory: ["jobs", "history"] as const,
+  notifications: ["notifications"] as const,
   series: ["series"] as const,
   seriesList: ["series", "list"] as const,
   seriesDetail: (id: string) => ["series", "detail", id] as const,

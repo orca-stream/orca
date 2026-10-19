@@ -1,5 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type { EpisodeDto, ExtractorDto, JobDto, SeriesDto } from "./types";
+import type { EpisodeDto, ExtractorDto, JobDto, NotificationList, SeriesDto } from "./types";
 import type { ApiClient } from "./client";
 import { keys } from "./keys";
 
@@ -54,6 +54,12 @@ export const queries = {
           signal,
         }),
       getNextPageParam: (page: Page<JobDto>) => page.nextCursor ?? undefined,
+    }),
+
+  notifications: (api: ApiClient) =>
+    queryOptions({
+      queryKey: keys.notifications,
+      queryFn: ({ signal }) => api.get<NotificationList>("/notifications", { signal }),
     }),
 
   seriesList: (api: ApiClient) =>

@@ -4,6 +4,7 @@ import { CollectionIcon, HomeIcon, TvIcon } from "@orca/ui/icons";
 import { useMe, useLogout } from "../auth/session";
 import type { SseStatus } from "../events/sse";
 import { useT } from "../i18n/locale";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { Button, cx } from "../ui";
 
 const LIVE_TONE: Record<SseStatus, string> = {
@@ -47,7 +48,10 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="flex w-full shrink-0 flex-col gap-6 border-b border-white/10 bg-surface p-4 md:sticky md:top-0 md:h-dvh md:w-60 md:border-r md:border-b-0">
-        <p className="px-2 text-sm font-semibold tracking-widest">{t.brand}</p>
+        <div className="flex items-center justify-between gap-2 px-2">
+          <p className="text-sm font-semibold tracking-widest">{t.brand}</p>
+          <NotificationBell />
+        </div>
         <nav aria-label={t.nav.label} className="flex gap-1 md:flex-col">
           {NAV.map(({ href, icon: Icon, label }) => (
             <NavLink key={href} href={href}>

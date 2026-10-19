@@ -30,6 +30,12 @@ export function useMutations() {
       mutationFn: (episodeIds: string[]) => api.post<JobDto[]>("/jobs", { episodeIds }),
       onSuccess: refreshAll,
     }),
+    /** No ids: every unread one. */
+    markNotificationsRead: useMutation({
+      mutationFn: (ids?: string[]) =>
+        api.post<{ unreadCount: number }>("/notifications/read", ids ? { ids } : {}),
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.notifications }),
+    }),
     checkSeries: useMutation({
       mutationFn: (seriesId: string) => api.post<JobDto>(`/series/${id(seriesId)}/check`),
       onSuccess: refreshAll,

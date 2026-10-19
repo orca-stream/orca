@@ -131,6 +131,21 @@ const es = {
     actionFailed: "No se pudo completar la acción.",
     queued: (n: number) => `${n} descargas en cola.`,
   },
+  notifications: {
+    title: "Notificaciones",
+    bell: (unread: number) =>
+      unread === 0 ? "Notificaciones" : `Notificaciones (${unread} sin leer)`,
+    empty: "Sin notificaciones.",
+    markAllRead: "Marcar todo como leído",
+    loadFailed: "No se pudieron cargar las notificaciones.",
+    newEpisodesTitle: "Episodios nuevos",
+    newEpisodes: (series: string, count: number, codes: string) =>
+      `${series}: ${count} ${count === 1 ? "episodio nuevo" : "episodios nuevos"} (${codes})`,
+    seriesDownloadedTitle: "Descargas terminadas",
+    seriesDownloaded: (series: string, available: number, total: number) =>
+      `${series}: ${available} de ${total} episodios disponibles`,
+    jobFailedTitle: "Un trabajo falló",
+  },
   add: {
     title: "Añadir serie",
     subtitle: "Pega la dirección de la serie o de uno de sus episodios.",
@@ -358,6 +373,20 @@ const en: typeof es = {
     inferred: "Inferred",
     actionFailed: "The action could not be completed.",
     queued: (n: number) => `${n} downloads queued.`,
+  },
+  notifications: {
+    title: "Notifications",
+    bell: (unread: number) => (unread === 0 ? "Notifications" : `Notifications (${unread} unread)`),
+    empty: "No notifications.",
+    markAllRead: "Mark all as read",
+    loadFailed: "Notifications could not be loaded.",
+    newEpisodesTitle: "New episodes",
+    newEpisodes: (series: string, count: number, codes: string) =>
+      `${series}: ${count} new ${count === 1 ? "episode" : "episodes"} (${codes})`,
+    seriesDownloadedTitle: "Downloads finished",
+    seriesDownloaded: (series: string, available: number, total: number) =>
+      `${series}: ${available} of ${total} episodes are available`,
+    jobFailedTitle: "A job failed",
   },
   add: {
     title: "Add series",

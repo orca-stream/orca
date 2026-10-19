@@ -30,7 +30,11 @@ function refreshSeries(seriesId: string): Op[] {
 export function planEvent(event: HmEvent, lastSeq: number | null): Op[] {
   const ops: Op[] = [];
   if (lastSeq !== null && event.seq !== lastSeq + 1) {
-    ops.push({ type: "invalidate", key: keys.jobs }, { type: "invalidate", key: keys.series });
+    ops.push(
+      { type: "invalidate", key: keys.jobs },
+      { type: "invalidate", key: keys.series },
+      { type: "invalidate", key: keys.notifications },
+    );
   }
   switch (event.type) {
     case "job.progress":
@@ -48,6 +52,9 @@ export function planEvent(event: HmEvent, lastSeq: number | null): Op[] {
       break;
     case "series.updated":
       ops.push(...refreshSeries(event.seriesId));
+      break;
+    case "notification.created":
+      ops.push({ type: "invalidate", key: keys.notifications });
       break;
   }
   return ops;
