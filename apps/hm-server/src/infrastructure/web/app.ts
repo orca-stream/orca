@@ -180,8 +180,8 @@ export function createApp(deps: AppDeps) {
   api.get("/extractors", (c) => c.json(useCases.listExtractors()));
 
   api.post("/series/preview", validate("json", PreviewRequest), async (c) => {
-    const { url } = c.req.valid("json");
-    return c.json(await useCases.previewSeries(url, c.req.raw.signal));
+    const { url, extractorId } = c.req.valid("json");
+    return c.json(await useCases.previewSeries(url, c.req.raw.signal, extractorId));
   });
 
   api.get("/series/preview/:previewId/poster", async (c) => {

@@ -6,6 +6,7 @@ export type ExtractedEpisode = Extraction["episodes"][number];
 
 export function sourceOf(episode: ExtractedEpisode): Source {
   const { media } = episode;
+  if (media.kind === "page") return { kind: "page", url: media.url };
   return {
     kind: "direct",
     url: media.url,

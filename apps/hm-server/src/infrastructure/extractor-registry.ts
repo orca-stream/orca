@@ -12,6 +12,10 @@ export class StaticExtractorRegistry implements ExtractorRegistry {
     return this.extractors;
   }
 
+  get(id: string): SiteExtractor | null {
+    return this.extractors.find((extractor) => extractor.id === id) ?? null;
+  }
+
   find(url: string): SiteExtractor | null {
     return this.extractors.find((extractor) => extractor.canHandle(url)) ?? null;
   }

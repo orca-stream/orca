@@ -81,15 +81,28 @@ export function createUseCases(deps: Deps) {
     enqueueDownloads,
 
     listExtractors() {
-      return deps.extractors
-        .list()
-        .map(({ id, name, hosts, example }) => ({ id, name, hosts, example }));
+      return deps.extractors.list().map(({ id, name, hosts, example, explicitOnly }) => ({
+        id,
+        name,
+        hosts,
+        example,
+        explicit: explicitOnly === true,
+      }));
     },
 
     /** Runs the extractor and keeps the result for a short while; nothing is persisted. */
-    async previewSeries(url: string, signal?: AbortSignal): Promise<PreviewDto> {
-      const extractor = deps.extractors.find(url);
-      if (!extractor) throw new AppError("bad_request", "No extractor handles this address");
+    async previewSeries(
+      url: string,
+      signal?: AbortSignal,
+      extractorId?: string,
+    ): Promise<PreviewDto> {
+      const extractor = extractorId ? deps.extractors.get(extractorId) : deps.extractors.find(url);
+      if (!extractor) {
+        throw new AppError(
+          "bad_request",
+          extractorId ? `No extractor “${extractorId}”` : "No extractor handles this address",
+        );
+      }
       const extraction = await extractor.extract(url, signal ? { signal } : undefined);
       const previewId = deps.previews.put(extraction, extractor.id);
       const hasPoster = trustedPosterUrl(extraction.series.posterUrl, extractor.hosts) !== null;

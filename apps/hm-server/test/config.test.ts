@@ -121,3 +121,61 @@ describe("userAgent", () => {
     ).toThrow(/CONTACT_EMAIL/);
   });
 });
+
+describe("the generic detector", () => {
+  const on = {
+    ...minimal,
+    HM_GENERIC_DETECTOR: "1",
+    HM_DETECTOR_MAX_CONCURRENT: "2",
+    HM_DETECTOR_TIMEOUT_MS: "45000",
+    HM_DETECTOR_SETTLE_MS: "3000",
+  };
+
+  it("is off unless HM_GENERIC_DETECTOR enables it, and then asks for nothing else", () => {
+    expect(loadConfig(minimal).detector).toBeNull();
+    expect(loadConfig({ ...minimal, HM_GENERIC_DETECTOR: "0" }).detector).toBeNull();
+    expect(loadConfig({ ...minimal, HM_GENERIC_DETECTOR: "false" }).detector).toBeNull();
+  });
+
+  it("reads its tuning from the environment when it is on", () => {
+    expect(loadConfig(on).detector).toEqual({
+      maxConcurrent: 2,
+      timeoutMs: 45_000,
+      settleMs: 3000,
+      userAgent: undefined,
+      chromiumPath: undefined,
+      noSandbox: false,
+    });
+    expect(
+      loadConfig({
+        ...on,
+        HM_DETECTOR_USER_AGENT: "Mozilla/5.0 Test",
+        HM_CHROMIUM_PATH: "/usr/bin/chromium",
+        HM_CHROMIUM_NO_SANDBOX: "true",
+      }).detector,
+    ).toMatchObject({
+      userAgent: "Mozilla/5.0 Test",
+      chromiumPath: "/usr/bin/chromium",
+      noSandbox: true,
+    });
+  });
+
+  it.each(["HM_DETECTOR_MAX_CONCURRENT", "HM_DETECTOR_TIMEOUT_MS", "HM_DETECTOR_SETTLE_MS"])(
+    "refuses to start with the detector on and no %s, because it has no default",
+    (name) => {
+      const env: Record<string, string | undefined> = { ...on };
+      delete env[name];
+      expect(() => loadConfig(env)).toThrow(new RegExp(name));
+    },
+  );
+
+  it("rejects nonsense values", () => {
+    expect(() => loadConfig({ ...on, HM_DETECTOR_MAX_CONCURRENT: "0" })).toThrow(/MAX_CONCURRENT/);
+    expect(() => loadConfig({ ...on, HM_DETECTOR_TIMEOUT_MS: "-1" })).toThrow(/TIMEOUT_MS/);
+    expect(() => loadConfig({ ...on, HM_DETECTOR_SETTLE_MS: "x" })).toThrow(/SETTLE_MS/);
+  });
+
+  it("ignores the tuning when the detector is off", () => {
+    expect(loadConfig({ ...minimal, HM_DETECTOR_TIMEOUT_MS: "oops" }).detector).toBeNull();
+  });
+});

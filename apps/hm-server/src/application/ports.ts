@@ -250,6 +250,7 @@ export interface PreviewStore {
 export interface ExtractorRegistry {
   list(): SiteExtractor[];
   find(url: string): SiteExtractor | null;
+  get(id: string): SiteExtractor | null;
 }
 
 /** Wakes the job queue after something was enqueued. */

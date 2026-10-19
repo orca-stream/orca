@@ -314,6 +314,9 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.13
+      playwright:
+        specifier: 1.64.1
+        version: 1.64.1
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -330,6 +333,12 @@ importers:
       '@orca/jellyfin':
         specifier: workspace:*
         version: link:../../packages/jellyfin
+      '@orca/media-probe':
+        specifier: workspace:*
+        version: link:../../packages/media-probe
+      '@orca/stream-detector':
+        specifier: workspace:*
+        version: link:../../packages/stream-detector
       '@types/better-sqlite3':
         specifier: 'catalog:'
         version: 9.6.0

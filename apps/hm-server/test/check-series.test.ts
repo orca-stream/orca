@@ -186,7 +186,7 @@ describe("CheckSeries: failures", () => {
 
   it("makes an extractor that was removed permanent", async () => {
     const created = await addFake();
-    h.deps.extractors = { list: () => [], find: () => null };
+    h.deps.extractors = { list: () => [], find: () => null, get: () => null };
     await expect(check(created.id)).rejects.toBeInstanceOf(PermanentError);
   });
 

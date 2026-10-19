@@ -23,9 +23,13 @@ export class ExtractorError extends Error {
   }
 }
 
-/** A file that can be fetched with a plain HTTP GET (Range supported). */
+/**
+ * A file that can be fetched with a plain HTTP GET (Range supported). With kind `page`, `url` is
+ * the address of a web page that plays the video: the server finds the stream on it with a browser
+ * when it downloads, and `fileName` is only a placeholder.
+ */
 export interface DirectMedia {
-  kind: "direct";
+  kind: "direct" | "page";
   url: string;
   fileName: string;
   sizeBytes?: number;
@@ -121,6 +125,8 @@ export interface ExtractorInfo {
 
 /** The port every site (Internet Archive today, others later) implements. */
 export interface SiteExtractor extends ExtractorInfo {
+  /** True when the extractor must be chosen by the user: `canHandle` never claims an address. */
+  explicitOnly?: boolean;
   /** Politeness limits for the hosts above. Absent: the server's defaults. */
   limits?: ExtractorLimits;
   /** Pure: says whether this extractor owns the URL, without touching the network. */

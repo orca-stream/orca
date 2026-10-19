@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 import type { SiteExtractor } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createJellyfin } from "@orca/jellyfin";
+import { PlaywrightStreamDetector } from "@orca/stream-detector";
 import type { Deps } from "./application/deps.ts";
 import { createJobEvents } from "./application/job-events.ts";
 import { createJobHandler } from "./application/job-handler.ts";
@@ -22,6 +23,8 @@ import { DrizzleSessionRepository } from "./infrastructure/db/session-repository
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts";
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
+import { GenericPageExtractor } from "./infrastructure/generic-page-extractor.ts";
+import { PlaywrightDetectorAdapter } from "./infrastructure/playwright-detector-adapter.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { StaticExtractorRegistry } from "./infrastructure/extractor-registry.ts";
 import { HostLimiter, hostLimitsFor } from "./infrastructure/host-limiter.ts";
@@ -72,6 +75,22 @@ const limiter = new HostLimiter({
 extractors.push(
   createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent, limiter }) }),
 );
+// The browser exists only when HM_GENERIC_DETECTOR is on, and so does the extractor that needs it.
+const detector = config.detector
+  ? new PlaywrightDetectorAdapter(
+      new PlaywrightStreamDetector({
+        maxConcurrent: config.detector.maxConcurrent,
+        timeoutMs: config.detector.timeoutMs,
+        settleMs: config.detector.settleMs,
+        ...(config.detector.userAgent ? { userAgent: config.detector.userAgent } : {}),
+        launchOptions: {
+          ...(config.detector.chromiumPath ? { executablePath: config.detector.chromiumPath } : {}),
+          ...(config.detector.noSandbox ? { args: ["--no-sandbox"] } : {}),
+        },
+      }),
+    )
+  : null;
+if (detector) extractors.push(new GenericPageExtractor());
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);
@@ -105,8 +124,7 @@ const deps: Deps = {
     new HttpDownloader({ userAgent: agent, limiter }),
     new FfmpegDownloader({ userAgent: agent }),
   ],
-  // The Playwright detector arrives with the later phase; page sources fail clearly until then.
-  detector: null,
+  detector,
   events,
   // The panel's channel is the only one; ntfy and the like would be added to this list.
   notifications: new NotificationService({
@@ -161,6 +179,7 @@ async function shutdown(signal: string): Promise<void> {
   if ("closeAllConnections" in server) server.closeAllConnections();
   scheduler.stop();
   await queue.stop();
+  await detector?.dispose();
   database.close();
   process.exit(0);
 }

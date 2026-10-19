@@ -7,7 +7,11 @@ export const MAX_TITLE_LENGTH = 150;
 export const EpisodeStatus = z.enum(["missing", "queued", "downloading", "available", "failed"]);
 export type EpisodeStatus = z.infer<typeof EpisodeStatus>;
 
-export const PreviewRequest = z.object({ url: z.string().min(1) });
+export const PreviewRequest = z.object({
+  url: z.string().min(1),
+  /** Use this extractor instead of the one that matches the address (required for an explicit one). */
+  extractorId: z.string().min(1).optional(),
+});
 export type PreviewRequest = z.infer<typeof PreviewRequest>;
 
 export const LicenseDto = z.object({

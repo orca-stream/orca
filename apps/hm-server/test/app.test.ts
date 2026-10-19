@@ -233,6 +233,7 @@ describe("series routes", () => {
         name: "Internet Archive",
         hosts: ["archive.org"],
         example: "https://archive.org/details/bevhill-s01e01-36",
+        explicit: false,
       },
     ]);
   });

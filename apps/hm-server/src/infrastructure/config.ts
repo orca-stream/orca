@@ -6,7 +6,19 @@ const bool = z
   .transform((value) => value === "true" || value === "1");
 const count = (fallback: number) => z.coerce.number().int().min(1).max(32).default(fallback);
 
+/** Required once the generic detector is on; there is no sensible default for a site's timing. */
+const positive = z.coerce.number().int().min(1);
+const DetectorEnv = z.object({
+  HM_DETECTOR_MAX_CONCURRENT: positive.max(8),
+  HM_DETECTOR_TIMEOUT_MS: positive,
+  HM_DETECTOR_SETTLE_MS: z.coerce.number().int().min(0),
+  HM_DETECTOR_USER_AGENT: z.string().min(1).optional(),
+  HM_CHROMIUM_PATH: z.string().min(1).optional(),
+  HM_CHROMIUM_NO_SANDBOX: bool.default(false),
+});
+
 const Env = z.object({
+  HM_GENERIC_DETECTOR: bool.default(false),
   DB_FILE: z.string().min(1),
   MEDIA_ROOT: z.string().min(1),
   JELLYFIN_URL: z.url(),
@@ -26,7 +38,19 @@ const Env = z.object({
   METADATA_PER_SEC: z.coerce.number().positive().max(100).optional(),
 });
 
+export interface DetectorConfig {
+  maxConcurrent: number;
+  timeoutMs: number;
+  settleMs: number;
+  userAgent: string | undefined;
+  chromiumPath: string | undefined;
+  /** For Chromium in a container that cannot give it a user-namespace sandbox. */
+  noSandbox: boolean;
+}
+
 export interface Config {
+  /** Null while HM_GENERIC_DETECTOR is off: no browser, no generic extractor. */
+  detector: DetectorConfig | null;
   dbFile: string;
   mediaRoot: string;
   jellyfinUrl: string;
@@ -56,17 +80,32 @@ export class ConfigError extends Error {
 /** Reads and validates the environment once, at boot, so a typo fails loudly and early. */
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const parsed = Env.safeParse(env);
-  if (!parsed.success) {
-    const lines = parsed.error.issues.map(
-      (issue) => `  ${issue.path.join(".") || "(env)"}: ${issue.message}`,
-    );
+  const detectorOn = parsed.success && parsed.data.HM_GENERIC_DETECTOR;
+  const detectorParsed = detectorOn ? DetectorEnv.safeParse(env) : null;
+  const issues = [
+    ...(parsed.success ? [] : parsed.error.issues),
+    ...(detectorParsed && !detectorParsed.success ? detectorParsed.error.issues : []),
+  ];
+  if (!parsed.success || (detectorParsed && !detectorParsed.success)) {
+    const lines = issues.map((issue) => `  ${issue.path.join(".") || "(env)"}: ${issue.message}`);
     throw new ConfigError(
       `Invalid configuration (set these in the environment, see .env.example):\n${lines.join("\n")}`,
-      { cause: parsed.error },
+      { cause: parsed.success ? (detectorParsed as { error: unknown }).error : parsed.error },
     );
   }
   const e = parsed.data;
+  const d = detectorParsed?.success ? detectorParsed.data : null;
   return {
+    detector: d
+      ? {
+          maxConcurrent: d.HM_DETECTOR_MAX_CONCURRENT,
+          timeoutMs: d.HM_DETECTOR_TIMEOUT_MS,
+          settleMs: d.HM_DETECTOR_SETTLE_MS,
+          userAgent: d.HM_DETECTOR_USER_AGENT,
+          chromiumPath: d.HM_CHROMIUM_PATH,
+          noSandbox: d.HM_CHROMIUM_NO_SANDBOX,
+        }
+      : null,
     dbFile: e.DB_FILE,
     mediaRoot: e.MEDIA_ROOT,
     jellyfinUrl: e.JELLYFIN_URL.replace(/\/+$/, ""),
