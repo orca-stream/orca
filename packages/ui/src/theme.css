@@ -1,0 +1,12 @@
+/*
+ * Tokens shared by the Orca apps. Imported after `@import "tailwindcss"`; each app also lists this
+ * package in an `@source` so Tailwind sees the classes used inside it (workspace packages are
+ * symlinked into node_modules, which Tailwind skips by default).
+ */
+@theme {
+  --font-sans: "Google Sans Flex", system-ui, sans-serif;
+  --color-brand: #e50914;
+  --color-canvas: #141414;
+  --color-surface: #1f1f1f;
+  --color-surface-raised: #262626;
+}

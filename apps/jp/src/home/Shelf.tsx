@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { onXbox } from "../host";
 import { t } from "../i18n/locale";
 import type { MediaItem, Shelf as ShelfData, ShelfTitle } from "../jellyfin/library";
-import { ChevronIcon } from "../ui/icons";
+import { ChevronIcon } from "@orca/ui/icons";
 import { cardKey } from "./focus-keys";
 import { LandscapeCard } from "./LandscapeCard";
 import { PosterCard } from "./PosterCard";

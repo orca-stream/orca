@@ -4,7 +4,7 @@ import { resumeSession } from "../jellyfin/client";
 import { sessionId, type Session } from "../jellyfin/session";
 import { t } from "../i18n/locale";
 import { FocusButton } from "../navigation/Focusable";
-import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
+import { CheckIcon, PencilIcon, PlusIcon } from "@orca/ui/icons";
 import { Avatar } from "./Avatar";
 
 interface Props {

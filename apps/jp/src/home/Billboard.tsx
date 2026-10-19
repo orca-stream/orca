@@ -2,7 +2,7 @@ import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-naviga
 import { t } from "../i18n/locale";
 import type { MediaItem } from "../jellyfin/library";
 import { FocusButton } from "../navigation/Focusable";
-import { CheckIcon, InfoIcon, PlayIcon, PlusIcon } from "../ui/icons";
+import { CheckIcon, InfoIcon, PlayIcon, PlusIcon } from "@orca/ui/icons";
 import { scrollToTop } from "./scroll";
 
 export const BILLBOARD_PLAY = "BILLBOARD_PLAY";

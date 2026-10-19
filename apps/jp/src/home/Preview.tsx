@@ -21,7 +21,7 @@ import {
   PlusIcon,
   ThumbUpIcon,
   VolumeIcon,
-} from "../ui/icons";
+} from "@orca/ui/icons";
 
 /** Netflix web waits a moment before a card grows, so sweeping across a shelf opens nothing. */
 const OPEN_AFTER_MS = 1000;

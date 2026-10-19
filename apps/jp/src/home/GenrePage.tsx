@@ -6,7 +6,7 @@ import { SessionExpiredError, type Connection } from "../jellyfin/client";
 import type { MediaItem, Shelf as ShelfData } from "../jellyfin/library";
 import { setFavorite } from "../jellyfin/title";
 import { FocusButton } from "../navigation/Focusable";
-import { BackIcon } from "../ui/icons";
+import { BackIcon } from "@orca/ui/icons";
 import { Billboard, BillboardSkeleton } from "./Billboard";
 import { Glow } from "./Glow";
 import { Shelf, ShelfSkeleton } from "./Shelf";

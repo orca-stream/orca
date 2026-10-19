@@ -7,7 +7,7 @@ import { normalizeServerUrl } from "@orca/jellyfin";
 import { probeServer, serverKind, type ServerKind, type ServerProbe } from "../jellyfin/servers";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
-import { GlobeIcon, HomeIcon, LaptopIcon, PlusIcon } from "../ui/icons";
+import { GlobeIcon, HomeIcon, LaptopIcon, PlusIcon } from "@orca/ui/icons";
 
 interface Props {
   /** Addresses to offer, already normalized; see `serverChoices`. */

@@ -5,7 +5,7 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { LinkDeviceIcon, PencilIcon } from "../ui/icons";
+import { LinkDeviceIcon, PencilIcon } from "@orca/ui/icons";
 
 export interface Account {
   session: Session;

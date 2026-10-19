@@ -6,7 +6,7 @@ import { resumeSession, SessionExpiredError } from "../jellyfin/client";
 import type { Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
-import { BackIcon, PencilIcon, TrashIcon } from "../ui/icons";
+import { BackIcon, PencilIcon, TrashIcon } from "@orca/ui/icons";
 import { Avatar } from "./Avatar";
 import { photoToAvatar, pictureToAvatar } from "./avatar-image";
 import { IconRow } from "./IconRow";

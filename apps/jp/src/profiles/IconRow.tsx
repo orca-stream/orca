@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronIcon } from "../ui/icons";
+import { ChevronIcon } from "@orca/ui/icons";
 
 interface Props {
   children: ReactNode;

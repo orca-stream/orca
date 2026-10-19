@@ -14,7 +14,7 @@ import { FocusButton } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
 import { Avatar } from "../profiles/Avatar";
 import { CodeInput } from "../ui/CodeInput";
-import { CheckIcon, LinkDeviceIcon, PlusIcon } from "../ui/icons";
+import { CheckIcon, LinkDeviceIcon, PlusIcon } from "@orca/ui/icons";
 import { AuthPage } from "./AuthPage";
 
 interface Props {

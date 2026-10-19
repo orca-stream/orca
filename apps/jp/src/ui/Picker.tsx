@@ -1,7 +1,7 @@
 import { FocusContext, useFocusable } from "@noriginmedia/norigin-spatial-navigation-react";
 import { useEffect } from "react";
 import { FocusButton } from "../navigation/Focusable";
-import { CloseIcon } from "./icons";
+import { CloseIcon } from "@orca/ui/icons";
 
 export interface PickerOption {
   id: string;

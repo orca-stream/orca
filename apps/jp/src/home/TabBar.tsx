@@ -4,7 +4,7 @@ import { t } from "../i18n/locale";
 import type { Library } from "../jellyfin/library";
 import { FocusButton } from "../navigation/Focusable";
 import { Avatar } from "../profiles/Avatar";
-import { FilmIcon, HomeIcon, TvIcon } from "../ui/icons";
+import { FilmIcon, HomeIcon, TvIcon } from "@orca/ui/icons";
 import { AccountMenu, type Account } from "./AccountMenu";
 
 const PROFILE_TAB = "TAB_PROFILE";

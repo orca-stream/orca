@@ -1,8 +1,8 @@
 @import "tailwindcss";
+@import "@orca/ui/theme.css";
 
-@theme {
-  --font-sans: "Google Sans Flex", system-ui, sans-serif;
-}
+/* Workspace packages are symlinked into node_modules, which Tailwind skips: name them. */
+@source "../../../packages/ui/src";
 
 /* Focus styles show while keys drive the app, never after a tap (see navigation/spatial.ts). */
 @custom-variant focused (&[data-focused]:where(:root:not([data-input="pointer"]) *));

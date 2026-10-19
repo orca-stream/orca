@@ -26,7 +26,7 @@ import {
   PlayIcon,
   PlusIcon,
   ThumbUpIcon,
-} from "../ui/icons";
+} from "@orca/ui/icons";
 import { Picker } from "../ui/Picker";
 
 interface Props {

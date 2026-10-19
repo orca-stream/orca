@@ -6,7 +6,7 @@ import { SessionExpiredError, type Connection } from "../jellyfin/client";
 import type { MediaItem } from "../jellyfin/library";
 import { PosterCard } from "../home/PosterCard";
 import { FocusButton, FocusInput } from "../navigation/Focusable";
-import { BackIcon, PlayCircleIcon } from "../ui/icons";
+import { BackIcon, PlayCircleIcon } from "@orca/ui/icons";
 
 interface Props {
   connection: Connection;

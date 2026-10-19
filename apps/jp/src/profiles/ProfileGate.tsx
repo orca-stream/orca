@@ -4,7 +4,7 @@ import { t } from "../i18n/locale";
 import { sessionId, type Session } from "../jellyfin/session";
 import { FocusButton } from "../navigation/Focusable";
 import { useBackKey } from "../navigation/use-back-key";
-import { CheckIcon, PencilIcon, PlusIcon } from "../ui/icons";
+import { CheckIcon, PencilIcon, PlusIcon } from "@orca/ui/icons";
 import { Logo } from "../ui/Logo";
 import { useWideScreen } from "../ui/use-wide-screen";
 import { Avatar } from "./Avatar";

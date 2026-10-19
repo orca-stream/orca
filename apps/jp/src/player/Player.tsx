@@ -41,7 +41,7 @@ import {
   ThumbDownIcon,
   ThumbUpIcon,
   VolumeIcon,
-} from "../ui/icons";
+} from "@orca/ui/icons";
 import { browserEngine } from "./engine";
 import { fullScreen } from "./full-screen";
 import { presetChoice, trackPresets, type TrackPreset } from "./presets";
