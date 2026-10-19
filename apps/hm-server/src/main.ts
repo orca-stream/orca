@@ -29,6 +29,9 @@ import { InMemoryPreviewStore } from "./infrastructure/preview-store.ts";
 import { systemClock, systemRandom } from "./infrastructure/system.ts";
 import { createApp } from "./infrastructure/web/app.ts";
 
+// Registered before anything else runs so a rejection during startup is logged too.
+process.on("unhandledRejection", (reason) => console.error("unhandled rejection:", reason));
+
 // `src/main.ts` and the bundled `dist/main.mjs` both sit one folder below the app root.
 const appRoot = resolve(import.meta.dirname, "..");
 const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "utf8")) as {
@@ -126,8 +129,6 @@ const server = serve({ fetch: app.fetch, port: config.port, hostname: config.hos
     `Orca'H&M ${version} listening on http://${info.address}:${info.port} (media: ${mediaRoot})`,
   );
 });
-
-process.on("unhandledRejection", (reason) => console.error("unhandled rejection:", reason));
 
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
