@@ -232,3 +232,44 @@ describe("notifications", () => {
     expect(MarkReadBody.safeParse({ ids: [] }).success).toBe(false);
   });
 });
+
+describe("track preferences", () => {
+  it("are optional in a patch, and null clears one", () => {
+    expect(SeriesPatch.parse({})).toEqual({});
+    expect(
+      SeriesPatch.parse({ maxHeight: 720, audioLangs: ["spa", "eng"], subtitleLangs: [] }),
+    ).toEqual({
+      maxHeight: 720,
+      audioLangs: ["spa", "eng"],
+      subtitleLangs: [],
+    });
+    expect(SeriesPatch.parse({ maxHeight: null, audioLangs: null, subtitleLangs: null })).toEqual({
+      maxHeight: null,
+      audioLangs: null,
+      subtitleLangs: null,
+    });
+  });
+
+  it("take ISO 639-2 codes (three lower-case letters), never names", () => {
+    for (const bad of ["english", "EN", "es", "sp1", ""]) {
+      expect(SeriesPatch.safeParse({ audioLangs: [bad] }).success).toBe(false);
+      expect(SeriesPatch.safeParse({ subtitleLangs: [bad] }).success).toBe(false);
+    }
+    // Audio needs at least one: an empty list would mean a silent video. Subtitles may be none.
+    expect(SeriesPatch.safeParse({ audioLangs: [] }).success).toBe(false);
+    expect(SeriesPatch.safeParse({ audioLangs: Array(11).fill("eng") }).success).toBe(false);
+  });
+
+  it("limit the height to a real video size", () => {
+    for (const bad of [0, 100, 5000, 720.5]) {
+      expect(SeriesPatch.safeParse({ maxHeight: bad }).success).toBe(false);
+    }
+    expect(SeriesPatch.safeParse({ maxHeight: 4320 }).success).toBe(true);
+  });
+
+  it("show on the series with null for 'use the defaults'", () => {
+    expect(SeriesDto.shape.maxHeight.safeParse(null).success).toBe(true);
+    expect(SeriesDto.shape.audioLangs.safeParse(["eng"]).success).toBe(true);
+    expect(SeriesDto.shape.subtitleLangs.safeParse(undefined).success).toBe(false);
+  });
+});

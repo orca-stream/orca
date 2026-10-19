@@ -72,6 +72,7 @@ export async function createHarness(
     mediaServer,
     downloaders: [downloader],
     detector,
+    streamDefaults: {},
     events: bus,
     notifications: new NotificationService({
       notifiers: [new PanelNotifier(db.notifications, bus), extraNotifier],

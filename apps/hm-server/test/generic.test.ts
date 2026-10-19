@@ -175,4 +175,26 @@ describe("choosing the generic extractor", () => {
     });
     expect((await h.series.listEpisodes(created.id))[0]?.status).toBe("available");
   });
+
+  it("hands a DASH manifest to ffmpeg like an HLS one", async () => {
+    h.detector.streams = [
+      { url: "https://cdn.example/manifest.mpd", kind: "dash", headers: { Cookie: "a=b" } },
+    ];
+    const preview = await h.useCases.previewSeries(PAGE, undefined, "generic");
+    await h.useCases.addSeries({
+      previewId: preview.previewId,
+      title: "Some video",
+      year: 1950,
+      episodeKeys: [PAGE],
+      follow: false,
+      downloadNow: true,
+      licenseAck: true,
+    });
+    await h.queue.settle();
+    expect(h.downloader.calls[0]?.source).toEqual({
+      kind: "hls",
+      url: "https://cdn.example/manifest.mpd",
+      headers: { Cookie: "a=b" },
+    });
+  });
 });

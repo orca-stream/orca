@@ -33,6 +33,10 @@ export interface Series {
    * keys outside this list (plus the series' own episodes), so an episode the user left out stays out.
    */
   knownRefs: string[];
+  /** The series' own track choices; null follows the server's defaults. Languages are ISO 639-2. */
+  maxHeight: number | null;
+  audioLangs: string[] | null;
+  subtitleLangs: string[] | null;
   createdAt: number;
 }
 

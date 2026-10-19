@@ -41,6 +41,9 @@ export function aSeries(overrides: Partial<Series> = {}): Series {
     lastCheckedAt: null,
     remoteMarker: null,
     knownRefs: [],
+    maxHeight: null,
+    audioLangs: null,
+    subtitleLangs: null,
     createdAt: 1,
     ...overrides,
   };

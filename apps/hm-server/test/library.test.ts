@@ -217,4 +217,46 @@ describe("FsLibraryWriter", () => {
     expect(await readdir(join(root, ".hm-staging"))).toEqual([]);
     await writer.discardStaged(episode); // nothing left: still fine
   });
+
+  it("moves subtitle files beside the video under the names Jellyfin pairs with it", async () => {
+    const series = aSeries();
+    const episode = anEpisode({ id: "e5", season: 1, episode: 2 });
+    await writer.writeSeries(series);
+    const staged = writer.stagingPath(episode);
+    await mkdir(join(root, ".hm-staging"), { recursive: true });
+    await writeFile(staged, "video");
+    await writeFile(`${staged}.sub0.srt`, "english");
+    await writeFile(`${staged}.sub1.srt`, "forced spanish");
+    await writeFile(`${staged}.sub2.srt`, "no language");
+    const { relativePath } = await writer.commitEpisode(series, episode, staged, [
+      { path: `${staged}.sub0.srt`, language: "eng", forced: false, format: "srt" },
+      { path: `${staged}.sub1.srt`, language: "spa", forced: true, format: "srt" },
+      { path: `${staged}.sub2.srt`, format: "srt" },
+    ]);
+    const folder = join(root, relativePath, "..");
+    expect((await readdir(folder)).sort()).toEqual([
+      "The Beverly Hillbillies S01E02.eng.srt",
+      "The Beverly Hillbillies S01E02.mp4",
+      "The Beverly Hillbillies S01E02.nfo",
+      "The Beverly Hillbillies S01E02.spa.forced.srt",
+      "The Beverly Hillbillies S01E02.srt",
+    ]);
+    expect(await readFile(join(folder, "The Beverly Hillbillies S01E02.eng.srt"), "utf8")).toBe(
+      "english",
+    );
+    expect(await readdir(join(root, ".hm-staging"))).toEqual([]);
+  });
+
+  it("discards the other container and the subtitle files of a staged episode, and only its own", async () => {
+    const episode = anEpisode({ id: "e9" });
+    const other = anEpisode({ id: "e10" });
+    const staging = join(root, ".hm-staging");
+    await mkdir(staging, { recursive: true });
+    for (const name of ["e9.mkv", "e9.mp4", "e9.mp4.part", "e9.mkv.sub0.srt", "e10.mkv"]) {
+      await writeFile(join(staging, name), "x");
+    }
+    await writer.discardStaged(episode);
+    expect(await readdir(staging)).toEqual(["e10.mkv"]);
+    void other;
+  });
 });

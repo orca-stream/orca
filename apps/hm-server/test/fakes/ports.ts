@@ -4,6 +4,7 @@ import type {
   Authenticated,
   Authenticator,
   DownloadContext,
+  DownloadResult,
   Downloader,
   FetchedImage,
   ImageFetcher,
@@ -20,14 +21,18 @@ export type DownloadBehavior = (
   source: Source,
   destPath: string,
   context: DownloadContext,
-) => Promise<void>;
+) => Promise<void | Partial<DownloadResult>>;
 
 /**
  * A Downloader that never touches the network. By default it writes a small file at the destination
  * and reports progress; a test can script a behavior per call (fail, hang until aborted…).
  */
 export class FakeDownloader implements Downloader {
-  readonly calls: { source: Source; destPath: string }[] = [];
+  readonly calls: {
+    source: Source;
+    destPath: string;
+    prefs: DownloadContext["prefs"];
+  }[] = [];
   private readonly scripted: DownloadBehavior[] = [];
   concurrent = 0;
   peak = 0;
@@ -46,14 +51,14 @@ export class FakeDownloader implements Downloader {
     source: Source,
     destPath: string,
     context: DownloadContext,
-  ): Promise<{ bytes: number }> {
-    this.calls.push({ source, destPath });
+  ): Promise<DownloadResult> {
+    this.calls.push({ source, destPath, prefs: context.prefs });
     this.concurrent++;
     this.peak = Math.max(this.peak, this.concurrent);
     try {
       const behavior = this.scripted.shift() ?? FakeDownloader.writeFile;
-      await behavior(source, destPath, context);
-      return { bytes: 5 };
+      const result = await behavior(source, destPath, context);
+      return { bytes: 5, ...(result ?? {}) };
     } finally {
       this.concurrent--;
     }

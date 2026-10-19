@@ -11,7 +11,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "node:path";
-import type { FetchedImage, LibraryWriter } from "../../application/ports.ts";
+import { externalSubtitleName } from "@orca/media-probe";
+import type { FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
 import type { Episode, Series } from "../../domain/series.ts";
 import { episodeFileName, seasonFolderName } from "../../domain/naming.ts";
 import { episodeNfo, tvshowNfo } from "./nfo.ts";
@@ -76,6 +77,7 @@ export class FsLibraryWriter implements LibraryWriter {
     series: Series,
     episode: Episode,
     stagedPath: string,
+    sidecars: Sidecar[] = [],
   ): Promise<{ relativePath: string }> {
     const extension = extname(stagedPath);
     const folder = join(this.seriesPath(series), seasonFolderName(episode.season));
@@ -83,37 +85,48 @@ export class FsLibraryWriter implements LibraryWriter {
       folder,
       episodeFileName(series.title, episode.season, episode.episode, extension),
     );
+    const base = destination.slice(0, destination.length - extension.length);
     await mkdir(folder, { recursive: true });
+    await this.place(stagedPath, destination);
+    for (const sidecar of sidecars) {
+      const name = externalSubtitleName({
+        baseName: basename(base),
+        ...(sidecar.language ? { language: sidecar.language } : {}),
+        ...(sidecar.forced ? { forced: true } : {}),
+        format: sidecar.format,
+      });
+      await this.place(sidecar.path, join(folder, name));
+    }
+    await this.atomicWrite(`${base}.nfo`, episodeNfo(series, episode));
+    return { relativePath: relative(this.root, destination).split(sep).join("/") };
+  }
+
+  /** Moves a staged file into the library, copying under a hidden name first across file systems. */
+  private async place(from: string, to: string): Promise<void> {
     try {
-      await this.move(stagedPath, destination);
+      await this.move(from, to);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
       // Staging and library on different file systems: copy under a dot-prefixed name (Jellyfin
       // ignores it), then rename, so the library never shows a half-copied file.
-      const partial = join(
-        dirname(destination),
-        `.${basename(destination)}.${randomBytes(4).toString("hex")}.tmp`,
-      );
+      const partial = join(dirname(to), `.${basename(to)}.${randomBytes(4).toString("hex")}.tmp`);
       try {
-        await this.copy(stagedPath, partial);
-        await this.move(partial, destination);
+        await this.copy(from, partial);
+        await this.move(partial, to);
       } catch (copyError) {
         await rm(partial, { force: true });
         throw copyError;
       }
-      await unlink(stagedPath);
+      await unlink(from);
     }
-    await this.atomicWrite(
-      destination.slice(0, destination.length - extension.length) + ".nfo",
-      episodeNfo(series, episode),
-    );
-    return { relativePath: relative(this.root, destination).split(sep).join("/") };
   }
 
   async discardStaged(episode: Episode): Promise<void> {
-    const staged = this.stagingPath(episode);
-    await rm(staged, { force: true });
-    await rm(`${staged}.part`, { force: true });
+    const staging = join(this.root, STAGING);
+    // Whatever container the download ended up with, and its subtitle files and parts.
+    for (const name of await readdir(staging).catch(() => [])) {
+      if (name.startsWith(`${episode.id}.`)) await rm(join(staging, name), { force: true });
+    }
   }
 
   /** Written beside the target and renamed over it, so Jellyfin never reads half a file. */

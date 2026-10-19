@@ -18,6 +18,9 @@ export const series = sqliteTable(
     lastCheckedAt: integer("last_checked_at"),
     remoteMarker: text("last_remote_marker"),
     knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
+    maxHeight: integer("max_height"),
+    audioLangs: text("audio_langs", { mode: "json" }).$type<string[]>(),
+    subtitleLangs: text("subtitle_langs", { mode: "json" }).$type<string[]>(),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

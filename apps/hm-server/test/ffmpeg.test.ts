@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { mkdtemp, readFile, rm, readdir, stat } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -7,6 +7,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
+import { FfprobeInspector, MediaProbeError, type ProbeResult } from "@orca/media-probe";
 import { describe, expect, it } from "vite-plus/test";
 import { AbortedError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import {
@@ -193,6 +194,186 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
   });
 });
 
+const probeFixture = (name: string) =>
+  JSON.parse(
+    readFileSync(
+      new URL(`../../../packages/media-probe/test/fixtures/${name}.json`, import.meta.url),
+      "utf8",
+    ),
+  ) as ProbeResult;
+
+/** An inspector that answers with a recorded ffprobe result and remembers what it was asked. */
+function fakeInspector(result: ProbeResult | Error) {
+  const calls: { url: string; headers: Record<string, string> | undefined }[] = [];
+  return {
+    calls,
+    async inspect(url: string, options: { signal: AbortSignal; headers?: Record<string, string> }) {
+      calls.push({ url, headers: options.headers });
+      if (result instanceof Error) throw result;
+      return structuredClone(result);
+    },
+  };
+}
+
+/** A fake ffmpeg that writes its output file, remembering every run's arguments. */
+function recordingSpawn(options: { failWhen?: (args: string[]) => boolean } = {}) {
+  const runs: string[][] = [];
+  const spawn = fakeSpawn((child) => {
+    runs.push(child.args);
+    if (options.failWhen?.(child.args)) {
+      child.stderr.write("Subtitle conversion failed\n");
+      child.stdout.end();
+      setTimeout(() => child.emit("close", 1), 1);
+      return;
+    }
+    writeFileSync(child.args.at(-1) as string, "data");
+    child.stdout.end();
+    setTimeout(() => child.emit("close", 0), 1);
+  });
+  return { runs, spawn };
+}
+
+const mapsOf = (args: string[]) => args.flatMap((arg, i) => (args[i - 1] === "-map" ? [arg] : []));
+
+describe("FfmpegDownloader choosing tracks with the inspector", () => {
+  const withDir = async (run: (dir: string) => Promise<void>) => {
+    const dir = await mkdtemp(join(tmpdir(), "hm-ff-sel-"));
+    try {
+      await run(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("inspects with the detected headers and maps every track of a multi-audio stream into an mkv", async () => {
+    await withDir(async (dir) => {
+      const inspector = fakeInspector(probeFixture("mkv-two-audio-two-subs"));
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({ userAgent: "x", spawn, inspector });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(inspector.calls).toEqual([{ url: hls.url, headers: hls.headers }]);
+      expect(mapsOf(runs[0]!)).toEqual(["0:0", "0:1", "0:2", "0:3", "0:4"]);
+      expect(runs[0]!.join(" ")).toContain("-c:s:0 copy -c:s:1 copy");
+      expect(runs[0]!.slice(-4, -1)).toEqual(["-f", "matroska", "-y"]);
+      expect(result.path ?? join(dir, "out.mkv")).toBe(join(dir, "out.mkv"));
+    });
+  });
+
+  it("writes an mp4 when there is one audio track and no subtitles, and says where it is", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("mp4-single-audio")),
+      });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(result.path).toBe(join(dir, "out.mp4"));
+      expect(runs[0]!.slice(-4, -1)).toEqual(["-f", "mp4", "-y"]);
+      expect(await readdir(dir)).toEqual(["out.mp4"]);
+    });
+  });
+
+  it("takes the tallest rendition that fits maxHeight, and only the wanted languages", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("hls-two-renditions")),
+      });
+      await downloader.download(hls, join(dir, "out.mkv"), {
+        ...context(),
+        prefs: { maxHeight: 360, audioLangs: ["spa"] },
+      });
+      const maps = mapsOf(runs[0]!);
+      expect(maps).toContain("0:3");
+      expect(maps).not.toContain("0:2");
+      expect(maps).toContain("0:1");
+      expect(maps).not.toContain("0:0");
+    });
+  });
+
+  it("leaves subtitles out when the preference is an empty list", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
+      });
+      await downloader.download(hls, join(dir, "out.mkv"), {
+        ...context(),
+        prefs: { subtitleLangs: [] },
+      });
+      expect(mapsOf(runs[0]!)).toEqual(["0:0", "0:1", "0:2"]);
+      expect(runs[0]!.join(" ")).not.toContain("-c:s");
+    });
+  });
+
+  it("can write the subtitles as files beside the video instead, one ffmpeg run each", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
+        externalSubtitles: true,
+      });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(mapsOf(runs[0]!)).toEqual(["0:0", "0:1", "0:2"]);
+      expect(mapsOf(runs[1]!)).toEqual(["0:3"]);
+      expect(mapsOf(runs[2]!)).toEqual(["0:4"]);
+      expect(runs[1]!.join(" ")).toContain("-c:s srt -f srt");
+      expect(
+        result.sidecars?.map(({ language, forced, format }) => ({ language, forced, format })),
+      ).toEqual([
+        { language: "eng", forced: false, format: "srt" },
+        { language: "spa", forced: true, format: "srt" },
+      ]);
+      for (const sidecar of result.sidecars ?? []) {
+        expect(await readFile(sidecar.path, "utf8")).toBe("data");
+      }
+    });
+  });
+
+  it("does not fail the episode because one subtitle could not be written", async () => {
+    await withDir(async (dir) => {
+      const { spawn } = recordingSpawn({ failWhen: (args) => args.includes("0:3") });
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
+        externalSubtitles: true,
+      });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(result.sidecars?.map((s) => s.language)).toEqual(["spa"]);
+      expect((await readdir(dir)).sort()).toEqual(["out.mkv", "out.mkv.sub1.srt"]);
+    });
+  });
+
+  it.each([
+    [new MediaProbeError("exit", "ffprobe exited with 1"), RetryableError],
+    [new MediaProbeError("timeout", "slow"), RetryableError],
+    [new MediaProbeError("no-video", "no video"), PermanentError],
+    [new MediaProbeError("parse", "bad json"), PermanentError],
+    [new MediaProbeError("aborted", "stop"), AbortedError],
+  ])("maps the inspector's %s failure to the queue's errors", async (failure, expected) => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(failure),
+      });
+      await expect(downloader.download(hls, join(dir, "o.mkv"), context())).rejects.toBeInstanceOf(
+        expected,
+      );
+      expect(runs).toEqual([]);
+    });
+  });
+});
+
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
 describe.skipIf(!hasFfmpeg)("FfmpegDownloader with the real ffmpeg (opt-in: needs ffmpeg)", () => {
@@ -242,3 +423,140 @@ describe.skipIf(!hasFfmpeg)("FfmpegDownloader with the real ffmpeg (opt-in: need
     }
   });
 });
+
+const hasFfprobe = spawnSync("ffprobe", ["-version"]).status === 0;
+
+describe.skipIf(!hasFfmpeg || !hasFfprobe)(
+  "FfmpegDownloader choosing tracks with the real ffmpeg and ffprobe (opt-in: needs both)",
+  () => {
+    /** A small mkv with two audio tracks and two text subtitles, served over HTTP like a stream. */
+    async function withStream(run: (url: string, dir: string) => Promise<void>) {
+      const dir = await mkdtemp(join(tmpdir(), "hm-ff-sel-real-"));
+      const srt = (text: string) => `1\n00:00:00,000 --> 00:00:02,000\n${text}\n`;
+      writeFileSync(join(dir, "en.srt"), srt("Hello"));
+      writeFileSync(join(dir, "es.srt"), srt("Hola"));
+      const made = spawnSync("ffmpeg", [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=duration=3:size=64x64:rate=10",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:duration=3",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=880:duration=3",
+        "-i",
+        join(dir, "en.srt"),
+        "-i",
+        join(dir, "es.srt"),
+        "-map",
+        "0:v",
+        "-map",
+        "1:a",
+        "-map",
+        "2:a",
+        "-map",
+        "3:s",
+        "-map",
+        "4:s",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-c:s",
+        "srt",
+        "-metadata:s:a:0",
+        "language=eng",
+        "-metadata:s:a:1",
+        "language=spa",
+        "-metadata:s:s:0",
+        "language=eng",
+        "-metadata:s:s:1",
+        "language=spa",
+        join(dir, "stream.mkv"),
+      ]);
+      expect(made.status).toBe(0);
+      const server = createServer((req, res) => {
+        readFile(join(dir, (req.url ?? "/").slice(1)))
+          .then((body) => res.writeHead(200, { "content-length": body.length }).end(body))
+          .catch(() => res.writeHead(404).end());
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      try {
+        await run(`http://127.0.0.1:${(server.address() as AddressInfo).port}/stream.mkv`, dir);
+      } finally {
+        server.close();
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    const tracks = (path: string) =>
+      JSON.parse(
+        spawnSync("ffprobe", [
+          "-v",
+          "error",
+          "-show_streams",
+          "-of",
+          "json",
+          path,
+        ]).stdout.toString(),
+      ).streams.map(
+        (s: { codec_type: string; tags?: { language?: string } }) =>
+          `${s.codec_type}:${s.tags?.language ?? ""}`,
+      ) as string[];
+
+    it("keeps both audio tracks and both subtitles inside the mkv", async () => {
+      await withStream(async (url, dir) => {
+        const out = join(dir, "out.mkv");
+        const result = await new FfmpegDownloader({
+          userAgent: "x",
+          inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
+        }).download({ kind: "hls", url }, out, context());
+        expect(result.path).toBeUndefined();
+        expect(tracks(out)).toEqual([
+          "video:",
+          "audio:eng",
+          "audio:spa",
+          "subtitle:eng",
+          "subtitle:spa",
+        ]);
+      });
+    });
+
+    it("keeps one language of audio and none of the subtitles when asked", async () => {
+      await withStream(async (url, dir) => {
+        const out = join(dir, "out.mkv");
+        const result = await new FfmpegDownloader({
+          userAgent: "x",
+          inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
+        }).download({ kind: "hls", url }, out, {
+          ...context(),
+          prefs: { audioLangs: ["spa"], subtitleLangs: [] },
+        });
+        // One audio track and no subtitles fit an mp4, and the caller is told.
+        expect(result.path).toBe(join(dir, "out.mp4"));
+        expect(tracks(result.path!)).toEqual(["video:und", "audio:spa"]);
+      });
+    });
+
+    it("writes the subtitles as srt files beside it when told to", async () => {
+      await withStream(async (url, dir) => {
+        const out = join(dir, "out.mkv");
+        const result = await new FfmpegDownloader({
+          userAgent: "x",
+          inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
+          externalSubtitles: true,
+        }).download({ kind: "hls", url }, out, context());
+        expect(tracks(out)).toEqual(["video:", "audio:eng", "audio:spa"]);
+        expect(result.sidecars?.map((s) => s.language)).toEqual(["eng", "spa"]);
+        expect(await readFile(result.sidecars![1]!.path, "utf8")).toContain("Hola");
+      });
+    });
+  },
+);

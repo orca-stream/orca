@@ -1,10 +1,11 @@
 import * as z from "zod";
 import { PermanentError } from "../domain/errors.ts";
 import type { Job } from "../domain/job.ts";
-import { episodeCode, type Source } from "../domain/series.ts";
+import { episodeCode, type Series, type Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createCheckSeries } from "./check-series.ts";
 import { createEnqueueRefresh } from "./downloads.ts";
+import type { StreamPrefs } from "./ports.ts";
 import type { JobHandler, JobOutcome } from "./queue.ts";
 
 const DownloadPayload = z.object({ episodeId: z.string() });
@@ -26,15 +27,30 @@ export function createJobHandler(deps: Deps): JobHandler {
     const streams = await deps.detector.detect(source.url, { signal });
     const stream =
       streams.find((candidate) => candidate.kind === "hls") ??
+      streams.find((candidate) => candidate.kind === "dash") ??
       streams.find((candidate) => candidate.kind === "direct");
     if (!stream) throw new PermanentError(`No video stream found on ${source.url}`);
-    return stream.kind === "hls"
+    // ffmpeg reads DASH manifests as it reads HLS playlists.
+    return stream.kind === "hls" || stream.kind === "dash"
       ? { kind: "hls", url: stream.url, headers: stream.headers }
       : {
           kind: "direct",
           url: stream.url,
           fileName: new URL(stream.url).pathname.split("/").pop() || "video.mp4",
         };
+  }
+
+  /** The series' own choice for each setting, else the server's default, else nothing (take it all). */
+  function prefsOf(series: Series): StreamPrefs {
+    const defaults = deps.streamDefaults;
+    const maxHeight = series.maxHeight ?? defaults.maxHeight;
+    const audioLangs = series.audioLangs ?? defaults.audioLangs;
+    const subtitleLangs = series.subtitleLangs ?? defaults.subtitleLangs;
+    return {
+      ...(maxHeight !== undefined ? { maxHeight } : {}),
+      ...(audioLangs !== undefined ? { audioLangs } : {}),
+      ...(subtitleLangs !== undefined ? { subtitleLangs } : {}),
+    };
   }
 
   async function downloadEpisode(
@@ -56,8 +72,9 @@ export function createJobHandler(deps: Deps): JobHandler {
     if (!downloader) throw new PermanentError(`No downloader for a ${source.kind} source`);
 
     const staged = deps.library.stagingPath(episode);
-    await downloader.download(source, staged, {
+    const downloaded = await downloader.download(source, staged, {
       signal: context.signal,
+      prefs: prefsOf(series),
       onProgress: ({ bytes, total, fraction, speed, eta }) => {
         const progress = fraction ?? (total ? bytes / total : null);
         context.progress(progress, {
@@ -70,7 +87,13 @@ export function createJobHandler(deps: Deps): JobHandler {
     });
 
     await deps.library.writeSeries(series);
-    const { relativePath } = await deps.library.commitEpisode(series, episode, staged);
+    // The downloader may have chosen another container than the staged name asked for.
+    const { relativePath } = await deps.library.commitEpisode(
+      series,
+      episode,
+      downloaded.path ?? staged,
+      downloaded.sidecars,
+    );
     await deps.series.setEpisodeStatus(episode.id, "available", relativePath);
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     await enqueueRefresh(series.id);

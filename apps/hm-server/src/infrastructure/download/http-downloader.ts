@@ -4,7 +4,7 @@ import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import type { DownloadContext, Downloader } from "../../application/ports.ts";
+import type { DownloadContext, DownloadResult, Downloader } from "../../application/ports.ts";
 import { AbortedError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import type { Source } from "../../domain/series.ts";
 import type { HostLimiter } from "../host-limiter.ts";
@@ -61,7 +61,7 @@ export class HttpDownloader implements Downloader {
     source: Source,
     destPath: string,
     context: DownloadContext,
-  ): Promise<{ bytes: number }> {
+  ): Promise<DownloadResult> {
     if (source.kind !== "direct") throw new PermanentError(`Not a direct source: ${source.kind}`);
     await mkdir(dirname(destPath), { recursive: true });
 

@@ -74,6 +74,17 @@ export const CreateSeriesBody = z.object({
 });
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 
+/**
+ * An ISO 639-2 language code: three lower-case letters, as ffprobe reports a track's language
+ * (`eng`, `spa`, `jpn`). Not the two-letter ISO 639-1 code (`en`) and not a name.
+ */
+export const LanguageCode = z.string().regex(/^[a-z]{3}$/, "Use a three-letter ISO 639-2 code");
+
+/** Smallest and tallest video a height limit can name (144p to 8K). */
+export const MIN_MAX_HEIGHT = 144;
+export const MAX_MAX_HEIGHT = 4320;
+const MAX_LANGUAGES = 10;
+
 export const SeriesPatch = z.object({
   title: z.string().trim().min(1).max(MAX_TITLE_LENGTH).optional(),
   year: z.number().int().min(1800).max(2200).nullable().optional(),
@@ -84,6 +95,12 @@ export const SeriesPatch = z.object({
     .min(1)
     .max(24 * 30)
     .optional(),
+  /** Tallest video to download, for streams that come in several sizes. `null`: the server's default. */
+  maxHeight: z.number().int().min(MIN_MAX_HEIGHT).max(MAX_MAX_HEIGHT).nullable().optional(),
+  /** Audio languages to keep, original first. `null`: the server's default (every track). */
+  audioLangs: z.array(LanguageCode).min(1).max(MAX_LANGUAGES).nullable().optional(),
+  /** Subtitle languages to keep; empty means none. `null`: the server's default (every text track). */
+  subtitleLangs: z.array(LanguageCode).max(MAX_LANGUAGES).nullable().optional(),
 });
 export type SeriesPatch = z.infer<typeof SeriesPatch>;
 
@@ -98,6 +115,10 @@ export const SeriesDto = z.object({
   follow: z.boolean(),
   checkIntervalHours: z.number().int(),
   lastCheckedAt: z.number().nullable(),
+  /** The series' own track choices; `null` means it follows the server's defaults. */
+  maxHeight: z.number().int().nullable(),
+  audioLangs: z.array(z.string()).nullable(),
+  subtitleLangs: z.array(z.string()).nullable(),
   hasPoster: z.boolean(),
   episodeCount: z.number().int(),
   availableCount: z.number().int(),

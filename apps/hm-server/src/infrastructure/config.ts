@@ -1,4 +1,5 @@
 import type { ExtractorLimits } from "@orca/extractor-core";
+import type { StreamPrefs } from "../application/ports.ts";
 import * as z from "zod";
 
 const bool = z
@@ -17,7 +18,24 @@ const DetectorEnv = z.object({
   HM_CHROMIUM_NO_SANDBOX: bool.default(false),
 });
 
+/** `spa, eng` as ["spa", "eng"]; an empty string is an empty list. */
+const languageList = z
+  .string()
+  .transform((value) =>
+    value
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part !== ""),
+  )
+  .pipe(
+    z.array(z.string().regex(/^[a-z]{3}$/, "use ISO 639-2 codes such as eng, spa, jpn")).max(10),
+  );
+
 const Env = z.object({
+  DEFAULT_MAX_HEIGHT: z.coerce.number().int().min(144).max(4320).optional(),
+  DEFAULT_AUDIO_LANGS: languageList.optional(),
+  DEFAULT_SUBTITLE_LANGS: languageList.optional(),
+  SUBTITLES_EXTERNAL: bool.default(false),
   HM_GENERIC_DETECTOR: bool.default(false),
   DB_FILE: z.string().min(1),
   MEDIA_ROOT: z.string().min(1),
@@ -49,6 +67,10 @@ export interface DetectorConfig {
 }
 
 export interface Config {
+  /** What a series without its own track choices gets; empty means the best quality and every track. */
+  streamDefaults: StreamPrefs;
+  /** Write text subtitles as files beside the video instead of inside it. */
+  externalSubtitles: boolean;
   /** Null while HM_GENERIC_DETECTOR is off: no browser, no generic extractor. */
   detector: DetectorConfig | null;
   dbFile: string;
@@ -96,6 +118,14 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   const e = parsed.data;
   const d = detectorParsed?.success ? detectorParsed.data : null;
   return {
+    streamDefaults: {
+      ...(e.DEFAULT_MAX_HEIGHT !== undefined ? { maxHeight: e.DEFAULT_MAX_HEIGHT } : {}),
+      ...(e.DEFAULT_AUDIO_LANGS !== undefined ? { audioLangs: e.DEFAULT_AUDIO_LANGS } : {}),
+      ...(e.DEFAULT_SUBTITLE_LANGS !== undefined
+        ? { subtitleLangs: e.DEFAULT_SUBTITLE_LANGS }
+        : {}),
+    },
+    externalSubtitles: e.SUBTITLES_EXTERNAL,
     detector: d
       ? {
           maxConcurrent: d.HM_DETECTOR_MAX_CONCURRENT,

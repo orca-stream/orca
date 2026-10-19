@@ -29,6 +29,13 @@
       "when": 1792393470158,
       "tag": "0003_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792394108677,
+      "tag": "0004_stream_prefs",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 import type { SiteExtractor } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createJellyfin } from "@orca/jellyfin";
+import { FfprobeInspector } from "@orca/media-probe";
 import { PlaywrightStreamDetector } from "@orca/stream-detector";
 import type { Deps } from "./application/deps.ts";
 import { createJobEvents } from "./application/job-events.ts";
@@ -52,6 +53,9 @@ const agent = userAgent(version, config.contactEmail);
 mkdirSync(dirname(resolve(config.dbFile)), { recursive: true });
 mkdirSync(resolve(config.mediaRoot), { recursive: true });
 const mediaRoot = resolve(config.mediaRoot);
+
+/** How long ffprobe may take to read a stream's tracks before the download is tried again later. */
+const PROBE_TIMEOUT_MS = 60_000;
 
 // --- adapters
 const database = openDatabase({
@@ -122,9 +126,14 @@ const deps: Deps = {
   }),
   downloaders: [
     new HttpDownloader({ userAgent: agent, limiter }),
-    new FfmpegDownloader({ userAgent: agent }),
+    new FfmpegDownloader({
+      userAgent: agent,
+      inspector: new FfprobeInspector({ timeoutMs: PROBE_TIMEOUT_MS }),
+      externalSubtitles: config.externalSubtitles,
+    }),
   ],
   detector,
+  streamDefaults: config.streamDefaults,
   events,
   // The panel's channel is the only one; ntfy and the like would be added to this list.
   notifications: new NotificationService({

@@ -40,6 +40,9 @@ export interface SeriesRepository {
         | "lastCheckedAt"
         | "remoteMarker"
         | "knownRefs"
+        | "maxHeight"
+        | "audioLangs"
+        | "subtitleLangs"
       >
     >,
   ): Promise<Series | null>;
@@ -128,8 +131,37 @@ export interface SettingsRepository {
   set(key: string, value: string): Promise<void>;
 }
 
+/**
+ * Which tracks of a stream to keep. Languages are ISO 639-2 codes as ffprobe reports them
+ * (`eng`, `spa`, `jpn`). Absent: the best quality, every audio track, every text subtitle.
+ */
+export interface StreamPrefs {
+  maxHeight?: number | undefined;
+  audioLangs?: readonly string[] | undefined;
+  /** Empty: no subtitles. */
+  subtitleLangs?: readonly string[] | undefined;
+}
+
+/** A subtitle file written next to the video, waiting to be named for Jellyfin. */
+export interface Sidecar {
+  path: string;
+  /** ISO 639-2 code, when the stream said one. */
+  language?: string | undefined;
+  forced?: boolean | undefined;
+  /** File extension without the dot. */
+  format: string;
+}
+
+export interface DownloadResult {
+  bytes: number;
+  /** Where the video ended up when it is not the `destPath` asked for (the container changed). */
+  path?: string | undefined;
+  sidecars?: Sidecar[] | undefined;
+}
+
 export interface DownloadContext {
   signal: AbortSignal;
+  prefs?: StreamPrefs | undefined;
   /** `fraction` (0..1) is for downloads measured in media time, not bytes (ffmpeg). */
   onProgress(progress: {
     bytes: number;
@@ -148,7 +180,7 @@ export interface Downloader {
    * Throws RetryableError / PermanentError. On abort it throws AbortedError and keeps the `.part`, so a
    * stop can resume; the caller discards it when the job was cancelled.
    */
-  download(source: Source, destPath: string, context: DownloadContext): Promise<{ bytes: number }>;
+  download(source: Source, destPath: string, context: DownloadContext): Promise<DownloadResult>;
 }
 
 export interface LibraryWriter {
@@ -171,8 +203,9 @@ export interface LibraryWriter {
     series: Series,
     episode: Episode,
     stagedPath: string,
+    sidecars?: Sidecar[],
   ): Promise<{ relativePath: string }>;
-  /** Deletes a staged file and its `.part`, if any. */
+  /** Deletes everything staged for an episode: the file, its `.part` and any subtitle files. */
   discardStaged(episode: Episode): Promise<void>;
 }
 

@@ -17,6 +17,7 @@ import type {
   SeriesRepository,
   SessionRepository,
   StreamDetector,
+  StreamPrefs,
 } from "./ports.ts";
 
 /** Everything the use cases need from the outside, as ports. The composition root wires adapters in. */
@@ -35,6 +36,8 @@ export interface Deps {
   downloaders: Downloader[];
   /** Absent until the browser-based detector exists. */
   detector: StreamDetector | null;
+  /** The track choices of a series that has none of its own. */
+  streamDefaults: StreamPrefs;
   events: EventBus;
   notifications: NotificationService;
   /** Read side of the notifications: the bell lists and marks them. */

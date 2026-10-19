@@ -178,6 +178,9 @@ export function createUseCases(deps: Deps) {
           lastCheckedAt: null,
           remoteMarker: extraction.series.remoteMarker ?? null,
           knownRefs: extraction.episodes.map((episode) => episode.sourceRef),
+          maxHeight: null,
+          audioLangs: null,
+          subtitleLangs: null,
           createdAt: now,
         };
         const episodes: Episode[] = chosen.map((episode) => newEpisode(series.id, episode, now));
