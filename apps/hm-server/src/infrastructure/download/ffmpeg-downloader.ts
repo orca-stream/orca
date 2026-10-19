@@ -13,6 +13,7 @@ import type {
   DownloadResult,
   Downloader,
   Sidecar,
+  UrlGuard,
 } from "../../application/ports.ts";
 import { AbortedError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import type { Source } from "../../domain/series.ts";
@@ -25,6 +26,8 @@ type StreamSource = Extract<Source, { kind: "hls" }>;
 
 export interface FfmpegDownloaderOptions {
   userAgent: string;
+  /** Checks the manifest address. The segments it lists are out of reach: see docs "Residual risks". */
+  guard: UrlGuard;
   ffmpegPath?: string;
   spawn?: Spawn;
   /** Looks inside a stream before copying it, to keep only the wanted tracks. Absent: ffmpeg's own pick. */
@@ -61,6 +64,14 @@ function classify(stderr: string, code: number | null): Error {
   return new RetryableError(`ffmpeg failed: ${message}`);
 }
 
+/** A language tag as Jellyfin reads it in a file name; anything else (or "und") means unknown. */
+const LANGUAGE_TAG = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/;
+function languageOf(tags: Record<string, string> | undefined): string | undefined {
+  const raw = Object.entries(tags ?? {}).find(([name]) => name.toLowerCase() === "language")?.[1];
+  const tag = raw?.trim().toLowerCase();
+  return tag && tag !== "und" && LANGUAGE_TAG.test(tag) ? tag : undefined;
+}
+
 function probeError(error: MediaProbeError): Error {
   if (error.reason === "aborted") return new AbortedError({ cause: error });
   if (error.retryable) return new RetryableError(error.message, { cause: error });
@@ -76,6 +87,7 @@ const withoutExtension = (path: string) => path.slice(0, path.length - extname(p
  */
 export class FfmpegDownloader implements Downloader {
   private readonly userAgent: string;
+  private readonly guard: UrlGuard;
   private readonly ffmpegPath: string;
   private readonly spawn: Spawn;
   private readonly inspector: Pick<StreamInspector, "inspect"> | undefined;
@@ -83,6 +95,7 @@ export class FfmpegDownloader implements Downloader {
 
   constructor(options: FfmpegDownloaderOptions) {
     this.userAgent = options.userAgent;
+    this.guard = options.guard;
     this.ffmpegPath = options.ffmpegPath ?? "ffmpeg";
     this.spawn = options.spawn ?? nodeSpawn;
     this.inspector = options.inspector;
@@ -99,6 +112,7 @@ export class FfmpegDownloader implements Downloader {
     context: DownloadContext,
   ): Promise<DownloadResult> {
     if (source.kind !== "hls") throw new PermanentError(`Not a stream source: ${source.kind}`);
+    await this.guard.assertUrl(source.url);
     await mkdir(dirname(destPath), { recursive: true });
     const plan = await this.plan(source, context);
     // The staged name asks for .mkv; a stream that fits an mp4 gets one, and the caller is told.
@@ -110,9 +124,11 @@ export class FfmpegDownloader implements Downloader {
     try {
       await this.copy(source, part, plan, context);
       await rename(part, finalPath);
-      sidecars.push(...(await this.writeSubtitleFiles(source, finalPath, plan, context)));
+      await this.writeSubtitleFiles(source, finalPath, plan, context, sidecars);
     } catch (error) {
+      // ffmpeg can't resume, so a half-done episode (video without all its subtitle files) is no use.
       await rm(part, { force: true });
+      await rm(finalPath, { force: true });
       await Promise.all(sidecars.map((sidecar) => rm(sidecar.path, { force: true })));
       throw error;
     }
@@ -181,11 +197,11 @@ export class FfmpegDownloader implements Downloader {
     videoPath: string,
     plan: Plan,
     context: DownloadContext,
-  ): Promise<Sidecar[]> {
-    const written: Sidecar[] = [];
+    written: Sidecar[],
+  ): Promise<void> {
     const seen = new Set<string>();
     for (const [i, stream] of plan.external.entries()) {
-      const language = stream.tags?.language ?? stream.tags?.LANGUAGE;
+      const language = languageOf(stream.tags);
       const forced = (stream.disposition?.forced ?? 0) === 1;
       // Two tracks with the same language and flag would get the same file name.
       const key = `${language ?? ""}|${forced}`;
@@ -214,7 +230,6 @@ export class FfmpegDownloader implements Downloader {
       seen.add(key);
       written.push({ path, language, forced, format: "srt" });
     }
-    return written;
   }
 
   private inputArgs(source: StreamSource): string[] {

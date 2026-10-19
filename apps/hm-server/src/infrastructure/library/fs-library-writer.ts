@@ -20,6 +20,42 @@ import { episodeNfo, tvshowNfo } from "./nfo.ts";
 const STAGING = ".hm-staging";
 const POSTER_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
 
+/**
+ * The Jellyfin name of each subtitle file. A language tag that is not a language is dropped (the
+ * file stays, unlabelled); a file with an unusable format, or one that would take a name already
+ * taken (`und` and no language read the same), is dropped.
+ */
+function nameSidecars(
+  baseName: string,
+  sidecars: Sidecar[],
+): { named: { sidecar: Sidecar; name: string }[]; dropped: Sidecar[] } {
+  const named: { sidecar: Sidecar; name: string }[] = [];
+  const dropped: Sidecar[] = [];
+  const taken = new Set<string>();
+  const attempt = (sidecar: Sidecar, language: string | undefined): string | null => {
+    try {
+      return externalSubtitleName({
+        baseName,
+        ...(language ? { language } : {}),
+        ...(sidecar.forced ? { forced: true } : {}),
+        format: sidecar.format,
+      });
+    } catch {
+      return null;
+    }
+  };
+  for (const sidecar of sidecars) {
+    const name = attempt(sidecar, sidecar.language) ?? attempt(sidecar, undefined);
+    if (name === null || taken.has(name.toLowerCase())) {
+      dropped.push(sidecar);
+      continue;
+    }
+    taken.add(name.toLowerCase());
+    named.push({ sidecar, name });
+  }
+  return { named, dropped };
+}
+
 /** Writes the library on disk the way Jellyfin reads it: `Show (Year)/Season 01/Show S01E01.ext`. */
 export class FsLibraryWriter implements LibraryWriter {
   private readonly root: string;
@@ -86,17 +122,12 @@ export class FsLibraryWriter implements LibraryWriter {
       episodeFileName(series.title, episode.season, episode.episode, extension),
     );
     const base = destination.slice(0, destination.length - extension.length);
+    // Every name is settled before anything moves: a bad subtitle must not leave a half-made episode.
+    const { named, dropped } = nameSidecars(basename(base), sidecars);
     await mkdir(folder, { recursive: true });
     await this.place(stagedPath, destination);
-    for (const sidecar of sidecars) {
-      const name = externalSubtitleName({
-        baseName: basename(base),
-        ...(sidecar.language ? { language: sidecar.language } : {}),
-        ...(sidecar.forced ? { forced: true } : {}),
-        format: sidecar.format,
-      });
-      await this.place(sidecar.path, join(folder, name));
-    }
+    for (const { sidecar, name } of named) await this.place(sidecar.path, join(folder, name));
+    await Promise.all(dropped.map((sidecar) => rm(sidecar.path, { force: true })));
     await this.atomicWrite(`${base}.nfo`, episodeNfo(series, episode));
     return { relativePath: relative(this.root, destination).split(sep).join("/") };
   }

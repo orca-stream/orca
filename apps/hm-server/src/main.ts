@@ -129,9 +129,10 @@ const deps: Deps = {
     jellyfinMediaRoot: config.jellyfinMediaRoot,
   }),
   downloaders: [
-    new HttpDownloader({ userAgent: agent, limiter }),
+    new HttpDownloader({ userAgent: agent, limiter, guard }),
     new FfmpegDownloader({
       userAgent: agent,
+      guard,
       inspector: new FfprobeInspector({ timeoutMs: PROBE_TIMEOUT_MS }),
       externalSubtitles: config.externalSubtitles,
     }),

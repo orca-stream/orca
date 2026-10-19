@@ -14,6 +14,7 @@ import {
   createProgressParser,
   outTimeSeconds,
 } from "../src/infrastructure/download/ffmpeg-progress.ts";
+import type { UrlGuard } from "../src/application/ports.ts";
 import { FfmpegDownloader } from "../src/infrastructure/download/ffmpeg-downloader.ts";
 
 // Recorded from `ffmpeg -progress pipe:1` (ffmpeg 6.1): two blocks.
@@ -114,6 +115,7 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
     const dir = await mkdtemp(join(tmpdir(), "hm-ff-"));
     let args: string[] = [];
     const downloader = new FfmpegDownloader({
+      guard: allowAll,
       userAgent: "OrcaHM/test",
       spawn: fakeSpawn((child) => {
         args = child.args;
@@ -147,6 +149,7 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
   ])("classifies %s", async (message, expected) => {
     const dir = await mkdtemp(join(tmpdir(), "hm-ff-"));
     const downloader = new FfmpegDownloader({
+      guard: allowAll,
       userAgent: "x",
       spawn: fakeSpawn((child) => {
         child.stderr.write(`${message}\n`);
@@ -163,6 +166,7 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
   it("says ffmpeg is missing instead of retrying forever", async () => {
     const dir = await mkdtemp(join(tmpdir(), "hm-ff-"));
     const downloader = new FfmpegDownloader({
+      guard: allowAll,
       userAgent: "x",
       spawn: fakeSpawn((child) => {
         const error = new Error("spawn ffmpeg ENOENT") as NodeJS.ErrnoException;
@@ -180,6 +184,7 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
     const dir = await mkdtemp(join(tmpdir(), "hm-ff-"));
     const controller = new AbortController();
     const downloader = new FfmpegDownloader({
+      guard: allowAll,
       userAgent: "x",
       spawn: fakeSpawn(() => setTimeout(() => controller.abort(), 5)),
     });
@@ -193,6 +198,8 @@ describe("FfmpegDownloader with a fake ffmpeg", () => {
     await rm(dir, { recursive: true, force: true });
   });
 });
+
+const allowAll: UrlGuard = { assertUrl: async (url) => new URL(url) };
 
 const probeFixture = (name: string) =>
   JSON.parse(
@@ -249,7 +256,12 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const inspector = fakeInspector(probeFixture("mkv-two-audio-two-subs"));
       const { runs, spawn } = recordingSpawn();
-      const downloader = new FfmpegDownloader({ userAgent: "x", spawn, inspector });
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        inspector,
+      });
       const result = await downloader.download(hls, join(dir, "out.mkv"), context());
       expect(inspector.calls).toEqual([{ url: hls.url, headers: hls.headers }]);
       expect(mapsOf(runs[0]!)).toEqual(["0:0", "0:1", "0:2", "0:3", "0:4"]);
@@ -263,6 +275,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { runs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(probeFixture("mp4-single-audio")),
@@ -278,6 +291,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { runs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(probeFixture("hls-two-renditions")),
@@ -298,6 +312,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { runs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
@@ -315,6 +330,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { runs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
@@ -341,6 +357,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { spawn } = recordingSpawn({ failWhen: (args) => args.includes("0:3") });
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
@@ -349,6 +366,98 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
       const result = await downloader.download(hls, join(dir, "out.mkv"), context());
       expect(result.sidecars?.map((s) => s.language)).toEqual(["spa"]);
       expect((await readdir(dir)).sort()).toEqual(["out.mkv", "out.mkv.sub1.srt"]);
+    });
+  });
+
+  it("refuses a stream address the guard refuses, before probing or running anything", async () => {
+    await withDir(async (dir) => {
+      const inspector = fakeInspector(probeFixture("mp4-single-audio"));
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        userAgent: "x",
+        spawn,
+        inspector,
+        guard: {
+          assertUrl: async () => {
+            throw new PermanentError("Refusing: private or internal address");
+          },
+        },
+      });
+      await expect(downloader.download(hls, join(dir, "o.mkv"), context())).rejects.toBeInstanceOf(
+        PermanentError,
+      );
+      expect(inspector.calls).toEqual([]);
+      expect(runs).toEqual([]);
+    });
+  });
+
+  it("drops a language tag that is not a language, and keeps the subtitle", async () => {
+    await withDir(async (dir) => {
+      const probe = probeFixture("mkv-two-audio-two-subs");
+      probe.streams[3]!.tags = { language: "English subtitles!" };
+      probe.streams[4]!.tags = { language: "spa" };
+      const { spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probe),
+        externalSubtitles: true,
+      });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(result.sidecars?.map((s) => s.language)).toEqual([undefined, "spa"]);
+    });
+  });
+
+  it("does not write two files for an unknown language and 'und', which would share a name", async () => {
+    await withDir(async (dir) => {
+      const probe = probeFixture("mkv-two-audio-two-subs");
+      probe.streams[3]!.tags = {};
+      probe.streams[4]!.tags = { language: "und" };
+      probe.streams[4]!.disposition = {};
+      const { runs, spawn } = recordingSpawn();
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probe),
+        externalSubtitles: true,
+      });
+      const result = await downloader.download(hls, join(dir, "out.mkv"), context());
+      expect(result.sidecars).toHaveLength(1);
+      expect(runs).toHaveLength(2); // the video and the first subtitle only
+    });
+  });
+
+  it("leaves nothing behind when it is aborted after some subtitles were written", async () => {
+    await withDir(async (dir) => {
+      const controller = new AbortController();
+      let run = 0;
+      const spawn = fakeSpawn((child) => {
+        run += 1;
+        if (run < 3) {
+          writeFileSync(child.args.at(-1) as string, "data");
+          child.stdout.end();
+          setTimeout(() => child.emit("close", 0), 1);
+        } else {
+          // the second subtitle: the signal fires while ffmpeg runs
+          setTimeout(() => controller.abort(), 2);
+        }
+      });
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        inspector: fakeInspector(probeFixture("mkv-two-audio-two-subs")),
+        externalSubtitles: true,
+      });
+      await expect(
+        downloader.download(hls, join(dir, "out.mkv"), {
+          signal: controller.signal,
+          onProgress: () => {},
+        }),
+      ).rejects.toBeInstanceOf(AbortedError);
+      expect(await readdir(dir)).toEqual([]);
     });
   });
 
@@ -362,6 +471,7 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
     await withDir(async (dir) => {
       const { runs, spawn } = recordingSpawn();
       const downloader = new FfmpegDownloader({
+        guard: allowAll,
         userAgent: "x",
         spawn,
         inspector: fakeInspector(failure),
@@ -410,7 +520,7 @@ describe.skipIf(!hasFfmpeg)("FfmpegDownloader with the real ffmpeg (opt-in: need
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/stream.m3u8`;
       const ctx = context();
       const out = join(dir, "out.mkv");
-      await new FfmpegDownloader({ userAgent: "OrcaHM/test" }).download(
+      await new FfmpegDownloader({ guard: allowAll, userAgent: "OrcaHM/test" }).download(
         { kind: "hls", url, durationSec: 4 },
         out,
         ctx,
@@ -515,6 +625,7 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
       await withStream(async (url, dir) => {
         const out = join(dir, "out.mkv");
         const result = await new FfmpegDownloader({
+          guard: allowAll,
           userAgent: "x",
           inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
         }).download({ kind: "hls", url }, out, context());
@@ -533,6 +644,7 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
       await withStream(async (url, dir) => {
         const out = join(dir, "out.mkv");
         const result = await new FfmpegDownloader({
+          guard: allowAll,
           userAgent: "x",
           inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
         }).download({ kind: "hls", url }, out, {
@@ -549,6 +661,7 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
       await withStream(async (url, dir) => {
         const out = join(dir, "out.mkv");
         const result = await new FfmpegDownloader({
+          guard: allowAll,
           userAgent: "x",
           inspector: new FfprobeInspector({ timeoutMs: 30_000 }),
           externalSubtitles: true,

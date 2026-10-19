@@ -259,4 +259,68 @@ describe("FsLibraryWriter", () => {
     expect(await readdir(staging)).toEqual(["e10.mkv"]);
     void other;
   });
+
+  describe("subtitle files with names that cannot be used", () => {
+    async function commitWith(sidecars: { name: string; options: object }[]) {
+      const series = aSeries();
+      const episode = anEpisode({ id: "e7", season: 1, episode: 3 });
+      await writer.writeSeries(series);
+      const staged = writer.stagingPath(episode);
+      await mkdir(join(root, ".hm-staging"), { recursive: true });
+      await writeFile(staged, "video");
+      for (const sidecar of sidecars) await writeFile(`${staged}.${sidecar.name}`, sidecar.name);
+      const { relativePath } = await writer.commitEpisode(
+        series,
+        episode,
+        staged,
+        sidecars.map((sidecar) => ({
+          path: `${staged}.${sidecar.name}`,
+          format: "srt",
+          ...sidecar.options,
+        })),
+      );
+      return { folder: join(root, relativePath, ".."), staging: join(root, ".hm-staging") };
+    }
+
+    it("drops a language tag that is not a language instead of failing the episode", async () => {
+      const { folder, staging } = await commitWith([
+        { name: "a.srt", options: { language: "English subtitles!" } },
+      ]);
+      expect((await readdir(folder)).sort()).toEqual([
+        "The Beverly Hillbillies S01E03.mp4",
+        "The Beverly Hillbillies S01E03.nfo",
+        "The Beverly Hillbillies S01E03.srt",
+      ]);
+      expect(await readdir(staging)).toEqual([]);
+    });
+
+    it("keeps the first of two files that would get the same name, and removes the other", async () => {
+      const { folder, staging } = await commitWith([
+        { name: "a.srt", options: {} },
+        { name: "b.srt", options: { language: "und" } },
+        { name: "c.srt", options: { language: "ENG" } },
+        { name: "d.srt", options: { language: "eng" } },
+      ]);
+      expect(await readFile(join(folder, "The Beverly Hillbillies S01E03.srt"), "utf8")).toBe(
+        "a.srt",
+      );
+      expect(await readFile(join(folder, "The Beverly Hillbillies S01E03.eng.srt"), "utf8")).toBe(
+        "c.srt",
+      );
+      expect((await readdir(folder)).filter((name) => name.endsWith(".srt"))).toHaveLength(2);
+      expect(await readdir(staging)).toEqual([]);
+    });
+
+    it("skips a file whose format is not a format, and still commits the video", async () => {
+      const { folder } = await commitWith([
+        { name: "a.srt", options: { format: "../../etc/passwd" } },
+        { name: "b.srt", options: { language: "spa" } },
+      ]);
+      expect((await readdir(folder)).sort()).toEqual([
+        "The Beverly Hillbillies S01E03.mp4",
+        "The Beverly Hillbillies S01E03.nfo",
+        "The Beverly Hillbillies S01E03.spa.srt",
+      ]);
+    });
+  });
 });
