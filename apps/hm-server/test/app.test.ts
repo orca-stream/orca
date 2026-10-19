@@ -282,7 +282,7 @@ describe("series routes", () => {
     };
     const refused = await post("/api/series", body);
     expect(refused.status).toBe(400);
-    expect(((await refused.json()) as { message: string }).message).toMatch(/license_ack_required/);
+    expect(await refused.json()).toMatchObject({ error: "license_ack_required" });
 
     expect((await post("/api/series", { ...body, licenseAck: true })).status).toBe(201);
     expect((await post("/api/series", { ...body, licenseAck: true })).status).toBe(409);

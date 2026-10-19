@@ -16,4 +16,4 @@ export {
 } from "./series.ts";
 export { EnqueueBody, JobDto, JobKind, JobStatus, ListJobsQuery, ProgressDetail } from "./jobs.ts";
 export { HmEvent } from "./events.ts";
-export { HM_EVENT_TYPES, isHmEvent, needsLicenseAck } from "./rules.ts";
+export { HM_EVENT_TYPES, isHmEvent, LICENSE_ACK_REQUIRED, needsLicenseAck } from "./rules.ts";

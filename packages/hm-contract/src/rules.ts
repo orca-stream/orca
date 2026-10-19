@@ -19,6 +19,12 @@ export function needsLicenseAck(input: {
   return licenseNeedsAck(input.license, input.year ?? undefined);
 }
 
+/**
+ * The `error` code of the 400 that refuses to add a series whose license (or missing year) needs the
+ * "I have the right to download this" confirmation and came without it. Match this, not the message.
+ */
+export const LICENSE_ACK_REQUIRED = "license_ack_required";
+
 /** Every `type` the event stream sends; each is also the SSE event name. */
 export const HM_EVENT_TYPES = ["job.updated", "job.progress", "series.updated"] as const;
 

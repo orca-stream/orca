@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Extraction } from "@orca/extractor-core";
 import {
+  LICENSE_ACK_REQUIRED,
   needsLicenseAck,
   type CreateSeriesBody,
   type EpisodeDto,
@@ -103,8 +104,8 @@ export function createUseCases(deps: Deps) {
         !body.licenseAck
       ) {
         throw new AppError(
-          "bad_request",
-          "license_ack_required: confirm you have the right to download this",
+          LICENSE_ACK_REQUIRED,
+          "Confirm you have the right to download this before adding it",
         );
       }
 

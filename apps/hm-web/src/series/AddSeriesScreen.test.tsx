@@ -18,11 +18,17 @@ const URL_TO_ADD = "https://archive.org/details/bevhill";
 interface Options {
   preview?: ReturnType<typeof makePreview>;
   createStatus?: number;
+  createBody?: unknown;
   /** Answers for successive previews, when the test needs them to differ. */
   previews?: ReturnType<typeof makePreview>[];
 }
 
-function setup({ preview = makePreview(), createStatus = 201, previews }: Options = {}) {
+function setup({
+  preview = makePreview(),
+  createStatus = 201,
+  createBody = { error: "x", message: "y" },
+  previews,
+}: Options = {}) {
   let previewCalls = 0;
   const handler: Handler = async (request) => {
     const { pathname } = new URL(request.url);
@@ -33,7 +39,7 @@ function setup({ preview = makePreview(), createStatus = 201, previews }: Option
       );
     if (pathname === "/api/series" && request.method === "POST") {
       if (createStatus === 201) return jsonResponse(makeSeries({ id: "new1" }), 201);
-      return jsonResponse({ error: "x", message: "y" }, createStatus);
+      return jsonResponse(createBody, createStatus);
     }
     return jsonResponse({ error: "not_found" }, 404);
   };
@@ -159,6 +165,28 @@ describe("AddSeriesScreen", () => {
     await previewIt(user);
     await user.click(confirmButton());
     expect((await screen.findByRole("alert")).textContent).toContain("ya está añadida");
+  });
+
+  it("tells a missing license acknowledgement apart by its error code, not by the message", async () => {
+    const user = userEvent.setup();
+    setup({
+      createStatus: 400,
+      createBody: { error: "license_ack_required", message: "whatever the server says" },
+    });
+    await previewIt(user);
+    await user.click(confirmButton());
+    expect((await screen.findByRole("alert")).textContent).toContain("derecho a descargarla");
+  });
+
+  it("doesn't mistake another 400 for it, whatever its message says", async () => {
+    const user = userEvent.setup();
+    setup({
+      createStatus: 400,
+      createBody: { error: "bad_request", message: "license_ack_required: look-alike" },
+    });
+    await previewIt(user);
+    await user.click(confirmButton());
+    expect((await screen.findByRole("alert")).textContent).not.toContain("derecho a descargarla");
   });
 
   it("says when the site has nothing readable (422)", async () => {

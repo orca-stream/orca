@@ -160,10 +160,10 @@ describe("addSeries", () => {
     };
     expect(
       await fails(h.useCases.addSeries({ ...body, year: null, licenseAck: false })),
-    ).toMatchObject({ code: "bad_request" });
+    ).toMatchObject({ code: "license_ack_required" });
     expect(
       await fails(h.useCases.addSeries({ ...body, year: 1982, licenseAck: false })),
-    ).toMatchObject({ code: "bad_request" });
+    ).toMatchObject({ code: "license_ack_required" });
     // An old show with a public domain mark goes through unconfirmed.
     await expect(
       h.useCases.addSeries({ ...body, year: 1962, licenseAck: false }),

@@ -28,6 +28,7 @@ export class AbortedError extends Error {
 
 export type AppErrorCode =
   | "bad_request"
+  | "license_ack_required"
   | "unauthorized"
   | "forbidden"
   | "not_found"

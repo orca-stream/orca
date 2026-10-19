@@ -1,4 +1,5 @@
 import type { PreviewDto } from "@orca/hm-contract";
+import { LICENSE_ACK_REQUIRED } from "@orca/hm-contract/rules";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useLocation, useSearchParams } from "wouter";
@@ -27,8 +28,7 @@ function createError(error: unknown, t: Messages): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return t.errors.network;
     if (error.status === 409) return t.add.alreadyAdded;
-    if (error.status === 400 && error.message.startsWith("license_ack_required"))
-      return t.add.ackRequired;
+    if (error.code === LICENSE_ACK_REQUIRED) return t.add.ackRequired;
   }
   return t.add.createFailed;
 }
