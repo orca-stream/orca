@@ -4,10 +4,16 @@ import { mkdir, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import type { DownloadContext, DownloadResult, Downloader } from "../../application/ports.ts";
+import type {
+  DownloadContext,
+  DownloadResult,
+  Downloader,
+  UrlGuard,
+} from "../../application/ports.ts";
 import { AbortedError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import type { Source } from "../../domain/series.ts";
 import type { HostLimiter } from "../host-limiter.ts";
+import { DEFAULT_BACKOFF_MS, parseRetryAfter } from "../retry-after.ts";
 
 type DirectSource = Extract<Source, { kind: "direct" }>;
 
@@ -15,16 +21,25 @@ export interface HttpDownloaderOptions {
   userAgent: string;
   /** Caps and spaces the downloads per remote host (be polite to archive.org). */
   limiter: HostLimiter;
+  /** Checked on the address and on every redirect hop. */
+  guard: UrlGuard;
   fetch?: typeof fetch;
 }
 
-/** Seconds or an HTTP date, as milliseconds. */
-function retryAfter(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const date = Date.parse(header);
-  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+/** The only headers a page may hand on: what a CDN checks, never anything that changes where we connect. */
+const PASS_THROUGH = new Set(["referer", "cookie", "origin", "user-agent"]);
+/** Sent only to the host that was asked for, never to wherever a redirect leads. */
+const HOST_BOUND = new Set(["cookie", "origin"]);
+
+function passThrough(headers: Record<string, string> | undefined): Record<string, string> {
+  const clean: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers ?? {})) {
+    const key = name.toLowerCase();
+    if (PASS_THROUGH.has(key) && !/[\r\n]/.test(value)) clean[key] = value;
+  }
+  return clean;
 }
 
 async function sizeOf(path: string): Promise<number> {
@@ -45,11 +60,13 @@ async function md5Of(path: string): Promise<string> {
 export class HttpDownloader implements Downloader {
   private readonly userAgent: string;
   private readonly limiter: HostLimiter;
+  private readonly guard: UrlGuard;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: HttpDownloaderOptions) {
     this.userAgent = options.userAgent;
     this.limiter = options.limiter;
+    this.guard = options.guard;
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -88,6 +105,32 @@ export class HttpDownloader implements Downloader {
     return null;
   }
 
+  /** The response, following redirects by hand so that no hop goes unchecked. */
+  private async open(source: DirectSource, have: number, signal: AbortSignal): Promise<Response> {
+    let url = source.url;
+    let headers: Record<string, string> = {
+      "user-agent": this.userAgent,
+      ...passThrough(source.headers),
+      ...(have > 0 ? { range: `bytes=${have}-` } : {}),
+    };
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      await this.guard.assertUrl(url);
+      const response = await this.fetchImpl(url, { signal, redirect: "manual", headers });
+      if (!REDIRECT_STATUSES.has(response.status)) return response;
+      await response.body?.cancel();
+      const location = response.headers.get("location");
+      if (!location) throw new PermanentError(`HTTP ${response.status} without a Location`);
+      const next = new URL(location, url);
+      if (next.host !== new URL(url).host) {
+        headers = Object.fromEntries(
+          Object.entries(headers).filter(([name]) => !HOST_BOUND.has(name)),
+        );
+      }
+      url = next.href;
+    }
+    throw new PermanentError("Too many redirects");
+  }
+
   private async fetchInto(
     source: DirectSource,
     part: string,
@@ -106,12 +149,10 @@ export class HttpDownloader implements Downloader {
 
     let response: Response;
     try {
-      response = await this.fetchImpl(source.url, {
-        signal,
-        headers: { "user-agent": this.userAgent, ...(have > 0 ? { range: `bytes=${have}-` } : {}) },
-      });
+      response = await this.open(source, have, signal);
     } catch (error) {
       if (signal.aborted) throw new AbortedError({ cause: error });
+      if (error instanceof PermanentError || error instanceof RetryableError) throw error;
       throw new RetryableError(`Could not reach ${new URL(source.url).host}`, { cause: error });
     }
 
@@ -122,7 +163,8 @@ export class HttpDownloader implements Downloader {
     }
     if (response.status === 429 || response.status === 503) {
       await response.body?.cancel();
-      const wait = retryAfter(response.headers.get("retry-after"));
+      const wait = parseRetryAfter(response.headers.get("retry-after"));
+      this.limiter.penalize(new URL(source.url).host, wait ?? DEFAULT_BACKOFF_MS);
       throw new RetryableError(
         `HTTP ${response.status}`,
         wait === undefined ? {} : { retryAfterMs: wait },

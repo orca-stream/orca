@@ -107,6 +107,44 @@ describe("FetchHttpClient", () => {
     expect(slept).toEqual([700, 1000]);
   });
 
+  it("backs the whole host off for the Retry-After a 429 or 503 gives, and says how long", async () => {
+    for (const status of [429, 503]) {
+      const { fetchImpl } = responder(
+        new Response("", { status, headers: { "retry-after": "12" } }),
+        Response.json({}),
+      );
+      const { limiter, slept } = testLimiter();
+      const client = new FetchHttpClient({ userAgent: "x", fetch: fetchImpl, limiter });
+      const error = (await client
+        .getJson("https://archive.org/a")
+        .catch((e: unknown) => e)) as ExtractorError;
+      expect(error.code).toBe("network");
+      expect(error.retryAfterMs).toBe(12_000);
+      // The next request to that host, a download included, waits it out.
+      await limiter.run("archive.org", "download", undefined, async () => undefined);
+      expect(slept).toEqual([12_000]);
+    }
+  });
+
+  it("reads a Retry-After given as a date, and makes none up when there is none", async () => {
+    const date = new Date(Date.now() + 30_000).toUTCString();
+    const { fetchImpl } = responder(
+      new Response("", { status: 429, headers: { "retry-after": date } }),
+      new Response("", { status: 503 }),
+    );
+    const { limiter } = testLimiter();
+    const client = new FetchHttpClient({ userAgent: "x", fetch: fetchImpl, limiter });
+    const dated = (await client
+      .getJson("https://archive.org/a")
+      .catch((e: unknown) => e)) as ExtractorError;
+    expect(dated.retryAfterMs).toBeGreaterThan(25_000);
+    expect(dated.retryAfterMs).toBeLessThanOrEqual(30_000);
+    const bare = (await client
+      .getJson("https://archive.org/b")
+      .catch((e: unknown) => e)) as ExtractorError;
+    expect(bare.retryAfterMs).toBeUndefined();
+  });
+
   it("maps statuses to extractor errors", async () => {
     const code = async (response: Response | Error) => {
       const { fetchImpl } = responder(response);

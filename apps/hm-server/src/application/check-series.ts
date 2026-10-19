@@ -23,7 +23,10 @@ function toJobError(error: unknown): unknown {
   if (error.code === "not-found" || error.code === "unsupported-url") {
     return new PermanentError(error.message, { cause: error });
   }
-  return new RetryableError(error.message, { cause: error });
+  return new RetryableError(error.message, {
+    cause: error,
+    ...(error.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),
+  });
 }
 
 /**

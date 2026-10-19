@@ -15,11 +15,18 @@ export type ExtractorErrorCode =
 /** An extraction failed in a way the panel can explain. */
 export class ExtractorError extends Error {
   readonly code: ExtractorErrorCode;
+  /** From a `Retry-After` header, when the site asked us to wait. */
+  readonly retryAfterMs: number | undefined;
 
-  constructor(code: ExtractorErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: ExtractorErrorCode,
+    message: string,
+    options?: ErrorOptions & { retryAfterMs?: number },
+  ) {
     super(message, options);
     this.name = "ExtractorError";
     this.code = code;
+    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AbortedError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import type { Source } from "../src/domain/series.ts";
 import { HttpDownloader } from "../src/infrastructure/download/http-downloader.ts";
+import type { UrlGuard } from "../src/application/ports.ts";
 import type { HostLimiter } from "../src/infrastructure/host-limiter.ts";
 import { testLimiter } from "./helpers.ts";
 
@@ -17,6 +18,10 @@ const MD5 = createHash("md5").update(BODY).digest("hex");
 interface Seen {
   range: string | undefined;
   userAgent: string | undefined;
+  url: string | undefined;
+  cookie: string | undefined;
+  referer: string | undefined;
+  origin: string | undefined;
 }
 
 let server: Server;
@@ -52,7 +57,14 @@ beforeEach(async () => {
   peak = 0;
   handler = (req, res) => serveFile(req, res);
   server = createServer((req, res) => {
-    seen.push({ range: req.headers.range, userAgent: req.headers["user-agent"] });
+    seen.push({
+      range: req.headers.range,
+      userAgent: req.headers["user-agent"],
+      url: req.url,
+      cookie: req.headers.cookie,
+      referer: req.headers.referer,
+      origin: req.headers.origin,
+    });
     handler(req, res);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -75,8 +87,15 @@ const source = (extra: Partial<Extract<Source, { kind: "direct" }>> = {}): Sourc
   ...extra,
 });
 
-const downloader = (options: { limiter?: HostLimiter } = {}) =>
-  new HttpDownloader({ userAgent: "OrcaHM/test", limiter: testLimiter().limiter, ...options });
+/** The tests' server is on 127.0.0.1, which the real guard refuses: this one lets everything by. */
+const allowAll: UrlGuard = { assertUrl: async (url) => new URL(url) };
+const downloader = (options: { limiter?: HostLimiter; guard?: UrlGuard } = {}) =>
+  new HttpDownloader({
+    userAgent: "OrcaHM/test",
+    limiter: testLimiter().limiter,
+    guard: allowAll,
+    ...options,
+  });
 const context = (signal = new AbortController().signal) => {
   const progress: { bytes: number; total?: number }[] = [];
   return {
@@ -94,7 +113,7 @@ describe("HttpDownloader", () => {
     expect(result.bytes).toBe(BODY.length);
     expect((await readFile(dest)).equals(BODY)).toBe(true);
     await expect(stat(`${dest}.part`)).rejects.toThrow();
-    expect(seen[0]).toEqual({ range: undefined, userAgent: "OrcaHM/test" });
+    expect(seen[0]).toMatchObject({ range: undefined, userAgent: "OrcaHM/test" });
     expect(ctx.progress.at(-1)).toMatchObject({ bytes: BODY.length, total: BODY.length });
   });
 
@@ -220,5 +239,109 @@ describe("HttpDownloader", () => {
     const d = downloader();
     expect(d.canHandle(source())).toBe(true);
     expect(d.canHandle({ kind: "hls", url: "https://x/y.m3u8" })).toBe(false);
+  });
+});
+
+describe("HttpDownloader and the address guard", () => {
+  const refuseUrl = (predicate: (url: string) => boolean): UrlGuard => ({
+    assertUrl: async (url) => {
+      if (predicate(url)) throw new PermanentError("Refusing: private or internal address");
+      return new URL(url);
+    },
+  });
+
+  it("asks the guard before connecting, and never connects when it says no", async () => {
+    const error = await downloader({ guard: refuseUrl(() => true) })
+      .download(source(), join(dir, "o.mp4"), context())
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(PermanentError);
+    expect(seen).toEqual([]);
+  });
+
+  it("follows a redirect itself, checking the guard on every hop", async () => {
+    handler = (req, res) => {
+      if (req.url === "/video.mp4") res.writeHead(302, { location: "/moved.mp4" }).end();
+      else serveFile(req, res);
+    };
+    const checked: string[] = [];
+    const guard = refuseUrl((url) => void checked.push(url) === undefined && false);
+    await downloader({ guard }).download(source(), join(dir, "o.mp4"), context());
+    expect(seen.map((s) => s.url)).toEqual(["/video.mp4", "/moved.mp4"]);
+    expect(checked).toEqual([`${base}/video.mp4`, `${base}/moved.mp4`]);
+  });
+
+  it("refuses a redirect that leads inside, without ever asking for it", async () => {
+    handler = (_req, res) => void res.writeHead(302, { location: "http://10.0.0.9/secret" }).end();
+    const error = await downloader({ guard: refuseUrl((url) => url.includes("10.0.0.9")) })
+      .download(source(), join(dir, "o.mp4"), context())
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(PermanentError);
+    expect(seen).toHaveLength(1);
+  });
+
+  it("gives up on a redirect loop and on a redirect with nowhere to go", async () => {
+    handler = (_req, res) => void res.writeHead(302, { location: "/video.mp4" }).end();
+    await expect(
+      downloader().download(source(), join(dir, "o.mp4"), context()),
+    ).rejects.toBeInstanceOf(PermanentError);
+    expect(seen.length).toBeLessThanOrEqual(8);
+    seen = [];
+    handler = (_req, res) => void res.writeHead(302).end();
+    await expect(
+      downloader().download(source(), join(dir, "o2.mp4"), context()),
+    ).rejects.toBeInstanceOf(PermanentError);
+  });
+
+  it("sends the Referer and Cookie a page used, and nothing else it was handed", async () => {
+    await downloader().download(
+      source({
+        headers: {
+          Referer: "https://site.example/watch",
+          Cookie: "sid=1",
+          Origin: "https://site.example",
+          Host: "evil.example",
+          "X-Forwarded-For": "1.2.3.4",
+          "Bad\r\nName": "x",
+        },
+      }),
+      join(dir, "o.mp4"),
+      context(),
+    );
+    expect(seen[0]).toMatchObject({
+      cookie: "sid=1",
+      referer: "https://site.example/watch",
+      origin: "https://site.example",
+      userAgent: "OrcaHM/test",
+    });
+  });
+
+  it("keeps the Cookie and Origin to the host they were meant for: a redirect elsewhere loses them", async () => {
+    const other = base.replace("127.0.0.1", "localhost");
+    handler = (req, res) => {
+      if (req.url === "/video.mp4") res.writeHead(302, { location: `${other}/final.mp4` }).end();
+      else serveFile(req, res);
+    };
+    await downloader().download(
+      source({
+        headers: { Referer: "https://site.example/", Cookie: "sid=1", Origin: "https://s" },
+      }),
+      join(dir, "o.mp4"),
+      context(),
+    );
+    expect(seen[0]).toMatchObject({ cookie: "sid=1", origin: "https://s" });
+    expect(seen[1]?.url).toBe("/final.mp4");
+    expect(seen[1]?.cookie).toBeUndefined();
+    expect(seen[1]?.origin).toBeUndefined();
+    expect(seen[1]?.referer).toBe("https://site.example/");
+  });
+
+  it("makes the host wait out a 429 or 503 for everyone, using its Retry-After", async () => {
+    handler = (_req, res) => void res.writeHead(429, { "retry-after": "20" }).end();
+    const { limiter, slept } = testLimiter();
+    await downloader({ limiter })
+      .download(source(), join(dir, "o.mp4"), context())
+      .catch(() => null);
+    await limiter.run(new URL(base).host, "metadata", undefined, async () => undefined);
+    expect(slept).toEqual([20_000]);
   });
 });

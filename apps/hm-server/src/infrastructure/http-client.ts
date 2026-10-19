@@ -1,5 +1,6 @@
 import { ExtractorError, type HttpClient } from "@orca/extractor-core";
 import type { HostLimiter } from "./host-limiter.ts";
+import { DEFAULT_BACKOFF_MS, parseRetryAfter } from "./retry-after.ts";
 
 export interface FetchHttpClientOptions {
   userAgent: string;
@@ -38,10 +39,16 @@ export class FetchHttpClient implements HttpClient {
     }
     if (response.status === 404) throw new ExtractorError("not-found", `Not found: ${url}`);
     if (!response.ok) {
-      throw new ExtractorError(
-        "network",
-        `${new URL(url).host} answered ${response.status}: try again later`,
-      );
+      const host = new URL(url).host;
+      let retryAfterMs: number | undefined;
+      if (response.status === 429 || response.status === 503) {
+        // The whole host rests, not just this lane: a download would hit the same wall.
+        retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+        this.limiter.penalize(new URL(url).host, retryAfterMs ?? DEFAULT_BACKOFF_MS);
+      }
+      throw new ExtractorError("network", `${host} answered ${response.status}: try again later`, {
+        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+      });
     }
     try {
       return await response.json();

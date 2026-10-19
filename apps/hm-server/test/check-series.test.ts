@@ -178,6 +178,14 @@ describe("CheckSeries: failures", () => {
     expect((await h.series.get(created.id))?.remoteMarker).toBe("m1");
   });
 
+  it("passes the site's Retry-After on to the retry", async () => {
+    const created = await addFake();
+    site.failMarker = new ExtractorError("network", "slow down", { retryAfterMs: 90_000 });
+    const error = (await check(created.id).catch((e: unknown) => e)) as RetryableError;
+    expect(error).toBeInstanceOf(RetryableError);
+    expect(error.retryAfterMs).toBe(90_000);
+  });
+
   it("makes a series that is gone from the site permanent", async () => {
     const created = await addFake();
     site.failMarker = new ExtractorError("not-found", "gone");
