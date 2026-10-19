@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ConfigError } from "./errors.ts";
+import { isNetworkCidr } from "./net.ts";
 
 export { ConfigError };
 
@@ -54,8 +55,19 @@ const Host = z.strictObject({
       (a) => a !== "0.0.0.0",
       "must be a specific LAN address: ports are never bound to 0.0.0.0",
     ),
-  sshUser: z.string().regex(/^[a-z_][a-z0-9_-]*$/, "must be a unix user name"),
-  lanCidr: z.string().regex(/^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/, "must look like 192.168.1.0/24"),
+  sshUser: z
+    .string()
+    .regex(/^[a-z_][a-z0-9_-]*$/, "must be a unix user name")
+    .refine(
+      (u) => u !== "root",
+      "must not be root: Bifrost logs in as a normal user and uses sudo",
+    ),
+  lanCidr: z
+    .string()
+    .refine(
+      isNetworkCidr,
+      "must be a network address like 192.168.1.0/24 (valid octets, prefix 0-32, no host bits)",
+    ),
   renderGid: z.number().int().optional(),
   dataDir: absPath.default("/srv/jellyfin"),
   mediaDisk: z
@@ -98,9 +110,10 @@ const Jellyfin = z.strictObject({
     .strictObject({
       plugins: z.boolean().default(false),
       libraries: z.boolean().default(false),
+      paths: z.boolean().default(false),
       repositories: z.boolean().default(false),
     })
-    .default({ plugins: false, libraries: false, repositories: false }),
+    .default({ plugins: false, libraries: false, paths: false, repositories: false }),
 });
 
 const ConfigSchema = z

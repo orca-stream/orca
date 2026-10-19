@@ -1,4 +1,6 @@
+import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vite-plus/test";
+import { prepareSteps, SSHD_HARDENED_PROBE } from "../src/domain/host-steps.ts";
 import { hostPrepare } from "../src/application/host-prepare.ts";
 import { FakeRemoteHost, type Answer } from "./fakes/remote-host.ts";
 import { exampleConfig } from "./fixtures.ts";
@@ -148,5 +150,119 @@ describe("hostPrepare", () => {
       await expect(run(remote, { withDisk: true }).promise).rejects.toThrow(/mediaDisk/);
       expect(remote.mutations()).toEqual([]);
     });
+  });
+
+  describe("firewall lockout guard", () => {
+    it("refuses to enable ufw when our own SSH client is outside lanCidr, before changing anything", async () => {
+      const remote = new FakeRemoteHost({
+        probes: "fail",
+        answers: [["SSH_CLIENT", { stdout: "10.9.9.9 51234 22\n" }]],
+      });
+      await expect(run(remote).promise).rejects.toThrow(/10\.9\.9\.9.*192\.168\.1\.0\/24/);
+      expect(remote.mutations()).toEqual([]);
+    });
+
+    it("refuses when it cannot tell where the SSH client comes from", async () => {
+      const remote = new FakeRemoteHost({
+        probes: "fail",
+        answers: [["SSH_CLIENT", { stdout: "" }]],
+      });
+      await expect(run(remote).promise).rejects.toThrow(/SSH_CLIENT/);
+      expect(remote.mutations()).toEqual([]);
+    });
+
+    it("does not care about the client when the firewall is already configured", async () => {
+      const remote = new FakeRemoteHost({
+        probes: "pass",
+        answers: [["SSH_CLIENT", { stdout: "10.9.9.9 1 22" }]],
+      });
+      await run(remote).promise;
+      expect(remote.mutations()).toEqual([]);
+    });
+
+    it("checks key login after enabling ufw and switches it off again if that fails", async () => {
+      const remote = new FakeRemoteHost({ probes: "fail", keyLogins: [false] });
+      await expect(run(remote).promise).rejects.toThrow(/ufw/);
+      const scripts = remote.scripts();
+      const enable = scripts.findIndex((x) => x.includes("ufw --force enable"));
+      const disable = scripts.findIndex((x) => x.includes("ufw --force disable"));
+      expect(enable).toBeGreaterThanOrEqual(0);
+      expect(disable).toBeGreaterThan(enable);
+      expect(remote.calls.some((c) => c.cmd === SSHD)).toBe(false);
+    });
+  });
+
+  describe("probes against real command output", () => {
+    const bash = (script: string) => {
+      try {
+        execFileSync("bash", ["-c", script], { stdio: "pipe" });
+        return 0;
+      } catch (e) {
+        return (e as { status: number }).status;
+      }
+    };
+    const steps = prepareSteps(exampleConfig(), { withDisk: false });
+    const probe = (id: string) => steps.find((x) => x.id === id)!.probe;
+
+    it("the sshd probe needs every hardened setting, not only PasswordAuthentication", () => {
+      const sshd = (lines: string[]) =>
+        `sshd() { printf '%s\\n' ${lines.map((l) => `'${l}'`).join(" ")}; }; ${SSHD_HARDENED_PROBE}`;
+      const good = [
+        "port 22",
+        "passwordauthentication no",
+        "kbdinteractiveauthentication no",
+        "permitrootlogin no",
+        "pubkeyauthentication yes",
+      ];
+      expect(bash(sshd(good))).toBe(0);
+      expect(
+        bash(sshd(good.map((l) => (l.startsWith("permitroot") ? "permitrootlogin yes" : l)))),
+      ).not.toBe(0);
+      expect(bash(sshd(good.filter((l) => !l.startsWith("kbdinteractive"))))).not.toBe(0);
+    });
+
+    it("the ufw probe matches real `ufw status` output for our CIDR only", () => {
+      const status = (cidr: string) =>
+        `ufw() { printf 'Status: active\\n\\nTo                         Action      From\\n--                         ------      ----\\n22/tcp                     ALLOW       ${cidr}\\n'; }; ${probe("ufw")}`;
+      expect(bash(status("192.168.1.0/24"))).toBe(0);
+      expect(bash(status("10.0.0.0/8"))).not.toBe(0);
+    });
+
+    it("package probes use dpkg-query status, so removed-not-purged packages do not count", () => {
+      expect(probe("packages")).not.toContain("dpkg -s");
+      expect(probe("docker")).not.toContain("dpkg -s");
+      const fake = (status: string) =>
+        `dpkg-query() { printf '%s' '${status}'; }; ${probe("packages")}`;
+      expect(bash(fake("install ok installed"))).toBe(0);
+      expect(bash(fake("deinstall ok config-files"))).not.toBe(0);
+    });
+  });
+
+  describe("sshd reload", () => {
+    it("reverts when `systemctl reload ssh` fails", async () => {
+      const remote = new FakeRemoteHost({
+        probes: "pass",
+        answers: [
+          ["sshd -T", { code: 1 }],
+          ["systemctl reload ssh", { code: 1, stderr: "Unit ssh.service not found" }],
+        ],
+      });
+      await expect(run(remote).promise).rejects.toThrow(/reload/);
+      expect(remote.scripts().some((x) => x.includes("rm -f") && x.includes(SSHD))).toBe(true);
+    });
+  });
+
+  it("puts the media disk behind a systemd mount requirement for Docker", async () => {
+    const remote = new FakeRemoteHost({ probes: "fail", answers: [hardenedAfterReload] });
+    await run(remote, {
+      withDisk: true,
+      patch: (r) => {
+        r.host.mediaDisk = { uuid: "1234-ABCD", mount: "/mnt/media" };
+      },
+    }).promise;
+    const dropin = remote.calls.find(
+      (c) => c.cmd === "/etc/systemd/system/docker.service.d/10-bifrost-media.conf",
+    );
+    expect(dropin?.stdin).toContain("RequiresMountsFor=/mnt/media");
   });
 });

@@ -51,13 +51,24 @@ export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): 
     );
   }
 
+  if (host.mediaDisk) {
+    // Without this, `mkdir` would not matter but Docker would bind an empty directory on the root disk.
+    const mounted = await remote.exec(`mountpoint -q ${host.mediaDisk.mount}`, { readOnly: true });
+    if (mounted.code !== 0) {
+      const msg = `The media disk is not mounted at ${host.mediaDisk.mount}: Jellyfin would see an empty library. Connect it and run \`bifrost host prepare --with-disk\`.`;
+      if (!opts.dryRun) throw new BifrostError(msg);
+      log(`warning: ${msg}`);
+    }
+  }
+
   const compose = renderCompose(cfg, { uid, gid, renderGid });
   if (opts.dryRun) log(`compose file ${composePath}:\n${compose}`);
 
   await remote.exec(
     [
       `install -d -o jellyfin -g jellyfin -m 0750 ${host.dataDir}/config ${host.dataDir}/cache`,
-      `mkdir -p ${mediaRoot(host)}`,
+      // A configured disk's mount point is never created here: it must be an actual mount.
+      ...(host.mediaDisk ? [] : [`mkdir -p ${mediaRoot(host)}`]),
       "",
     ].join("\n"),
     { sudo: true },
@@ -68,7 +79,7 @@ export async function up(deps: UpDeps, cfg: Config, opts: { dryRun: boolean }): 
     log(`ok     ${composePath} is up to date`);
   } else {
     await remote.writeFile(composePath, compose, { sudo: true, mode: "0644" });
-    log(`wrote  ${composePath}`);
+    if (!opts.dryRun) log(`wrote  ${composePath}`);
   }
 
   const started = await remote.exec(`docker compose -f ${composePath} up -d --remove-orphans`, {

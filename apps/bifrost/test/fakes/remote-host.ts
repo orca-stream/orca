@@ -55,6 +55,9 @@ export class FakeRemoteHost implements RemoteHost {
         };
       }
     }
+    if (opts.readOnly && script.includes("SSH_CLIENT")) {
+      return { code: 0, stdout: "192.168.1.50 51234 22\n", stderr: "" };
+    }
     const isSudoCheck = script === "sudo -n true";
     const code = opts.readOnly && !isSudoCheck && this.probes === "fail" ? 1 : 0;
     return { code, stdout: "", stderr: "" };

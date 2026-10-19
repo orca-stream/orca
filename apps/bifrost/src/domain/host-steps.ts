@@ -16,9 +16,13 @@ export interface HostStep {
   files?: HostFile[];
   /** Run after the files are written. */
   script?: string;
+  /** After running, a brand-new key login must still work, or `rollback` runs and the step fails. */
+  verifyAccess?: boolean;
+  rollback?: string;
 }
 
 export const SSHD_DROPIN = "/etc/ssh/sshd_config.d/10-bifrost.conf";
+export const DOCKER_MEDIA_DROPIN = "/etc/systemd/system/docker.service.d/10-bifrost-media.conf";
 export const SYSCTL_FILE = "/etc/sysctl.d/60-bifrost.conf";
 
 const lines = (...l: string[]) => `${l.join("\n")}\n`;
@@ -33,7 +37,17 @@ export const SSHD_DROPIN_CONTENT = lines(
 );
 
 /** True when sshd already runs with password logins off. Needs root. */
-export const SSHD_HARDENED_PROBE = "sshd -T | grep -qi '^passwordauthentication no$'";
+export const SSHD_HARDENED_PROBE =
+  "out=$(sshd -T) && for l in 'passwordauthentication no' 'kbdinteractiveauthentication no' 'permitrootlogin no' 'pubkeyauthentication yes'; do " +
+  'printf \'%s\\n\' "$out" | grep -qix "$l" || exit 1; done';
+
+/** True when every package is installed. `dpkg -s` would also say yes to removed-but-not-purged ones. */
+function pkgsInstalled(...names: string[]): string {
+  return (
+    `for p in ${names.join(" ")}; do ` +
+    '[ "$(dpkg-query -W -f=\'${Status}\' "$p" 2>/dev/null)" = "install ok installed" ] || exit 1; done'
+  );
+}
 
 const DOCKER_PACKAGES =
   "docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin";
@@ -45,7 +59,7 @@ export function prepareSteps(cfg: Config, opts: { withDisk: boolean }): HostStep
     {
       id: "packages",
       title: "base packages (ca-certificates, curl, ufw, restic, unattended-upgrades)",
-      probe: "dpkg -s ca-certificates curl ufw restic unattended-upgrades >/dev/null 2>&1",
+      probe: pkgsInstalled("ca-certificates", "curl", "ufw", "restic", "unattended-upgrades"),
       script: lines(
         "export DEBIAN_FRONTEND=noninteractive",
         "apt-get update -qq",
@@ -55,7 +69,7 @@ export function prepareSteps(cfg: Config, opts: { withDisk: boolean }): HostStep
     {
       id: "docker",
       title: "Docker Engine from Docker's own apt repository",
-      probe: `dpkg -s ${DOCKER_PACKAGES} >/dev/null 2>&1 && systemctl is-active --quiet docker`,
+      probe: `${pkgsInstalled(...DOCKER_PACKAGES.split(" "))} && systemctl is-active --quiet docker`,
       script: lines(
         "set -o pipefail",
         "export DEBIAN_FRONTEND=noninteractive",
@@ -120,6 +134,9 @@ export function prepareSteps(cfg: Config, opts: { withDisk: boolean }): HostStep
         `ufw allow from ${lanCidr} to any port 22 proto tcp`,
         "ufw --force enable",
       ),
+      // If the firewall locks us out, the next key login fails: switch it off again from this session.
+      verifyAccess: true,
+      rollback: "ufw --force disable",
     },
   ];
 
@@ -131,7 +148,16 @@ export function prepareSteps(cfg: Config, opts: { withDisk: boolean }): HostStep
     steps.push({
       id: "media-disk",
       title: `mount the media disk ${disk.uuid} at ${disk.mount}`,
-      probe: `grep -q 'UUID=${disk.uuid} ' /etc/fstab && mountpoint -q ${disk.mount}`,
+      probe: `grep -q 'UUID=${disk.uuid} ' /etc/fstab && mountpoint -q ${disk.mount} && [ -f ${DOCKER_MEDIA_DROPIN} ]`,
+      // Docker (and so the container) must not start without the disk, or Jellyfin would scan an
+      // empty directory on the root disk and drop the library.
+      files: [
+        {
+          path: DOCKER_MEDIA_DROPIN,
+          content: lines("[Unit]", `RequiresMountsFor=${disk.mount}`),
+          mode: "0644",
+        },
+      ],
       script: lines(
         `blkid -U ${disk.uuid} >/dev/null || { echo "no disk with UUID ${disk.uuid} is connected" >&2; exit 1; }`,
         `mkdir -p ${disk.mount}`,

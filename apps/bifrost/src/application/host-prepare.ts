@@ -1,4 +1,5 @@
 import type { Config } from "../domain/config.ts";
+import { clientIpFromSshClient, ipInCidr } from "../domain/net.ts";
 import { BifrostError } from "../domain/errors.ts";
 import {
   prepareSteps,
@@ -7,6 +8,7 @@ import {
   SSHD_HARDENED_PROBE,
   type HostStep,
 } from "../domain/host-steps.ts";
+import { DryRunRemoteHost } from "./dry-run-remote-host.ts";
 import type { RemoteHost } from "./ports/remote-host.ts";
 
 export interface HostPrepareDeps {
@@ -25,7 +27,9 @@ export async function hostPrepare(
   cfg: Config,
   opts: HostPrepareOptions,
 ): Promise<void> {
-  const { remote, log } = deps;
+  const { log } = deps;
+  // Even the dry run goes through the guard: only scripts that declare themselves read-only get out.
+  const remote = opts.dryRun ? new DryRunRemoteHost(deps.remote, log) : deps.remote;
 
   // Fail early on config problems (e.g. --with-disk without mediaDisk) before touching anything.
   const steps = prepareSteps(cfg, { withDisk: opts.withDisk });
@@ -41,9 +45,28 @@ export async function hostPrepare(
     log(`skip   media disk (host.mediaDisk is set; pass --with-disk once it is connected)`);
   }
 
+  await guardFirewall(remote, cfg, steps);
   for (const step of steps) await runStep(remote, log, step, opts.dryRun);
   await hardenSshd(remote, log, cfg, opts.dryRun);
   log("Host is prepared.");
+}
+
+/** Enabling ufw must not cut off the very session that is running this: our client has to be inside lanCidr. */
+async function guardFirewall(remote: RemoteHost, cfg: Config, steps: HostStep[]) {
+  const ufw = steps.find((s) => s.id === "ufw");
+  if (!ufw || (await remote.exec(ufw.probe, { sudo: true, readOnly: true })).code === 0) return;
+  const res = await remote.exec('echo "$SSH_CLIENT"', { readOnly: true });
+  const ip = clientIpFromSshClient(res.stdout);
+  if (!ip) {
+    throw new BifrostError(
+      "Cannot tell where this SSH session comes from ($SSH_CLIENT is empty or not IPv4): refusing to enable the firewall.",
+    );
+  }
+  if (!ipInCidr(ip, cfg.host.lanCidr)) {
+    throw new BifrostError(
+      `This SSH session comes from ${ip}, outside host.lanCidr (${cfg.host.lanCidr}): enabling the firewall would lock it out. Run from inside the LAN or fix lanCidr.`,
+    );
+  }
 }
 
 async function runStep(
@@ -68,6 +91,12 @@ async function runStep(
     const res = await remote.exec(step.script, { sudo: true });
     if (res.code !== 0)
       throw new BifrostError(`Step "${step.id}" failed (exit ${res.code}):\n${res.stderr.trim()}`);
+  }
+  if (step.verifyAccess && !(await remote.verifyKeyLogin())) {
+    if (step.rollback) await remote.exec(step.rollback, { sudo: true });
+    throw new BifrostError(
+      `After "${step.id}" a new key login failed: the change was rolled back (${step.rollback ?? "nothing to undo"}).`,
+    );
   }
 }
 
@@ -111,16 +140,22 @@ async function hardenSshd(
       `\`sshd -t\` rejected the new config; it was removed again:\n${check.stderr.trim()}`,
     );
   }
-  await remote.exec("systemctl reload ssh", { sudo: true });
+  const reload = await remote.exec("systemctl reload ssh", { sudo: true });
+  if (reload.code !== 0) {
+    await revert();
+    throw new BifrostError(
+      `\`systemctl reload ssh\` failed (the drop-in was removed again): ${reload.stderr.trim()}`,
+    );
+  }
 
   const fresh = await remote.verifyKeyLogin();
   const effective =
     (await remote.exec(SSHD_HARDENED_PROBE, { sudo: true, readOnly: true })).code === 0;
   if (!fresh || !effective) {
     await revert();
-    await remote.exec("systemctl reload ssh", { sudo: true });
+    const undone = await remote.exec("systemctl reload ssh", { sudo: true });
     throw new BifrostError(
-      `After reloading sshd ${fresh ? "the setting did not take effect" : "a new key login failed"}: the change was reverted.`,
+      `After reloading sshd ${fresh ? "the setting did not take effect" : "a new key login failed"}: the change was reverted${undone.code === 0 ? "" : ", but reloading sshd afterwards failed: check the host"}.`,
     );
   }
   log("ok     sshd: verified with a new connection");

@@ -105,20 +105,17 @@ function laptop() {
 describe("mapPath", () => {
   const map = { "/data/jellyfin/movies": "/media/movies", "/data": "/other" };
   it("rewrites exact and nested paths, longest source first", () => {
-    expect(mapPath("/data/jellyfin/movies", map, false)).toBe("/media/movies");
-    expect(mapPath("/data/jellyfin/movies/Alien", map, false)).toBe("/media/movies/Alien");
-    expect(mapPath("/data/x", map, false)).toBe("/other/x");
-    expect(mapPath("/datax", map, false)).toBe("/datax");
-  });
-  it("runs the map backwards", () => {
-    expect(mapPath("/media/movies", map, true)).toBe("/data/jellyfin/movies");
+    expect(mapPath("/data/jellyfin/movies", map)).toBe("/media/movies");
+    expect(mapPath("/data/jellyfin/movies/Alien", map)).toBe("/media/movies/Alien");
+    expect(mapPath("/data/x", map)).toBe("/other/x");
+    expect(mapPath("/datax", map)).toBe("/datax");
   });
 });
 
 describe("dump", () => {
   it("captures the portable state, drops ids and runtime state, and re-validates", async () => {
     const { deps } = laptop();
-    const { document } = await dump(deps, exampleConfig(), { reverse: false });
+    const { document } = await dump(deps, exampleConfig(), { mapPaths: true });
     const text = JSON.stringify(document);
     for (const noise of [
       "ItemId",
@@ -164,7 +161,7 @@ describe("dump", () => {
 
   it("keeps only plugins that can be installed, with guid and repository", async () => {
     const { deps, lines } = laptop();
-    const { document } = await dump(deps, exampleConfig(), { reverse: false });
+    const { document } = await dump(deps, exampleConfig(), { mapPaths: true });
     const cfg = parseConfig(document);
     expect(cfg.jellyfin.plugins).toMatchObject([
       {
@@ -184,21 +181,18 @@ describe("dump", () => {
     expect(lines.join("\n")).toMatch(/Intro Skipper has no repository/);
   });
 
-  it("applies the pathMap in reverse when asked", async () => {
+  it("leaves the paths alone when the server is already on target paths", async () => {
     const { server, deps } = laptop();
     server.folders[0]!.Locations = ["/media/movies"];
     server.folders[1]!.Locations = ["/media/tv"];
-    const { document } = await dump(deps, exampleConfig(), { reverse: true });
+    const { document } = await dump(deps, exampleConfig(), { mapPaths: false });
     const cfg = parseConfig(document);
-    expect(cfg.jellyfin.libraries.map((l) => l.paths)).toEqual([
-      ["/data/jellyfin/movies"],
-      ["/data/jellyfin/tv"],
-    ]);
+    expect(cfg.jellyfin.libraries.map((l) => l.paths)).toEqual([["/media/movies"], ["/media/tv"]]);
   });
 
   it("only reads", async () => {
     const { server, deps } = laptop();
-    await dump(deps, exampleConfig(), { reverse: false });
+    await dump(deps, exampleConfig(), { mapPaths: true });
     expect(server.writes()).toEqual([]);
   });
 });

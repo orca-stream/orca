@@ -108,4 +108,40 @@ describe("up", () => {
     expect(remote.calls.some((c) => c.cmd.includes("vainfo"))).toBe(false);
     expect(lines.join("\n")).toContain("jellyfin/jellyfin:12.2.20261005-225228");
   });
+
+  describe("media disk", () => {
+    const disk = (r: any) => {
+      r.host.mediaDisk = { uuid: "1234-ABCD", mount: "/mnt/media" };
+    };
+
+    it("refuses to start when the disk is configured but not mounted, so Jellyfin never sees an empty library", async () => {
+      const remote = new FakeRemoteHost({
+        answers: hostAnswers([["mountpoint -q /mnt/media", { code: 1 }]]),
+      });
+      await expect(run(remote, { patch: disk }).promise).rejects.toThrow(/not mounted/);
+      expect(remote.mutations()).toEqual([]);
+    });
+
+    it("starts when the disk is mounted, and does not create its mount point", async () => {
+      const remote = new FakeRemoteHost({ answers: hostAnswers() });
+      await run(remote, { patch: disk }).promise;
+      expect(remote.scripts()[0]).not.toContain("mkdir -p /mnt/media");
+    });
+
+    it("only warns in a dry run", async () => {
+      const remote = new FakeRemoteHost({
+        answers: hostAnswers([["mountpoint -q /mnt/media", { code: 1 }]]),
+      });
+      const { promise, lines } = run(remote, { patch: disk, dryRun: true });
+      await promise;
+      expect(lines.join("\n")).toMatch(/not mounted/);
+    });
+  });
+
+  it("does not claim to have written the compose file in a dry run", async () => {
+    const remote = new FakeRemoteHost({ answers: hostAnswers() });
+    const { promise, lines } = run(remote, { dryRun: true });
+    await promise;
+    expect(lines.join("\n")).not.toMatch(/^wrote /m);
+  });
 });

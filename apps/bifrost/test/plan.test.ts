@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { planApply, needsRestart } from "../src/domain/plan.ts";
+import { planApply, planWarnings, needsRestart } from "../src/domain/plan.ts";
 import { deepEqual, deepMerge } from "../src/domain/merge.ts";
 import type { Snapshot } from "../src/domain/jellyfin.ts";
 import { emptySnapshot, exampleConfig } from "./fixtures.ts";
@@ -140,7 +140,7 @@ describe("planApply", () => {
     expect(planApply(exampleConfig().jellyfin, snap)).toEqual([]);
   });
 
-  it("diffs library paths and merges options only when they change", () => {
+  it("adds paths, merges options only when they change, and keeps undeclared paths by default", () => {
     const cfg = exampleConfig((r) => {
       r.jellyfin.libraries[0].paths = ["/media/movies", "/media/extra"];
       r.jellyfin.libraries[1].options = { EnableRealtimeMonitor: true };
@@ -150,7 +150,6 @@ describe("planApply", () => {
     const plan = planApply(cfg, snap);
     expect(plan).toMatchObject([
       { kind: "addPath", library: "Películas", path: "/media/extra" },
-      { kind: "removePath", library: "Películas", path: "/old" },
       {
         kind: "updateLibraryOptions",
         library: "Series",
@@ -158,6 +157,55 @@ describe("planApply", () => {
         options: { EnableRealtimeMonitor: true },
       },
     ]);
+    expect(plan.some((c) => c.kind === "removePath")).toBe(false);
+    expect(planWarnings(cfg, snap).join("\n")).toMatch(/\/old.*not declared.*prune\.paths/);
+  });
+
+  it("removes undeclared paths only with prune.paths", () => {
+    const cfg = exampleConfig((r) => {
+      r.jellyfin.prune = { paths: true };
+    }).jellyfin;
+    const snap = satisfied();
+    snap.folders[0]!.Locations = ["/media/movies", "/old"];
+    expect(planApply(cfg, snap)).toMatchObject([
+      { kind: "removePath", library: "Películas", path: "/old" },
+    ]);
+  });
+
+  it("warns when a declared library shares no path with the server (pathMap vs migration)", () => {
+    const snap = satisfied();
+    snap.folders[0]!.Locations = ["/data/jellyfin/movies"];
+    const warnings = planWarnings(exampleConfig().jellyfin, snap).join("\n");
+    expect(warnings).toMatch(/Películas.*none of the declared paths/);
+    expect(warnings).toMatch(/migrat/i);
+  });
+
+  it("never sends PathInfos back with the library options", () => {
+    const cfg = exampleConfig((r) => {
+      r.jellyfin.libraries[1].options = { EnableRealtimeMonitor: true };
+    }).jellyfin;
+    const snap = satisfied();
+    snap.folders[1]!.LibraryOptions = { PathInfos: [{ Path: "/media/tv" }], Enabled: true };
+    const change = planApply(cfg, snap).find((c) => c.kind === "updateLibraryOptions");
+    expect(change).toMatchObject({ options: { Enabled: true, EnableRealtimeMonitor: true } });
+    expect(JSON.stringify(change)).not.toContain("PathInfos");
+    // PathInfos alone never counts as a difference.
+    expect(planApply(exampleConfig().jellyfin, snap)).toEqual([]);
+  });
+
+  it("warns about a library whose type differs, since Jellyfin cannot change it", () => {
+    const snap = satisfied();
+    snap.folders[1]!.CollectionType = "movies";
+    expect(planWarnings(exampleConfig().jellyfin, snap).join("\n")).toMatch(
+      /Series.*movies.*tvshows/,
+    );
+  });
+
+  it("counts enabling or disabling a plugin as needing a restart", () => {
+    const cfg = exampleConfig((r) => {
+      r.jellyfin.plugins[0].enabled = false;
+    }).jellyfin;
+    expect(needsRestart(planApply(cfg, satisfied()))).toBe(true);
   });
 
   it("toggles plugins and merges plugin configuration", () => {

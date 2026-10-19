@@ -2,11 +2,7 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import type { ExecOptions, ExecResult, RemoteHost } from "../application/ports/remote-host.ts";
 import { BifrostError } from "../domain/errors.ts";
-
-/** Single-quotes a string for a POSIX shell. */
-export function shQuote(s: string): string {
-  return `'${s.replaceAll("'", `'\\''`)}'`;
-}
+import { shQuote } from "../domain/shell.ts";
 
 /**
  * Options for every connection: never prompt, give up fast, reuse one TCP connection for the many
@@ -110,6 +106,10 @@ export class SshRemoteHost implements RemoteHost {
     if (!opts.sudo) return scpTo(remotePath);
     // A root-owned destination cannot be written by scp as the login user: stage it, then move it.
     const staged = `/tmp/bifrost-${randomBytes(6).toString("hex")}`;
+    // The zip holds password hashes: create the staging file private before scp fills it.
+    const made = await this.remote(`umask 077 && install -m 0600 /dev/null ${shQuote(staged)}`);
+    if (made.code !== 0)
+      throw new BifrostError(`Could not stage ${localPath}: ${made.stderr.trim()}`);
     await scpTo(staged);
     const res = await this.exec(
       `install -m 0644 ${shQuote(staged)} ${shQuote(remotePath)}; rm -f ${shQuote(staged)}`,

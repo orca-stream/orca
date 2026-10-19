@@ -2,7 +2,13 @@ import type { Config } from "../domain/config.ts";
 import { BifrostError } from "../domain/errors.ts";
 import type { Snapshot } from "../domain/jellyfin.ts";
 import type { Rec } from "../domain/merge.ts";
-import { describeChange, needsRestart, planApply, type Change } from "../domain/plan.ts";
+import {
+  describeChange,
+  needsRestart,
+  planApply,
+  planWarnings,
+  type Change,
+} from "../domain/plan.ts";
 import type { Clock } from "./ports/clock.ts";
 import type { JellyfinAdmin } from "./ports/jellyfin-admin.ts";
 import { waitFor } from "./wait.ts";
@@ -96,6 +102,7 @@ export async function apply(
   for (let pass = 1; pass <= 2; pass++) {
     const snap = await readSnapshot(jf, wanted);
     const plan = planApply(wanted, snap);
+    if (pass === 1) for (const w of planWarnings(wanted, snap)) log(`warning: ${w}`);
     const pending = snap.plugins.some((p) => p.Status === "Restart");
 
     if (plan.length === 0 && !pending) {

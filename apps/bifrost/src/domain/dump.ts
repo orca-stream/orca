@@ -69,15 +69,9 @@ function pick(source: Rec, keys: string[]): Rec {
   return out;
 }
 
-/**
- * Rewrites a media path through the map (`source -> target`; `reverse` swaps it). The longest
- * matching prefix wins, and only whole path segments match.
- */
-export function mapPath(path: string, map: Record<string, string>, reverse: boolean): string {
-  const entries = Object.entries(map).map(
-    ([from, to]) => (reverse ? [to, from] : [from, to]) as [string, string],
-  );
-  entries.sort((a, b) => b[0].length - a[0].length);
+/** Rewrites a media path through the map (source -> target). The longest matching prefix wins, whole segments only. */
+export function mapPath(path: string, map: Record<string, string>): string {
+  const entries = Object.entries(map).sort((a, b) => b[0].length - a[0].length);
   for (const [from, to] of entries) {
     if (path === from) return to;
     if (path.startsWith(from.endsWith("/") ? from : `${from}/`))
@@ -112,7 +106,7 @@ export interface LiveState {
 export function buildDump(
   base: Config,
   live: LiveState,
-  opts: { reverse: boolean },
+  opts: { mapPaths: boolean },
 ): { document: Rec; warnings: string[] } {
   const warnings: string[] = [];
   const repoNames = new Set(live.repositories.map((r) => r.Name));
@@ -143,7 +137,7 @@ export function buildDump(
     return {
       name: f.Name,
       type: known ? f.CollectionType : "mixed",
-      paths: f.Locations.map((l) => mapPath(l, base.pathMap, opts.reverse)),
+      paths: f.Locations.map((l) => (opts.mapPaths ? mapPath(l, base.pathMap) : l)),
       options,
     };
   });

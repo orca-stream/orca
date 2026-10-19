@@ -12,7 +12,7 @@ export interface DumpDeps {
 export async function dump(
   deps: DumpDeps,
   base: Config,
-  opts: { reverse: boolean },
+  opts: { mapPaths: boolean },
 ): Promise<{ document: Rec; warnings: string[] }> {
   const jf = deps.jellyfin;
   const [repositories, plugins, packages, folders, system, encoding, network] = await Promise.all([

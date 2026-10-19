@@ -57,6 +57,8 @@ export function needsRestart(plan: readonly Change[]): boolean {
     (c) =>
       c.kind === "installPlugin" ||
       c.kind === "uninstallPlugin" ||
+      // A plugin enabled or disabled stays in "Restart" until the server restarts.
+      c.kind === "setPluginEnabled" ||
       (c.kind === "updateConfig" && c.section === "network"),
   );
 }
@@ -119,6 +121,12 @@ function planPlugins(cfg: JellyfinConfig, snap: Snapshot): Change[] {
   return out;
 }
 
+/** PathInfos mirrors Locations and is changed through the path calls; sending it back would undo them. */
+function withoutPathInfos(options: Rec): Rec {
+  const { PathInfos: _pathInfos, ...rest } = options;
+  return rest;
+}
+
 function planLibraries(cfg: JellyfinConfig, snap: Snapshot): Change[] {
   const out: Change[] = [];
   for (const lib of cfg.libraries) {
@@ -136,11 +144,16 @@ function planLibraries(cfg: JellyfinConfig, snap: Snapshot): Change[] {
     for (const path of lib.paths) {
       if (!have.Locations.includes(path)) out.push({ kind: "addPath", library: lib.name, path });
     }
-    for (const path of have.Locations) {
-      if (!lib.paths.includes(path)) out.push({ kind: "removePath", library: lib.name, path });
+    // Removing a path makes Jellyfin re-create its items from the remaining ones, losing ids and
+    // watch state: only when asked for.
+    if (cfg.prune.paths) {
+      for (const path of have.Locations) {
+        if (!lib.paths.includes(path)) out.push({ kind: "removePath", library: lib.name, path });
+      }
     }
-    const merged = deepMerge(have.LibraryOptions, lib.options);
-    if (!deepEqual(merged, have.LibraryOptions)) {
+    const current = withoutPathInfos(have.LibraryOptions);
+    const merged = deepMerge(current, withoutPathInfos(lib.options));
+    if (!deepEqual(merged, current)) {
       out.push({
         kind: "updateLibraryOptions",
         library: lib.name,
@@ -153,6 +166,33 @@ function planLibraries(cfg: JellyfinConfig, snap: Snapshot): Change[] {
     for (const f of snap.folders) {
       if (!cfg.libraries.some((l) => l.name === f.Name))
         out.push({ kind: "removeLibrary", name: f.Name });
+    }
+  }
+  return out;
+}
+
+/** Things worth saying that are not changes: drift `apply` will not (or cannot) fix. */
+export function planWarnings(cfg: JellyfinConfig, snap: Snapshot): string[] {
+  const out: string[] = [];
+  for (const lib of cfg.libraries) {
+    const have = snap.folders.find((f) => f.Name === lib.name);
+    if (!have) continue;
+    if (have.CollectionType && have.CollectionType !== lib.type) {
+      out.push(
+        `Library "${lib.name}" is "${have.CollectionType}" on the server but "${lib.type}" in the config; Jellyfin cannot change the type (remove and re-add the library).`,
+      );
+    }
+    if (have.Locations.length > 0 && !lib.paths.some((p) => have.Locations.includes(p))) {
+      out.push(
+        `Library "${lib.name}": none of the declared paths exist on the server (${have.Locations.join(", ")}). If the server came from \`migrate\`, declare the paths it has: pathMap and a backup migration are alternatives, not meant to be combined.`,
+      );
+    }
+    if (!cfg.prune.paths) {
+      for (const p of have.Locations.filter((l) => !lib.paths.includes(l))) {
+        out.push(
+          `Library "${lib.name}": path ${p} is on the server but not declared; kept (set prune.paths to remove it).`,
+        );
+      }
     }
   }
   return out;

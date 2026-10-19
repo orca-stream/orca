@@ -13,7 +13,12 @@ describe("parseConfig", () => {
     expect(cfg.jellyfin.libraries.map((l) => l.name)).toEqual(["Películas", "Series"]);
     expect(cfg.jellyfin.libraries[1]?.options).toEqual({});
     expect(cfg.jellyfin.plugins[0]?.enabled).toBe(true);
-    expect(cfg.jellyfin.prune).toEqual({ plugins: false, libraries: false, repositories: false });
+    expect(cfg.jellyfin.prune).toEqual({
+      plugins: false,
+      libraries: false,
+      paths: false,
+      repositories: false,
+    });
     expect(cfg.jellyfin.apiKeySecret).toBe("JELLYFIN_API_KEY");
   });
 
@@ -71,5 +76,23 @@ describe("parseConfig", () => {
       expect(msg).toContain("host.dataDir");
       expect(msg).toContain("backup.repository");
     }
+  });
+
+  it("validates lanCidr as a real network address", () => {
+    for (const cidr of ["999.1.1.1/24", "192.168.1.5/24", "192.168.1.0/40"]) {
+      const bad = structuredClone(example);
+      bad.host.lanCidr = cidr;
+      expect(() => parseConfig(bad), cidr).toThrow(/lanCidr/);
+    }
+  });
+
+  it("rejects root as the SSH user", () => {
+    const bad = structuredClone(example);
+    bad.host.sshUser = "root";
+    expect(() => parseConfig(bad)).toThrow(/sshUser/);
+  });
+
+  it("has a prune.paths switch that defaults to off", () => {
+    expect(parseConfig(example).jellyfin.prune.paths).toBe(false);
   });
 });

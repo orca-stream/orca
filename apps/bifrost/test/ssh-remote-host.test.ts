@@ -2,7 +2,8 @@ import { chmodSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
-import { baseSshArgs, shQuote, SshRemoteHost } from "../src/infrastructure/ssh-remote-host.ts";
+import { shQuote } from "../src/domain/shell.ts";
+import { baseSshArgs, SshRemoteHost } from "../src/infrastructure/ssh-remote-host.ts";
 
 /** A stand-in for `ssh`/`scp`: logs its arguments, then runs the remote command (last arg) locally. */
 function stubs() {
