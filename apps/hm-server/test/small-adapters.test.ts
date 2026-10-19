@@ -7,6 +7,7 @@ import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registr
 import { FetchHttpClient } from "../src/infrastructure/http-client.ts";
 import { FetchImageFetcher } from "../src/infrastructure/image-fetcher.ts";
 import { ManualClock } from "./fakes/clock.ts";
+import { testLimiter } from "./helpers.ts";
 
 describe("InMemoryEventBus", () => {
   it("numbers events and delivers them to every subscriber until they leave", () => {
@@ -89,28 +90,18 @@ describe("FetchHttpClient", () => {
     const client = new FetchHttpClient({
       userAgent: "OrcaHM/test",
       fetch: fetchImpl,
-      sleep: async () => {},
+      limiter: testLimiter().limiter,
     });
     await expect(client.getJson("https://archive.org/metadata/x")).resolves.toEqual({ ok: 1 });
     expect(calls[0]?.headers).toMatchObject({ "user-agent": "OrcaHM/test" });
   });
 
-  it("spaces requests at least minIntervalMs apart", async () => {
-    const slept: number[] = [];
-    let now = 10_000;
+  it("goes through the host limiter's metadata lane", async () => {
     const { fetchImpl } = responder(Response.json({}), Response.json({}), Response.json({}));
-    const client = new FetchHttpClient({
-      userAgent: "x",
-      fetch: fetchImpl,
-      minIntervalMs: 1000,
-      now: () => now,
-      sleep: async (ms) => {
-        slept.push(ms);
-        now += ms;
-      },
-    });
+    const { limiter, clock, slept } = testLimiter({ metadata: { minIntervalMs: 1000 } });
+    const client = new FetchHttpClient({ userAgent: "x", fetch: fetchImpl, limiter });
     await client.getJson("https://archive.org/a");
-    now += 300;
+    clock.advance(300);
     await client.getJson("https://archive.org/b");
     await client.getJson("https://archive.org/c");
     expect(slept).toEqual([700, 1000]);
@@ -122,7 +113,7 @@ describe("FetchHttpClient", () => {
       const client = new FetchHttpClient({
         userAgent: "x",
         fetch: fetchImpl,
-        sleep: async () => {},
+        limiter: testLimiter().limiter,
       });
       return client.getJson("https://archive.org/x").catch((e: ExtractorError) => e.code);
     };

@@ -262,6 +262,8 @@ export function createInternetArchiveExtractor({ http }: InternetArchiveOptions)
     name: "Internet Archive",
     hosts: ["archive.org"],
     example: "https://archive.org/details/bevhill-s01e01-36",
+    // archive.org asks API clients to stay polite: one request a second, one file at a time.
+    limits: { metadataPerSec: 1, downloadsPerHost: 1 },
     canHandle: canHandleUrl,
     extract,
   };

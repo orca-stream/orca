@@ -104,6 +104,14 @@ export interface Extraction {
   selectedSourceRef?: string;
 }
 
+/** How hard the extractor's hosts may be hit; the server enforces it, and config can override it. */
+export interface ExtractorLimits {
+  /** Requests per second for metadata calls (JSON). May be below 1: `0.5` is one every 2 s. */
+  metadataPerSec: number;
+  /** Simultaneous file downloads from one host. */
+  downloadsPerHost: number;
+}
+
 export interface ExtractorInfo {
   id: string;
   name: string;
@@ -113,6 +121,8 @@ export interface ExtractorInfo {
 
 /** The port every site (Internet Archive today, others later) implements. */
 export interface SiteExtractor extends ExtractorInfo {
+  /** Politeness limits for the hosts above. Absent: the server's defaults. */
+  limits?: ExtractorLimits;
   /** Pure: says whether this extractor owns the URL, without touching the network. */
   canHandle(url: string): boolean;
   extract(url: string, options?: { signal?: AbortSignal }): Promise<Extraction>;

@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AbortedError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import type { Source } from "../src/domain/series.ts";
 import { HttpDownloader } from "../src/infrastructure/download/http-downloader.ts";
+import type { HostLimiter } from "../src/infrastructure/host-limiter.ts";
+import { testLimiter } from "./helpers.ts";
 
 const BODY = Buffer.from("0123456789".repeat(1000)); // 10 000 bytes
 const MD5 = createHash("md5").update(BODY).digest("hex");
@@ -73,7 +75,8 @@ const source = (extra: Partial<Extract<Source, { kind: "direct" }>> = {}): Sourc
   ...extra,
 });
 
-const downloader = (options = {}) => new HttpDownloader({ userAgent: "OrcaHM/test", ...options });
+const downloader = (options: { limiter?: HostLimiter } = {}) =>
+  new HttpDownloader({ userAgent: "OrcaHM/test", limiter: testLimiter().limiter, ...options });
 const context = (signal = new AbortController().signal) => {
   const progress: { bytes: number; total?: number }[] = [];
   return {
@@ -188,7 +191,7 @@ describe("HttpDownloader", () => {
     expect((await stat(`${dest}.part`)).size).toBeGreaterThan(0);
   });
 
-  it("lets only `hostLimit` downloads hit one host at a time", async () => {
+  it("lets only the configured number of downloadss download concurrency hit one host at a time", async () => {
     handler = (_req, res) => {
       live++;
       peak = Math.max(peak, live);
@@ -197,12 +200,20 @@ describe("HttpDownloader", () => {
         res.writeHead(200, { "content-length": BODY.length }).end(BODY);
       }, 30);
     };
-    const d = downloader({ hostLimit: 1 });
+    const d = downloader({ limiter: testLimiter({ download: { concurrency: 1 } }).limiter });
     await Promise.all([
       d.download(source({ md5: undefined }), join(dir, "a.mp4"), context()),
       d.download(source({ md5: undefined }), join(dir, "b.mp4"), context()),
     ]);
     expect(peak).toBe(1);
+  });
+
+  it("spaces the starts of downloads from one host by the limiter's interval", async () => {
+    const { limiter, slept } = testLimiter({ download: { minIntervalMs: 2000 } });
+    const d = downloader({ limiter });
+    await d.download(source(), join(dir, "a.mp4"), context());
+    await d.download(source(), join(dir, "b.mp4"), context());
+    expect(slept).toEqual([2000]);
   });
 
   it("only handles direct sources", () => {

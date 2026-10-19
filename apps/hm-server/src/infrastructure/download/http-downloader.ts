@@ -7,14 +7,14 @@ import { pipeline } from "node:stream/promises";
 import type { DownloadContext, Downloader } from "../../application/ports.ts";
 import { AbortedError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import type { Source } from "../../domain/series.ts";
-import { Semaphore } from "../semaphore.ts";
+import type { HostLimiter } from "../host-limiter.ts";
 
 type DirectSource = Extract<Source, { kind: "direct" }>;
 
 export interface HttpDownloaderOptions {
   userAgent: string;
-  /** Simultaneous downloads per remote host (be polite to archive.org). Default 1. */
-  hostLimit?: number;
+  /** Caps and spaces the downloads per remote host (be polite to archive.org). */
+  limiter: HostLimiter;
   fetch?: typeof fetch;
 }
 
@@ -44,13 +44,12 @@ async function md5Of(path: string): Promise<string> {
  */
 export class HttpDownloader implements Downloader {
   private readonly userAgent: string;
-  private readonly hostLimit: number;
+  private readonly limiter: HostLimiter;
   private readonly fetchImpl: typeof fetch;
-  private readonly hosts = new Map<string, Semaphore>();
 
   constructor(options: HttpDownloaderOptions) {
     this.userAgent = options.userAgent;
-    this.hostLimit = options.hostLimit ?? 1;
+    this.limiter = options.limiter;
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -66,14 +65,7 @@ export class HttpDownloader implements Downloader {
     if (source.kind !== "direct") throw new PermanentError(`Not a direct source: ${source.kind}`);
     await mkdir(dirname(destPath), { recursive: true });
 
-    const host = new URL(source.url).host;
-    let semaphore = this.hosts.get(host);
-    if (!semaphore) {
-      semaphore = new Semaphore(this.hostLimit);
-      this.hosts.set(host, semaphore);
-    }
-    const release = await semaphore.acquire(context.signal);
-    try {
+    return this.limiter.run(new URL(source.url).host, "download", context.signal, async () => {
       const part = `${destPath}.part`;
       for (let attempt = 1; ; attempt++) {
         await this.fetchInto(source, part, context);
@@ -84,9 +76,7 @@ export class HttpDownloader implements Downloader {
       }
       await rename(part, destPath);
       return { bytes: await sizeOf(destPath) };
-    } finally {
-      release();
-    }
+    });
   }
 
   private async verify(source: DirectSource, part: string): Promise<string | null> {

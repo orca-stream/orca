@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { serve } from "@hono/node-server";
+import type { SiteExtractor } from "@orca/extractor-core";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createJellyfin } from "@orca/jellyfin";
 import type { Deps } from "./application/deps.ts";
@@ -20,6 +21,7 @@ import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { StaticExtractorRegistry } from "./infrastructure/extractor-registry.ts";
+import { HostLimiter, hostLimitsFor } from "./infrastructure/host-limiter.ts";
 import { FetchHttpClient } from "./infrastructure/http-client.ts";
 import { FetchImageFetcher } from "./infrastructure/image-fetcher.ts";
 import { JellyfinAuthenticator } from "./infrastructure/jellyfin/authenticator.ts";
@@ -58,6 +60,15 @@ const jellyfin = createJellyfin({
   clientInfo: { name: "Orca'H&M", version },
   deviceInfo: { id: deviceId, name: hostname() },
 });
+const extractors: SiteExtractor[] = [];
+// Reads `extractors` when a host is first seen, so it may be filled in after the limiter exists.
+const limiter = new HostLimiter({
+  limitsFor: hostLimitsFor(extractors, config.hostLimits),
+  clock: systemClock,
+});
+extractors.push(
+  createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent, limiter }) }),
+);
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);
@@ -70,9 +81,7 @@ const deps: Deps = {
   series,
   jobs: new DrizzleJobRepository(database, systemClock),
   sessions: new DrizzleSessionRepository(database.db),
-  extractors: new StaticExtractorRegistry([
-    createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent }) }),
-  ]),
+  extractors: new StaticExtractorRegistry(extractors),
   previews: new InMemoryPreviewStore(systemClock),
   library,
   images: new FetchImageFetcher({ userAgent: agent }),
@@ -89,7 +98,7 @@ const deps: Deps = {
     jellyfinMediaRoot: config.jellyfinMediaRoot,
   }),
   downloaders: [
-    new HttpDownloader({ userAgent: agent, hostLimit: config.iaHostConcurrency }),
+    new HttpDownloader({ userAgent: agent, limiter }),
     new FfmpegDownloader({ userAgent: agent }),
   ],
   // The Playwright detector arrives with the later phase; page sources fail clearly until then.

@@ -1,3 +1,4 @@
+import type { ExtractorLimits } from "@orca/extractor-core";
 import * as z from "zod";
 
 const bool = z
@@ -20,7 +21,9 @@ const Env = z.object({
   DOWNLOAD_CONCURRENCY: count(2),
   FFMPEG_CONCURRENCY: count(1),
   BROWSER_CONCURRENCY: count(1),
-  IA_HOST_CONCURRENCY: count(1),
+  // Overrides of what each extractor declares for its hosts; absent means "use the declaration".
+  DOWNLOADS_PER_HOST: z.coerce.number().int().min(1).max(32).optional(),
+  METADATA_PER_SEC: z.coerce.number().positive().max(100).optional(),
 });
 
 export interface Config {
@@ -39,7 +42,8 @@ export interface Config {
   contactEmail: string | undefined;
   secureCookies: boolean;
   concurrency: { download: number; ffmpeg: number; browser: number; none: number };
-  iaHostConcurrency: number;
+  /** Overrides of the per-host limits the extractors declare; empty when the environment says nothing. */
+  hostLimits: Partial<ExtractorLimits>;
 }
 
 export class ConfigError extends Error {
@@ -80,7 +84,10 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
       browser: e.BROWSER_CONCURRENCY,
       none: 4,
     },
-    iaHostConcurrency: e.IA_HOST_CONCURRENCY,
+    hostLimits: {
+      ...(e.DOWNLOADS_PER_HOST !== undefined ? { downloadsPerHost: e.DOWNLOADS_PER_HOST } : {}),
+      ...(e.METADATA_PER_SEC !== undefined ? { metadataPerSec: e.METADATA_PER_SEC } : {}),
+    },
   };
 }
 

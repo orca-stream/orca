@@ -1,43 +1,37 @@
 import { ExtractorError, type HttpClient } from "@orca/extractor-core";
+import type { HostLimiter } from "./host-limiter.ts";
 
 export interface FetchHttpClientOptions {
   userAgent: string;
-  /** At least this long between two requests (archive.org asks for politeness). Default 1000. */
-  minIntervalMs?: number;
+  /** Spaces and caps the requests per host (archive.org asks for politeness). */
+  limiter: HostLimiter;
   fetch?: typeof fetch;
-  now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
 }
 
-/** The extractors' HttpClient: JSON over fetch, one request per `minIntervalMs`, errors typed. */
+/** The extractors' HttpClient: JSON over fetch through the host limiter's metadata lane, errors typed. */
 export class FetchHttpClient implements HttpClient {
   private readonly userAgent: string;
-  private readonly minIntervalMs: number;
+  private readonly limiter: HostLimiter;
   private readonly fetchImpl: typeof fetch;
-  private readonly now: () => number;
-  private readonly sleep: (ms: number) => Promise<void>;
-  private nextAllowedAt = 0;
 
   constructor(options: FetchHttpClientOptions) {
     this.userAgent = options.userAgent;
-    this.minIntervalMs = options.minIntervalMs ?? 1000;
+    this.limiter = options.limiter;
     this.fetchImpl = options.fetch ?? fetch;
-    this.now = options.now ?? Date.now;
-    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
   }
 
-  async getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown> {
-    // Reserve the slot before waiting, so concurrent callers queue up instead of bursting.
-    const slot = Math.max(this.now(), this.nextAllowedAt);
-    this.nextAllowedAt = slot + this.minIntervalMs;
-    const wait = slot - this.now();
-    if (wait > 0) await this.sleep(wait);
+  getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown> {
+    return this.limiter.run(new URL(url).host, "metadata", options?.signal, () =>
+      this.request(url, options?.signal),
+    );
+  }
 
+  private async request(url: string, signal: AbortSignal | undefined): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
         headers: { "user-agent": this.userAgent, accept: "application/json" },
-        ...(options?.signal ? { signal: options.signal } : {}),
+        ...(signal ? { signal } : {}),
       });
     } catch (error) {
       throw new ExtractorError("network", `Could not reach ${new URL(url).host}`, { cause: error });

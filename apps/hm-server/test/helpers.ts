@@ -5,6 +5,7 @@ import { DrizzleSeriesRepository } from "../src/infrastructure/db/series-reposit
 import { DrizzleSettingsRepository } from "../src/infrastructure/db/settings-repository.ts";
 import { DrizzleSessionRepository } from "../src/infrastructure/db/session-repository.ts";
 import type { Episode, Series } from "../src/domain/series.ts";
+import { HostLimiter, type HostLimits } from "../src/infrastructure/host-limiter.ts";
 import { ManualClock } from "./fakes/clock.ts";
 
 export const MIGRATIONS = fileURLToPath(new URL("../drizzle", import.meta.url));
@@ -69,4 +70,25 @@ export function anEpisode(overrides: Partial<Episode> = {}): Episode {
     createdAt: 1,
     ...overrides,
   };
+}
+
+/** A limiter on a manual clock whose waits are instant; no spacing unless the test asks for it. */
+export function testLimiter(
+  limits: Partial<{ [L in keyof HostLimits]: Partial<HostLimits[L]> }> = {},
+  clock = new ManualClock(),
+) {
+  const slept: number[] = [];
+  const resolved: HostLimits = {
+    metadata: { concurrency: 1, minIntervalMs: 0, ...limits.metadata },
+    download: { concurrency: 1, minIntervalMs: 0, ...limits.download },
+  };
+  const limiter = new HostLimiter({
+    limitsFor: () => resolved,
+    clock,
+    sleep: async (ms) => {
+      slept.push(ms);
+      clock.advance(ms);
+    },
+  });
+  return { limiter, clock, slept };
 }

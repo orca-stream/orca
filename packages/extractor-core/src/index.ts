@@ -11,6 +11,7 @@ export {
   type ExtractionWarningCode,
   type ExtractorErrorCode,
   type ExtractorInfo,
+  type ExtractorLimits,
   type HttpClient,
   type SiteExtractor,
 } from "./types.ts";

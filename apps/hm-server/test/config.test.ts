@@ -24,8 +24,9 @@ describe("loadConfig", () => {
       host: "localhost",
       secureCookies: false,
       concurrency: { download: 2, ffmpeg: 1, browser: 1, none: 4 },
-      iaHostConcurrency: 1,
     });
+    // Per-host limits come from the extractors unless the environment overrides them.
+    expect(config.hostLimits).toEqual({});
     expect(config.webRoot).toBeUndefined();
     // No baked-in device id: it is generated once and stored, unless the environment overrides it.
     expect(config.deviceId).toBeUndefined();
@@ -72,6 +73,14 @@ describe("loadConfig", () => {
       contactEmail: "ops@example.com",
     });
     expect(config.concurrency.download).toBe(3);
+  });
+
+  it("overrides the extractors' per-host limits only when asked to", () => {
+    expect(
+      loadConfig({ ...minimal, DOWNLOADS_PER_HOST: "3", METADATA_PER_SEC: "0.5" }).hostLimits,
+    ).toEqual({ downloadsPerHost: 3, metadataPerSec: 0.5 });
+    expect(() => loadConfig({ ...minimal, METADATA_PER_SEC: "0" })).toThrow(/METADATA_PER_SEC/);
+    expect(() => loadConfig({ ...minimal, DOWNLOADS_PER_HOST: "0" })).toThrow(/DOWNLOADS_PER_HOST/);
   });
 
   it("explains every problem at once", () => {
