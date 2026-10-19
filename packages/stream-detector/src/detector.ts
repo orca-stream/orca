@@ -80,7 +80,7 @@ export interface LaunchOptions {
   headless?: boolean;
   executablePath?: string;
   args?: string[];
-  proxy?: { server: string; bypass?: string };
+  proxy?: { server: string; bypass?: string; username?: string; password?: string };
 }
 
 /** Chromium switches that would let a page or the launcher go around the proxy. */
@@ -104,11 +104,21 @@ export function buildLaunchOptions(
     (arg) =>
       !FORBIDDEN_ARGS.some((forbidden) => arg === forbidden || arg.startsWith(`${forbidden}=`)),
   );
+  // Credentials ride in the proxy's address; Playwright takes them as separate fields.
+  const url = new URL(proxyUrl);
+  const { username, password } = url;
+  url.username = "";
+  url.password = "";
   return {
     headless: true,
     ...(base?.executablePath ? { executablePath: base.executablePath } : {}),
     args: [...own, ...WEBRTC_ARGS],
-    proxy: { server: proxyUrl, bypass: "<-loopback>" },
+    proxy: {
+      server: url.origin,
+      bypass: "<-loopback>",
+      ...(username !== "" ? { username: decodeURIComponent(username) } : {}),
+      ...(password !== "" ? { password: decodeURIComponent(password) } : {}),
+    },
   };
 }
 

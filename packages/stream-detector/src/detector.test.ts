@@ -484,6 +484,16 @@ describe("buildLaunchOptions", () => {
     expect(launch.args).toContain("--force-webrtc-ip-handling-policy");
   });
 
+  it("hands Chromium the proxy's credentials separately, as Playwright wants them", () => {
+    const launch = buildLaunchOptions(undefined, "http://u%40ser:p%3Ass@127.0.0.1:4040");
+    expect(launch.proxy).toEqual({
+      server: "http://127.0.0.1:4040",
+      bypass: "<-loopback>",
+      username: "u@ser",
+      password: "p:ss",
+    });
+  });
+
   it("keeps the caller's executable and arguments, and cannot be given a way around the proxy", () => {
     const launch = buildLaunchOptions(
       { executablePath: "/usr/bin/chromium", args: ["--no-sandbox", "--no-proxy-server"] },

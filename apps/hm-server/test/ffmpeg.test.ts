@@ -761,7 +761,10 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
       );
       await new Promise<void>((resolve) => publicServer.listen(0, PUBLIC, resolve));
       const publicPort = (publicServer.address() as AddressInfo).port;
-      const proxy = new GuardedProxy({ isBlockedAddress: (address) => address !== PUBLIC });
+      const proxy = new GuardedProxy({
+        isBlockedAddress: (address) => address !== PUBLIC,
+        isPortAllowed: () => true,
+      });
       await proxy.start();
       try {
         await run({

@@ -103,6 +103,8 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector behind the guarded proxy", (
   let proxy: GuardedProxy;
   let browser: Browser;
   let privateHits: string[];
+  let publicHits: string[];
+  let refusals: { host: string; status: number }[];
   let publicPort: number;
   let privatePort: number;
 
@@ -116,6 +118,7 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector behind the guarded proxy", (
     privatePort = (privateServer.address() as AddressInfo).port;
     publicServer = createServer((req, res) => {
       const path = new URL(req.url ?? "/", "http://x").pathname;
+      publicHits.push(path);
       if (path === "/page") {
         res
           .writeHead(200, { "content-type": "text/html" })
@@ -128,7 +131,14 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector behind the guarded proxy", (
     });
     await new Promise<void>((resolve) => publicServer.listen(0, PUBLIC, resolve));
     publicPort = (publicServer.address() as AddressInfo).port;
-    proxy = new GuardedProxy({ isBlockedAddress: (address) => address !== PUBLIC });
+    refusals = [];
+    publicHits = [];
+    proxy = new GuardedProxy({
+      isBlockedAddress: (address) => address !== PUBLIC,
+      // The test servers listen on ephemeral ports.
+      isPortAllowed: () => true,
+      onRefused: (refusal) => refusals.push(refusal),
+    });
     await proxy.start();
     browser = await chromium.launch(buildLaunchOptions(undefined, proxy.url));
   });
@@ -152,6 +162,10 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector behind the guarded proxy", (
     await detector
       .detect(`http://${PUBLIC}:${publicPort}/page`, { signal: new AbortController().signal })
       .catch(() => null);
+    // The page and the redirecting URL were fetched, through the proxy...
+    expect(publicHits).toEqual(expect.arrayContaining(["/page", "/hop.m3u8"]));
+    // ...and the hop to the private server was refused by it, not merely unanswered.
+    expect(refusals).toContainEqual({ host: "127.0.0.1", status: 403 });
     expect(privateHits).toEqual([]);
   });
 });
