@@ -28,6 +28,7 @@ jellyfin:
         repository: Jellyfin Stable,
       }
     - { name: Intro Skipper, guid: c83d86bb-a1e0-4c35-a113-e2101cf4ee6b, repository: Intro Skipper }
+  # prune: { paths: false, libraries: false, plugins: false, repositories: false }
   libraries:
     - name: Películas
       type: movies
@@ -45,7 +46,12 @@ jellyfin:
     EnableTonemapping: true
   network: { EnableRemoteAccess: false, LocalNetworkSubnets: [192.168.1.0/24] }
 
-# Source path -> path on this server. `dump` applies it forward; `dump --reverse` applies it back.
+# Source path -> path on this server. `dump --from source` applies it forward when it reads the old
+# server (`dump` of the new one leaves paths alone).
+# pathMap and `bifrost migrate` are ALTERNATIVES. A migration keeps the library ids and watch state
+# only if the new server keeps the old media paths (mount the media at /data/jellyfin/... and declare
+# those paths); remapping the paths afterwards makes Jellyfin rebuild the items. `apply` never removes
+# a path unless jellyfin.prune.paths is true, and warns when the declared paths do not exist.
 pathMap: { /data/jellyfin/movies: /media/movies, /data/jellyfin/tv: /media/tv }
 
 # backup:

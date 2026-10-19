@@ -1,5 +1,7 @@
-import { writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { access, constants, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { apply } from "./application/apply.ts";
 import { backup } from "./application/backup.ts";
@@ -32,6 +34,8 @@ export interface Runtime {
   remote(cfg: Config): RemoteHost;
   jellyfin(url: string, token?: string): JellyfinAdmin;
   clock(): Clock;
+  /** Whether a file can be read on this machine. */
+  canRead(path: string): Promise<boolean>;
 }
 
 export const USAGE = `Usage: bifrost [options] <command>
@@ -54,7 +58,7 @@ Options:
       --dry-run         Show what would change; change nothing
       --with-disk       host prepare: also mount host.mediaDisk (once it is connected)
   -o, --output FILE     dump: write to FILE instead of stdout
-      --reverse         dump: apply pathMap target -> source instead of source -> target
+      --from WHERE      dump: "target" (default, paths untouched) or "source" (migrate.source, paths mapped through pathMap)
       --snapshot ID     restore: restic snapshot (default: latest)
       --yes             restore: confirm the overwrite
       --backup-file F   migrate: use this zip instead of the path the source reports
@@ -67,7 +71,7 @@ const options = {
   "dry-run": { type: "boolean" },
   "with-disk": { type: "boolean" },
   output: { type: "string", short: "o" },
-  reverse: { type: "boolean" },
+  from: { type: "string" },
   snapshot: { type: "string" },
   yes: { type: "boolean" },
   "backup-file": { type: "string" },
@@ -169,10 +173,22 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
       await init({ jellyfin: rt.jellyfin(cfg.jellyfin.url), secrets, log }, cfg, { dryRun });
       return 0;
     case "dump": {
-      const jellyfin = await authenticated(cfg.jellyfin.url, cfg.jellyfin.apiKeySecret);
-      // The YAML goes to stdout, so progress and warnings go to stderr.
+      const from = values.from ?? "target";
+      if (from !== "target" && from !== "source")
+        throw new UsageError(`--from must be "target" or "source", not "${from}"`);
+      if (from === "source" && !cfg.migrate) {
+        throw new BifrostError(
+          "dump --from source needs the `migrate.source` section (url and apiKeySecret of the old server).",
+        );
+      }
+      const jellyfin =
+        from === "source"
+          ? await authenticated(cfg.migrate!.source.url, cfg.migrate!.source.apiKeySecret)
+          : await authenticated(cfg.jellyfin.url, cfg.jellyfin.apiKeySecret);
+      // The YAML goes to stdout, so progress and warnings go to stderr. Paths are mapped only when
+      // dumping the old server: the target already uses this server's paths.
       const { document } = await dump({ jellyfin, log: (line) => rt.err(line) }, cfg, {
-        reverse: values.reverse ?? false,
+        mapPaths: from === "source",
       });
       const yaml = dumpYaml(document);
       if (values.output) await rt.writeFile(resolve(rt.cwd, values.output), yaml);
@@ -204,7 +220,18 @@ async function dispatch(argv: string[], rt: Runtime): Promise<number> {
       }
       const source = await authenticated(cfg.migrate.source.url, cfg.migrate.source.apiKeySecret);
       const target = await authenticated(cfg.jellyfin.url, cfg.jellyfin.apiKeySecret);
-      await migrate({ source, target, remote: rt.remote(cfg), clock, log }, cfg, {
+      const targetAsSource = await authenticated(cfg.jellyfin.url, cfg.migrate.source.apiKeySecret);
+      const deps = {
+        source,
+        target,
+        targetAsSource,
+        remote: rt.remote(cfg),
+        secrets,
+        clock,
+        canRead: (path: string) => rt.canRead(path),
+        log,
+      };
+      await migrate(deps, cfg, {
         dryRun,
         ...(values["backup-file"] ? { backupFile: values["backup-file"] } : {}),
       });
@@ -225,9 +252,24 @@ function systemRuntime(): Runtime {
     remote: (cfg) => new SshRemoteHost({ target: `${cfg.host.sshUser}@${cfg.host.address}` }),
     jellyfin: (url, token) => new SdkJellyfinAdmin({ url, token }),
     clock: () => new SystemClock(),
+    canRead: (path) =>
+      access(path, constants.R_OK).then(
+        () => true,
+        () => false,
+      ),
   };
 }
 
-if (import.meta.main) {
+/** True when `moduleUrl` is the script node was started with (symlinks resolved). Works on every Node 24. */
+export function isEntryPoint(moduleUrl: string, argv1: string | undefined): boolean {
+  if (!argv1) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint(import.meta.url, process.argv[1])) {
   process.exitCode = await run(process.argv.slice(2), systemRuntime());
 }

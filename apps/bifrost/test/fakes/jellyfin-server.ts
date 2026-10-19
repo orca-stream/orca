@@ -57,6 +57,14 @@ export class FakeJellyfinServer {
   downPolls = 0;
   /** Set when a backup is created, as Jellyfin returns it. */
   backupPath = "/var/lib/jellyfin/data/backups/jellyfin-backup-1.zip";
+  /** When set, only this token is accepted (everything else is a 401). */
+  validToken: string | undefined;
+  /** After a restore the database is the source's: its keys work and the old ones do not. */
+  tokenAfterRestore: string | undefined;
+  /** Authenticated requests that fail with 401 right after a restore, while it is still running. */
+  authFailuresAfterRestore = 0;
+  private authFailures = 0;
+  onRestore: (() => void) | undefined;
   requests: RecordedRequest[] = [];
   private nextId = 1;
 
@@ -144,7 +152,14 @@ export class FakeJellyfinServer {
     const auth = String(
       config.headers?.Authorization ?? config.headers?.get?.("Authorization") ?? "",
     );
-    if (!auth.includes('Token="') || auth.includes('Token=""')) this.fail(config, 401, "no token");
+    const token = /Token="([^"]*)"/.exec(auth)?.[1] ?? "";
+    if (!token) this.fail(config, 401, "no token");
+    if (this.authFailures > 0) {
+      this.authFailures--;
+      this.fail(config, 401, "restore in progress");
+    }
+    if (this.validToken !== undefined && token !== this.validToken)
+      this.fail(config, 401, "unknown token");
 
     if (is("get", "/Auth/Keys")) return ok({ Items: this.keys.map((k, i) => ({ Id: i, ...k })) });
     if (is("post", "/Auth/Keys")) {
@@ -247,6 +262,9 @@ export class FakeJellyfinServer {
     }
     if (is("post", "/Backup/Restore")) {
       this.downPolls = 2;
+      this.authFailures = this.authFailuresAfterRestore;
+      if (this.tokenAfterRestore !== undefined) this.validToken = this.tokenAfterRestore;
+      this.onRestore?.();
       return ok();
     }
     this.fail(config, 404, `fake server: no route for ${method.toUpperCase()} ${path}`);

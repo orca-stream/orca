@@ -1,6 +1,10 @@
 import { parse } from "yaml";
 import { describe, expect, it } from "vite-plus/test";
-import { run, type Runtime } from "../src/cli.ts";
+import { mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { isEntryPoint, run, type Runtime } from "../src/cli.ts";
 import { SdkJellyfinAdmin } from "../src/infrastructure/sdk-jellyfin-admin.ts";
 import { FakeClock } from "./fakes/clock.ts";
 import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
@@ -8,11 +12,28 @@ import { FakeRemoteHost } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
 import { exampleConfig } from "./fixtures.ts";
 
+const OLD_URL = "http://old:8096";
+const withSource = (r: any) => {
+  r.migrate = { source: { url: OLD_URL, apiKeySecret: "OLD_KEY" } };
+};
+
 function setup(
   secrets: Record<string, string> = { JELLYFIN_API_KEY: "key", JELLYFIN_ADMIN_PASSWORD: "pw" },
+  patch?: (raw: any) => void,
 ) {
   const server = new FakeJellyfinServer();
   server.wizardCompleted = true;
+  const oldServer = new FakeJellyfinServer();
+  oldServer.wizardCompleted = true;
+  oldServer.folders = [
+    {
+      Name: "Películas",
+      ItemId: "a",
+      CollectionType: "movies",
+      Locations: ["/data/jellyfin/movies"],
+      LibraryOptions: {},
+    },
+  ];
   const remote = new FakeRemoteHost({ probes: "fail" });
   const out: string[] = [];
   const err: string[] = [];
@@ -25,7 +46,7 @@ function setup(
     err: (l) => err.push(l),
     loadConfig: async (path) => {
       loaded.push(path);
-      return exampleConfig();
+      return exampleConfig(patch);
     },
     writeFile: async (path, content) => {
       written[path] = content;
@@ -35,11 +56,16 @@ function setup(
       return new InMemorySecretStore(secrets);
     },
     remote: () => remote,
-    jellyfin: (_url, token) =>
-      new SdkJellyfinAdmin({ url: "http://fake:8096", token, axios: server.axios }),
+    jellyfin: (url, token) =>
+      new SdkJellyfinAdmin({
+        url: "http://fake:8096",
+        token,
+        axios: (url === OLD_URL ? oldServer : server).axios,
+      }),
+    canRead: async () => true,
     clock: () => new FakeClock(),
   };
-  return { rt, out, err, server, remote, written, loaded, envFiles };
+  return { rt, out, err, server, oldServer, remote, written, loaded, envFiles };
 }
 
 const text = (lines: string[]) => lines.join("\n");
@@ -148,5 +174,49 @@ describe("cli", () => {
     const a = setup();
     expect(await run(["migrate", "--dry-run"], a.rt)).toBe(1);
     expect(text(a.err)).toMatch(/migrate/);
+  });
+
+  it("dump reads the target as it is, without touching paths", async () => {
+    const a = setup({ JELLYFIN_API_KEY: "key", OLD_KEY: "old" }, withSource);
+    a.server.folders = [
+      {
+        Name: "X",
+        ItemId: "x",
+        CollectionType: "movies",
+        Locations: ["/data/jellyfin/movies"],
+        LibraryOptions: {},
+      },
+    ];
+    expect(await run(["dump"], a.rt)).toBe(0);
+    expect(text(a.out)).toContain("/data/jellyfin/movies");
+  });
+
+  it("dump --from source reads the old server and maps its paths forward", async () => {
+    const a = setup({ JELLYFIN_API_KEY: "key", OLD_KEY: "old" }, withSource);
+    expect(await run(["dump", "--from", "source"], a.rt)).toBe(0);
+    const doc = parse(text(a.out));
+    expect(doc.jellyfin.libraries[0].paths).toEqual(["/media/movies"]);
+    expect(a.oldServer.requests.length).toBeGreaterThan(0);
+    expect(a.server.requests).toEqual([]);
+  });
+
+  it("dump --from needs migrate.source and a known value; --reverse is gone", async () => {
+    const a = setup();
+    expect(await run(["dump", "--from", "source"], a.rt)).toBe(1);
+    expect(text(a.err)).toMatch(/migrate/);
+    const b = setup();
+    expect(await run(["dump", "--from", "moon"], b.rt)).toBe(2);
+    const c = setup();
+    expect(await run(["dump", "--reverse"], c.rt)).toBe(2);
+  });
+
+  it("recognises when it is the entry point, through symlinks too", () => {
+    const here = fileURLToPath(import.meta.url);
+    expect(isEntryPoint(import.meta.url, here)).toBe(true);
+    expect(isEntryPoint(import.meta.url, undefined)).toBe(false);
+    expect(isEntryPoint(import.meta.url, "/somewhere/else.ts")).toBe(false);
+    const link = join(mkdtempSync(join(tmpdir(), "bifrost-link-")), "cli.ts");
+    symlinkSync(here, link);
+    expect(isEntryPoint(import.meta.url, link)).toBe(true);
   });
 });

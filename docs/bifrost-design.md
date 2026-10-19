@@ -393,6 +393,8 @@ All of these clear the 24-hour window. Avoid `execa` 10.2.0, published today; it
 
 This keeps users, passwords, watch state, API keys and library ids. It replaces `init` for the first migration.
 
+`pathMap` and this migration are alternatives, not a combination: after the restore the libraries point at the old paths, so the config must declare those same paths. `apply` therefore removes a library path only with `prune.paths`, and warns when none of the declared paths exist on the server. `migrate` waits until the target accepts the _source's_ API key (that is the sign the restore has replaced the database), then makes sure a "Bifrost" key exists and stores it as `jellyfin.apiKeySecret`; `init` is not needed, and could not run anyway because the admin password is now the source's.
+
 **Option B: through the API.** Every needed endpoint exists in SDK 1.0.0:
 
 - Read: `getLibraryApi(api).getItems({userId, recursive:true, includeItemTypes:[Movie, Episode], fields:[ProviderIds], enableUserData:true, filters:[IsPlayed] or [IsResumable], startIndex, limit})`. Each item carries `UserData{Played, PlaybackPositionTicks, PlayCount, LastPlayedDate, IsFavorite}` and `ProviderIds`.
