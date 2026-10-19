@@ -34,10 +34,18 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-/** The warning in the panel's language by its kind; the server's own text for a kind we don't know. */
-function warningText(warning: PreviewDto["warnings"][number], t: Messages): string {
+/**
+ * The warning in the panel's language by its kind, and the server's own detail after it (which
+ * episode, how long, why). For a kind we don't know the server's text is all there is, shown once.
+ */
+function warningText(
+  warning: PreviewDto["warnings"][number],
+  t: Messages,
+): { sentence: string; detail: string | null } {
   const text = (t.add.warningText as Record<string, string | undefined>)[warning.kind];
-  return text ?? warning.message;
+  return text === undefined
+    ? { sentence: warning.message, detail: null }
+    : { sentence: text, detail: warning.message };
 }
 
 interface PreviewEditorProps {
@@ -131,14 +139,18 @@ export function PreviewEditor({
         >
           <h3 className="text-sm font-medium text-amber-300">{t.add.warnings}</h3>
           <ul className="mt-2 flex flex-col gap-1 text-sm text-white/80">
-            {preview.warnings.map((warning, index) => (
-              <li key={index}>
-                <strong className="font-medium text-amber-200">
-                  {t.add.warningKinds[warning.kind]}:{" "}
-                </strong>
-                {warningText(warning, t)}
-              </li>
-            ))}
+            {preview.warnings.map((warning, index) => {
+              const { sentence, detail } = warningText(warning, t);
+              return (
+                <li key={index}>
+                  <strong className="font-medium text-amber-200">
+                    {t.add.warningKinds[warning.kind]}:{" "}
+                  </strong>
+                  {sentence}
+                  {detail && <span className="block text-xs text-white/60">{detail}</span>}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

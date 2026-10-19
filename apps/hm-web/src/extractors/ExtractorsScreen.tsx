@@ -41,11 +41,15 @@ export function ExtractorsScreen() {
             {extractors.data.map((extractor) => (
               <Tr key={extractor.id}>
                 <Td className="font-medium">{extractor.name}</Td>
-                <Td className="text-white/70">{extractor.hosts.join(", ")}</Td>
+                <Td className="text-white/70">
+                  {extractor.explicit ? t.extractors.explicitOnly : extractor.hosts.join(", ")}
+                </Td>
                 <Td className="max-w-xs truncate text-white/60">{extractor.example}</Td>
                 <Td className="text-right">
                   <Link
-                    href={`/series/new?url=${encodeURIComponent(extractor.example)}`}
+                    href={`/series/new?url=${encodeURIComponent(extractor.example)}${
+                      extractor.explicit ? `&extractor=${encodeURIComponent(extractor.id)}` : ""
+                    }`}
                     className="inline-flex h-9 items-center rounded-md bg-surface-raised px-3 text-sm hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white"
                   >
                     {t.extractors.tryIt}

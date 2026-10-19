@@ -13,6 +13,14 @@ describe("ExtractorsScreen", () => {
             name: "Internet Archive",
             hosts: ["archive.org", "www.archive.org"],
             example: "https://archive.org/details/bevhill?a=1&b=2",
+            explicit: false,
+          },
+          {
+            id: "generic",
+            name: "Generic page (browser)",
+            hosts: [],
+            example: "https://example.com/watch/my-video",
+            explicit: true,
           },
         ]),
     });
@@ -21,6 +29,26 @@ describe("ExtractorsScreen", () => {
     const link = within(row).getByRole("link", { name: "Probar" });
     expect(link.getAttribute("href")).toBe(
       `/series/new?url=${encodeURIComponent("https://archive.org/details/bevhill?a=1&b=2")}`,
+    );
+  });
+
+  it("sends an explicit extractor's example to the add screen with that extractor chosen", async () => {
+    renderApp(<ExtractorsScreen />, {
+      handler: () =>
+        jsonResponse([
+          {
+            id: "generic",
+            name: "Generic page (browser)",
+            hosts: [],
+            example: "https://example.com/watch/my-video",
+            explicit: true,
+          },
+        ]),
+    });
+    const row = (await screen.findByText("Generic page (browser)")).closest("tr")!;
+    expect(within(row).getByText("Solo si lo eliges")).toBeTruthy();
+    expect(within(row).getByRole("link", { name: "Probar" }).getAttribute("href")).toBe(
+      `/series/new?url=${encodeURIComponent("https://example.com/watch/my-video")}&extractor=generic`,
     );
   });
 

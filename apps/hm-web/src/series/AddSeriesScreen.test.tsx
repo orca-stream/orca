@@ -11,11 +11,20 @@ const EXTRACTORS = [
     name: "Internet Archive",
     hosts: ["archive.org"],
     example: "https://archive.org/details/x",
+    explicit: false,
   },
 ];
+const GENERIC = {
+  id: "generic",
+  name: "Página genérica (navegador)",
+  hosts: [],
+  example: "https://example.com/watch/video",
+  explicit: true,
+};
 const URL_TO_ADD = "https://archive.org/details/bevhill";
 
 interface Options {
+  extractors?: (typeof EXTRACTORS)[number][] | (typeof GENERIC)[];
   preview?: ReturnType<typeof makePreview>;
   createStatus?: number;
   createBody?: unknown;
@@ -24,6 +33,7 @@ interface Options {
 }
 
 function setup({
+  extractors = EXTRACTORS,
   preview = makePreview(),
   createStatus = 201,
   createBody = { error: "x", message: "y" },
@@ -32,7 +42,7 @@ function setup({
   let previewCalls = 0;
   const handler: Handler = async (request) => {
     const { pathname } = new URL(request.url);
-    if (pathname === "/api/extractors") return jsonResponse(EXTRACTORS);
+    if (pathname === "/api/extractors") return jsonResponse(extractors);
     if (pathname === "/api/series/preview")
       return jsonResponse(
         previews ? previews[Math.min(previewCalls++, previews.length - 1)] : preview,
@@ -127,9 +137,45 @@ describe("AddSeriesScreen", () => {
       }),
     });
     await previewIt(user);
-    expect(screen.queryByText("Episode 3 is missing")).toBeNull();
+    // The sentence in our language, and the server's own detail right next to it.
     expect(screen.getByText(/Faltan episodios en la numeración/)).toBeTruthy();
-    expect(screen.getByText("Something new")).toBeTruthy();
+    expect(screen.getByText("Episode 3 is missing")).toBeTruthy();
+    // Nothing to translate for a kind we don't know: its text shows once.
+    expect(screen.getAllByText("Something new")).toHaveLength(1);
+  });
+
+  it("offers the generic extractor only when the server lists one, and sends the choice", async () => {
+    const user = userEvent.setup();
+    const { requests } = setup({ extractors: [...EXTRACTORS, GENERIC] });
+    const choice = (await screen.findByLabelText("Leer con")) as HTMLSelectElement;
+    expect([...choice.options].map((o) => o.text)).toEqual([
+      "Automático (por la dirección)",
+      "Página genérica (navegador)",
+    ]);
+    await user.selectOptions(choice, "generic");
+    expect(await screen.findByText(/Página genérica \(navegador\) abrirá la página/)).toBeTruthy();
+    await user.type(screen.getByLabelText("Dirección"), "https://videos.example.com/watch/1");
+    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
+    await screen.findByLabelText("Título");
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series/preview",
+    )!;
+    expect(await post.json()).toEqual({
+      url: "https://videos.example.com/watch/1",
+      extractorId: "generic",
+    });
+  });
+
+  it("sends no extractor when the choice is automatic, and hides the choice without a generic one", async () => {
+    const user = userEvent.setup();
+    const { requests } = setup();
+    await screen.findByLabelText("Dirección");
+    expect(screen.queryByLabelText("Leer con")).toBeNull();
+    await previewIt(user);
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series/preview",
+    )!;
+    expect(await post.json()).toEqual({ url: URL_TO_ADD });
   });
 
   it("keeps Confirm disabled until the license is acknowledged when it is unknown", async () => {

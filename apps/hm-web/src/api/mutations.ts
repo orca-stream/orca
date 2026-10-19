@@ -15,7 +15,8 @@ export function useMutations() {
 
   return {
     preview: useMutation({
-      mutationFn: (url: string) => api.post<PreviewDto>("/series/preview", { url }),
+      mutationFn: ({ url, extractorId }: { url: string; extractorId?: string }) =>
+        api.post<PreviewDto>("/series/preview", extractorId ? { url, extractorId } : { url }),
     }),
     createSeries: useMutation({
       mutationFn: (body: CreateSeriesBody) => api.post<SeriesDto>("/series", body),

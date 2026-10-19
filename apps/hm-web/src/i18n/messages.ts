@@ -152,6 +152,10 @@ const es = {
     url: "Dirección",
     urlPlaceholder: "https://archive.org/details/…",
     matches: (name: string) => `Lo leerá el extractor ${name}.`,
+    extractorChoice: "Leer con",
+    autoExtractor: "Automático (por la dirección)",
+    usingExplicit: (name: string) =>
+      `${name} abrirá la página y buscará el vídeo que reproduce. Tendrás que confirmar que tienes derecho a descargarlo.`,
     noMatch: "Ningún extractor conoce este sitio.",
     preview: "Previsualizar",
     previewing: "Leyendo…",
@@ -236,6 +240,7 @@ const es = {
     hosts: "Sitios",
     example: "Ejemplo",
     tryIt: "Probar",
+    explicitOnly: "Solo si lo eliges",
     empty: "No hay extractores.",
   },
   errors: {
@@ -394,6 +399,10 @@ const en: typeof es = {
     url: "Address",
     urlPlaceholder: "https://archive.org/details/…",
     matches: (name: string) => `The ${name} extractor will read it.`,
+    extractorChoice: "Read with",
+    autoExtractor: "Automatic (by the address)",
+    usingExplicit: (name: string) =>
+      `${name} will open the page and look for the video it plays. You will have to confirm you have the right to download it.`,
     noMatch: "No extractor knows this site.",
     preview: "Preview",
     previewing: "Reading…",
@@ -478,6 +487,7 @@ const en: typeof es = {
     hosts: "Sites",
     example: "Example",
     tryIt: "Try it",
+    explicitOnly: "Only when you choose it",
     empty: "No extractors.",
   },
   errors: {

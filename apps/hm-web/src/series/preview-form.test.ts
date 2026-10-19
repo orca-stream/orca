@@ -175,8 +175,20 @@ describe("episodeCode", () => {
 
 describe("matchExtractor", () => {
   const extractors = [
-    { id: "internet-archive", name: "Internet Archive", hosts: ["archive.org"], example: "" },
-    { id: "other", name: "Other", hosts: ["other.test", "www.other.test"], example: "" },
+    {
+      id: "internet-archive",
+      name: "Internet Archive",
+      hosts: ["archive.org"],
+      example: "",
+      explicit: false,
+    },
+    {
+      id: "other",
+      name: "Other",
+      hosts: ["other.test", "www.other.test"],
+      example: "",
+      explicit: false,
+    },
   ];
 
   it("matches the host and its subdomains", () => {

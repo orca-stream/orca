@@ -42,11 +42,16 @@ export function AddSeriesScreen() {
   const extractors = useQuery(queries.extractors(api));
 
   const [url, setUrl] = useState(params.get("url") ?? "");
+  // "" lets the address pick the extractor; an id is a choice among the ones that never match by address.
+  const [chosenId, setChosenId] = useState(params.get("extractor") ?? "");
   const [preview, setPreview] = useState<PreviewDto | null>(null);
   const [form, setForm] = useState<PreviewForm | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const matched = extractors.data ? matchExtractor(url, extractors.data) : null;
+  const explicit = (extractors.data ?? []).filter((extractor) => extractor.explicit);
+  const chosen = explicit.find((extractor) => extractor.id === chosenId) ?? null;
+  const extractorId = chosen?.id;
+  const matched = extractors.data && !chosen ? matchExtractor(url, extractors.data) : null;
   const urlFilled = url.trim() !== "";
 
   function runPreview(event?: FormEvent) {
@@ -54,12 +59,15 @@ export function AddSeriesScreen() {
     if (!urlFilled || previewMutation.isPending) return;
     setNotice(null);
     createSeries.reset();
-    previewMutation.mutate(url.trim(), {
-      onSuccess: (next) => {
-        setPreview(next);
-        setForm(initialForm(next));
+    previewMutation.mutate(
+      { url: url.trim(), ...(extractorId ? { extractorId } : {}) },
+      {
+        onSuccess: (next) => {
+          setPreview(next);
+          setForm(initialForm(next));
+        },
       },
-    });
+    );
   }
 
   function confirm() {
@@ -70,18 +78,21 @@ export function AddSeriesScreen() {
       onError: (error) => {
         // Previews are kept for a short while only: read the address again, keeping the edits.
         if (error instanceof ApiError && error.status === 410) {
-          previewMutation.mutate(url.trim(), {
-            onSuccess: (next) => {
-              const known = new Set(next.episodes.map((episode) => episode.key));
-              setPreview(next);
-              setForm((current) =>
-                current
-                  ? { ...current, included: current.included.filter((key) => known.has(key)) }
-                  : initialForm(next),
-              );
-              setNotice(t.add.expired);
+          previewMutation.mutate(
+            { url: url.trim(), ...(extractorId ? { extractorId } : {}) },
+            {
+              onSuccess: (next) => {
+                const known = new Set(next.episodes.map((episode) => episode.key));
+                setPreview(next);
+                setForm((current) =>
+                  current
+                    ? { ...current, included: current.included.filter((key) => known.has(key)) }
+                    : initialForm(next),
+                );
+                setNotice(t.add.expired);
+              },
             },
-          });
+          );
         }
       },
     });
@@ -119,7 +130,32 @@ export function AddSeriesScreen() {
             {previewMutation.isPending ? t.add.previewing : t.add.preview}
           </Button>
         </div>
-        {urlFilled && extractors.isSuccess && (
+        {explicit.length > 0 && (
+          <div className="flex flex-col gap-1.5 sm:max-w-sm">
+            <label htmlFor="extractor-choice" className="text-sm text-white/70">
+              {t.add.extractorChoice}
+            </label>
+            <select
+              id="extractor-choice"
+              value={chosen?.id ?? ""}
+              onChange={(event) => setChosenId(event.target.value)}
+              className="h-10 rounded-md border border-white/10 bg-surface px-3 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
+            >
+              <option value="">{t.add.autoExtractor}</option>
+              {explicit.map((extractor) => (
+                <option key={extractor.id} value={extractor.id}>
+                  {extractor.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {chosen && (
+          <p role="status" className="text-sm text-amber-300">
+            {t.add.usingExplicit(chosen.name)}
+          </p>
+        )}
+        {urlFilled && extractors.isSuccess && !chosen && (
           <p
             role="status"
             className={matched ? "text-sm text-emerald-300" : "text-sm text-amber-300"}
