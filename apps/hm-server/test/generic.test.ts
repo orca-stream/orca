@@ -99,6 +99,20 @@ describe("PlaywrightDetectorAdapter", () => {
     await expect(a.detect(PAGE, abort)).rejects.toBeInstanceOf(AbortedError);
   });
 
+  it("makes a page the browser was not allowed to open permanent", async () => {
+    const { adapter: a } = adapter(async () => {
+      throw new StreamDetectionError("blocked", "not allowed");
+    });
+    await expect(a.detect(PAGE, abort)).rejects.toBeInstanceOf(PermanentError);
+  });
+
+  it("treats Playwright's closed-browser errors as worth another try", async () => {
+    const { adapter: a } = adapter(async () => {
+      throw new Error("Target page, context or browser has been closed");
+    });
+    await expect(a.detect(PAGE, abort)).rejects.toBeInstanceOf(RetryableError);
+  });
+
   it("makes anything else permanent, such as a missing Chromium", async () => {
     const { adapter: a } = adapter(async () => {
       throw new Error("Executable doesn't exist at /usr/bin/chromium");

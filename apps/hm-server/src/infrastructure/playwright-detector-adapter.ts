@@ -19,6 +19,11 @@ export class PlaywrightDetectorAdapter implements StreamDetector {
     } catch (error) {
       if (error instanceof StreamDetectionError) {
         if (error.reason === "aborted") throw new AbortedError({ cause: error });
+        if (!error.retryable) throw new PermanentError(error.message, { cause: error });
+        throw new RetryableError(error.message, { cause: error });
+      }
+      // Playwright's own "Target page, context or browser has been closed" is a browser that died.
+      if (error instanceof Error && /\b(closed|disconnected|crashed)\b/i.test(error.message)) {
         throw new RetryableError(error.message, { cause: error });
       }
       // A browser that cannot start (no Chromium) will not fix itself by retrying.

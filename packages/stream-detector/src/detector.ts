@@ -14,9 +14,12 @@ export interface DetectedStream {
   headers: Record<string, string>;
 }
 
-/** Why a detection failed. `timeout` and `navigation` are worth retrying; `aborted` is not. */
+/**
+ * Why a detection failed. `timeout`, `navigation` and `browser` (it died or could not open a page)
+ * are worth retrying; `aborted` and `blocked` (the address is not allowed) are not.
+ */
 export class StreamDetectionError extends Error {
-  readonly reason: "timeout" | "navigation" | "aborted";
+  readonly reason: "timeout" | "navigation" | "browser" | "aborted" | "blocked";
 
   constructor(reason: StreamDetectionError["reason"], message: string, options?: ErrorOptions) {
     super(message, options);
@@ -24,9 +27,9 @@ export class StreamDetectionError extends Error {
     this.reason = reason;
   }
 
-  /** hm-server maps `true` to its RetryableError and `false` to AbortedError. */
+  /** hm-server maps `true` to its RetryableError; an abort becomes AbortedError, a block permanent. */
   get retryable(): boolean {
-    return this.reason !== "aborted";
+    return this.reason !== "aborted" && this.reason !== "blocked";
   }
 }
 
@@ -41,6 +44,17 @@ export interface ResponseLike {
   headers(): Record<string, string>;
   text(): Promise<string>;
 }
+/** A request the browser is about to make, as a route handler sees it. */
+export interface RouteLike {
+  request(): { url(): string };
+  continue(): Promise<unknown>;
+  abort(errorCode?: string): Promise<unknown>;
+}
+export interface WebSocketRouteLike {
+  url(): string;
+  connectToServer(): unknown;
+  close(): unknown;
+}
 export interface PageLike {
   on(event: "request", listener: (request: RequestLike) => void): void;
   on(event: "response", listener: (response: ResponseLike) => void): void;
@@ -48,9 +62,13 @@ export interface PageLike {
 }
 export interface ContextLike {
   newPage(): Promise<PageLike>;
+  route(url: string, handler: (route: RouteLike) => Promise<void> | void): Promise<unknown>;
+  routeWebSocket(url: string, handler: (ws: WebSocketRouteLike) => void): Promise<unknown>;
   close(): Promise<void>;
 }
 export interface BrowserLike {
+  /** Fires when the browser process dies or is closed from outside. */
+  on?(event: "disconnected", listener: () => void): unknown;
   newContext(options: { userAgent?: string }): Promise<ContextLike>;
   close(): Promise<void>;
 }
@@ -69,12 +87,20 @@ export interface PlaywrightStreamDetectorOptions {
   /** After the first candidate, keep listening this long so a master can overtake a variant. */
   settleMs: number;
   userAgent?: string;
+  /**
+   * Whether the browser may reach an address. Every request, every WebSocket and the page itself go
+   * through it, so a page cannot be used to read the server's own network. Required on purpose.
+   */
+  isAllowed: (url: string) => Promise<boolean>;
   launchOptions?: LaunchOptions;
   /** Replaces the Playwright launch. Meant for tests. */
   launch?: () => Promise<BrowserLike>;
 }
 
 /** The only request headers a downloader needs to be let through; the rest is browser noise. */
+/** What the browser is told when a request is refused. */
+const BLOCKED_ERROR_CODE = "blockedbyclient";
+
 const FORWARDED_HEADERS = ["Referer", "Cookie", "Origin", "User-Agent"] as const;
 
 function forwardedHeaders(all: Record<string, string>): Record<string, string> {
@@ -108,6 +134,10 @@ export class PlaywrightStreamDetector {
       new StreamDetectionError("aborted", "Stream detection aborted", { cause: signal.reason });
     if (signal.aborted) throw aborted();
 
+    if (!(await this.safelyAllowed(pageUrl))) {
+      throw new StreamDetectionError("blocked", `The address ${pageUrl} is not allowed`);
+    }
+
     let release: () => void;
     try {
       release = await this.semaphore.acquire(signal);
@@ -117,19 +147,59 @@ export class PlaywrightStreamDetector {
     let closeContext: (() => Promise<void>) | undefined;
     try {
       if (signal.aborted) throw aborted();
-      const browser = await this.launched();
-      const context = await browser.newContext(
-        this.options.userAgent === undefined ? {} : { userAgent: this.options.userAgent },
-      );
+      const handle = this.launched();
+      const browser = await handle;
+      let context: ContextLike;
+      try {
+        context = await browser.newContext(
+          this.options.userAgent === undefined ? {} : { userAgent: this.options.userAgent },
+        );
+      } catch (cause) {
+        this.forget(handle);
+        throw new StreamDetectionError("browser", "The browser could not open a context", {
+          cause,
+        });
+      }
       // One close per context, whoever asks first: the abort handler or the cleanup below.
       let closing: Promise<void> | undefined;
       closeContext = () => (closing ??= context.close().catch(() => undefined));
-      const found = await this.watch(context, closeContext, pageUrl, signal, aborted);
+      try {
+        await this.confine(context);
+      } catch (cause) {
+        this.forget(handle);
+        throw new StreamDetectionError("browser", "The browser could not be confined", { cause });
+      }
+      const found = await this.watch(context, closeContext, pageUrl, signal, aborted, () =>
+        this.forget(handle),
+      );
       return pickBest(found).map(({ url, kind, headers }) => ({ url, kind, headers }));
     } finally {
       await closeContext?.();
       release();
     }
+  }
+
+  private async safelyAllowed(url: string): Promise<boolean> {
+    try {
+      return await this.options.isAllowed(url);
+    } catch {
+      // A check that cannot answer is a "no": nothing leaves on a maybe.
+      return false;
+    }
+  }
+
+  /** Every request and WebSocket of the context passes the address check, or is cut. */
+  private async confine(context: ContextLike): Promise<void> {
+    await context.route("**/*", async (route) => {
+      if (await this.safelyAllowed(route.request().url())) await route.continue();
+      else await route.abort(BLOCKED_ERROR_CODE);
+    });
+    await context.routeWebSocket("**/*", (ws) => {
+      void this.safelyAllowed(ws.url()).then((allowed) => {
+        if (allowed) void ws.connectToServer();
+        else void ws.close();
+      });
+    });
   }
 
   /** Closes the shared browser. Call it when the server stops. */
@@ -140,11 +210,22 @@ export class PlaywrightStreamDetector {
   }
 
   private launched(): Promise<BrowserLike> {
-    this.browser ??= (this.options.launch ?? (() => defaultLaunch(this.options.launchOptions)))();
-    this.browser.catch(() => {
-      this.browser = null;
-    });
-    return this.browser;
+    if (this.browser) return this.browser;
+    const handle = (this.options.launch ?? (() => defaultLaunch(this.options.launchOptions)))();
+    this.browser = handle;
+    handle.then(
+      (browser) => {
+        // A browser that dies on its own must not stay cached: the next job launches a new one.
+        browser.on?.("disconnected", () => this.forget(handle));
+      },
+      () => this.forget(handle),
+    );
+    return handle;
+  }
+
+  /** Drops the cached browser, but only if it is still this one (a late event must not drop a new one). */
+  private forget(handle: Promise<BrowserLike>): void {
+    if (this.browser === handle) this.browser = null;
   }
 
   private async watch(
@@ -153,8 +234,15 @@ export class PlaywrightStreamDetector {
     pageUrl: string,
     signal: AbortSignal,
     aborted: () => StreamDetectionError,
+    browserLost: () => void,
   ): Promise<Candidate[]> {
-    const page = await context.newPage();
+    let page: PageLike;
+    try {
+      page = await context.newPage();
+    } catch (cause) {
+      browserLost();
+      throw new StreamDetectionError("browser", "The browser could not open a page", { cause });
+    }
     const { timeoutMs, settleMs } = this.options;
 
     return new Promise<Candidate[]>((resolve, reject) => {

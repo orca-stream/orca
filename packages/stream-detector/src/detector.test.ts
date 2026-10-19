@@ -7,6 +7,8 @@ import {
   type PageLike,
   type RequestLike,
   type ResponseLike,
+  type RouteLike,
+  type WebSocketRouteLike,
 } from "./detector.ts";
 
 type Listener = (arg: never) => void;
@@ -33,8 +35,19 @@ class FakePage implements PageLike {
 class FakeContext implements ContextLike {
   closed = 0;
   readonly page = new FakePage();
+  routes: { pattern: string; handler: (route: RouteLike) => Promise<void> | void }[] = [];
+  socketRoutes: { pattern: string; handler: (ws: WebSocketRouteLike) => void }[] = [];
+  newPageImpl: () => Promise<PageLike> = () => Promise.resolve(this.page);
   newPage(): Promise<PageLike> {
-    return Promise.resolve(this.page);
+    return this.newPageImpl();
+  }
+  route(pattern: string, handler: (route: RouteLike) => Promise<void> | void): Promise<void> {
+    this.routes.push({ pattern, handler });
+    return Promise.resolve();
+  }
+  routeWebSocket(pattern: string, handler: (ws: WebSocketRouteLike) => void): Promise<void> {
+    this.socketRoutes.push({ pattern, handler });
+    return Promise.resolve();
   }
   close(): Promise<void> {
     this.closed += 1;
@@ -45,8 +58,17 @@ class FakeContext implements ContextLike {
 class FakeBrowser implements BrowserLike {
   readonly contexts: FakeContext[] = [];
   closed = false;
+  newContextError: Error | null = null;
+  private disconnectListeners: (() => void)[] = [];
   onNewContext: (context: FakeContext) => void = () => {};
+  on(_event: "disconnected", listener: () => void): void {
+    this.disconnectListeners.push(listener);
+  }
+  disconnect(): void {
+    for (const listener of this.disconnectListeners) listener();
+  }
   newContext(): Promise<ContextLike> {
+    if (this.newContextError) return Promise.reject(this.newContextError);
     const context = new FakeContext();
     this.contexts.push(context);
     this.onNewContext(context);
@@ -74,7 +96,8 @@ const response = (req: RequestLike, contentType: string, body: string): Response
   text: () => Promise.resolve(body),
 });
 
-const options = { maxConcurrent: 1, timeoutMs: 40, settleMs: 5 };
+const allowAll = (_url: string) => Promise.resolve(true);
+const options = { maxConcurrent: 1, timeoutMs: 40, settleMs: 5, isAllowed: allowAll };
 const noSignal = () => new AbortController().signal;
 
 function detectorWith(browser: FakeBrowser, overrides: Partial<typeof options> = {}) {
@@ -236,5 +259,191 @@ describe("PlaywrightStreamDetector", () => {
     expect(launches).toBe(1);
     await detector.dispose();
     expect(browser.closed).toBe(true);
+  });
+});
+
+/** A route as Playwright hands it over: the request, and the three things a handler can do. */
+function fakeRoute(url: string) {
+  const calls: string[] = [];
+  const route: RouteLike = {
+    request: () => ({ url: () => url }),
+    continue: () => {
+      calls.push("continue");
+      return Promise.resolve();
+    },
+    abort: (code) => {
+      calls.push(`abort:${code}`);
+      return Promise.resolve();
+    },
+  };
+  return { route, calls };
+}
+
+describe("PlaywrightStreamDetector keeps the browser inside the allowed addresses", () => {
+  const seen: string[] = [];
+  const guarded = (browser: FakeBrowser, allowed: (url: string) => boolean) =>
+    detectorWith(browser, {
+      isAllowed: (url: string) => {
+        seen.push(url);
+        return Promise.resolve(allowed(url));
+      },
+    });
+  const publicOnly = (url: string) => !url.includes("10.0.0.");
+
+  it("routes every request through the check: allowed ones continue, others are aborted", async () => {
+    const browser = new FakeBrowser();
+    await guarded(browser, publicOnly)
+      .detect("https://site.test/", { signal: noSignal() })
+      .catch(() => null);
+    const [{ pattern, handler }] = browser.contexts[0]!.routes as [FakeContext["routes"][number]];
+    expect(pattern).toBe("**/*");
+
+    const ok = fakeRoute("https://cdn.test/a.js");
+    await handler(ok.route);
+    expect(ok.calls).toEqual(["continue"]);
+
+    const inside = fakeRoute("http://10.0.0.9:8096/System/Info");
+    await handler(inside.route);
+    expect(inside.calls).toEqual(["abort:blockedbyclient"]);
+    expect(seen).toContain("http://10.0.0.9:8096/System/Info");
+  });
+
+  it("aborts when the check itself blows up, rather than letting the request out", async () => {
+    const browser = new FakeBrowser();
+    const detector = detectorWith(browser, {
+      isAllowed: (url) =>
+        url.includes("cdn") ? Promise.reject(new Error("dns down")) : Promise.resolve(true),
+    });
+    await detector.detect("https://site.test/", { signal: noSignal() }).catch(() => null);
+    const inside = fakeRoute("https://cdn.test/x");
+    await browser.contexts[0]!.routes[0]!.handler(inside.route);
+    expect(inside.calls).toEqual(["abort:blockedbyclient"]);
+  });
+
+  it("does the same for WebSockets: connects the allowed, closes the others", async () => {
+    const browser = new FakeBrowser();
+    await guarded(browser, publicOnly)
+      .detect("https://site.test/", { signal: noSignal() })
+      .catch(() => null);
+    const [{ pattern, handler }] = browser.contexts[0]!.socketRoutes as [
+      FakeContext["socketRoutes"][number],
+    ];
+    expect(pattern).toBe("**/*");
+    const make = (url: string) => {
+      const calls: string[] = [];
+      const ws: WebSocketRouteLike = {
+        url: () => url,
+        connectToServer: () => void calls.push("connect"),
+        close: () => void calls.push("close"),
+      };
+      return { ws, calls };
+    };
+    const good = make("wss://cdn.test/live");
+    const bad = make("ws://10.0.0.9/socket");
+    handler(good.ws);
+    handler(bad.ws);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(good.calls).toEqual(["connect"]);
+    expect(bad.calls).toEqual(["close"]);
+  });
+
+  it("does not even open a page whose own address is not allowed", async () => {
+    const browser = new FakeBrowser();
+    const error = await guarded(browser, publicOnly)
+      .detect("http://10.0.0.9/admin", { signal: noSignal() })
+      .catch((e: unknown) => e);
+    expect((error as StreamDetectionError).reason).toBe("blocked");
+    expect((error as StreamDetectionError).retryable).toBe(false);
+    expect(browser.contexts[0]?.page.gotoCalls ?? []).toEqual([]);
+    expect(browser.contexts.every((context) => context.closed === 1)).toBe(true);
+  });
+});
+
+describe("PlaywrightStreamDetector recovers from a browser that went away", () => {
+  it("launches a new browser after the old one disconnected", async () => {
+    let launches = 0;
+    const browsers: FakeBrowser[] = [];
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      timeoutMs: 10,
+      launch: () => {
+        launches += 1;
+        const browser = new FakeBrowser();
+        browsers.push(browser);
+        return Promise.resolve(browser);
+      },
+    });
+    await detector.detect("https://a.test/", { signal: noSignal() }).catch(() => null);
+    browsers[0]!.disconnect();
+    await detector.detect("https://b.test/", { signal: noSignal() }).catch(() => null);
+    expect(launches).toBe(2);
+  });
+
+  it("does not let a late disconnect of an old browser drop the new one", async () => {
+    let launches = 0;
+    const browsers: FakeBrowser[] = [];
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      timeoutMs: 10,
+      launch: () => {
+        launches += 1;
+        const browser = new FakeBrowser();
+        browsers.push(browser);
+        return Promise.resolve(browser);
+      },
+    });
+    await detector.detect("https://a.test/", { signal: noSignal() }).catch(() => null);
+    browsers[0]!.disconnect();
+    await detector.detect("https://b.test/", { signal: noSignal() }).catch(() => null);
+    browsers[0]!.disconnect();
+    await detector.detect("https://c.test/", { signal: noSignal() }).catch(() => null);
+    expect(launches).toBe(2);
+  });
+
+  it("turns a context that cannot be created into a retryable error and relaunches next time", async () => {
+    let launches = 0;
+    const first = new FakeBrowser();
+    first.newContextError = new Error("Target page, context or browser has been closed");
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      timeoutMs: 10,
+      launch: () => {
+        launches += 1;
+        return Promise.resolve(launches === 1 ? first : new FakeBrowser());
+      },
+    });
+    const error = await detector
+      .detect("https://a.test/", { signal: noSignal() })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(StreamDetectionError);
+    expect((error as StreamDetectionError).reason).toBe("browser");
+    expect((error as StreamDetectionError).retryable).toBe(true);
+    await detector.detect("https://b.test/", { signal: noSignal() }).catch(() => null);
+    expect(launches).toBe(2);
+  });
+
+  it("treats a context that cannot be confined as a lost browser, not as an open door", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.route = () => Promise.reject(new Error("browser has been closed"));
+    };
+    const error = await detectorWith(browser)
+      .detect("https://a.test/", { signal: noSignal() })
+      .catch((e: unknown) => e);
+    expect((error as StreamDetectionError).reason).toBe("browser");
+    expect(browser.contexts[0]!.page.gotoCalls).toEqual([]);
+    expect(browser.contexts[0]!.closed).toBe(1);
+  });
+
+  it("turns a page that cannot be opened into a retryable error and closes its context", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.newPageImpl = () => Promise.reject(new Error("browser has been closed"));
+    };
+    const error = await detectorWith(browser)
+      .detect("https://a.test/", { signal: noSignal() })
+      .catch((e: unknown) => e);
+    expect((error as StreamDetectionError).reason).toBe("browser");
+    expect(browser.contexts[0]!.closed).toBe(1);
   });
 });

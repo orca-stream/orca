@@ -89,6 +89,7 @@ const detector = config.detector
         maxConcurrent: config.detector.maxConcurrent,
         timeoutMs: config.detector.timeoutMs,
         settleMs: config.detector.settleMs,
+        isAllowed: (url) => guard.isAllowed(url),
         ...(config.detector.userAgent ? { userAgent: config.detector.userAgent } : {}),
         launchOptions: {
           ...(config.detector.chromiumPath ? { executablePath: config.detector.chromiumPath } : {}),

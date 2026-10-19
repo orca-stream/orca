@@ -26,6 +26,8 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () =
       maxConcurrent: 2,
       timeoutMs: 8_000,
       settleMs: 300,
+      // The test pages live on 127.0.0.1, which a real server would refuse.
+      isAllowed: () => Promise.resolve(true),
       ...overrides,
       launch: () => Promise.resolve(browser),
     });
