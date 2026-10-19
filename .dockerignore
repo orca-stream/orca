@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+.git
+.github
+.claude
+.memory
+docs-hm-design.md
+apps/jp
+**/.env
+**/.env.*
+!**/.env.example
+**/*.sqlite*

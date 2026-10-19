@@ -4,6 +4,10 @@
   "private": true,
   "description": "Orca'H&M: downloads shows from public-domain sites into a Jellyfin library",
   "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "files": [
+    "dist",
+    "drizzle"
+  ],
   "type": "module",
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/main.ts",
@@ -17,10 +21,6 @@
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "catalog:",
     "@jellyfin/sdk": "catalog:",
-    "@orca/extractor-core": "workspace:*",
-    "@orca/extractor-internet-archive": "workspace:*",
-    "@orca/hm-contract": "workspace:*",
-    "@orca/jellyfin": "workspace:*",
     "axios": "catalog:",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:",
@@ -28,6 +28,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@orca/extractor-core": "workspace:*",
+    "@orca/extractor-internet-archive": "workspace:*",
+    "@orca/hm-contract": "workspace:*",
+    "@orca/jellyfin": "workspace:*",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",
