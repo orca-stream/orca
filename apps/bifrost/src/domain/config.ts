@@ -157,6 +157,17 @@ const ConfigSchema = z
       .optional(),
   })
   .superRefine((cfg, ctx) => {
+    const url = new URL(cfg.jellyfin.url);
+    if (url.hostname === cfg.host.address) {
+      const urlPort = Number(url.port || (url.protocol === "https:" ? 443 : 80));
+      if (urlPort !== cfg.jellyfin.port) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["jellyfin", "port"],
+          message: `jellyfin.port (${cfg.jellyfin.port}) differs from the port in jellyfin.url (${urlPort}) on the host's own address: Bifröst would publish one port and talk to another`,
+        });
+      }
+    }
     const names = new Set(cfg.jellyfin.repositories.map((r) => r.name));
     cfg.jellyfin.plugins.forEach((p, i) => {
       if (p.repository && !names.has(p.repository)) {

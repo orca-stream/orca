@@ -24,6 +24,7 @@ describe("renderCompose", () => {
   it("publishes the configured ports and maps the configured render device", () => {
     const svc = compose((r) => {
       r.jellyfin.port = 9096;
+      r.jellyfin.url = "http://192.168.1.10:9096";
       r.jellyfin.discoveryPort = 7360;
       r.host.renderDevice = "/dev/dri/renderD129";
     });

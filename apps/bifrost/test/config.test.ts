@@ -30,6 +30,7 @@ describe("parseConfig", () => {
 
     const custom = structuredClone(example);
     custom.jellyfin.port = 9096;
+    custom.jellyfin.url = `http://${custom.host.address}:9096`;
     custom.jellyfin.discoveryPort = 7360;
     custom.host.renderDevice = "/dev/dri/renderD129";
     const cfg = parseConfig(custom);
@@ -80,6 +81,21 @@ describe("parseConfig", () => {
     const bad = structuredClone(example);
     bad.host.address = "0.0.0.0";
     expect(() => parseConfig(bad)).toThrow(/0\.0\.0\.0/);
+  });
+
+  it("rejects a jellyfin.url whose port is not the published jellyfin.port on the host's own address", () => {
+    const bad = structuredClone(example);
+    bad.jellyfin.url = `http://${bad.host.address}:9999`;
+    bad.jellyfin.port = 8096;
+    expect(() => parseConfig(bad)).toThrow(/jellyfin\.port/);
+    // A url without a port means 80, which is not 8096 either.
+    bad.jellyfin.url = `http://${bad.host.address}`;
+    expect(() => parseConfig(bad)).toThrow(/jellyfin\.port/);
+    // Matching port, or another host (a proxy in front), is fine.
+    bad.jellyfin.url = `http://${bad.host.address}:8096`;
+    expect(() => parseConfig(bad)).not.toThrow();
+    bad.jellyfin.url = "https://jellyfin.example.com";
+    expect(() => parseConfig(bad)).not.toThrow();
   });
 
   it("rejects a plugin that points to an undeclared repository", () => {
