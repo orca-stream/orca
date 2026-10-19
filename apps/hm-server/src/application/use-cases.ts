@@ -19,6 +19,8 @@ import type { Job } from "../domain/job.ts";
 import type { Episode, Series, Source } from "../domain/series.ts";
 import { seriesFolderName } from "../domain/naming.ts";
 import type { Deps } from "./deps.ts";
+import { trustedPosterUrl } from "./poster-url.ts";
+import type { FetchedImage } from "./ports.ts";
 import { createEnqueueDownloads } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
 import { toEpisodeDto, toJobDto, toPreviewDto, toSeriesDto } from "./presenter.ts";
@@ -91,7 +93,22 @@ export function createUseCases(deps: Deps) {
       if (!extractor) throw new AppError("bad_request", "No extractor handles this address");
       const extraction = await extractor.extract(url, signal ? { signal } : undefined);
       const previewId = deps.previews.put(extraction, extractor.id);
-      return toPreviewDto(extraction, previewId, extractor.id);
+      const hasPoster = trustedPosterUrl(extraction.series.posterUrl, extractor.hosts) !== null;
+      return toPreviewDto(extraction, previewId, extractor.id, hasPoster);
+    },
+
+    /** The cover of a preview, fetched from the extractor's own host; the panel can't ask for any other. */
+    async previewPoster(previewId: string, signal?: AbortSignal): Promise<FetchedImage> {
+      const preview = deps.previews.get(previewId);
+      if (!preview) throw new AppError("gone", "This preview expired: preview the address again");
+      const hosts = deps.extractors.list().find((e) => e.id === preview.extractorId)?.hosts ?? [];
+      const url = trustedPosterUrl(preview.extraction.series.posterUrl, hosts);
+      if (!url) throw new AppError("not_found", "This preview has no poster");
+      try {
+        return await deps.images.fetch(url, signal ? { signal } : undefined);
+      } catch (error) {
+        throw new AppError("upstream", "The poster could not be fetched", { cause: error });
+      }
     },
 
     async addSeries(body: CreateSeriesBody): Promise<SeriesDto> {

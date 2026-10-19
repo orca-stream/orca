@@ -21,6 +21,7 @@ export function toPreviewDto(
   extraction: Extraction,
   previewId: string,
   extractorId: string,
+  hasPoster: boolean,
 ): PreviewDto {
   const { series, license } = extraction;
   return {
@@ -51,6 +52,7 @@ export function toPreviewDto(
       ...(warning.sourceRefs ? { keys: warning.sourceRefs } : {}),
     })),
     selectedKey: extraction.selectedSourceRef ?? null,
+    posterUrl: hasPoster ? `/api/series/preview/${encodeURIComponent(previewId)}/poster` : null,
   };
 }
 

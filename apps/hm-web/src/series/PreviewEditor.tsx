@@ -1,6 +1,7 @@
 import type { PreviewDto } from "@orca/hm-contract";
 import { formatBytes, formatDuration } from "../i18n/format";
 import { useLocale, useT } from "../i18n/locale";
+import { PosterImage } from "./Poster";
 import { Button, Checkbox, Switch, Table, TBody, Td, TextField, Th, THead, Tr, cx } from "../ui";
 import {
   ackReason,
@@ -49,50 +50,57 @@ export function PreviewEditor({
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-white/10 bg-surface p-4">
-        <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-          <TextField
-            label={t.add.fieldTitle}
-            value={form.title}
-            onChange={(event) => onChange({ ...form, title: event.target.value })}
-          />
-          <TextField
-            label={t.add.fieldYear}
-            inputMode="numeric"
-            value={form.year}
-            error={yearInvalid ? t.add.yearInvalid : undefined}
-            onChange={(event) => onChange({ ...form, year: event.target.value })}
-          />
-        </div>
-        {preview.series.plot && (
-          <div>
-            <h3 className="text-sm text-white/70">{t.add.description}</h3>
-            <p className="mt-1 text-sm text-white/80">{preview.series.plot}</p>
+      <section className="grid gap-4 rounded-lg border border-white/10 bg-surface p-4 sm:grid-cols-[9rem_1fr]">
+        <PosterImage
+          src={preview.posterUrl}
+          alt={preview.series.title}
+          className="max-w-36 sm:max-w-none"
+        />
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+            <TextField
+              label={t.add.fieldTitle}
+              value={form.title}
+              onChange={(event) => onChange({ ...form, title: event.target.value })}
+            />
+            <TextField
+              label={t.add.fieldYear}
+              inputMode="numeric"
+              value={form.year}
+              error={yearInvalid ? t.add.yearInvalid : undefined}
+              onChange={(event) => onChange({ ...form, year: event.target.value })}
+            />
           </div>
-        )}
-        <div className="flex flex-col gap-1.5">
-          <h3 className="text-sm text-white/70">{t.add.license}</h3>
-          <p className="flex flex-wrap items-center gap-3 text-sm">
-            <span
-              className={cx(
-                "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                LICENSE_TONE[preview.license.kind],
-              )}
-            >
-              {t.add.licenseKinds[preview.license.kind]}
-            </span>
-            <span className="text-white/70">{t.add.licenseWhy[preview.license.kind]}</span>
-            {preview.license.url && (
-              <a
-                href={preview.license.url}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-white/80 underline"
+          {preview.series.plot && (
+            <div>
+              <h3 className="text-sm text-white/70">{t.add.description}</h3>
+              <p className="mt-1 text-sm text-white/80">{preview.series.plot}</p>
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <h3 className="text-sm text-white/70">{t.add.license}</h3>
+            <p className="flex flex-wrap items-center gap-3 text-sm">
+              <span
+                className={cx(
+                  "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  LICENSE_TONE[preview.license.kind],
+                )}
               >
-                {t.add.licenseSource}
-              </a>
-            )}
-          </p>
+                {t.add.licenseKinds[preview.license.kind]}
+              </span>
+              <span className="text-white/70">{t.add.licenseWhy[preview.license.kind]}</span>
+              {preview.license.url && (
+                <a
+                  href={preview.license.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-white/80 underline"
+                >
+                  {t.add.licenseSource}
+                </a>
+              )}
+            </p>
+          </div>
         </div>
       </section>
 

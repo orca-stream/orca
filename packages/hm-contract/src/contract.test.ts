@@ -6,6 +6,8 @@ import {
   ListJobsQuery,
   LoginBody,
   Page,
+  PreviewDto,
+  SeriesDto,
   SeriesPatch,
 } from "./index.ts";
 import * as z from "zod";
@@ -108,6 +110,16 @@ describe("Page and errors", () => {
     expect(
       ApiErrorBody.parse({ error: "bad_request", issues: [{ path: "url", message: "x" }] }),
     ).toBeTruthy();
+  });
+});
+
+describe("PreviewDto and SeriesDto additions", () => {
+  it("PreviewDto carries a nullable posterUrl and SeriesDto a downloadingCount", () => {
+    expect(PreviewDto.shape.posterUrl.safeParse(null).success).toBe(true);
+    expect(PreviewDto.shape.posterUrl.safeParse("/api/series/preview/x/poster").success).toBe(true);
+    expect(PreviewDto.shape.posterUrl.safeParse(undefined).success).toBe(false);
+    expect(SeriesDto.shape.downloadingCount.safeParse(2).success).toBe(true);
+    expect(SeriesDto.shape.downloadingCount.safeParse(1.5).success).toBe(false);
   });
 });
 

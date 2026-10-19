@@ -330,6 +330,24 @@ describe("series routes", () => {
     expect((await get("/api/series/nope")).status).toBe(404);
   });
 
+  it("serves a preview's poster from our own route, behind the session", async () => {
+    const preview = (await (await post("/api/series/preview", { url: BEVHILL_URL })).json()) as {
+      previewId: string;
+      posterUrl: string;
+    };
+    expect(preview.posterUrl).toBe(`/api/series/preview/${preview.previewId}/poster`);
+
+    expect((await app.request(preview.posterUrl)).status).toBe(401);
+    const res = await get(preview.posterUrl);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([1, 2, 3]);
+
+    expect((await get("/api/series/preview/unknown/poster")).status).toBe(410);
+    h.images.fail = true;
+    expect((await get(preview.posterUrl)).status).toBe(502);
+  });
+
   it("serves the poster, or 404s when there is none", async () => {
     const { series } = await addBevhill(h);
     const res = await get(`/api/series/${series.id}/poster`);

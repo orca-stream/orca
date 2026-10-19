@@ -83,6 +83,19 @@ describe("AddSeriesScreen", () => {
     expect(screen.getByText("Episodios (3 de 3)")).toBeTruthy();
   });
 
+  it("shows the cover from the server's own route, and nothing broken when there is none", async () => {
+    const user = userEvent.setup();
+    setup({ previews: [makePreview(), makePreview({ posterUrl: null })] });
+    await previewIt(user);
+    const cover = screen.getByRole("img", { name: "The Beverly Hillbillies" });
+    expect(cover.getAttribute("src")).toBe("/api/series/preview/p1/poster");
+
+    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("img", { name: "The Beverly Hillbillies" })).toBeNull(),
+    );
+  });
+
   it("keeps Confirm disabled until the license is acknowledged when it is unknown", async () => {
     const user = userEvent.setup();
     setup({

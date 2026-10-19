@@ -48,6 +48,7 @@ export function makePreview(over: Partial<PreviewDto> = {}): PreviewDto {
       { kind: "inferred", message: "Numbering was inferred", keys: ["e2"] },
     ],
     selectedKey: null,
+    posterUrl: "/api/series/preview/p1/poster",
     ...over,
   };
 }

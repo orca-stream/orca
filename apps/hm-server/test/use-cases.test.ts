@@ -6,6 +6,7 @@ import { AppError, PermanentError, RetryableError } from "../src/domain/errors.t
 import { addBevhill, BEVHILL, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
 import { FakeDownloader } from "./fakes/ports.ts";
 import { createEnqueueRefresh } from "../src/application/downloads.ts";
+import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registry.ts";
 
 let h: Harness;
 beforeEach(async () => {
@@ -43,6 +44,75 @@ describe("previewSeries", () => {
   it("says no extractor handles an address from another site", async () => {
     const error = await fails(h.useCases.previewSeries("https://example.com/show"));
     expect(error).toMatchObject({ code: "bad_request" });
+  });
+});
+
+describe("the preview's poster", () => {
+  /** The real extractor, but naming the given poster. */
+  function withPoster(posterUrl: string | undefined) {
+    const real = h.deps.extractors.find(BEVHILL_URL)!;
+    h.deps.extractors = new StaticExtractorRegistry([
+      {
+        ...real,
+        extract: async (url, options) => {
+          const extraction = await real.extract(url, options);
+          const { posterUrl: _drop, ...series } = extraction.series;
+          return { ...extraction, series: { ...series, ...(posterUrl ? { posterUrl } : {}) } };
+        },
+      },
+    ]);
+  }
+
+  it("is served through a route of ours, never as the remote address", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    expect(preview.posterUrl).toBe(`/api/series/preview/${preview.previewId}/poster`);
+    expect(h.images.requested).toEqual([]);
+
+    const image = await h.useCases.previewPoster(preview.previewId);
+    expect(image.extension).toBe(".jpg");
+    expect(h.images.requested).toEqual([`https://archive.org/services/img/${BEVHILL}`]);
+  });
+
+  it("is null when the extractor names none", async () => {
+    withPoster(undefined);
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    expect(preview.posterUrl).toBeNull();
+    expect(await fails(h.useCases.previewPoster(preview.previewId))).toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it.each([
+    ["another host", "https://evil.example/poster.jpg"],
+    ["a look-alike host", "https://notarchive.org/poster.jpg"],
+    ["a host that only contains it", "https://archive.org.evil.example/poster.jpg"],
+    ["plain http", "http://archive.org/poster.jpg"],
+    ["a file address", "file:///etc/passwd"],
+    ["an address with credentials", "https://user:pw@archive.org/poster.jpg"],
+    ["something that isn't an address", "not a url"],
+  ])("is dropped, and never fetched, when it points at %s", async (_label, posterUrl) => {
+    withPoster(posterUrl);
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    expect(preview.posterUrl).toBeNull();
+    expect(await fails(h.useCases.previewPoster(preview.previewId))).toMatchObject({
+      code: "not_found",
+    });
+    expect(h.images.requested).toEqual([]);
+  });
+
+  it("allows a subdomain of the extractor's host", async () => {
+    withPoster("https://ia800000.us.archive.org/poster.jpg");
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    expect(preview.posterUrl).not.toBeNull();
+  });
+
+  it("is gone with its preview, and a failing fetch is an upstream error", async () => {
+    expect(await fails(h.useCases.previewPoster("unknown"))).toMatchObject({ code: "gone" });
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    h.images.fail = true;
+    expect(await fails(h.useCases.previewPoster(preview.previewId))).toMatchObject({
+      code: "upstream",
+    });
   });
 });
 

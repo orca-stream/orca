@@ -179,6 +179,14 @@ export function createApp(deps: AppDeps) {
     return c.json(await useCases.previewSeries(url, c.req.raw.signal));
   });
 
+  api.get("/series/preview/:previewId/poster", async (c) => {
+    const image = await useCases.previewPoster(c.req.param("previewId"), c.req.raw.signal);
+    return c.body(new Uint8Array(image.bytes), 200, {
+      "content-type": POSTER_TYPES[image.extension] ?? "application/octet-stream",
+      "cache-control": "private, max-age=600",
+    });
+  });
+
   api.post("/series", validate("json", CreateSeriesBody), async (c) => {
     return c.json(await useCases.addSeries(c.req.valid("json")), 201);
   });

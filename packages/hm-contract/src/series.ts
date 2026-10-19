@@ -54,6 +54,8 @@ export const PreviewDto = z.object({
   warnings: z.array(PreviewWarning),
   /** The episode the pasted URL pointed at, when it named a file. */
   selectedKey: z.string().nullable(),
+  /** The cover, as a path on this server (never the remote address); null when there is none. */
+  posterUrl: z.string().nullable(),
 });
 export type PreviewDto = z.infer<typeof PreviewDto>;
 
