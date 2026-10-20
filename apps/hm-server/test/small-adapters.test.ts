@@ -96,6 +96,37 @@ describe("FetchHttpClient", () => {
     expect(calls[0]?.headers).toMatchObject({ "user-agent": "OrcaHM/test" });
   });
 
+  it("reads a page as text, with the headers a site asks for in place of ours", async () => {
+    const { fetchImpl, calls } = responder(new Response("<h1>Show</h1>"));
+    const client = new FetchHttpClient({
+      userAgent: "OrcaHM/test",
+      fetch: fetchImpl,
+      limiter: testLimiter().limiter,
+    });
+    await expect(
+      client.getText("https://site.example/show", {
+        headers: { "User-Agent": "Mozilla/5.0", Referer: "https://site.example/" },
+      }),
+    ).resolves.toBe("<h1>Show</h1>");
+    expect(calls[0]?.headers).toEqual({
+      "user-agent": "Mozilla/5.0",
+      accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+      referer: "https://site.example/",
+    });
+  });
+
+  it("types a page's errors as it types JSON's", async () => {
+    const { fetchImpl } = responder(new Response("gone", { status: 404 }));
+    const client = new FetchHttpClient({
+      userAgent: "x",
+      fetch: fetchImpl,
+      limiter: testLimiter().limiter,
+    });
+    await expect(client.getText("https://site.example/show")).rejects.toMatchObject({
+      code: "not-found",
+    });
+  });
+
   it("goes through the host limiter's metadata lane", async () => {
     const { fetchImpl } = responder(Response.json({}), Response.json({}), Response.json({}));
     const { limiter, clock, slept } = testLimiter({ metadata: { minIntervalMs: 1000 } });

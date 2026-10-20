@@ -9,7 +9,7 @@ export interface FetchHttpClientOptions {
   fetch?: typeof fetch;
 }
 
-/** The extractors' HttpClient: JSON over fetch through the host limiter's metadata lane, errors typed. */
+/** The extractors' HttpClient: JSON or pages over fetch through the host limiter's metadata lane, errors typed. */
 export class FetchHttpClient implements HttpClient {
   private readonly userAgent: string;
   private readonly limiter: HostLimiter;
@@ -22,16 +22,48 @@ export class FetchHttpClient implements HttpClient {
   }
 
   getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown> {
-    return this.limiter.run(new URL(url).host, "metadata", options?.signal, () =>
-      this.request(url, options?.signal),
-    );
+    return this.limiter.run(new URL(url).host, "metadata", options?.signal, async () => {
+      const response = await this.request(url, options?.signal, { accept: "application/json" });
+      try {
+        return await response.json();
+      } catch (error) {
+        throw new ExtractorError(
+          "invalid-response",
+          `${new URL(url).host} did not answer with JSON`,
+          { cause: error },
+        );
+      }
+    });
   }
 
-  private async request(url: string, signal: AbortSignal | undefined): Promise<unknown> {
+  getText(
+    url: string,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<string> {
+    return this.limiter.run(new URL(url).host, "metadata", options?.signal, async () => {
+      const response = await this.request(url, options?.signal, {
+        accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+        ...lowerCaseKeys(options?.headers ?? {}),
+      });
+      try {
+        return await response.text();
+      } catch (error) {
+        throw new ExtractorError("network", `${new URL(url).host} cut the page short`, {
+          cause: error,
+        });
+      }
+    });
+  }
+
+  private async request(
+    url: string,
+    signal: AbortSignal | undefined,
+    headers: Record<string, string>,
+  ): Promise<Response> {
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
-        headers: { "user-agent": this.userAgent, accept: "application/json" },
+        headers: { "user-agent": this.userAgent, ...headers },
         ...(signal ? { signal } : {}),
       });
     } catch (error) {
@@ -50,14 +82,13 @@ export class FetchHttpClient implements HttpClient {
         ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
       });
     }
-    try {
-      return await response.json();
-    } catch (error) {
-      throw new ExtractorError(
-        "invalid-response",
-        `${new URL(url).host} did not answer with JSON`,
-        { cause: error },
-      );
-    }
+    return response;
   }
+}
+
+/** Header names in one case, so a site's `User-Agent` replaces ours instead of going beside it. */
+function lowerCaseKeys(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]),
+  );
 }
