@@ -27,7 +27,6 @@ async function addPage(url: string, title: string, downloadNow = true) {
     episodeKeys: [url],
     follow: false,
     downloadNow,
-    licenseAck: true,
   });
 }
 

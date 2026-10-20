@@ -42,7 +42,7 @@ export function makePreview(over: Partial<PreviewDto> = {}): PreviewDto {
       ep("e2", 1, 2, "Getting Settled", { inferred: true }),
       ep("e4", 1, 4, "Jed Buys Stock"),
     ],
-    license: { kind: "public-domain", url: "https://example.test/license", requiresAck: false },
+    license: { kind: "public-domain", url: "https://example.test/license" },
     warnings: [
       { kind: "gap", message: "Episode 3 is missing", keys: ["e4"] },
       { kind: "inferred", message: "Numbering was inferred", keys: ["e2"] },

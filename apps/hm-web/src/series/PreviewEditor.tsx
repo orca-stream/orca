@@ -5,7 +5,6 @@ import type { Messages } from "../i18n/messages";
 import { PosterImage } from "./Poster";
 import { Button, Checkbox, Switch, Table, TBody, Td, TextField, Th, THead, Tr, cx } from "../ui";
 import {
-  ackReason,
   canConfirm,
   episodeCode,
   parseYear,
@@ -66,11 +65,10 @@ export function PreviewEditor({
 }: PreviewEditorProps) {
   const t = useT();
   const locale = useLocale();
-  const reason = ackReason(preview, form);
   const warnings = warningsByEpisode(preview);
   const included = new Set(form.included);
   const allIncluded = form.included.length === preview.episodes.length;
-  const ok = canConfirm(preview, form);
+  const ok = canConfirm(form);
   const yearInvalid = parseYear(form.year) === "invalid";
 
   return (
@@ -236,18 +234,6 @@ export function PreviewEditor({
           label={t.add.downloadNow}
           onCheckedChange={(downloadNow) => onChange({ ...form, downloadNow })}
         />
-        {reason && (
-          <div className="rounded-md border border-amber-400/30 bg-amber-500/10 p-3">
-            <p className="mb-2 text-sm text-amber-200">
-              {reason === "license" ? t.add.ackReasonLicense : t.add.ackReasonYear}
-            </p>
-            <Checkbox
-              label={t.add.ack}
-              checked={form.licenseAck}
-              onChange={(event) => onChange({ ...form, licenseAck: event.target.checked })}
-            />
-          </div>
-        )}
         <div className="flex items-center gap-3">
           <Button variant="primary" disabled={!ok} loading={confirming} onClick={onConfirm}>
             {confirming ? t.add.confirming : t.add.confirm}
@@ -258,9 +244,7 @@ export function PreviewEditor({
                 ? t.add.needsTitle
                 : form.included.length === 0
                   ? t.add.needsEpisodes
-                  : reason && !form.licenseAck
-                    ? t.add.needsAck
-                    : null}
+                  : null}
             </p>
           )}
         </div>

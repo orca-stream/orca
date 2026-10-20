@@ -1,4 +1,4 @@
-export { LATEST_SAFE_YEAR, licenseNeedsAck, type LicenseKind } from "./license.ts";
+export { LATEST_SAFE_YEAR, type LicenseKind } from "./license.ts";
 export {
   ExtractorError,
   type DirectMedia,

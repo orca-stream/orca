@@ -28,7 +28,6 @@ async function addFake(options: { follow?: boolean; only?: string[] } = {}) {
     episodeKeys: options.only ?? preview.episodes.map((episode) => episode.key),
     follow: options.follow ?? true,
     downloadNow: false,
-    licenseAck: true,
   });
 }
 

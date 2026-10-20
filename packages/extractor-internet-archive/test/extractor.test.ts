@@ -81,13 +81,11 @@ describe("shape A: one item with many files (bevhill)", () => {
     expect(result.series.remoteMarker).toMatch(/^\d+$/);
   });
 
-  it("reports the gap and the missing year, and asks to confirm a license no year backs up", async () => {
+  it("reports the gap and the missing year", async () => {
     const { result } = await run();
     expect(result.license).toEqual({
       kind: "public-domain",
       url: "http://creativecommons.org/publicdomain/mark/1.0/",
-      // No year to vouch for it: confirmation required.
-      requiresAck: true,
     });
     const gap = result.warnings.find((w) => w.code === "gap" && w.message.startsWith("Season 1"));
     expect(gap?.message).toContain("19");
@@ -102,13 +100,12 @@ describe("shape A: one item with many files (bevhill)", () => {
     expect(result.selectedSourceRef).toBe(`${BEVHILL}/s01e02-Getting-Settled.mp4`);
   });
 
-  it("asks for confirmation when a public domain tag sits on a show from 1982", async () => {
+  it("warns when a public domain tag sits on a show from 1982", async () => {
     const item = fixture<{ metadata: Record<string, unknown> }>(`${BEVHILL}.metadata`);
     item.metadata.year = "1982";
     const { extractor } = extractorFor({ [metadataUrl(BEVHILL)]: item });
     const result = await extractor.extract(bevhillUrl);
     expect(result.series.year).toBe(1982);
-    expect(result.license.requiresAck).toBe(true);
     expect(codes(result.warnings)).toContain("license-recent");
   });
 
@@ -146,7 +143,7 @@ describe("format ranking and numbering by file order (The_Beverly_Hillbillies)",
     expect(result.series.title).toBe("The Beverly Hillbillies TV Show");
     expect(codes(result.warnings)).toContain("numbering-inferred");
     // licenseurl is null on this item: unknown, so the panel asks for confirmation.
-    expect(result.license).toEqual({ kind: "unknown", requiresAck: true });
+    expect(result.license).toEqual({ kind: "unknown" });
     expect(codes(result.warnings)).toContain("license-unknown");
   });
 });
@@ -213,10 +210,9 @@ describe("shape B: a collection with one item per episode (One Step Beyond)", ()
     expect(navigator?.media.fileName).toBe("S1E13 - THE NAVIGATOR.mp4");
   });
 
-  it("leaves the license unknown (none on the collection or its items) and asks for confirmation", async () => {
+  it("leaves the license unknown (none on the collection or its items)", async () => {
     const { result } = await run();
     expect(result.license.kind).toBe("unknown");
-    expect(result.license.requiresAck).toBe(true);
   });
 
   it("gives an episode with no season in any name the season of its neighbour in the list", async () => {

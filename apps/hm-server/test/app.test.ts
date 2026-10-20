@@ -252,7 +252,6 @@ describe("series routes", () => {
       episodeKeys: preview.episodes.map((e) => e.key),
       follow: false,
       downloadNow: false,
-      licenseAck: false,
     });
     expect(created.status).toBe(201);
     const series = (await created.json()) as { id: string; episodeCount: number };
@@ -267,7 +266,7 @@ describe("series routes", () => {
     expect(episodes[0]?.status).toBe("missing");
   });
 
-  it("400 when the license confirmation is missing, 410 for an expired preview, 409 for a repeat", async () => {
+  it("410 for an expired preview, 409 for a repeat", async () => {
     const preview = (await (await post("/api/series/preview", { url: BEVHILL_URL })).json()) as {
       previewId: string;
       episodes: { key: string }[];
@@ -279,17 +278,10 @@ describe("series routes", () => {
       episodeKeys: [preview.episodes[0]!.key],
       follow: false,
       downloadNow: false,
-      licenseAck: false,
     };
-    const refused = await post("/api/series", body);
-    expect(refused.status).toBe(400);
-    expect(await refused.json()).toMatchObject({ error: "license_ack_required" });
-
-    expect((await post("/api/series", { ...body, licenseAck: true })).status).toBe(201);
-    expect((await post("/api/series", { ...body, licenseAck: true })).status).toBe(409);
-    expect(
-      (await post("/api/series", { ...body, previewId: "unknown", licenseAck: true })).status,
-    ).toBe(410);
+    expect((await post("/api/series", body)).status).toBe(201);
+    expect((await post("/api/series", body)).status).toBe(409);
+    expect((await post("/api/series", { ...body, previewId: "unknown" })).status).toBe(410);
   });
 
   it("maps extractor failures to statuses", async () => {

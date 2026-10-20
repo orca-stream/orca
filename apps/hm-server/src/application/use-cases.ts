@@ -1,7 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
-  LICENSE_ACK_REQUIRED,
-  needsLicenseAck,
   type CreateSeriesBody,
   type EpisodeDto,
   type JobDto,
@@ -133,16 +131,6 @@ export function createUseCases(deps: Deps) {
       const preview = deps.previews.get(body.previewId);
       if (!preview) throw new AppError("gone", "This preview expired: preview the address again");
       const { extraction, extractorId } = preview;
-
-      if (
-        needsLicenseAck({ license: extraction.license.kind, year: body.year }) &&
-        !body.licenseAck
-      ) {
-        throw new AppError(
-          LICENSE_ACK_REQUIRED,
-          "Confirm you have the right to download this before adding it",
-        );
-      }
 
       const wanted = new Set(body.episodeKeys);
       const chosen = extraction.episodes.filter((episode) => wanted.has(episode.sourceRef));

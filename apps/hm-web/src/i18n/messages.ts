@@ -175,8 +175,7 @@ const es = {
     matches: (name: string) => `Lo leerá el extractor ${name}.`,
     extractorChoice: "Leer con",
     autoExtractor: "Automático (por la dirección)",
-    usingExplicit: (name: string) =>
-      `${name} abrirá la página y buscará el vídeo que reproduce. Tendrás que confirmar que tienes derecho a descargarlo.`,
+    usingExplicit: (name: string) => `${name} abrirá la página y buscará el vídeo que reproduce.`,
     noMatch: "Ningún extractor conoce este sitio.",
     preview: "Previsualizar",
     previewing: "Leyendo…",
@@ -188,7 +187,6 @@ const es = {
     expired:
       "La previsualización había caducado y se volvió a leer. Revisa los datos y pulsa «Añadir serie» otra vez.",
     alreadyAdded: "Esa serie ya está añadida o su carpeta ya existe. Cambia el título o el año.",
-    ackRequired: "Falta confirmar que tienes derecho a descargarla.",
     createFailed: "No se pudo añadir la serie.",
     fieldTitle: "Título",
     fieldYear: "Año",
@@ -212,9 +210,6 @@ const es = {
       unknown: "El sitio no declara la licencia, así que no se sabe si se puede descargar.",
     },
     licenseSource: "Ver licencia",
-    ackReasonYear: "El año no está claro o es posterior a 1977: puede seguir protegida.",
-    ackReasonLicense: "La licencia no está declarada.",
-    ack: "Confirmo que tengo derecho a descargar y guardar este contenido.",
     warnings: "Avisos",
     warningKinds: {
       gap: "Hueco",
@@ -230,8 +225,7 @@ const es = {
       inferred: "Se dedujo la temporada o el número de algunos episodios: revísalos.",
       duplicate: "Hay episodios repetidos.",
       compilation: "Algunos archivos parecen recopilaciones de varios episodios.",
-      license:
-        "La licencia no está clara o la serie es reciente: confirma que tienes derecho a descargarla.",
+      license: "La licencia no está clara o la serie es reciente.",
       year: "No se pudo leer el año de la serie.",
       skipped: "Se omitieron archivos que no son un único vídeo.",
     },
@@ -252,7 +246,6 @@ const es = {
     confirming: "Añadiendo…",
     needsEpisodes: "Elige al menos un episodio.",
     needsTitle: "Escribe un título.",
-    needsAck: "Marca la confirmación para continuar.",
   },
   extractors: {
     title: "Extractores",
@@ -443,8 +436,7 @@ const en: typeof es = {
     matches: (name: string) => `The ${name} extractor will read it.`,
     extractorChoice: "Read with",
     autoExtractor: "Automatic (by the address)",
-    usingExplicit: (name: string) =>
-      `${name} will open the page and look for the video it plays. You will have to confirm you have the right to download it.`,
+    usingExplicit: (name: string) => `${name} will open the page and look for the video it plays.`,
     noMatch: "No extractor knows this site.",
     preview: "Preview",
     previewing: "Reading…",
@@ -456,7 +448,6 @@ const en: typeof es = {
     expired:
       "The preview had expired and was read again. Check the details and press “Add series” again.",
     alreadyAdded: "That series is already added or its folder exists. Change the title or year.",
-    ackRequired: "Confirm that you have the right to download it first.",
     createFailed: "The series could not be added.",
     fieldTitle: "Title",
     fieldYear: "Year",
@@ -480,9 +471,6 @@ const en: typeof es = {
       unknown: "The site does not declare a license, so it is not known if it may be downloaded.",
     },
     licenseSource: "View license",
-    ackReasonYear: "The year is unclear or later than 1977: it may still be protected.",
-    ackReasonLicense: "The license is not declared.",
-    ack: "I confirm I have the right to download and keep this content.",
     warnings: "Warnings",
     warningKinds: {
       gap: "Gap",
@@ -498,8 +486,7 @@ const en: typeof es = {
       inferred: "The season or number of some episodes was guessed: check them.",
       duplicate: "Some episodes appear more than once.",
       compilation: "Some files look like compilations of several episodes.",
-      license:
-        "The license is unclear or the show is recent: confirm you have the right to download it.",
+      license: "The license is unclear or the show is recent.",
       year: "The year of the series could not be read.",
       skipped: "Files that aren't a single video were left out.",
     },
@@ -520,7 +507,6 @@ const en: typeof es = {
     confirming: "Adding…",
     needsEpisodes: "Pick at least one episode.",
     needsTitle: "Enter a title.",
-    needsAck: "Tick the confirmation to continue.",
   },
   extractors: {
     title: "Extractors",

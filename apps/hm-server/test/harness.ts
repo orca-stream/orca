@@ -137,7 +137,6 @@ export async function addBevhill(
     episodeKeys: preview.episodes.map((episode) => episode.key),
     follow: false,
     downloadNow: overrides.downloadNow ?? false,
-    licenseAck: true,
   });
   return { preview, series };
 }

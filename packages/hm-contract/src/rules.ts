@@ -1,29 +1,10 @@
-import { licenseNeedsAck, type LicenseKind } from "@orca/extractor-core";
 import type { HmEvent } from "./events.ts";
 
 /**
  * The contract's runtime rules that need no schema library. The panel imports its runtime code from
  * here (`@orca/hm-contract/rules`) and only types from the main entry, so Zod stays out of its bundle.
- * Keep this file free of imports other than types and extractor-core.
+ * Keep this file free of imports other than types.
  */
-
-/**
- * Whether adding a series needs the "I have the right to download this" confirmation: an unknown
- * license, a show newer than 1977, or no year at all. The server re-checks it; the panel uses it to
- * decide whether to show the box.
- */
-export function needsLicenseAck(input: {
-  license: LicenseKind;
-  year: number | null | undefined;
-}): boolean {
-  return licenseNeedsAck(input.license, input.year ?? undefined);
-}
-
-/**
- * The `error` code of the 400 that refuses to add a series whose license (or missing year) needs the
- * "I have the right to download this" confirmation and came without it. Match this, not the message.
- */
-export const LICENSE_ACK_REQUIRED = "license_ack_required";
 
 /** Smallest and tallest video a height limit can name (144p to 8K). */
 export const MIN_MAX_HEIGHT = 144;

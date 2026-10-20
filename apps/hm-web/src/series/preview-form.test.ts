@@ -2,7 +2,6 @@ import { CreateSeriesBody } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
 import { makePreview } from "../test/fixtures";
 import {
-  ackReason,
   canConfirm,
   episodeCode,
   initialForm,
@@ -15,7 +14,7 @@ import {
 } from "./preview-form";
 
 describe("initialForm", () => {
-  it("starts from the preview, with every episode included and nothing confirmed", () => {
+  it("starts from the preview, with every episode included", () => {
     const form = initialForm(makePreview());
     expect(form).toMatchObject({
       title: "The Beverly Hillbillies",
@@ -23,7 +22,6 @@ describe("initialForm", () => {
       included: ["e1", "e2", "e4"],
       follow: false,
       downloadNow: true,
-      licenseAck: false,
     });
   });
 
@@ -49,54 +47,19 @@ describe("parseYear", () => {
   });
 });
 
-describe("ackReason / the license confirmation", () => {
-  const publicDomain = makePreview();
-
-  it("is not asked for an old show with a known license", () => {
-    expect(ackReason(publicDomain, initialForm(publicDomain))).toBeNull();
-  });
-
-  it("is asked when the year goes from 1962 to 1982", () => {
-    const form = { ...initialForm(publicDomain), year: "1982" };
-    expect(ackReason(publicDomain, form)).toBe("year");
-    expect(ackReason(publicDomain, { ...form, year: "1962" })).toBeNull();
-  });
-
-  it("is asked when there is no year, or it cannot be read", () => {
-    const form = initialForm(publicDomain);
-    expect(ackReason(publicDomain, { ...form, year: "" })).toBe("year");
-    expect(ackReason(publicDomain, { ...form, year: "abc" })).toBe("year");
-  });
-
-  it("is always asked for an unknown license, even for an old year", () => {
-    const unknown = makePreview({ license: { kind: "unknown", url: null, requiresAck: true } });
-    expect(ackReason(unknown, initialForm(unknown))).toBe("license");
-  });
-});
-
 describe("canConfirm", () => {
-  const unknown = makePreview({ license: { kind: "unknown", url: null, requiresAck: true } });
-
-  it("is blocked by an unknown license until it is acknowledged", () => {
-    const form = initialForm(unknown);
-    expect(canConfirm(unknown, form)).toBe(false);
-    expect(canConfirm(unknown, { ...form, licenseAck: true })).toBe(true);
-  });
-
-  it("follows the year when the license is known", () => {
-    const preview = makePreview();
-    const form = initialForm(preview);
-    expect(canConfirm(preview, form)).toBe(true);
-    expect(canConfirm(preview, { ...form, year: "1982" })).toBe(false);
-    expect(canConfirm(preview, { ...form, year: "1982", licenseAck: true })).toBe(true);
+  it("lets an unknown license or a recent year through", () => {
+    const unknown = makePreview({ license: { kind: "unknown", url: null } });
+    expect(canConfirm({ ...initialForm(unknown), year: "1982" })).toBe(true);
+    expect(canConfirm({ ...initialForm(unknown), year: "" })).toBe(true);
   });
 
   it("is blocked by an empty title, no episodes, or a year that cannot be read", () => {
     const preview = makePreview();
     const form = initialForm(preview);
-    expect(canConfirm(preview, { ...form, title: "   " })).toBe(false);
-    expect(canConfirm(preview, { ...form, included: [] })).toBe(false);
-    expect(canConfirm(preview, { ...form, year: "19", licenseAck: true })).toBe(false);
+    expect(canConfirm({ ...form, title: "   " })).toBe(false);
+    expect(canConfirm({ ...form, included: [] })).toBe(false);
+    expect(canConfirm({ ...form, year: "19" })).toBe(false);
   });
 });
 
@@ -115,21 +78,7 @@ describe("toCreateBody", () => {
       episodeKeys: ["e1", "e2", "e4"],
       follow: true,
       downloadNow: true,
-      licenseAck: false,
     });
-  });
-
-  it("only sends the ack when the license needs it", () => {
-    const preview = makePreview();
-    const body = toCreateBody(preview, { ...initialForm(preview), licenseAck: true });
-    expect(body.licenseAck).toBe(false);
-    const recent = toCreateBody(preview, {
-      ...initialForm(preview),
-      year: "1982",
-      licenseAck: true,
-    });
-    expect(recent.licenseAck).toBe(true);
-    expect(recent.year).toBe(1982);
   });
 
   it("keeps the episodes in the preview's order", () => {

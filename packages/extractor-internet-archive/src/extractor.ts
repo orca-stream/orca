@@ -1,7 +1,6 @@
 import {
   ExtractorError,
   LATEST_SAFE_YEAR,
-  licenseNeedsAck,
   type ExtractedEpisode,
   type ExtractedLicense,
   type Extraction,
@@ -356,8 +355,7 @@ function licenseFor(
   if (kind === "unknown") {
     warnings.push({
       code: "license-unknown",
-      message:
-        "The license is missing or not recognized: confirm you have the right to download this",
+      message: "The license is missing or not recognized",
     });
   } else if (year !== undefined && year > LATEST_SAFE_YEAR) {
     warnings.push({
@@ -365,9 +363,5 @@ function licenseFor(
       message: `Tagged ${kind}, but the show dates from ${year}: uploaders sometimes get this wrong`,
     });
   }
-  return {
-    kind,
-    ...(classified ? { url: classified } : {}),
-    requiresAck: licenseNeedsAck(kind, year),
-  };
+  return { kind, ...(classified ? { url: classified } : {}) };
 }

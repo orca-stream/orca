@@ -21,10 +21,8 @@ export {
   HM_EVENT_TYPES,
   isHmEvent,
   LANGUAGE_CODE_PATTERN,
-  LICENSE_ACK_REQUIRED,
   MAX_MAX_HEIGHT,
   MIN_MAX_HEIGHT,
-  needsLicenseAck,
 } from "./rules.ts";
 export {
   MarkReadBody,

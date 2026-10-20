@@ -53,8 +53,7 @@ export class GenericPageExtractor implements SiteExtractor {
     const warnings: ExtractionWarning[] = [
       {
         code: "license-unknown",
-        message:
-          "The license of an arbitrary page is not known: confirm you have the right to download this",
+        message: "The license of an arbitrary page is not known",
       },
       {
         code: "year-missing",
@@ -74,7 +73,7 @@ export class GenericPageExtractor implements SiteExtractor {
           media: { kind: "page", url: address, fileName: PLACEHOLDER_FILE_NAME },
         },
       ],
-      license: { kind: "unknown", requiresAck: true },
+      license: { kind: "unknown" },
       warnings,
     };
   }

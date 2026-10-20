@@ -77,8 +77,6 @@ export interface ExtractedEpisode {
 export interface ExtractedLicense {
   kind: LicenseKind;
   url?: string;
-  /** Needs the "I have the right to download this" confirmation before it can be added. */
-  requiresAck: boolean;
 }
 
 export type ExtractionWarningCode =

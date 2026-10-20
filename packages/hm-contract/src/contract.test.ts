@@ -15,23 +15,7 @@ import {
 } from "./index.ts";
 import * as z from "zod";
 import { readFileSync } from "node:fs";
-import { HM_EVENT_TYPES, isHmEvent, needsLicenseAck } from "./rules.ts";
-
-describe("needsLicenseAck", () => {
-  it.each([
-    ["unknown", 1960, true],
-    ["unknown", null, true],
-    ["public-domain", 1962, false],
-    ["public-domain", 1977, false],
-    ["public-domain", 1978, true],
-    ["cc0", 1996, true],
-    ["cc-by", 1950, false],
-    ["public-domain", null, true],
-    ["public-domain", undefined, true],
-  ] as const)("license %s, year %s -> %s", (license, year, expected) => {
-    expect(needsLicenseAck({ license, year })).toBe(expected);
-  });
-});
+import { HM_EVENT_TYPES, isHmEvent } from "./rules.ts";
 
 describe("ListJobsQuery", () => {
   it("reads status as a comma-separated list and applies limits", () => {
@@ -70,7 +54,7 @@ describe("bodies", () => {
       year: 1962,
       episodeKeys: ["a/b.mp4"],
     });
-    expect(body).toMatchObject({ follow: false, downloadNow: false, licenseAck: false });
+    expect(body).toMatchObject({ follow: false, downloadNow: false });
   });
 
   it("caps titles at 150 characters, so they stay valid folder names", () => {
@@ -129,7 +113,7 @@ describe("PreviewDto and SeriesDto additions", () => {
 describe("the rules module", () => {
   it("is exported on its own and still re-exported by the main entry", async () => {
     const main = await import("./index.ts");
-    expect(main.needsLicenseAck).toBe(needsLicenseAck);
+    expect(main.isHmEvent).toBe(isHmEvent);
   });
 
   it("imports nothing from zod, so the panel can use it without the schemas", () => {

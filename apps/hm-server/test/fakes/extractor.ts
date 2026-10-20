@@ -75,7 +75,7 @@ export class FakeExtractor implements SiteExtractor {
       },
       seasons,
       episodes: structuredClone(this.episodes),
-      license: { kind: "public-domain", requiresAck: false },
+      license: { kind: "public-domain" },
       warnings: [],
     };
   }

@@ -112,9 +112,9 @@ describe("AddSeriesScreen", () => {
     setup({
       previews: [
         makePreview({
-          license: { kind: "cc-by", url: "https://example.test/l", requiresAck: false },
+          license: { kind: "cc-by", url: "https://example.test/l" },
         }),
-        makePreview({ license: { kind: "cc-by", url: bad, requiresAck: false } }),
+        makePreview({ license: { kind: "cc-by", url: bad } }),
       ],
     });
     await previewIt(user);
@@ -178,41 +178,6 @@ describe("AddSeriesScreen", () => {
     expect(await post.json()).toEqual({ url: URL_TO_ADD });
   });
 
-  it("keeps Confirm disabled until the license is acknowledged when it is unknown", async () => {
-    const user = userEvent.setup();
-    setup({
-      preview: makePreview({ license: { kind: "unknown", url: null, requiresAck: true } }),
-    });
-    await previewIt(user);
-    expect(confirmButton().disabled).toBe(true);
-
-    await user.click(screen.getByRole("checkbox", { name: /tengo derecho a descargar/ }));
-    expect(confirmButton().disabled).toBe(false);
-
-    await user.click(screen.getByRole("checkbox", { name: /tengo derecho a descargar/ }));
-    expect(confirmButton().disabled).toBe(true);
-  });
-
-  it("asks for the acknowledgement only when the year makes it necessary (1962 vs 1982)", async () => {
-    const user = userEvent.setup();
-    setup();
-    await previewIt(user);
-    const ack = () => screen.queryByRole("checkbox", { name: /tengo derecho a descargar/ });
-    expect(ack()).toBeNull();
-    expect(confirmButton().disabled).toBe(false);
-
-    const year = screen.getByLabelText("Año");
-    await user.clear(year);
-    await user.type(year, "1982");
-    expect(ack()).not.toBeNull();
-    expect(confirmButton().disabled).toBe(true);
-
-    await user.clear(year);
-    await user.type(year, "1962");
-    expect(ack()).toBeNull();
-    expect(confirmButton().disabled).toBe(false);
-  });
-
   it("adds the edited series and goes to it", async () => {
     const user = userEvent.setup();
     const { requests, location } = setup();
@@ -232,7 +197,6 @@ describe("AddSeriesScreen", () => {
       episodeKeys: ["e1", "e2"],
       follow: true,
       downloadNow: true,
-      licenseAck: false,
     });
   });
 
@@ -260,28 +224,6 @@ describe("AddSeriesScreen", () => {
     await previewIt(user);
     await user.click(confirmButton());
     expect((await screen.findByRole("alert")).textContent).toContain("ya está añadida");
-  });
-
-  it("tells a missing license acknowledgement apart by its error code, not by the message", async () => {
-    const user = userEvent.setup();
-    setup({
-      createStatus: 400,
-      createBody: { error: "license_ack_required", message: "whatever the server says" },
-    });
-    await previewIt(user);
-    await user.click(confirmButton());
-    expect((await screen.findByRole("alert")).textContent).toContain("derecho a descargarla");
-  });
-
-  it("doesn't mistake another 400 for it, whatever its message says", async () => {
-    const user = userEvent.setup();
-    setup({
-      createStatus: 400,
-      createBody: { error: "bad_request", message: "license_ack_required: look-alike" },
-    });
-    await previewIt(user);
-    await user.click(confirmButton());
-    expect((await screen.findByRole("alert")).textContent).not.toContain("derecho a descargarla");
   });
 
   it("says when the site has nothing readable (422)", async () => {

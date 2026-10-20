@@ -37,7 +37,7 @@ describe("previewSeries", () => {
       key: `${BEVHILL}/s01e01-The-Clampetts-Strike-Oil.mp4`,
     });
     expect(preview.warnings.map((w) => w.kind)).toEqual(["gap", "year"]);
-    expect(preview.license).toMatchObject({ kind: "public-domain", requiresAck: true });
+    expect(preview.license).toMatchObject({ kind: "public-domain" });
     expect(await h.series.list()).toEqual([]);
   });
 
@@ -193,7 +193,6 @@ describe("addSeries", () => {
       episodeKeys: preview.episodes.map((episode) => episode.key),
       follow: false,
       downloadNow: false,
-      licenseAck: true,
     };
     const results = await Promise.allSettled([
       h.useCases.addSeries(body),
@@ -214,7 +213,6 @@ describe("addSeries", () => {
       episodeKeys: preview.episodes.map((episode) => episode.key),
       follow: false,
       downloadNow: false,
-      licenseAck: true,
     });
     const results = await Promise.allSettled([
       h.useCases.addSeries(body("Show A")),
@@ -246,27 +244,6 @@ describe("addSeries", () => {
     expect(series.hasPoster).toBe(false);
   });
 
-  it("requires the license confirmation when the license or the year can't vouch for it", async () => {
-    const preview = await h.useCases.previewSeries(BEVHILL_URL);
-    const body = {
-      previewId: preview.previewId,
-      title: "T",
-      episodeKeys: [preview.episodes[0]!.key],
-      follow: false,
-      downloadNow: false,
-    };
-    expect(
-      await fails(h.useCases.addSeries({ ...body, year: null, licenseAck: false })),
-    ).toMatchObject({ code: "license_ack_required" });
-    expect(
-      await fails(h.useCases.addSeries({ ...body, year: 1982, licenseAck: false })),
-    ).toMatchObject({ code: "license_ack_required" });
-    // An old show with a public domain mark goes through unconfirmed.
-    await expect(
-      h.useCases.addSeries({ ...body, year: 1962, licenseAck: false }),
-    ).resolves.toMatchObject({ year: 1962 });
-  });
-
   it("adds only the chosen episodes and refuses keys that aren't in the preview", async () => {
     const preview = await h.useCases.previewSeries(BEVHILL_URL);
     const base = {
@@ -275,7 +252,6 @@ describe("addSeries", () => {
       year: 1962,
       follow: false,
       downloadNow: false,
-      licenseAck: true,
     };
     expect(await fails(h.useCases.addSeries({ ...base, episodeKeys: ["nope"] }))).toMatchObject({
       code: "bad_request",
@@ -294,7 +270,6 @@ describe("addSeries", () => {
       episodeKeys: ["x"],
       follow: false,
       downloadNow: false,
-      licenseAck: true,
     };
     expect(await fails(h.useCases.addSeries({ ...base, previewId: "unknown" }))).toMatchObject({
       code: "gone",

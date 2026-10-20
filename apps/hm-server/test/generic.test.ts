@@ -32,7 +32,7 @@ describe("GenericPageExtractor", () => {
       sourceRef: PAGE,
       media: { kind: "page", url: PAGE },
     });
-    expect(result.license).toEqual({ kind: "unknown", requiresAck: true });
+    expect(result.license).toEqual({ kind: "unknown" });
     expect(result.warnings.map((w) => w.code)).toContain("license-unknown");
     expect(result.series.remoteMarker).toBeUndefined();
   });
@@ -151,7 +151,7 @@ describe("choosing the generic extractor", () => {
     const preview = await h.useCases.previewSeries(PAGE, undefined, "generic");
     expect(preview.extractorId).toBe("generic");
     expect(preview.episodes).toHaveLength(1);
-    expect(preview.license).toMatchObject({ kind: "unknown", requiresAck: true });
+    expect(preview.license).toMatchObject({ kind: "unknown" });
     expect(preview.posterUrl).toBeNull();
   });
 
@@ -167,7 +167,7 @@ describe("choosing the generic extractor", () => {
     expect(list.find((e) => e.id === "internet-archive")?.explicit).toBe(false);
   });
 
-  it("is refused on the server without the license confirmation, whatever the panel did", async () => {
+  it("adds a page as a one-episode series whose source is the page", async () => {
     const preview = await h.useCases.previewSeries(PAGE, undefined, "generic");
     const body = {
       previewId: preview.previewId,
@@ -177,10 +177,7 @@ describe("choosing the generic extractor", () => {
       follow: false,
       downloadNow: false,
     };
-    expect(await fails(h.useCases.addSeries({ ...body, licenseAck: false }))).toMatchObject({
-      code: "license_ack_required",
-    });
-    const created = await h.useCases.addSeries({ ...body, licenseAck: true });
+    const created = await h.useCases.addSeries(body);
     const [episode] = await h.series.listEpisodes(created.id);
     expect(episode?.source).toEqual({ kind: "page", url: PAGE });
   });
@@ -197,7 +194,6 @@ describe("choosing the generic extractor", () => {
       episodeKeys: [PAGE],
       follow: false,
       downloadNow: true,
-      licenseAck: true,
     });
     const [job] = (await h.jobs.list({ status: ["queued"], limit: 5 })).items;
     expect(job?.resource).toBe("browser");
@@ -222,7 +218,6 @@ describe("choosing the generic extractor", () => {
       episodeKeys: [PAGE],
       follow: false,
       downloadNow: true,
-      licenseAck: true,
     });
     await h.queue.settle();
     expect(h.downloader.calls[0]?.source).toEqual({

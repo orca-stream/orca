@@ -53,7 +53,7 @@ export function toPreviewDto(
       sizeBytes: episode.media.sizeBytes ?? null,
       format: episode.media.format ?? null,
     })),
-    license: { kind: license.kind, url: license.url ?? null, requiresAck: license.requiresAck },
+    license: { kind: license.kind, url: license.url ?? null },
     warnings: extraction.warnings.map((warning) => ({
       kind: WARNING_KIND[warning.code],
       message: warning.message,

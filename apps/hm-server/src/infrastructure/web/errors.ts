@@ -5,7 +5,6 @@ import { AppError } from "../../domain/errors.ts";
 
 const APP_STATUS: Record<AppError["code"], ContentfulStatusCode> = {
   bad_request: 400,
-  license_ack_required: 400,
   unauthorized: 401,
   forbidden: 403,
   not_found: 404,

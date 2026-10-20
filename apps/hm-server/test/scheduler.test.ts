@@ -169,7 +169,6 @@ describe("the scheduler and the queue together", () => {
       episodeKeys: preview.episodes.map((episode) => episode.key),
       follow: true,
       downloadNow: false,
-      licenseAck: true,
     });
   }
 

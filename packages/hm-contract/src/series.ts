@@ -18,7 +18,6 @@ export type PreviewRequest = z.infer<typeof PreviewRequest>;
 export const LicenseDto = z.object({
   kind: LicenseKindSchema,
   url: z.string().nullable(),
-  requiresAck: z.boolean(),
 });
 export type LicenseDto = z.infer<typeof LicenseDto>;
 
@@ -71,7 +70,6 @@ export const CreateSeriesBody = z.object({
   episodeKeys: z.array(z.string()).min(1),
   follow: z.boolean().default(false),
   downloadNow: z.boolean().default(false),
-  licenseAck: z.boolean().default(false),
 });
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 

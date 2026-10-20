@@ -32,7 +32,6 @@ async function addFake() {
     episodeKeys: preview.episodes.map((episode) => episode.key),
     follow: false,
     downloadNow: false,
-    licenseAck: true,
   });
 }
 

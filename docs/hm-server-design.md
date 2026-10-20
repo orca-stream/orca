@@ -87,7 +87,7 @@ Example of tier 2: the `The_Beverly_Hillbillies` item has `X.MPG` (MPEG1 origina
 - **Plot:** the item's `description` in shape B, HTML stripped. In shape A the series description is often the only text.
 - **License:** values seen are `http://creativecommons.org/publicdomain/mark/1.0/`, `http://creativecommons.org/licenses/publicdomain/` and `https://creativecommons.org/publicdomain/zero/1.0/`. Map them to `public-domain | cc-by… | unknown`.
   - **Uploaders set this field themselves, and it's wrong sometimes.** "The Young Ones" (1982, BBC) is tagged PD Mark. "Jonny Quest" (1996) is tagged CC0.
-  - Policy (fits decision 6): show the license in the preview. If it's `unknown`, or the year is after 1977, require an explicit "I have the right to download this" check before confirming.
+  - Policy (fits decision 6): show the license in the preview. If it's `unknown`, or the year is after 1977, say so as a warning; adding the series is not blocked.
 
 ### 1.6 Etiquette
 
