@@ -1,15 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
+import { BellIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
-import { BellIcon } from "@orca/ui/icons";
-import { useApi } from "../api/context";
-import { useMutations } from "../api/mutations";
-import { queries } from "../api/queries";
-import { formatRelative } from "../i18n/format";
-import { useLocale, useT } from "../i18n/locale";
-import { MESSAGES } from "../i18n/messages";
-import { Button, cx } from "../ui";
-import { useNow } from "../ui/use-now";
+import { useApi } from "@/api/context";
+import { useMutations } from "@/api/mutations";
+import { queries } from "@/api/queries";
+import { PendingButton } from "@/components/pending-button";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { useNow } from "@/hooks/use-now";
+import { formatRelative } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
+import { MESSAGES } from "@/i18n/messages";
+import { cn } from "@/lib/utils";
 import { notificationText } from "./notification-text";
 import { useUnreadTitle } from "./use-unread-title";
 
@@ -28,13 +31,16 @@ export function NotificationBell() {
   useUnreadTitle(unread);
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label={t.notifications.bell(unread)}
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="relative flex size-9 items-center justify-center rounded-md text-white/70 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={t.notifications.bell(unread)}
+            className="relative text-muted-foreground"
+          />
+        }
       >
         <BellIcon className="size-5" />
         {unread > 0 && (
@@ -45,77 +51,77 @@ export function NotificationBell() {
             {unread > 99 ? "99+" : unread}
           </span>
         )}
-      </button>
-      {open && (
-        <section
-          aria-label={t.notifications.title}
-          className="absolute top-full left-0 z-20 mt-2 flex max-h-96 w-80 max-w-[calc(100vw-2rem)] flex-col gap-2 overflow-y-auto rounded-lg border border-white/10 bg-surface-raised p-3 shadow-xl"
-        >
-          <div className="flex items-center gap-2">
-            <h2 className="mr-auto text-sm font-semibold">{t.notifications.title}</h2>
-            <Button
-              variant="ghost"
-              disabled={unread === 0}
-              loading={markNotificationsRead.isPending}
-              onClick={() => markNotificationsRead.mutate(undefined)}
-            >
-              {t.notifications.markAllRead}
-            </Button>
-          </div>
-          {notifications.isError && (
-            <p role="alert" className="text-xs text-amber-300">
-              {t.notifications.loadFailed}
-            </p>
-          )}
-          {items.length === 0 && !notifications.isError ? (
-            <p className="text-sm text-white/60">{t.notifications.empty}</p>
-          ) : (
-            <ul aria-label={t.notifications.title} className="flex flex-col gap-1">
-              {items.map((item) => {
-                const text = notificationText(item, MESSAGES[locale]);
-                const isUnread = item.readAt === null;
-                const content = (
-                  <>
-                    <span className="block text-xs font-medium">{text.title}</span>
-                    <span className="block text-sm text-white/80">{text.body}</span>
-                    <span className="block text-xs text-white/50">
-                      {formatRelative(new Date(item.createdAt), new Date(now), locale)}
-                    </span>
-                  </>
-                );
-                const className = cx(
-                  "block rounded-md px-2 py-1.5 hover:bg-white/5",
-                  isUnread && "border-l-2 border-amber-400 bg-white/5",
-                );
-                return (
-                  <li key={item.id}>
-                    {item.seriesId ? (
-                      <Link
-                        href={`/series/${encodeURIComponent(item.seriesId)}`}
-                        className={className}
-                        onClick={() => {
-                          if (isUnread) markNotificationsRead.mutate([item.id]);
-                          setOpen(false);
-                        }}
-                      >
-                        {content}
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        className={cx(className, "w-full text-left")}
-                        onClick={() => isUnread && markNotificationsRead.mutate([item.id])}
-                      >
-                        {content}
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      )}
-    </div>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        aria-label={t.notifications.title}
+        className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+      >
+        <div className="flex items-center gap-2">
+          <PopoverTitle className="mr-auto">{t.notifications.title}</PopoverTitle>
+          <PendingButton
+            variant="ghost"
+            size="sm"
+            disabled={unread === 0}
+            pending={markNotificationsRead.isPending}
+            onClick={() => markNotificationsRead.mutate(undefined)}
+          >
+            {t.notifications.markAllRead}
+          </PendingButton>
+        </div>
+        {notifications.isError && (
+          <p role="alert" className="text-xs text-warning">
+            {t.notifications.loadFailed}
+          </p>
+        )}
+        {items.length === 0 && !notifications.isError ? (
+          <p className="text-muted-foreground">{t.notifications.empty}</p>
+        ) : (
+          <ul aria-label={t.notifications.title} className="flex flex-col gap-1">
+            {items.map((item) => {
+              const text = notificationText(item, MESSAGES[locale]);
+              const isUnread = item.readAt === null;
+              const content = (
+                <>
+                  <span className="block text-xs font-medium">{text.title}</span>
+                  <span className="block text-sm text-foreground/80">{text.body}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {formatRelative(new Date(item.createdAt), new Date(now), locale)}
+                  </span>
+                </>
+              );
+              const className = cn(
+                "block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50",
+                isUnread && "border-l-2 border-amber-400 bg-muted",
+              );
+              return (
+                <li key={item.id}>
+                  {item.seriesId ? (
+                    <Link
+                      href={`/series/${encodeURIComponent(item.seriesId)}`}
+                      className={className}
+                      onClick={() => {
+                        if (isUnread) markNotificationsRead.mutate([item.id]);
+                        setOpen(false);
+                      }}
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn(className, "w-full text-left")}
+                      onClick={() => isUnread && markNotificationsRead.mutate([item.id])}
+                    >
+                      {content}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

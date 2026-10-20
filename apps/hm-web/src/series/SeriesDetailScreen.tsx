@@ -1,15 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "wouter";
-import { BackIcon } from "@orca/ui/icons";
-import { ApiError } from "../api/client";
-import { useApi } from "../api/context";
-import { useMutations } from "../api/mutations";
-import { queries } from "../api/queries";
-import { formatRelative } from "../i18n/format";
-import { useLocale, useT } from "../i18n/locale";
-import { Button, EmptyState, Spinner, Switch, TextField } from "../ui";
-import { useNow } from "../ui/use-now";
+import { ArrowLeftIcon } from "lucide-react";
+import { ApiError } from "@/api/client";
+import { useApi } from "@/api/context";
+import { useMutations } from "@/api/mutations";
+import { queries } from "@/api/queries";
+import { EmptyState } from "@/components/empty-state";
+import { Loading } from "@/components/loading";
+import { PendingButton } from "@/components/pending-button";
+import { SwitchField } from "@/components/switch-field";
+import { TextField } from "@/components/text-field";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useNow } from "@/hooks/use-now";
+import { formatRelative } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
+import { cn } from "@/lib/utils";
 import { EpisodeTable } from "./EpisodeTable";
 import { Poster } from "./Poster";
 import { TrackPrefsForm } from "./TrackPrefsForm";
@@ -46,7 +53,7 @@ export function SeriesDetailScreen() {
       <EmptyState
         title={t.series.notFound}
         action={
-          <Link href="/series" className="text-sm underline">
+          <Link href="/series" className={buttonVariants({ variant: "outline" })}>
             {t.series.back}
           </Link>
         }
@@ -55,11 +62,11 @@ export function SeriesDetailScreen() {
   }
   if (!series.data || !episodes) {
     return series.isError || episodesQuery.isError ? (
-      <p role="alert" className="text-sm text-amber-300">
+      <p role="alert" className="text-sm text-warning">
         {t.dashboard.loadFailed}
       </p>
     ) : (
-      <Spinner className="size-6" />
+      <Loading />
     );
   }
 
@@ -82,9 +89,9 @@ export function SeriesDetailScreen() {
     <div className="mx-auto flex max-w-5xl flex-col gap-8">
       <Link
         href="/series"
-        className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
+        className={cn(buttonVariants({ variant: "ghost" }), "self-start text-muted-foreground")}
       >
-        <BackIcon className="size-4" />
+        <ArrowLeftIcon data-icon="inline-start" />
         {t.series.back}
       </Link>
 
@@ -93,12 +100,12 @@ export function SeriesDetailScreen() {
         <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{data.title}</h1>
-            <p className="mt-1 text-sm text-white/60">
+            <p className="mt-1 text-sm text-muted-foreground">
               {data.year ? `${data.year} · ` : ""}
               {t.series.available(data.availableCount, data.episodeCount)}
             </p>
-            {data.plot && <p className="mt-3 text-sm text-white/80">{data.plot}</p>}
-            <p className="mt-2 text-xs text-white/50">
+            {data.plot && <p className="mt-3 text-sm text-foreground/80">{data.plot}</p>}
+            <div className="mt-2 text-xs text-muted-foreground">
               {t.series.source}:{" "}
               <a
                 href={data.sourceUrl}
@@ -108,11 +115,11 @@ export function SeriesDetailScreen() {
               >
                 {data.sourceUrl}
               </a>
-            </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-surface p-4">
-            <Switch
+          <Card className="gap-4 px-4">
+            <SwitchField
               checked={data.follow}
               label={t.series.follow}
               disabled={patchSeries.isPending}
@@ -139,16 +146,17 @@ export function SeriesDetailScreen() {
                   onChange={(event) => setIntervalDraft(event.target.value)}
                 />
               </div>
-              <Button
+              <PendingButton
                 type="submit"
+                variant="outline"
                 disabled={!intervalValid || hours === data.checkIntervalHours}
-                loading={patchSeries.isPending}
+                pending={patchSeries.isPending}
               >
                 {t.series.saveInterval}
-              </Button>
+              </PendingButton>
             </form>
             <div className="flex flex-wrap items-center gap-3">
-              <div className="mr-auto text-xs text-white/50">
+              <div className="mr-auto text-xs text-muted-foreground">
                 <p>
                   {data.lastCheckedAt === null
                     ? t.series.neverChecked
@@ -166,16 +174,20 @@ export function SeriesDetailScreen() {
                   </p>
                 )}
               </div>
-              <Button loading={checkSeries.isPending} onClick={() => checkSeries.mutate(id)}>
+              <PendingButton
+                variant="outline"
+                pending={checkSeries.isPending}
+                onClick={() => checkSeries.mutate(id)}
+              >
                 {t.series.checkNow}
-              </Button>
+              </PendingButton>
             </div>
             {checkSeries.isSuccess && (
-              <p role="status" className="text-xs text-white/70">
+              <p role="status" className="text-xs text-muted-foreground">
                 {t.series.checkQueued}
               </p>
             )}
-          </div>
+          </Card>
         </div>
       </header>
 
@@ -187,12 +199,13 @@ export function SeriesDetailScreen() {
       <section aria-label={t.series.episodes} className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="mr-auto text-lg font-semibold">{t.series.episodes}</h2>
-          <Button onClick={() => setPicked(selectAllSelectable(episodes))}>
+          <Button variant="outline" onClick={() => setPicked(selectAllSelectable(episodes))}>
             {t.series.selectAll}
           </Button>
-          <Button
+          <PendingButton
+            variant="outline"
             disabled={selection.size === 0}
-            loading={bulk === "selected"}
+            pending={bulk === "selected"}
             onClick={() => {
               setBulk("selected");
               enqueue.mutate(orderedSelection, {
@@ -202,21 +215,20 @@ export function SeriesDetailScreen() {
             }}
           >
             {t.series.downloadSelected(selection.size)}
-          </Button>
-          <Button
-            variant="primary"
+          </PendingButton>
+          <PendingButton
             disabled={missing.length === 0}
-            loading={bulk === "missing"}
+            pending={bulk === "missing"}
             onClick={() => {
               setBulk("missing");
               enqueue.mutate(missing, { onSettled: () => setBulk(null) });
             }}
           >
             {t.series.downloadMissing}
-          </Button>
+          </PendingButton>
         </div>
         {failedAction && (
-          <p role="alert" className="text-sm text-amber-300">
+          <p role="alert" className="text-sm text-warning">
             {t.series.actionFailed}
           </p>
         )}

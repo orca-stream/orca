@@ -1,8 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vite-plus/test";
-import { makePreview, makeSeries } from "../test/fixtures";
-import { jsonResponse, renderApp, type Handler } from "../test/render";
+import { makePreview, makeSeries } from "@/test/fixtures";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { AddSeriesScreen } from "./AddSeriesScreen";
 
 const EXTRACTORS = [

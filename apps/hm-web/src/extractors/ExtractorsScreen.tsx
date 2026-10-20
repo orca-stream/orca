@@ -1,9 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { useApi } from "../api/context";
-import { queries } from "../api/queries";
-import { useT } from "../i18n/locale";
-import { EmptyState, Spinner, Table, TBody, Td, Th, THead, Tr } from "../ui";
+import { useApi } from "@/api/context";
+import { queries } from "@/api/queries";
+import { EmptyState } from "@/components/empty-state";
+import { Loading } from "@/components/loading";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useT } from "@/i18n/locale";
 
 export function ExtractorsScreen() {
   const t = useT();
@@ -14,11 +24,11 @@ export function ExtractorsScreen() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">{t.extractors.title}</h1>
-        <p className="mt-1 text-sm text-white/60">{t.extractors.subtitle}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.extractors.subtitle}</p>
       </div>
-      {extractors.isPending && <Spinner className="size-6" />}
+      {extractors.isPending && <Loading />}
       {extractors.isError && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {t.dashboard.loadFailed}
         </p>
       )}
@@ -27,37 +37,39 @@ export function ExtractorsScreen() {
       )}
       {extractors.isSuccess && extractors.data.length > 0 && (
         <Table>
-          <THead>
-            <Tr>
-              <Th>{t.extractors.name}</Th>
-              <Th>{t.extractors.hosts}</Th>
-              <Th>{t.extractors.example}</Th>
-              <Th>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t.extractors.name}</TableHead>
+              <TableHead>{t.extractors.hosts}</TableHead>
+              <TableHead>{t.extractors.example}</TableHead>
+              <TableHead>
                 <span className="sr-only">{t.extractors.tryIt}</span>
-              </Th>
-            </Tr>
-          </THead>
-          <TBody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {extractors.data.map((extractor) => (
-              <Tr key={extractor.id}>
-                <Td className="font-medium">{extractor.name}</Td>
-                <Td className="text-white/70">
+              <TableRow key={extractor.id}>
+                <TableCell className="font-medium">{extractor.name}</TableCell>
+                <TableCell className="text-muted-foreground">
                   {extractor.explicit ? t.extractors.explicitOnly : extractor.hosts.join(", ")}
-                </Td>
-                <Td className="max-w-xs truncate text-white/60">{extractor.example}</Td>
-                <Td className="text-right">
+                </TableCell>
+                <TableCell className="max-w-xs truncate text-muted-foreground">
+                  {extractor.example}
+                </TableCell>
+                <TableCell className="text-right">
                   <Link
                     href={`/series/new?url=${encodeURIComponent(extractor.example)}${
                       extractor.explicit ? `&extractor=${encodeURIComponent(extractor.id)}` : ""
                     }`}
-                    className="inline-flex h-9 items-center rounded-md bg-surface-raised px-3 text-sm hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white"
+                    className={buttonVariants({ variant: "outline" })}
                   >
                     {t.extractors.tryIt}
                   </Link>
-                </Td>
-              </Tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </TBody>
+          </TableBody>
         </Table>
       )}
     </div>

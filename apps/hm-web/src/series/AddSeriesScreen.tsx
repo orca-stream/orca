@@ -2,13 +2,18 @@ import type { PreviewDto } from "@orca/hm-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useLocation, useSearchParams } from "wouter";
-import { ApiError } from "../api/client";
-import { useApi } from "../api/context";
-import { useMutations } from "../api/mutations";
-import { queries } from "../api/queries";
-import { useT } from "../i18n/locale";
-import type { Messages } from "../i18n/messages";
-import { Button, TextField } from "../ui";
+import { TriangleAlertIcon } from "lucide-react";
+import { ApiError } from "@/api/client";
+import { useApi } from "@/api/context";
+import { useMutations } from "@/api/mutations";
+import { queries } from "@/api/queries";
+import { PendingButton } from "@/components/pending-button";
+import { TextField } from "@/components/text-field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { useT } from "@/i18n/locale";
+import type { Messages } from "@/i18n/messages";
 import { PreviewEditor } from "./PreviewEditor";
 import { initialForm, matchExtractor, toCreateBody, type PreviewForm } from "./preview-form";
 
@@ -102,7 +107,7 @@ export function AddSeriesScreen() {
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">{t.add.title}</h1>
-        <p className="mt-1 text-sm text-white/60">{t.add.subtitle}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.add.subtitle}</p>
       </div>
 
       <form onSubmit={runPreview} className="flex flex-col gap-3">
@@ -119,65 +124,53 @@ export function AddSeriesScreen() {
               onChange={(event) => setUrl(event.target.value)}
             />
           </div>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!urlFilled}
-            loading={previewMutation.isPending}
-          >
+          <PendingButton type="submit" disabled={!urlFilled} pending={previewMutation.isPending}>
             {previewMutation.isPending ? t.add.previewing : t.add.preview}
-          </Button>
+          </PendingButton>
         </div>
         {explicit.length > 0 && (
-          <div className="flex flex-col gap-1.5 sm:max-w-sm">
-            <label htmlFor="extractor-choice" className="text-sm text-white/70">
-              {t.add.extractorChoice}
-            </label>
-            <select
+          <Field className="sm:max-w-sm">
+            <FieldLabel htmlFor="extractor-choice">{t.add.extractorChoice}</FieldLabel>
+            <NativeSelect
               id="extractor-choice"
+              className="w-full"
               value={chosen?.id ?? ""}
               onChange={(event) => setChosenId(event.target.value)}
-              className="h-10 rounded-md border border-white/10 bg-surface px-3 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
             >
-              <option value="">{t.add.autoExtractor}</option>
+              <NativeSelectOption value="">{t.add.autoExtractor}</NativeSelectOption>
               {explicit.map((extractor) => (
-                <option key={extractor.id} value={extractor.id}>
+                <NativeSelectOption key={extractor.id} value={extractor.id}>
                   {extractor.name}
-                </option>
+                </NativeSelectOption>
               ))}
-            </select>
-          </div>
+            </NativeSelect>
+          </Field>
         )}
         {chosen && (
-          <p role="status" className="text-sm text-amber-300">
+          <p role="status" className="text-sm text-warning">
             {t.add.usingExplicit(chosen.name)}
           </p>
         )}
         {urlFilled && extractors.isSuccess && !chosen && (
-          <p
-            role="status"
-            className={matched ? "text-sm text-emerald-300" : "text-sm text-amber-300"}
-          >
+          <p role="status" className={matched ? "text-sm text-success" : "text-sm text-warning"}>
             {matched ? t.add.matches(matched.name) : t.add.noMatch}
           </p>
         )}
         {previewMutation.isError && (
-          <p role="alert" className="text-sm text-amber-300">
+          <p role="alert" className="text-sm text-warning">
             {previewError(previewMutation.error, t)}
           </p>
         )}
       </form>
 
       {notice && (
-        <p
-          role="status"
-          className="rounded-md border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200"
-        >
-          {notice}
-        </p>
+        <Alert role="status" className="border-warning/40 bg-warning/8 text-warning">
+          <TriangleAlertIcon />
+          <AlertDescription className="text-warning">{notice}</AlertDescription>
+        </Alert>
       )}
       {createSeries.isError && !gone && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {createError(createSeries.error, t)}
         </p>
       )}

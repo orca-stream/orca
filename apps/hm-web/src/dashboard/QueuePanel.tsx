@@ -1,25 +1,27 @@
 import type { JobDto } from "@orca/hm-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useMutations } from "../api/mutations";
-import { queries } from "../api/queries";
-import { useApi } from "../api/context";
-import { formatBytes, formatDuration, formatSpeed } from "../i18n/format";
-import { useLocale, useT } from "../i18n/locale";
+import { useApi } from "@/api/context";
+import { useMutations } from "@/api/mutations";
+import { queries } from "@/api/queries";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { Loading } from "@/components/loading";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  ProgressBar,
-  Spinner,
   Table,
-  TBody,
-  Td,
-  Th,
-  THead,
-  Tr,
-} from "../ui";
-import { useNow } from "../ui/use-now";
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useNow } from "@/hooks/use-now";
+import { formatBytes, formatDuration, formatSpeed } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
+import { toPercent } from "@/lib/percent";
 import {
   canCancel,
   jobName,
@@ -35,37 +37,40 @@ function RunningJob({ job, onCancel }: { job: JobDto; onCancel: (job: JobDto) =>
   const locale = useLocale();
   const { bytesPerSecond, etaSeconds } = jobSpeedAndEta(job);
   const name = jobName(job, t.dashboard.kinds[job.kind]);
-  const percent = job.progress === null ? null : Math.round(job.progress * 100);
+  const percent = toPercent(job.progress);
   const bytes = job.progressDetail?.bytes;
   const total = job.progressDetail?.total;
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-white/10 bg-surface p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate font-medium">
-          <JobName job={job} />
-        </p>
-        {canCancel(job) && (
-          <Button variant="ghost" onClick={() => onCancel(job)}>
-            {t.dashboard.cancel}
-          </Button>
-        )}
-      </div>
-      <ProgressBar value={job.progress} label={t.dashboard.progress(name)} />
-      <p className="flex flex-wrap gap-x-4 text-xs text-white/60">
-        <span>{percent === null ? "—" : `${percent}%`}</span>
-        {bytes !== undefined && total !== undefined && (
+    <li>
+      <Card className="gap-2 px-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate font-medium">
+            <JobName job={job} />
+          </p>
+          {canCancel(job) && (
+            <Button variant="ghost" onClick={() => onCancel(job)}>
+              {t.dashboard.cancel}
+            </Button>
+          )}
+        </div>
+        <Progress value={percent} aria-label={t.dashboard.progress(name)} />
+        <p className="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
+          <span>{percent === null ? "—" : `${percent}%`}</span>
+          {bytes !== undefined && total !== undefined && (
+            <span>
+              {formatBytes(bytes, locale)} / {formatBytes(total, locale)}
+            </span>
+          )}
           <span>
-            {formatBytes(bytes, locale)} / {formatBytes(total, locale)}
+            {t.dashboard.speed}:{" "}
+            {bytesPerSecond === null ? "—" : formatSpeed(bytesPerSecond, locale)}
           </span>
-        )}
-        <span>
-          {t.dashboard.speed}: {bytesPerSecond === null ? "—" : formatSpeed(bytesPerSecond, locale)}
-        </span>
-        <span>
-          {t.dashboard.eta}: {etaSeconds === null ? "—" : formatDuration(etaSeconds)}
-        </span>
-        <span>{t.dashboard.attempt(Math.max(1, job.attempts), job.maxAttempts)}</span>
-      </p>
+          <span>
+            {t.dashboard.eta}: {etaSeconds === null ? "—" : formatDuration(etaSeconds)}
+          </span>
+          <span>{t.dashboard.attempt(Math.max(1, job.attempts), job.maxAttempts)}</span>
+        </p>
+      </Card>
     </li>
   );
 }
@@ -87,13 +92,13 @@ export function QueuePanel() {
         {t.dashboard.queueTitle}
       </h2>
       {cancelJob.isError && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {t.dashboard.actionFailed}
         </p>
       )}
-      {active.isPending && <Spinner className="size-6" />}
+      {active.isPending && <Loading />}
       {active.isError && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {t.dashboard.loadFailed}
         </p>
       )}
@@ -102,7 +107,7 @@ export function QueuePanel() {
       )}
       {running.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-white/60">{t.dashboard.running}</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">{t.dashboard.running}</h3>
           <ul className="flex flex-col gap-2">
             {running.map((job) => (
               <RunningJob key={job.id} job={job} onCancel={setToCancel} />
@@ -112,41 +117,41 @@ export function QueuePanel() {
       )}
       {queued.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-white/60">{t.dashboard.waiting}</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">{t.dashboard.waiting}</h3>
           <Table>
-            <THead>
-              <Tr>
-                <Th>#</Th>
-                <Th>{t.series.colTitle}</Th>
-                <Th>{t.series.colStatus}</Th>
-                <Th>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>{t.series.colTitle}</TableHead>
+                <TableHead>{t.series.colStatus}</TableHead>
+                <TableHead>
                   <span className="sr-only">{t.dashboard.cancel}</span>
-                </Th>
-              </Tr>
-            </THead>
-            <TBody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {queued.map((job) => {
                 const wait = retryWait(job, now);
                 return (
-                  <Tr key={job.id}>
-                    <Td>{queuePosition(queued, job.id)}</Td>
-                    <Td>
+                  <TableRow key={job.id}>
+                    <TableCell>{queuePosition(queued, job.id)}</TableCell>
+                    <TableCell>
                       <JobName job={job} />
-                    </Td>
-                    <Td className="text-white/60">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {wait
                         ? t.dashboard.retryIn(formatDuration(wait.seconds), wait.attempt, wait.of)
                         : t.status.queued}
-                    </Td>
-                    <Td className="text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <Button variant="ghost" onClick={() => setToCancel(job)}>
                         {t.dashboard.cancel}
                       </Button>
-                    </Td>
-                  </Tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </TBody>
+            </TableBody>
           </Table>
         </div>
       )}

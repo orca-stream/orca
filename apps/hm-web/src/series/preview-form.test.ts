@@ -1,6 +1,6 @@
 import { CreateSeriesBody } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { makePreview } from "../test/fixtures";
+import { makePreview } from "@/test/fixtures";
 import {
   canConfirm,
   episodeCode,

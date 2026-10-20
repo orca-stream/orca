@@ -1,4 +1,4 @@
-import { useT } from "../i18n/locale";
+import { useT } from "@/i18n/locale";
 import { ErrorsPanel } from "./ErrorsPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { QueuePanel } from "./QueuePanel";

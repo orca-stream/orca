@@ -3,10 +3,10 @@ import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { ApiProvider } from "../api/ApiProvider";
-import { createApiClient } from "../api/client";
-import { I18nProvider } from "../i18n/locale";
-import type { Locale } from "../i18n/messages";
+import { ApiProvider } from "@/api/ApiProvider";
+import { createApiClient } from "@/api/client";
+import { I18nProvider } from "@/i18n/locale";
+import type { Locale } from "@/i18n/messages";
 import { requestUrl } from "./request-url";
 
 export type Handler = (request: Request) => Response | Promise<Response>;

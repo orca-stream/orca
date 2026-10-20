@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { useMutations } from "../api/mutations";
-import type { SeriesDto } from "../api/types";
-import { useT } from "../i18n/locale";
-import { Button, Switch, TextField } from "../ui";
+import { useMutations } from "@/api/mutations";
+import type { SeriesDto } from "@/api/types";
+import { PendingButton } from "@/components/pending-button";
+import { SwitchField } from "@/components/switch-field";
+import { TextField } from "@/components/text-field";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { useT } from "@/i18n/locale";
 import { formState, toTrackPatch, type TrackForm } from "./track-prefs";
 
 /** The heights worth offering; a height set another way still shows up as its own option. */
@@ -26,7 +30,7 @@ export function TrackPrefsForm({ series }: { series: SeriesDto }) {
   return (
     <form
       aria-label={t.series.tracks.title}
-      className="flex flex-col gap-3 rounded-lg border border-white/10 bg-surface p-4"
+      className="flex flex-col gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10"
       onSubmit={(event) => {
         event.preventDefault();
         if (invalid || unchanged) return;
@@ -35,26 +39,24 @@ export function TrackPrefsForm({ series }: { series: SeriesDto }) {
     >
       <div>
         <h2 className="text-sm font-semibold">{t.series.tracks.title}</h2>
-        <p className="mt-1 text-xs text-white/50">{t.series.tracks.hint}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t.series.tracks.hint}</p>
       </div>
-      <div className="flex flex-col gap-1.5 sm:max-w-xs">
-        <label htmlFor="track-height" className="text-sm text-white/70">
-          {t.series.tracks.maxHeight}
-        </label>
-        <select
+      <Field className="sm:max-w-xs">
+        <FieldLabel htmlFor="track-height">{t.series.tracks.maxHeight}</FieldLabel>
+        <NativeSelect
           id="track-height"
+          className="w-full"
           value={form.maxHeight}
           onChange={(event) => update({ maxHeight: event.target.value })}
-          className="h-10 rounded-md border border-white/10 bg-surface px-3 text-sm text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
         >
-          <option value="">{t.series.tracks.defaultOption}</option>
+          <NativeSelectOption value="">{t.series.tracks.defaultOption}</NativeSelectOption>
           {heights.map((height) => (
-            <option key={height} value={String(height)}>
+            <NativeSelectOption key={height} value={String(height)}>
               {t.series.tracks.heightOption(height)}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
-      </div>
+        </NativeSelect>
+      </Field>
       <TextField
         label={t.series.tracks.audio}
         placeholder="spa, eng"
@@ -68,23 +70,28 @@ export function TrackPrefsForm({ series }: { series: SeriesDto }) {
         value={form.subtitles}
         onChange={(event) => update({ subtitles: event.target.value })}
       />
-      <Switch
+      <SwitchField
         checked={form.noSubtitles}
         label={t.series.tracks.noSubtitles}
         onCheckedChange={(noSubtitles) => update({ noSubtitles })}
       />
-      <p className="text-xs text-white/50">{t.series.tracks.langHint}</p>
+      <p className="text-xs text-muted-foreground">{t.series.tracks.langHint}</p>
       {invalid && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {t.series.tracks.invalid}
         </p>
       )}
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={invalid || unchanged} loading={patchSeries.isPending}>
+        <PendingButton
+          type="submit"
+          variant="outline"
+          disabled={invalid || unchanged}
+          pending={patchSeries.isPending}
+        >
           {t.series.tracks.save}
-        </Button>
+        </PendingButton>
         {patchSeries.isSuccess && unchanged && (
-          <span role="status" className="text-xs text-white/60">
+          <span role="status" className="text-xs text-muted-foreground">
             {t.series.tracks.saved}
           </span>
         )}

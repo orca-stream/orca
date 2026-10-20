@@ -1,3 +1,4 @@
+import path from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, lazyPlugins, loadEnv } from "vite-plus";
@@ -10,6 +11,7 @@ export default defineConfig(({ mode }) => {
   const target = loadEnv(mode, process.cwd(), "HM_").HM_SERVER_URL;
   return {
     plugins: lazyPlugins(() => [react(), tailwindcss()]),
+    resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
     server: target ? { proxy: { "/api": { target } } } : {},
     test: {
       environment: "happy-dom",

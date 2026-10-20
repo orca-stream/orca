@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { makeJob } from "../test/fixtures";
+import { makeJob } from "@/test/fixtures";
 import {
   canCancel,
   jobName,

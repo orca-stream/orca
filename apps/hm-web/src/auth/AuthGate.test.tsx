@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
-import { jsonResponse, renderApp } from "../test/render";
+import { jsonResponse, renderApp } from "@/test/render";
 import { AuthGate } from "./AuthGate";
 import { dropSession } from "./session";
 

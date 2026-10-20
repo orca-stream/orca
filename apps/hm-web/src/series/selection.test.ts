@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { makeEpisode } from "../test/fixtures";
+import { makeEpisode } from "@/test/fixtures";
 import {
   groupBySeason,
   isSelectable,

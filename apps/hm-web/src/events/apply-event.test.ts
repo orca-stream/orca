@@ -1,6 +1,6 @@
 import type { HmEvent, JobDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { keys } from "../api/keys";
+import { keys } from "@/api/keys";
 import { patchProgress, placeJob, planEvent, type JobLists } from "./apply-event";
 
 function job(over: Partial<JobDto> = {}): JobDto {

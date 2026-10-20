@@ -1,9 +1,9 @@
 import { HM_EVENT_TYPES, isHmEvent } from "@orca/hm-contract/rules";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { keys } from "../api/keys";
-import type { EpisodeDto, JobDto } from "../api/types";
-import { dropSession } from "../auth/session";
+import { keys } from "@/api/keys";
+import type { EpisodeDto, JobDto } from "@/api/types";
+import { dropSession } from "@/auth/session";
 import { patchProgress, placeJob, planEvent, type JobLists, type Op } from "./apply-event";
 import { connectEvents, type EventSourceConstructor, type SseStatus } from "./sse";
 

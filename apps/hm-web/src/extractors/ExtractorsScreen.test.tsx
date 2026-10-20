@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
-import { jsonResponse, renderApp } from "../test/render";
+import { jsonResponse, renderApp } from "@/test/render";
 import { ExtractorsScreen } from "./ExtractorsScreen";
 
 describe("ExtractorsScreen", () => {

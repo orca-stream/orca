@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { makeSeries } from "../test/fixtures";
+import { makeSeries } from "@/test/fixtures";
 import { formState, parseLangs, toTrackPatch } from "./track-prefs";
 
 describe("parseLangs", () => {

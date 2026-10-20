@@ -1,5 +1,5 @@
 import type { NotificationDto } from "@orca/hm-contract";
-import type { Messages } from "../i18n/messages";
+import type { Messages } from "@/i18n/messages";
 
 type Texts = Messages["notifications"];
 

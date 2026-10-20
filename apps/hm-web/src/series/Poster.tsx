@@ -1,7 +1,7 @@
-import { TvIcon } from "@orca/ui/icons";
 import type { SeriesDto } from "@orca/hm-contract";
-import { posterUrl } from "../api/queries";
-import { cx } from "../ui";
+import { TvIcon } from "lucide-react";
+import { posterUrl } from "@/api/queries";
+import { cn } from "@/lib/utils";
 
 /** A 2:3 cover from `src`, or the placeholder when there is no `src`. */
 export function PosterImage({
@@ -18,13 +18,13 @@ export function PosterImage({
       src={src}
       alt={alt}
       loading="lazy"
-      className={cx("aspect-[2/3] w-full rounded-md bg-surface-raised object-cover", className)}
+      className={cn("aspect-[2/3] w-full rounded-lg bg-secondary object-cover", className)}
     />
   ) : (
     <div
       aria-hidden="true"
-      className={cx(
-        "flex aspect-[2/3] w-full items-center justify-center rounded-md bg-surface-raised text-white/30",
+      className={cn(
+        "flex aspect-[2/3] w-full items-center justify-center rounded-lg bg-secondary text-muted-foreground/60",
         className,
       )}
     >

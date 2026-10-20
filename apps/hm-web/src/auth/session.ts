@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useApi } from "../api/context";
-import { ApiError, type ApiClient } from "../api/client";
-import type { LoginBody, Me } from "../api/types";
+import { useApi } from "@/api/context";
+import { ApiError, type ApiClient } from "@/api/client";
+import type { LoginBody, Me } from "@/api/types";
 
 export const ME_KEY = ["auth", "me"] as const;
 

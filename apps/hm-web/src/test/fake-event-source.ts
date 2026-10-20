@@ -1,4 +1,4 @@
-import type { EventSourceLike } from "../events/sse";
+import type { EventSourceLike } from "@/events/sse";
 
 /** An EventSource the test drives by hand. */
 export class FakeEventSource implements EventSourceLike {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { requestUrl } from "../test/request-url";
+import { requestUrl } from "@/test/request-url";
 import { ApiError, createApiClient } from "./client";
 
 function json(body: unknown, status = 200): Response {

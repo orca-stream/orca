@@ -1,5 +1,5 @@
 import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT } from "@orca/hm-contract/rules";
-import type { SeriesDto, SeriesPatch } from "../api/types";
+import type { SeriesDto, SeriesPatch } from "@/api/types";
 
 const MAX_LANGUAGES = 10;
 

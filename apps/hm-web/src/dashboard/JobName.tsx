@@ -1,6 +1,6 @@
 import type { JobDto } from "@orca/hm-contract";
 import { Link } from "wouter";
-import { useT } from "../i18n/locale";
+import { useT } from "@/i18n/locale";
 import { jobName } from "./job-view";
 
 export function JobName({ job }: { job: JobDto }) {

@@ -18,6 +18,8 @@ const es = {
     extractors: "Extractores",
     signOut: "Cerrar sesión",
     signedInAs: (name: string) => `Sesión de ${name}`,
+    toggle: "Mostrar u ocultar la barra lateral",
+    breadcrumb: "Ruta",
   },
   live: {
     open: "En vivo",
@@ -33,8 +35,6 @@ const es = {
     cancelled: "Cancelado",
   },
   login: {
-    title: "Entra al panel",
-    subtitle: "Usa tu cuenta de administrador de Jellyfin.",
     username: "Usuario",
     password: "Contraseña",
     submit: "Entrar",
@@ -280,6 +280,8 @@ const en: typeof es = {
     extractors: "Extractors",
     signOut: "Sign out",
     signedInAs: (name: string) => `Signed in as ${name}`,
+    toggle: "Toggle the sidebar",
+    breadcrumb: "Breadcrumb",
   },
   live: {
     open: "Live",
@@ -295,8 +297,6 @@ const en: typeof es = {
     cancelled: "Cancelled",
   },
   login: {
-    title: "Sign in to the panel",
-    subtitle: "Use your Jellyfin administrator account.",
     username: "Username",
     password: "Password",
     submit: "Sign in",

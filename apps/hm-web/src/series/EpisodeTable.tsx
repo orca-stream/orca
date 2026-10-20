@@ -1,16 +1,28 @@
 import type { EpisodeDto } from "@orca/hm-contract";
-import { formatBytes } from "../i18n/format";
-import { useLocale, useT } from "../i18n/locale";
-import { Button, ProgressBar, Table, TBody, Td, Th, THead, Tr, cx } from "../ui";
+import { PendingButton } from "@/components/pending-button";
+import { StatusBadge, type Tone } from "@/components/status-badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatBytes } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
+import { toPercent } from "@/lib/percent";
 import { episodeCode } from "./preview-form";
 import { isSelectable, seasonState, type SeasonGroup } from "./selection";
 
-const TONES: Record<EpisodeDto["status"], string> = {
-  missing: "bg-white/10 text-white/60",
-  queued: "bg-white/10 text-white/70",
-  downloading: "bg-sky-500/15 text-sky-300",
-  available: "bg-emerald-500/15 text-emerald-300",
-  failed: "bg-amber-500/15 text-amber-300",
+const TONES: Record<EpisodeDto["status"], Tone> = {
+  missing: "muted",
+  queued: "neutral",
+  downloading: "info",
+  available: "success",
+  failed: "warning",
 };
 
 interface EpisodeTableProps {
@@ -42,86 +54,75 @@ export function EpisodeTable({
     <section aria-label={title} className="flex flex-col gap-2">
       <h3 className="font-medium">{title}</h3>
       <Table>
-        <THead>
-          <Tr>
-            <Th className="w-10">
-              <input
-                type="checkbox"
-                className="size-4 accent-brand"
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
                 aria-label={t.series.selectSeason(group.season)}
                 checked={state === "all"}
-                ref={(node) => {
-                  if (node) node.indeterminate = state === "some";
-                }}
-                onChange={(event) => onToggleSeason(group.season, event.target.checked)}
+                indeterminate={state === "some"}
+                onCheckedChange={(checked) => onToggleSeason(group.season, checked)}
               />
-            </Th>
-            <Th>{t.series.colCode}</Th>
-            <Th>{t.series.colTitle}</Th>
-            <Th>{t.series.colStatus}</Th>
-            <Th>{t.series.colSize}</Th>
-          </Tr>
-        </THead>
-        <TBody>
+            </TableHead>
+            <TableHead>{t.series.colCode}</TableHead>
+            <TableHead>{t.series.colTitle}</TableHead>
+            <TableHead>{t.series.colStatus}</TableHead>
+            <TableHead>{t.series.colSize}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {group.episodes.map((episode) => {
             const code = episodeCode(episode.season, episode.episode);
             return (
-              <Tr key={episode.id}>
-                <Td>
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-brand"
+              <TableRow key={episode.id}>
+                <TableCell>
+                  <Checkbox
                     aria-label={t.series.selectEpisode(code)}
                     disabled={!isSelectable(episode)}
                     checked={selection.has(episode.id)}
-                    onChange={() => onToggle(episode.id)}
+                    onCheckedChange={() => onToggle(episode.id)}
                   />
-                </Td>
-                <Td className="whitespace-nowrap">
+                </TableCell>
+                <TableCell>
                   <span className="font-mono text-xs">{code}</span>
                   {episode.inferred && (
-                    <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">
+                    <StatusBadge tone="warning" className="ml-2">
                       {t.series.inferred}
-                    </span>
+                    </StatusBadge>
                   )}
-                </Td>
-                <Td>{episode.title}</Td>
-                <Td className="min-w-40">
+                </TableCell>
+                <TableCell className="whitespace-normal">{episode.title}</TableCell>
+                <TableCell className="min-w-40">
                   <div className="flex items-center gap-2">
-                    <span
-                      className={cx(
-                        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        TONES[episode.status],
-                      )}
-                    >
+                    <StatusBadge tone={TONES[episode.status]}>
                       {t.series.episodeStatus[episode.status]}
-                    </span>
+                    </StatusBadge>
                     {episode.status === "failed" && (
-                      <Button
+                      <PendingButton
                         variant="ghost"
-                        className="h-7 px-2"
-                        loading={retryingId === episode.id}
+                        size="sm"
+                        pending={retryingId === episode.id}
                         onClick={() => onRetry(episode.id)}
                       >
                         {t.series.retryEpisode}
-                      </Button>
+                      </PendingButton>
                     )}
                   </div>
                   {episode.status === "downloading" && (
-                    <ProgressBar
+                    <Progress
                       className="mt-2"
-                      value={episode.progress}
-                      label={`${code} ${t.series.episodeStatus.downloading}`}
+                      value={toPercent(episode.progress)}
+                      aria-label={`${code} ${t.series.episodeStatus.downloading}`}
                     />
                   )}
-                </Td>
-                <Td className="whitespace-nowrap text-white/70">
+                </TableCell>
+                <TableCell className="text-muted-foreground">
                   {episode.sizeBytes === null ? "—" : formatBytes(episode.sizeBytes, locale)}
-                </Td>
-              </Tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </TBody>
+        </TableBody>
       </Table>
     </section>
   );

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vite-plus/test";
-import { jsonResponse, renderApp, type Handler } from "../test/render";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { LoginScreen } from "./LoginScreen";
 
 const ME = { userId: "u1", userName: "sam" };

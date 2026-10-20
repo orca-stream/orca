@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { FakeEventSource } from "../test/fake-event-source";
+import { FakeEventSource } from "@/test/fake-event-source";
 import { connectEvents, type SseStatus } from "./sse";
 
 /** A clock that only moves when the test says so. */

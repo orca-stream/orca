@@ -1,5 +1,5 @@
 import type { JobDto } from "@orca/hm-contract";
-import { etaSeconds } from "../i18n/format";
+import { etaSeconds } from "@/i18n/format";
 
 const byId = (a: JobDto, b: JobDto) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 

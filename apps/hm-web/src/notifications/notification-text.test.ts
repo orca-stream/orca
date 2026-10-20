@@ -1,6 +1,6 @@
 import type { NotificationDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { MESSAGES } from "../i18n/messages";
+import { MESSAGES } from "@/i18n/messages";
 import { notificationText } from "./notification-text";
 
 function make(over: Partial<NotificationDto>): NotificationDto {

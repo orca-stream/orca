@@ -1,5 +1,5 @@
 import type { HmEvent, JobDto, ProgressDetail } from "@orca/hm-contract";
-import { keys } from "../api/keys";
+import { keys } from "@/api/keys";
 
 export type Op =
   | { type: "progress"; jobId: string; progress: number | null; detail: ProgressDetail | null }

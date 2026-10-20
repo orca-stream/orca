@@ -1,10 +1,13 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useApi } from "../api/context";
-import { queries } from "../api/queries";
-import { formatRelative } from "../i18n/format";
-import { useLocale, useT } from "../i18n/locale";
-import { Button, EmptyState, Spinner, StatusPill } from "../ui";
-import { useNow } from "../ui/use-now";
+import { useApi } from "@/api/context";
+import { queries } from "@/api/queries";
+import { EmptyState } from "@/components/empty-state";
+import { JobStatusBadge } from "@/components/job-status-badge";
+import { Loading } from "@/components/loading";
+import { PendingButton } from "@/components/pending-button";
+import { useNow } from "@/hooks/use-now";
+import { formatRelative } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
 import { JobName } from "./JobName";
 
 /** The most recent finished jobs, twenty at a time. */
@@ -21,15 +24,15 @@ export function HistoryPanel() {
       <h2 id="history-title" className="text-lg font-semibold">
         {t.dashboard.historyTitle}
       </h2>
-      {history.isPending && <Spinner className="size-6" />}
+      {history.isPending && <Loading />}
       {history.isError && (
-        <p role="alert" className="text-sm text-amber-300">
+        <p role="alert" className="text-sm text-warning">
           {t.dashboard.loadFailed}
         </p>
       )}
       {history.isSuccess && jobs.length === 0 && <EmptyState title={t.dashboard.noHistory} />}
       {jobs.length > 0 && (
-        <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+        <ul className="divide-y rounded-lg border">
           {jobs.map((job) => (
             <li key={job.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <div className="min-w-0">
@@ -37,26 +40,27 @@ export function HistoryPanel() {
                   <JobName job={job} />
                 </p>
                 {job.finishedAt !== null && (
-                  <p className="text-xs text-white/50">
+                  <p className="text-xs text-muted-foreground">
                     {t.dashboard.finished(
                       formatRelative(new Date(job.finishedAt), new Date(now), locale),
                     )}
                   </p>
                 )}
               </div>
-              <StatusPill status={job.status} />
+              <JobStatusBadge status={job.status} />
             </li>
           ))}
         </ul>
       )}
       {history.hasNextPage && (
-        <Button
+        <PendingButton
+          variant="outline"
           className="self-start"
-          loading={history.isFetchingNextPage}
+          pending={history.isFetchingNextPage}
           onClick={() => void history.fetchNextPage()}
         >
           {t.dashboard.loadMore}
-        </Button>
+        </PendingButton>
       )}
     </section>
   );

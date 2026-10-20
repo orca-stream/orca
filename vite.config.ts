@@ -16,6 +16,14 @@ export default defineConfig({
       "vite-plus/prefer-vite-plus-imports": "error",
     },
     options: { typeAware: true, typeCheck: true },
+    overrides: [
+      {
+        // shadcn/ui components export their cva variants next to the component (buttonVariants):
+        // that is how the registry ships them, and they are regenerated with its CLI.
+        files: ["apps/hm-web/src/components/ui/**"],
+        rules: { "react/only-export-components": "off" },
+      },
+    ],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
   },
 });

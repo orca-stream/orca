@@ -2,8 +2,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "wouter";
 import { describe, expect, it } from "vite-plus/test";
-import { makeEpisode, makeJob, makeSeries } from "../test/fixtures";
-import { jsonResponse, renderApp, type Handler } from "../test/render";
+import { makeEpisode, makeJob, makeSeries } from "@/test/fixtures";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { SeriesDetailScreen } from "./SeriesDetailScreen";
 import { SeriesListScreen } from "./SeriesListScreen";
 
@@ -108,8 +108,8 @@ describe("SeriesDetailScreen", () => {
     expect(within(season2).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("50");
     expect(within(screen.getByText("Tres").closest("tr")!).getByText("Fallido")).toBeTruthy();
     expect(
-      (screen.getByRole("checkbox", { name: "Seleccionar S02E01" }) as HTMLInputElement).disabled,
-    ).toBe(true);
+      screen.getByRole("checkbox", { name: "Seleccionar S02E01" }).getAttribute("aria-disabled"),
+    ).toBe("true");
   });
 
   it("downloads the missing ones, which includes the failed", async () => {

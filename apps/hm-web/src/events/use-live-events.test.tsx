@@ -1,9 +1,9 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import type { HmEvent, JobDto } from "@orca/hm-contract";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
-import { keys } from "../api/keys";
-import { jsonResponse, renderApp } from "../test/render";
-import { FakeEventSource } from "../test/fake-event-source";
+import { keys } from "@/api/keys";
+import { jsonResponse, renderApp } from "@/test/render";
+import { FakeEventSource } from "@/test/fake-event-source";
 import { useLiveEvents } from "./use-live-events";
 
 function Probe() {

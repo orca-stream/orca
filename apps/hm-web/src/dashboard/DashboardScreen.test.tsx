@@ -2,8 +2,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { JobDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { makeJob } from "../test/fixtures";
-import { jsonResponse, renderApp, type Handler } from "../test/render";
+import { makeJob } from "@/test/fixtures";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { DashboardScreen } from "./DashboardScreen";
 
 function page(items: JobDto[], nextCursor: string | null = null) {
@@ -66,20 +66,19 @@ describe("DashboardScreen", () => {
     const cancelsSent = () => requests.filter((r) => r.url.endsWith("/cancel")).length;
 
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
-    const dialog = await screen.findByRole("dialog", { hidden: true });
+    const dialog = await screen.findByRole("alertdialog");
     expect(
       within(dialog).getByText(/¿Cancelar la descarga de Beverly Hillbillies S01E01\?/),
     ).toBeTruthy();
     expect(cancelsSent()).toBe(0);
 
-    await user.click(within(dialog).getByRole("button", { name: "Cancelar", hidden: true }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     expect(cancelsSent()).toBe(0);
 
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     await user.click(
-      within(await screen.findByRole("dialog", { hidden: true })).getByRole("button", {
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "Cancelar descarga",
-        hidden: true,
       }),
     );
     await waitFor(() => expect(cancelsSent()).toBe(1));
@@ -177,9 +176,8 @@ describe("DashboardScreen", () => {
     await screen.findByRole("progressbar");
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     await user.click(
-      within(await screen.findByRole("dialog", { hidden: true })).getByRole("button", {
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "Cancelar descarga",
-        hidden: true,
       }),
     );
     expect((await screen.findByRole("alert")).textContent).toBe("No se pudo completar la acción.");

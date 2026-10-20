@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { NotificationDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { jsonResponse, renderApp, type Handler } from "../test/render";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { NotificationBell } from "./NotificationBell";
 
 function note(over: Partial<NotificationDto> = {}): NotificationDto {

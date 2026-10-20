@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useT } from "../i18n/locale";
-import { Button, Spinner } from "../ui";
+import { useT } from "@/i18n/locale";
+import { Loading } from "@/components/loading";
+import { Button } from "@/components/ui/button";
 import { loginPath } from "./next";
 import { useMe } from "./session";
 
@@ -30,7 +31,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!me.isSuccess || signedOut) {
     return (
       <main className="flex min-h-dvh items-center justify-center">
-        <Spinner className="size-8" />
+        <Loading className="size-8" />
       </main>
     );
   }
