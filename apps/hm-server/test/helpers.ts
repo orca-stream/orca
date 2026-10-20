@@ -5,7 +5,7 @@ import { DrizzleNotificationRepository } from "../src/infrastructure/db/notifica
 import { DrizzleSeriesRepository } from "../src/infrastructure/db/series-repository.ts";
 import { DrizzleSettingsRepository } from "../src/infrastructure/db/settings-repository.ts";
 import { DrizzleSessionRepository } from "../src/infrastructure/db/session-repository.ts";
-import type { Episode, Series } from "../src/domain/series.ts";
+import type { Episode, Series, SeriesSource } from "../src/domain/series.ts";
 import { AddressGuard } from "../src/infrastructure/net/address-guard.ts";
 import { HostLimiter, type HostLimits } from "../src/infrastructure/host-limiter.ts";
 import { ManualClock } from "./fakes/clock.ts";
@@ -32,19 +32,33 @@ export function aSeries(overrides: Partial<Series> = {}): Series {
     title: "The Beverly Hillbillies",
     year: 1962,
     plot: "A family strikes oil.",
-    extractorId: "internet-archive",
-    externalId: "bevhill",
-    sourceUrl: "https://archive.org/details/bevhill",
+    tmdbId: null,
+    imdbId: null,
     folderName: "The Beverly Hillbillies (1962)",
     hasPoster: false,
     follow: false,
     checkIntervalHours: 12,
     lastCheckedAt: null,
-    remoteMarker: null,
-    knownRefs: [],
     maxHeight: null,
     audioLangs: null,
     subtitleLangs: null,
+    createdAt: 1,
+    ...overrides,
+  };
+}
+
+/** The one source of {@link aSeries}, under the series' own id as migrated series have it. */
+export function aSource(overrides: Partial<SeriesSource> = {}): SeriesSource {
+  return {
+    id: overrides.seriesId ?? "series-1",
+    seriesId: "series-1",
+    extractorId: "internet-archive",
+    externalId: "bevhill",
+    sourceUrl: "https://archive.org/details/bevhill",
+    season: null,
+    episodeOffset: 0,
+    remoteMarker: null,
+    knownRefs: [],
     createdAt: 1,
     ...overrides,
   };
@@ -56,6 +70,7 @@ export function anEpisode(overrides: Partial<Episode> = {}): Episode {
   return {
     id: `episode-${season}-${episode}`,
     seriesId: "series-1",
+    sourceId: overrides.seriesId ?? "series-1",
     season,
     episode,
     title: `Episode ${episode}`,

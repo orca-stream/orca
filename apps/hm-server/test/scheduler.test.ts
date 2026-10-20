@@ -4,7 +4,7 @@ import { Scheduler } from "../src/application/scheduler.ts";
 import { ExtractorError } from "@orca/extractor-core";
 import { createHarness, type Harness } from "./harness.ts";
 import { FakeExtractor, FAKE_URL } from "./fakes/extractor.ts";
-import { aSeries } from "./helpers.ts";
+import { aSeries, aSource } from "./helpers.ts";
 
 let h: Harness;
 beforeEach(async () => {
@@ -16,9 +16,16 @@ afterEach(() => h.cleanup());
 
 const HOUR = 3_600_000;
 
-async function seed(overrides: Parameters<typeof aSeries>[0]) {
+async function seed({
+  externalId,
+  ...overrides
+}: Parameters<typeof aSeries>[0] & { externalId?: string }) {
   const series = aSeries({ createdAt: h.clock.now(), ...overrides });
-  await h.series.create(series, []);
+  await h.series.create(
+    series,
+    aSource({ id: series.id, seriesId: series.id, externalId: externalId ?? series.id }),
+    [],
+  );
   return series;
 }
 

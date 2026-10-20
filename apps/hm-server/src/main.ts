@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { serve } from "@hono/node-server";
 import type { SiteExtractor } from "@orca/extractor-core";
+import { createHtmlExtractor, parseSitesFile } from "@orca/extractor-html";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createJellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
@@ -83,15 +84,21 @@ const limiter = new HostLimiter({
   limitsFor: hostLimitsFor(extractors, config.hostLimits),
   clock: systemClock,
 });
-extractors.push(
-  createInternetArchiveExtractor({ http: new FetchHttpClient({ userAgent: agent, limiter }) }),
-);
+const http = new FetchHttpClient({ userAgent: agent, limiter });
+extractors.push(createInternetArchiveExtractor({ http }));
+// Read once at boot: a typo in a selector or a pattern stops the server here, not on the first job.
+if (config.sitesFile) {
+  const { sites } = parseSitesFile(readFileSync(resolve(config.sitesFile), "utf8"));
+  for (const site of sites) extractors.push(createHtmlExtractor({ site, http }));
+  console.log(`sites file: ${sites.length} site(s) from ${resolve(config.sitesFile)}`);
+}
 // Everything the browser and ffmpeg fetch goes through this proxy, which checks each address it is
 // asked for (redirects, segments and keys included) and connects to the IP it checked.
 const proxy = config.detector ? new GuardedProxy({ isBlockedAddress }) : null;
 await proxy?.start();
 
-// The browser exists only when HM_GENERIC_DETECTOR is on, and so does the extractor that needs it.
+// The browser exists only when something needs it (the generic extractor, or the players of the
+// sites in the sites file); the generic extractor only when HM_GENERIC_DETECTOR asks for it.
 const detector =
   config.detector && proxy
     ? new PlaywrightDetectorAdapter(
@@ -111,7 +118,7 @@ const detector =
         }),
       )
     : null;
-if (detector) extractors.push(new GenericPageExtractor({ guard }));
+if (detector && config.genericExtractor) extractors.push(new GenericPageExtractor({ guard }));
 const events = new InMemoryEventBus();
 const library = new FsLibraryWriter(mediaRoot);
 const series = new DrizzleSeriesRepository(database.db);

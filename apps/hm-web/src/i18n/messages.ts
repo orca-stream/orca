@@ -96,6 +96,22 @@ const es = {
     notFound: "No existe esa serie.",
     back: "Volver a las series",
     source: "Origen",
+    sources: "Direcciones",
+    sourceNumbering: (season: number | null, offset: number) =>
+      [
+        season === null ? null : `a la temporada ${season}`,
+        offset === 0 ? null : `episodios ${offset > 0 ? "+" : ""}${offset}`,
+      ]
+        .filter(Boolean)
+        .join(", ") || "numeración del sitio",
+    ids: {
+      title: "TMDB e IMDb",
+      hint: "Con uno de los dos, Jellyfin trae solo la descripción, las imágenes y los títulos de los episodios.",
+      tmdb: "Id de TMDB",
+      imdb: "Id de IMDb",
+      invalid: "El id de TMDB es un número; el de IMDb es como tt0123456.",
+      save: "Guardar ids",
+    },
     follow: "Seguir la serie",
     checkEvery: "Revisar cada (horas)",
     lastChecked: (when: string) => `Última revisión ${when}`,
@@ -186,7 +202,27 @@ const es = {
     upstream: "El sitio de origen no respondió bien. Inténtalo más tarde.",
     expired:
       "La previsualización había caducado y se volvió a leer. Revisa los datos y pulsa «Añadir serie» otra vez.",
-    alreadyAdded: "Esa serie ya está añadida o su carpeta ya existe. Cambia el título o el año.",
+    alreadyAdded:
+      "Choca con algo que ya existe (la dirección, la carpeta o unos episodios). Detalle del servidor:",
+    addTo: "Añadir a",
+    addToNew: "Una serie nueva",
+    existingHas: (title: string, ranges: string) =>
+      ranges === "" ? `«${title}» aún no tiene episodios.` : `«${title}» ya tiene ${ranges}.`,
+    tmdbId: "Id de TMDB",
+    imdbId: "Id de IMDb",
+    idsHint:
+      "Opcionales. Con uno de los dos, Jellyfin trae solo la descripción, las imágenes y los títulos de los episodios.",
+    tmdbInvalid: "Un número, como en themoviedb.org/tv/12345.",
+    imdbInvalid: "Como tt0123456.",
+    numbering: "Numeración",
+    numberingHint:
+      "Vacíos: se usa la numeración del sitio. Si este enlace es una parte de una temporada en TMDB, pon esa temporada y el número que tiene allí su primer episodio (p. ej. 13 para la segunda parte).",
+    season: "Temporada",
+    firstEpisode: "Primer episodio",
+    countInvalid: "Escribe un número entero.",
+    siteCode: (code: string) => `en el sitio ${code}`,
+    clashes: (codes: string) =>
+      `La serie ya tiene ${codes}: cambia la temporada o el primer episodio.`,
     createFailed: "No se pudo añadir la serie.",
     fieldTitle: "Título",
     fieldYear: "Año",
@@ -358,6 +394,22 @@ const en: typeof es = {
     notFound: "That series does not exist.",
     back: "Back to series",
     source: "Source",
+    sources: "Addresses",
+    sourceNumbering: (season: number | null, offset: number) =>
+      [
+        season === null ? null : `into season ${season}`,
+        offset === 0 ? null : `episodes ${offset > 0 ? "+" : ""}${offset}`,
+      ]
+        .filter(Boolean)
+        .join(", ") || "the site's numbering",
+    ids: {
+      title: "TMDB and IMDb",
+      hint: "With either one, Jellyfin fetches the description, the images and the episode titles itself.",
+      tmdb: "TMDB id",
+      imdb: "IMDb id",
+      invalid: "A TMDB id is a number; an IMDb id looks like tt0123456.",
+      save: "Save ids",
+    },
     follow: "Follow the series",
     checkEvery: "Check every (hours)",
     lastChecked: (when: string) => `Last checked ${when}`,
@@ -447,7 +499,27 @@ const en: typeof es = {
     upstream: "The source site did not answer properly. Try again later.",
     expired:
       "The preview had expired and was read again. Check the details and press “Add series” again.",
-    alreadyAdded: "That series is already added or its folder exists. Change the title or year.",
+    alreadyAdded:
+      "It clashes with something that exists (the address, the folder or some episodes). The server says:",
+    addTo: "Add to",
+    addToNew: "A new series",
+    existingHas: (title: string, ranges: string) =>
+      ranges === "" ? `“${title}” has no episodes yet.` : `“${title}” already has ${ranges}.`,
+    tmdbId: "TMDB id",
+    imdbId: "IMDb id",
+    idsHint:
+      "Optional. With either one, Jellyfin fetches the description, the images and the episode titles itself.",
+    tmdbInvalid: "A number, as in themoviedb.org/tv/12345.",
+    imdbInvalid: "Like tt0123456.",
+    numbering: "Numbering",
+    numberingHint:
+      "Empty: the site's numbering is kept. If this address is one part of a TMDB season, enter that season and the number its first episode has there (e.g. 13 for the second part).",
+    season: "Season",
+    firstEpisode: "First episode",
+    countInvalid: "Enter a whole number.",
+    siteCode: (code: string) => `on the site ${code}`,
+    clashes: (codes: string) =>
+      `The series already has ${codes}: change the season or the first episode.`,
     createFailed: "The series could not be added.",
     fieldTitle: "Title",
     fieldYear: "Year",

@@ -1,9 +1,10 @@
 import * as z from "zod";
-import { PermanentError } from "../domain/errors.ts";
-import type { Job } from "../domain/job.ts";
-import { episodeCode, type Series, type Source } from "../domain/series.ts";
+import { backoffMs } from "../domain/backoff.ts";
+import { AbortedError, PermanentError, RerouteError } from "../domain/errors.ts";
+import { hostLane, type HostLane, type Job } from "../domain/job.ts";
+import { episodeCode, type Episode, type Series, type Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
-import { createCheckSeries } from "./check-series.ts";
+import { createCheckSeries, toJobError } from "./check-series.ts";
 import { createEnqueueRefresh, resourceFor } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
 import type { StreamPrefs } from "./ports.ts";
@@ -32,6 +33,23 @@ const DownloadPayload = z.object({
 
 /** A failure that says the server refused the stream it was given (it may just have expired). */
 const REFUSED_BY_SERVER = /\b(?:HTTP|returned) 4(?:\d\d|XX)\b/;
+/** A download of an episode with several players: which ones, which one this try uses, which failed. */
+const MirrorPayload = z.object({
+  episodeId: z.string(),
+  mirrors: z.array(z.object({ url: z.string(), referer: z.string().optional() })).min(1),
+  mirror: z.number().int().min(0),
+  tried: z.array(z.number().int().min(0)),
+  /** What each player that failed said, to report once every one has. */
+  failures: z.array(z.string()),
+});
+type MirrorPayload = z.infer<typeof MirrorPayload>;
+
+const hasMirrors = (payload: unknown): boolean =>
+  typeof payload === "object" && payload !== null && "mirrors" in payload;
+
+const describe = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const RefreshPayload = z.object({ seriesId: z.string() });
 const CheckPayload = z.object({ seriesId: z.string() });
 
@@ -48,13 +66,16 @@ export function createJobHandler(deps: Deps): JobHandler {
   async function detectStream(
     pageUrl: string,
     signal: AbortSignal,
+    referer?: string,
   ): Promise<z.infer<typeof ResolvedSource>> {
     if (!deps.detector) {
       throw new PermanentError(
-        "This source needs a browser to find the stream, which is not available yet",
+        "This source needs a browser to find the stream: turn on the detector (HM_DETECTOR_*)",
       );
     }
-    const stream = (await deps.detector.detect(pageUrl, { signal }))[0];
+    const stream = (
+      await deps.detector.detect(pageUrl, { signal, ...(referer ? { referer } : {}) })
+    )[0];
     if (!stream) throw new PermanentError(`No video stream found on ${pageUrl}`);
     const url = await deps.guard.assertUrl(stream.url);
     // ffmpeg reads DASH manifests as it reads HLS playlists.
@@ -81,45 +102,41 @@ export function createJobHandler(deps: Deps): JobHandler {
     };
   }
 
-  async function downloadEpisode(
-    job: Job,
+  /**
+   * Jobs that chose a host lane and are still on their way into it (the queue moves them after the
+   * handler returns), so two episodes picking at the same moment don't both pick the same host.
+   */
+  const pendingPicks = new Map<string, HostLane>();
+
+  /** Of the players `candidates` (indexes), the one whose host has the least work; the first on a tie. */
+  async function pickMirror(
+    jobId: string,
+    mirrors: MirrorPayload["mirrors"],
+    candidates: number[],
+  ): Promise<number> {
+    const load = await deps.jobs.countActiveByHostLane();
+    for (const lane of pendingPicks.values()) load.set(lane, (load.get(lane) ?? 0) + 1);
+    let best = candidates[0] as number;
+    let bestLoad = Infinity;
+    for (const index of candidates) {
+      const lane = hostLane((mirrors[index] as MirrorPayload["mirrors"][number]).url);
+      const work = load.get(lane) ?? 0;
+      if (work < bestLoad) {
+        best = index;
+        bestLoad = work;
+      }
+    }
+    pendingPicks.set(jobId, hostLane((mirrors[best] as MirrorPayload["mirrors"][number]).url));
+    return best;
+  }
+
+  /** Downloads `source` into the library as `episode`, then asks Jellyfin to look. */
+  async function fetchInto(
+    series: Series,
+    episode: Episode,
+    source: Source,
     context: Parameters<JobHandler["run"]>[1],
   ): Promise<void> {
-    const { episodeId, resolved, redetected } = DownloadPayload.parse(job.payload);
-    const episode = await deps.series.getEpisode(episodeId);
-    if (!episode) throw new PermanentError("The episode was removed");
-    const series = await deps.series.get(episode.seriesId);
-    if (!series) throw new PermanentError("The series was removed");
-    if (episode.status === "available") return;
-
-    await deps.series.setEpisodeStatus(episode.id, "downloading");
-    deps.events.publish({ type: "series.updated", seriesId: series.id });
-
-    if (!resolved && episode.source.kind === "page") {
-      // Finding the stream is the browser's job; the long download is not, so it goes to a job of
-      // its own under the resource that fits it, and the browser slot is free again at once.
-      const found = await detectStream(episode.source.url, context.signal);
-      const { job: next, created } = await deps.jobs.enqueue({
-        kind: "download_episode",
-        payload: {
-          episodeId: episode.id,
-          resolved: found,
-          ...(redetected ? { redetected: true } : {}),
-        },
-        seriesId: series.id,
-        episodeId: episode.id,
-        resource: resourceFor(found),
-        dedupeKey: `dlr:${episode.id}`,
-      });
-      if (created) {
-        await deps.series.setEpisodeStatus(episode.id, "queued");
-        await publishJob(next);
-      }
-      deps.events.publish({ type: "series.updated", seriesId: series.id });
-      deps.queue.notify();
-      return;
-    }
-    const source: Source = resolved ?? episode.source;
     const downloader = deps.downloaders.find((candidate) => candidate.canHandle(source));
     if (!downloader) throw new PermanentError(`No downloader for a ${source.kind} source`);
 
@@ -149,6 +166,143 @@ export function createJobHandler(deps: Deps): JobHandler {
     await deps.series.setEpisodeStatus(episode.id, "available", relativePath);
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     await enqueueRefresh(series.id);
+  }
+
+  /**
+   * First step of an episode with several players: reads them from its page (they may expire, so
+   * only now) and moves the job to the lane of the least busy player's host.
+   */
+  async function readMirrors(
+    job: Job,
+    episode: Episode,
+    pageUrl: string,
+    signal: AbortSignal,
+  ): Promise<never> {
+    const source = episode.sourceId
+      ? (await deps.series.listSources([episode.seriesId])).find((s) => s.id === episode.sourceId)
+      : undefined;
+    const extractor = source ? deps.extractors.get(source.extractorId) : null;
+    if (!extractor?.resolveMirrors) {
+      throw new PermanentError("The extractor that listed this episode cannot read its players");
+    }
+    let mirrors: MirrorPayload["mirrors"];
+    try {
+      mirrors = await extractor.resolveMirrors(pageUrl, { signal });
+    } catch (error) {
+      if (signal.aborted) throw new AbortedError({ cause: error });
+      throw toJobError(error);
+    }
+    const usable = mirrors.filter((mirror) => /^https?:\/\//i.test(mirror.url));
+    if (usable.length === 0) throw new PermanentError("The episode page lists no players");
+    const first = await pickMirror(
+      job.id,
+      usable,
+      usable.map((_, index) => index),
+    );
+    throw new RerouteError("", {
+      resource: hostLane((usable[first] as MirrorPayload["mirrors"][number]).url),
+      payload: {
+        episodeId: episode.id,
+        mirrors: usable,
+        mirror: first,
+        tried: [],
+        failures: [],
+      } satisfies MirrorPayload,
+    });
+  }
+
+  /**
+   * One player of an episode, in its host's lane: the browser finds the stream it plays and it is
+   * downloaded right here, so the host serves one download at a time. A player that fails hands the
+   * job to the next one; once every one has failed, the episode starts over from its page, later.
+   */
+  async function downloadFromMirror(
+    job: Job,
+    payload: MirrorPayload,
+    series: Series,
+    episode: Episode,
+    context: Parameters<JobHandler["run"]>[1],
+  ): Promise<void> {
+    const mirror = payload.mirrors[payload.mirror];
+    if (!mirror) throw new PermanentError("The job names a player the episode does not have");
+    const host = new URL(mirror.url).hostname;
+    try {
+      const found = await detectStream(mirror.url, context.signal, mirror.referer);
+      await fetchInto(series, episode, found, context);
+    } catch (error) {
+      if (context.signal.aborted || error instanceof AbortedError) throw error;
+      const tried = [...payload.tried, payload.mirror];
+      const failures = [...payload.failures, `${host}: ${describe(error)}`];
+      const left = payload.mirrors.map((_, index) => index).filter((i) => !tried.includes(i));
+      if (left.length > 0) {
+        const next = await pickMirror(job.id, payload.mirrors, left);
+        const nextUrl = (payload.mirrors[next] as MirrorPayload["mirrors"][number]).url;
+        throw new RerouteError(
+          `The player on ${host} failed (${describe(error)}); trying ${new URL(nextUrl).hostname}`,
+          {
+            resource: hostLane(nextUrl),
+            payload: { ...payload, mirror: next, tried, failures } satisfies MirrorPayload,
+          },
+        );
+      }
+      throw new RerouteError(`Every player failed: ${failures.join("; ")}`, {
+        resource: "none",
+        payload: { episodeId: episode.id },
+        delayMs: backoffMs(job.attempts, deps.random.next()),
+        countsAttempt: true,
+      });
+    }
+  }
+
+  async function downloadEpisode(
+    job: Job,
+    context: Parameters<JobHandler["run"]>[1],
+  ): Promise<void> {
+    const mirrorPayload = hasMirrors(job.payload) ? MirrorPayload.parse(job.payload) : null;
+    const { episodeId, resolved, redetected } = DownloadPayload.parse(job.payload);
+    const episode = await deps.series.getEpisode(episodeId);
+    if (!episode) throw new PermanentError("The episode was removed");
+    const series = await deps.series.get(episode.seriesId);
+    if (!series) throw new PermanentError("The series was removed");
+    if (episode.status === "available") return;
+
+    if (episode.source.kind === "mirrors" && !mirrorPayload) {
+      return readMirrors(job, episode, episode.source.url, context.signal);
+    }
+
+    await deps.series.setEpisodeStatus(episode.id, "downloading");
+    deps.events.publish({ type: "series.updated", seriesId: series.id });
+
+    if (mirrorPayload) return downloadFromMirror(job, mirrorPayload, series, episode, context);
+
+    if (!resolved && episode.source.kind === "page") {
+      // Finding the stream is the browser's job; the long download is not, so it goes to a job of
+      // its own under the resource that fits it, and the browser slot is free again at once.
+      const found = await detectStream(episode.source.url, context.signal);
+      const { job: next, created } = await deps.jobs.enqueue({
+        kind: "download_episode",
+        payload: {
+          episodeId: episode.id,
+          resolved: found,
+          ...(redetected ? { redetected: true } : {}),
+        },
+        seriesId: series.id,
+        episodeId: episode.id,
+        resource: resourceFor(found),
+        dedupeKey: `dlr:${episode.id}`,
+      });
+      if (created) {
+        await deps.series.setEpisodeStatus(episode.id, "queued");
+        await publishJob(next);
+      }
+      deps.events.publish({ type: "series.updated", seriesId: series.id });
+      deps.queue.notify();
+      return;
+    }
+    if (episode.source.kind === "mirrors") {
+      throw new PermanentError("An episode with several players is downloaded through one of them");
+    }
+    await fetchInto(series, episode, resolved ?? episode.source, context);
   }
 
   async function refreshLibrary(job: Job): Promise<void> {
@@ -229,6 +383,8 @@ export function createJobHandler(deps: Deps): JobHandler {
     },
 
     async onOutcome(job: Job, outcome: JobOutcome) {
+      // Its move has landed: the lane it chose now counts it.
+      pendingPicks.delete(job.id);
       if (
         job.kind === "check_series" &&
         (outcome === "failed" || outcome === "cancelled") &&

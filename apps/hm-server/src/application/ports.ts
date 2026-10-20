@@ -1,8 +1,8 @@
 import type { Extraction, SiteExtractor } from "@orca/extractor-core";
 import type { EpisodeStatus, HmEvent, JobStatus, ProgressDetail } from "@orca/hm-contract";
-import type { Job, NewJob } from "../domain/job.ts";
+import type { HostLane, Job, NewJob } from "../domain/job.ts";
 import type { Notification, NotificationKind } from "../domain/notification.ts";
-import type { Episode, Series, Source } from "../domain/series.ts";
+import type { Episode, Series, SeriesSource, Source } from "../domain/series.ts";
 
 // Every port below is implemented by an adapter in src/infrastructure and by a fake in test/fakes.
 
@@ -21,11 +21,20 @@ export interface SeriesWithCounts extends Series {
 }
 
 export interface SeriesRepository {
-  /** Persists a series and its episodes together, or neither. */
-  create(series: Series, episodes: Episode[]): Promise<void>;
+  /** Persists a series, its first source and its episodes together, or none of them. */
+  create(series: Series, source: SeriesSource, episodes: Episode[]): Promise<void>;
+  /** Persists another source of an existing series and its episodes together, or neither. */
+  addSource(source: SeriesSource, episodes: Episode[]): Promise<void>;
   get(id: string): Promise<Series | null>;
-  findByExternal(extractorId: string, externalId: string): Promise<Series | null>;
   findByFolder(folderName: string): Promise<Series | null>;
+  /** The source an address of a site was already added as, in whichever series. */
+  findSourceByExternal(extractorId: string, externalId: string): Promise<SeriesSource | null>;
+  /** Oldest first. Without ids: the sources of every series. */
+  listSources(seriesIds?: string[]): Promise<SeriesSource[]>;
+  updateSource(
+    id: string,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs">>,
+  ): Promise<void>;
   list(): Promise<SeriesWithCounts[]>;
   update(
     id: string,
@@ -34,12 +43,12 @@ export interface SeriesRepository {
         Series,
         | "title"
         | "year"
+        | "tmdbId"
+        | "imdbId"
         | "follow"
         | "checkIntervalHours"
         | "hasPoster"
         | "lastCheckedAt"
-        | "remoteMarker"
-        | "knownRefs"
         | "maxHeight"
         | "audioLangs"
         | "subtitleLangs"
@@ -77,6 +86,10 @@ export interface JobRepository {
   enqueue(job: NewJob): Promise<EnqueueResult>;
   /** Atomically takes the best ready job of a resource and marks it running with a lease. */
   claim(resource: Job["resource"], leaseOwner: string, leaseMs: number): Promise<Job | null>;
+  /** The host lanes that have a queued job due now. */
+  readyHostLanes(): Promise<HostLane[]>;
+  /** Queued plus running jobs per host lane; lanes with none are absent. */
+  countActiveByHostLane(): Promise<Map<HostLane, number>>;
   heartbeat(id: string, leaseOwner: string, leaseMs: number): Promise<void>;
   updateProgress(id: string, progress: number | null, detail: ProgressDetail | null): Promise<void>;
   /**
@@ -92,6 +105,22 @@ export interface JobRepository {
   ): Promise<Job | null>;
   /** Back to queued, to try again at `runAfter`. */
   requeue(id: string, leaseOwner: string, runAfter: number, error: string): Promise<Job | null>;
+  /**
+   * Back to queued under another resource and payload. `refund`: the try that just ended does not
+   * count against the attempts.
+   */
+  reroute(
+    id: string,
+    leaseOwner: string,
+    move: {
+      resource: Job["resource"];
+      payload: unknown;
+      runAfter: number;
+      refund: boolean;
+      /** Why it moved, shown as the job's last error; null for a plain move. */
+      note: string | null;
+    },
+  ): Promise<Job | null>;
   /** Cancels a job only if it is still queued (a pump may have claimed it a moment ago). */
   cancelQueued(id: string): Promise<Job | null>;
   cancelRunning(id: string, leaseOwner: string): Promise<Job | null>;

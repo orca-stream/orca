@@ -1,0 +1,24 @@
+{
+  "sites": [
+    {
+      "id": "site-a",
+      "name": "Site A",
+      "hosts": ["origin.test"],
+      "example": "https://origin.test/anime/some-show",
+      "seasonPath": "^/anime/[^/]+$",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+      "limits": { "metadataPerSec": 2, "downloadsPerHost": 1 },
+      "title": { "selector": "h1" },
+      "listing": {
+        "pages": {
+          "selector": "#episode-range-select option",
+          "attribute": "value",
+          "path": "{url}/episodes/{value}"
+        },
+        "episodes": { "selector": "a.episode-card", "attribute": "href" },
+        "number": "episodio-(\\d+)"
+      },
+      "mirrors": { "selector": "button.watch-server", "attribute": "data-server-url" }
+    }
+  ]
+}

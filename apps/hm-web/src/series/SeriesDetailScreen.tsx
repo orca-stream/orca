@@ -19,6 +19,7 @@ import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { EpisodeTable } from "./EpisodeTable";
 import { Poster } from "./Poster";
+import { SeriesIdsForm } from "./SeriesIdsForm";
 import { TrackPrefsForm } from "./TrackPrefsForm";
 import {
   groupBySeason,
@@ -106,15 +107,22 @@ export function SeriesDetailScreen() {
             </p>
             {data.plot && <p className="mt-3 text-sm text-foreground/80">{data.plot}</p>}
             <div className="mt-2 text-xs text-muted-foreground">
-              {t.series.source}:{" "}
-              <a
-                href={data.sourceUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="underline"
-              >
-                {data.sourceUrl}
-              </a>
+              {data.sources.length === 1 ? `${t.series.source}:` : `${t.series.sources}:`}
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {data.sources.map((source) => (
+                  <li key={source.id}>
+                    <a
+                      href={source.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="break-all underline underline-offset-3 hover:text-primary"
+                    >
+                      {source.sourceUrl}
+                    </a>{" "}
+                    <span>({t.series.sourceNumbering(source.season, source.episodeOffset)})</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -190,6 +198,8 @@ export function SeriesDetailScreen() {
           </Card>
         </div>
       </header>
+
+      <SeriesIdsForm key={JSON.stringify([data.tmdbId, data.imdbId])} series={data} />
 
       <TrackPrefsForm
         key={JSON.stringify([data.maxHeight, data.audioLangs, data.subtitleLangs])}

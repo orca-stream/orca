@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { aSeries, anEpisode, testDatabase } from "./helpers.ts";
+import { aSeries, aSource, anEpisode, testDatabase } from "./helpers.ts";
 
 const job = (extra = {}) => ({
   kind: "download_episode" as const,
@@ -11,8 +11,12 @@ const job = (extra = {}) => ({
 describe("DrizzleJobRepository", () => {
   it("counts the queued and running episode downloads of each series", async () => {
     const { jobs, series } = testDatabase();
-    await series.create(aSeries({ id: "a" }), []);
-    await series.create(aSeries({ id: "b", externalId: "b", folderName: "B" }), []);
+    await series.create(aSeries({ id: "a" }), aSource({ seriesId: "a" }), []);
+    await series.create(
+      aSeries({ id: "b", folderName: "B" }),
+      aSource({ seriesId: "b", externalId: "b" }),
+      [],
+    );
     const forSeries = (seriesId: string, extra = {}) => job({ seriesId, ...extra });
     const first = await jobs.enqueue(forSeries("a"));
     await jobs.enqueue(forSeries("a"));
@@ -216,7 +220,7 @@ describe("DrizzleJobRepository", () => {
 
   it("keeps a job whose episode is deleted (foreign key set null)", async () => {
     const { jobs, series, database } = testDatabase();
-    await series.create(aSeries(), [anEpisode()]);
+    await series.create(aSeries(), aSource(), [anEpisode()]);
     const { job: j } = await jobs.enqueue(job({ seriesId: "series-1", episodeId: "episode-1-1" }));
     database.sqlite.prepare("delete from series where id = 'series-1'").run();
     expect(await jobs.get(j.id)).toMatchObject({ seriesId: null, episodeId: null });
@@ -226,7 +230,10 @@ describe("DrizzleJobRepository", () => {
 describe("DrizzleSeriesRepository", () => {
   it("stores a series with its episodes and counts the available ones", async () => {
     const { series } = testDatabase();
-    await series.create(aSeries(), [anEpisode({ episode: 1 }), anEpisode({ episode: 2 })]);
+    await series.create(aSeries(), aSource(), [
+      anEpisode({ episode: 1 }),
+      anEpisode({ episode: 2 }),
+    ]);
     await series.setEpisodeStatus("episode-1-1", "available", "Show/Season 01/Show S01E01.mp4");
     const [listed] = await series.list();
     expect(listed).toMatchObject({ id: "series-1", episodeCount: 2, availableCount: 1 });
@@ -241,18 +248,74 @@ describe("DrizzleSeriesRepository", () => {
   it("rolls the series back when an episode is rejected", async () => {
     const { series } = testDatabase();
     const dup = anEpisode({ id: "other", sourceRef: "bevhill/x.mp4" });
-    await expect(series.create(aSeries(), [anEpisode(), dup])).rejects.toThrow();
+    await expect(series.create(aSeries(), aSource(), [anEpisode(), dup])).rejects.toThrow();
     expect(await series.get("series-1")).toBeNull();
   });
 
-  it("finds a series by its external id and its folder, and updates it", async () => {
+  it("finds a source by its external id, a series by its folder, and updates it", async () => {
     const { series } = testDatabase();
-    await series.create(aSeries(), []);
-    expect((await series.findByExternal("internet-archive", "bevhill"))?.id).toBe("series-1");
+    await series.create(aSeries(), aSource(), []);
+    expect(await series.findSourceByExternal("internet-archive", "bevhill")).toMatchObject({
+      id: "series-1",
+      seriesId: "series-1",
+    });
+    expect(await series.findSourceByExternal("internet-archive", "other")).toBeNull();
     expect((await series.findByFolder("The Beverly Hillbillies (1962)"))?.id).toBe("series-1");
     expect(await series.update("series-1", { year: null, follow: true })).toMatchObject({
       year: null,
       follow: true,
+    });
+  });
+});
+
+describe("DrizzleSeriesRepository: sources", () => {
+  it("adds another source with its episodes, and lists the sources oldest first", async () => {
+    const { series } = testDatabase();
+    await series.create(aSeries(), aSource(), [anEpisode({ episode: 1 })]);
+    const part2 = aSource({
+      id: "part-2",
+      externalId: "part-2",
+      season: 1,
+      episodeOffset: 12,
+      createdAt: 2,
+    });
+    await series.addSource(part2, [
+      anEpisode({ id: "p2-1", episode: 13, sourceId: "part-2", sourceRef: "part-2/e1" }),
+    ]);
+    expect(
+      (await series.listSources(["series-1"])).map((s) => [s.id, s.season, s.episodeOffset]),
+    ).toEqual([
+      ["series-1", null, 0],
+      ["part-2", 1, 12],
+    ]);
+    expect((await series.listSources()).map((s) => s.id)).toEqual(["series-1", "part-2"]);
+    expect(await series.listSources([])).toEqual([]);
+    expect((await series.listEpisodes("series-1")).map((e) => [e.episode, e.sourceId])).toEqual([
+      [1, "series-1"],
+      [13, "part-2"],
+    ]);
+  });
+
+  it("refuses the same address twice, and rolls the source back when an episode clashes", async () => {
+    const { series } = testDatabase();
+    await series.create(aSeries(), aSource(), [anEpisode({ episode: 1 })]);
+    await expect(series.addSource(aSource({ id: "again" }), [])).rejects.toMatchObject({
+      code: "conflict",
+    });
+    const clash = aSource({ id: "part-2", externalId: "part-2" });
+    await expect(
+      series.addSource(clash, [anEpisode({ id: "x", episode: 1, sourceRef: "part-2/e1" })]),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect((await series.listSources(["series-1"])).map((s) => s.id)).toEqual(["series-1"]);
+  });
+
+  it("updates a source's marker and known keys", async () => {
+    const { series } = testDatabase();
+    await series.create(aSeries(), aSource(), []);
+    await series.updateSource("series-1", { remoteMarker: "m2", knownRefs: ["a", "b"] });
+    expect((await series.listSources(["series-1"]))[0]).toMatchObject({
+      remoteMarker: "m2",
+      knownRefs: ["a", "b"],
     });
   });
 });

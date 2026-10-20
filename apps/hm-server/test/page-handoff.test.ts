@@ -237,9 +237,12 @@ describe("a page source", () => {
   it("does not queue a second download for an episode whose handoff job is waiting", async () => {
     h.detector.streams = [{ url: MASTER, kind: "hls", headers: {} }];
     h.deps.queue = { notify: () => {} };
+    // Run only the detection: the handoff job (dlr:) stays queued, its ffmpeg slot held back.
+    const claim = h.jobs.claim.bind(h.jobs);
+    h.jobs.claim = (resource, owner, leaseMs) =>
+      resource === "ffmpeg" ? Promise.resolve(null) : claim(resource, owner, leaseMs);
     const created = await addPage(PAGE, "One");
     const [episode] = await h.series.listEpisodes(created.id);
-    // Run only the detection: the handoff job (dlr:) is queued, ffmpeg slot not yet taken.
     await h.queue.pump();
     await until(async () =>
       (await jobsOf(["queued"])).some((j) => j.dedupeKey === `dlr:${episode!.id}`),
@@ -250,6 +253,7 @@ describe("a page source", () => {
 
     expect(jobs.map((job) => job.id)).toEqual([handoff!.id]);
     expect(await jobsOf(["queued"])).toHaveLength(1);
+    h.jobs.claim = claim;
     await h.queue.settle();
   });
 

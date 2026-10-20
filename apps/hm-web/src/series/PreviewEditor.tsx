@@ -1,4 +1,4 @@
-import type { PreviewDto } from "@orca/hm-contract";
+import type { EpisodeDto, PreviewDto, SeriesDto } from "@orca/hm-contract";
 import { TriangleAlertIcon } from "lucide-react";
 import { CheckboxField } from "@/components/checkbox-field";
 import { PendingButton } from "@/components/pending-button";
@@ -8,6 +8,8 @@ import { TextField } from "@/components/text-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -23,8 +25,11 @@ import { cn } from "@/lib/utils";
 import { PosterImage } from "./Poster";
 import {
   canConfirm,
+  clashingCodes,
   episodeCode,
-  parseYear,
+  episodeRanges,
+  invalidFields,
+  numberer,
   setAllIncluded,
   toggleEpisode,
   warningsByEpisode,
@@ -67,6 +72,10 @@ function warningText(
 interface PreviewEditorProps {
   preview: PreviewDto;
   form: PreviewForm;
+  /** The series the address can be added to instead of making a new one. */
+  seriesOptions: readonly SeriesDto[];
+  /** The episodes of the series chosen in `form.addTo`, once they are loaded. */
+  targetEpisodes: readonly EpisodeDto[] | undefined;
   onChange: (form: PreviewForm) => void;
   onConfirm: () => void;
   confirming: boolean;
@@ -76,6 +85,8 @@ interface PreviewEditorProps {
 export function PreviewEditor({
   preview,
   form,
+  seriesOptions,
+  targetEpisodes,
   onChange,
   onConfirm,
   confirming,
@@ -85,8 +96,12 @@ export function PreviewEditor({
   const warnings = warningsByEpisode(preview);
   const included = new Set(form.included);
   const allIncluded = form.included.length === preview.episodes.length;
-  const ok = canConfirm(form);
-  const yearInvalid = parseYear(form.year) === "invalid";
+  const target = seriesOptions.find((series) => series.id === form.addTo) ?? null;
+  const clashes = target ? clashingCodes(preview, form, targetEpisodes ?? []) : [];
+  // Until the target's episodes are known, clashes can't be ruled out.
+  const ok = canConfirm(form, clashes) && (!target || targetEpisodes !== undefined);
+  const invalid = invalidFields(form);
+  const number = numberer(preview, form);
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,20 +112,67 @@ export function PreviewEditor({
           className="max-w-36 sm:max-w-none"
         />
         <div className="flex min-w-0 flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-            <TextField
-              label={t.add.fieldTitle}
-              value={form.title}
-              onChange={(event) => onChange({ ...form, title: event.target.value })}
-            />
-            <TextField
-              label={t.add.fieldYear}
-              inputMode="numeric"
-              value={form.year}
-              error={yearInvalid ? t.add.yearInvalid : undefined}
-              onChange={(event) => onChange({ ...form, year: event.target.value })}
-            />
-          </div>
+          {seriesOptions.length > 0 && (
+            <Field>
+              <FieldLabel htmlFor="add-to">{t.add.addTo}</FieldLabel>
+              <NativeSelect
+                id="add-to"
+                className="w-full"
+                value={form.addTo}
+                onChange={(event) => onChange({ ...form, addTo: event.target.value })}
+              >
+                <NativeSelectOption value="">{t.add.addToNew}</NativeSelectOption>
+                {seriesOptions.map((series) => (
+                  <NativeSelectOption key={series.id} value={series.id}>
+                    {series.year === null ? series.title : `${series.title} (${series.year})`}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              {target && targetEpisodes && (
+                <FieldDescription>
+                  {t.add.existingHas(target.title, episodeRanges(targetEpisodes))}
+                </FieldDescription>
+              )}
+            </Field>
+          )}
+          {!target && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+                <TextField
+                  label={t.add.fieldTitle}
+                  value={form.title}
+                  onChange={(event) => onChange({ ...form, title: event.target.value })}
+                />
+                <TextField
+                  label={t.add.fieldYear}
+                  inputMode="numeric"
+                  value={form.year}
+                  error={invalid.has("year") ? t.add.yearInvalid : undefined}
+                  onChange={(event) => onChange({ ...form, year: event.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextField
+                    label={t.add.tmdbId}
+                    inputMode="numeric"
+                    placeholder="12345"
+                    value={form.tmdbId}
+                    error={invalid.has("tmdbId") ? t.add.tmdbInvalid : undefined}
+                    onChange={(event) => onChange({ ...form, tmdbId: event.target.value })}
+                  />
+                  <TextField
+                    label={t.add.imdbId}
+                    placeholder="tt0123456"
+                    value={form.imdbId}
+                    error={invalid.has("imdbId") ? t.add.imdbInvalid : undefined}
+                    onChange={(event) => onChange({ ...form, imdbId: event.target.value })}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">{t.add.idsHint}</p>
+              </div>
+            </>
+          )}
           {preview.series.plot && (
             <div>
               <h3 className="text-sm font-medium">{t.add.description}</h3>
@@ -173,6 +235,32 @@ export function PreviewEditor({
         </Alert>
       )}
 
+      <Card className="gap-3 px-4">
+        <h3 className="font-medium">{t.add.numbering}</h3>
+        <div className="grid gap-4 sm:max-w-md sm:grid-cols-2">
+          <TextField
+            label={t.add.season}
+            inputMode="numeric"
+            value={form.season}
+            error={invalid.has("season") ? t.add.countInvalid : undefined}
+            onChange={(event) => onChange({ ...form, season: event.target.value })}
+          />
+          <TextField
+            label={t.add.firstEpisode}
+            inputMode="numeric"
+            value={form.firstEpisode}
+            error={invalid.has("firstEpisode") ? t.add.countInvalid : undefined}
+            onChange={(event) => onChange({ ...form, firstEpisode: event.target.value })}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t.add.numberingHint}</p>
+        {clashes.length > 0 && (
+          <p role="alert" className="text-sm text-warning">
+            {t.add.clashes(clashes.join(", "))}
+          </p>
+        )}
+      </Card>
+
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-medium">
@@ -197,7 +285,9 @@ export function PreviewEditor({
           </TableHeader>
           <TableBody>
             {preview.episodes.map((episode) => {
-              const code = episodeCode(episode.season, episode.episode);
+              const mapped = number(episode);
+              const code = episodeCode(mapped.season, mapped.episode);
+              const siteCode = episodeCode(episode.season, episode.episode);
               const hasGap = warnings.get(episode.key)?.some((warning) => warning.kind === "gap");
               return (
                 <TableRow
@@ -213,6 +303,11 @@ export function PreviewEditor({
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-xs">{code}</span>
+                    {siteCode !== code && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {t.add.siteCode(siteCode)}
+                      </span>
+                    )}
                     {episode.inferred && (
                       <StatusBadge tone="warning" title={t.add.inferredHint} className="ml-2">
                         {t.add.inferred}
@@ -242,11 +337,13 @@ export function PreviewEditor({
       </section>
 
       <Card className="gap-4 px-4">
-        <SwitchField
-          checked={form.follow}
-          label={t.add.followSeries}
-          onCheckedChange={(follow) => onChange({ ...form, follow })}
-        />
+        {!target && (
+          <SwitchField
+            checked={form.follow}
+            label={t.add.followSeries}
+            onCheckedChange={(follow) => onChange({ ...form, follow })}
+          />
+        )}
         <SwitchField
           checked={form.downloadNow}
           label={t.add.downloadNow}
@@ -258,7 +355,7 @@ export function PreviewEditor({
           </PendingButton>
           {!ok && (
             <p className="text-sm text-muted-foreground">
-              {form.title.trim() === ""
+              {!target && form.title.trim() === ""
                 ? t.add.needsTitle
                 : form.included.length === 0
                   ? t.add.needsEpisodes

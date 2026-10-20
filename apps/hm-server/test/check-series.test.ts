@@ -31,6 +31,13 @@ async function addFake(options: { follow?: boolean; only?: string[] } = {}) {
   });
 }
 
+/** The one source a series added from the fake site has. */
+const firstSource = async (seriesId: string) => (await h.series.listSources([seriesId]))[0]!;
+const patchSource = async (
+  seriesId: string,
+  patch: Parameters<Harness["series"]["updateSource"]>[1],
+) => h.series.updateSource((await firstSource(seriesId)).id, patch);
+
 const downloadJobs = async () =>
   (await h.jobs.list({ status: ["queued", "running"], limit: 50 })).items.filter(
     (job) => job.kind === "download_episode",
@@ -65,8 +72,8 @@ describe("CheckSeries: the series changed", () => {
       [1, 2, "missing"],
       [1, 3, "queued"],
     ]);
-    const stored = await h.series.get(created.id);
-    expect(stored).toMatchObject({ remoteMarker: "m2", lastCheckedAt: h.clock.now() });
+    expect(await h.series.get(created.id)).toMatchObject({ lastCheckedAt: h.clock.now() });
+    expect(await firstSource(created.id)).toMatchObject({ remoteMarker: "m2" });
   });
 
   it("matches episodes by their stable key: existing rows keep their id, status and file", async () => {
@@ -126,7 +133,7 @@ describe("CheckSeries: the series changed", () => {
   it("treats a series from before known_refs as 'everything listed now is known': nothing is added, nothing forced", async () => {
     const created = await addFake({ only: ["show/e1.mp4"], follow: false });
     // A row as migration 0002 left it: the column is NULL, and the marker is an older kind.
-    await h.series.update(created.id, { knownRefs: null, remoteMarker: "old-form" });
+    await patchSource(created.id, { knownRefs: null, remoteMarker: "old-form" });
     site.marker = "m2";
     site.episodes = [fakeEpisode(1), fakeEpisode(2), fakeEpisode(3)];
 
@@ -136,9 +143,9 @@ describe("CheckSeries: the series changed", () => {
     expect((await h.series.listEpisodes(created.id)).map((e) => e.sourceRef)).toEqual([
       "show/e1.mp4",
     ]);
-    const stored = await h.series.get(created.id);
-    expect(stored?.remoteMarker).toBe("m2");
-    expect(stored?.knownRefs).toEqual(["show/e1.mp4", "show/e2.mp4", "show/e3.mp4"]);
+    const stored = await firstSource(created.id);
+    expect(stored.remoteMarker).toBe("m2");
+    expect(stored.knownRefs).toEqual(["show/e1.mp4", "show/e2.mp4", "show/e3.mp4"]);
 
     // The person is told what happened, since nothing new was downloaded.
     const learned = (await h.notifications.list(10)).filter((n) => n.kind === "episodes_learned");
@@ -160,7 +167,7 @@ describe("CheckSeries: the series changed", () => {
 
   it("says nothing when a legacy series has nothing it did not already have", async () => {
     const created = await addFake({ follow: false });
-    await h.series.update(created.id, { knownRefs: null, remoteMarker: "old-form" });
+    await patchSource(created.id, { knownRefs: null, remoteMarker: "old-form" });
     site.marker = "m2";
     await check(created.id);
     expect((await h.notifications.list(10)).map((n) => n.kind)).toEqual([]);
@@ -168,10 +175,10 @@ describe("CheckSeries: the series changed", () => {
 
   it("keeps an empty known list apart from a missing one", async () => {
     const created = await addFake({ follow: false });
-    await h.series.update(created.id, { knownRefs: [] });
-    expect((await h.series.get(created.id))?.knownRefs).toEqual([]);
-    await h.series.update(created.id, { knownRefs: null });
-    expect((await h.series.get(created.id))?.knownRefs).toBeNull();
+    await patchSource(created.id, { knownRefs: [] });
+    expect((await firstSource(created.id)).knownRefs).toEqual([]);
+    await patchSource(created.id, { knownRefs: null });
+    expect((await firstSource(created.id)).knownRefs).toBeNull();
   });
 
   it("skips a new episode whose number is taken by another one, and says so", async () => {
@@ -185,7 +192,7 @@ describe("CheckSeries: the series changed", () => {
     const result = await check(created.id);
     expect(result).toMatchObject({ added: 0, skipped: 1 });
     // Not "known": once its number is free it is added, rather than lost for good.
-    expect((await h.series.get(created.id))?.knownRefs).not.toContain("show/other.mp4");
+    expect((await firstSource(created.id)).knownRefs).not.toContain("show/other.mp4");
     site.marker = "m3";
     site.episodes = [
       fakeEpisode(1),
@@ -233,14 +240,12 @@ describe("CheckSeries: failures", () => {
       throw new Error("disk full");
     };
     await expect(check(created.id)).rejects.toThrow("disk full");
-    expect(await h.series.get(created.id)).toMatchObject({
-      remoteMarker: "m1",
-      lastCheckedAt: null,
-    });
+    expect(await h.series.get(created.id)).toMatchObject({ lastCheckedAt: null });
+    expect(await firstSource(created.id)).toMatchObject({ remoteMarker: "m1" });
 
     h.deps.series.upsertEpisodes = upsert;
     expect(await check(created.id)).toMatchObject({ changed: true, added: 1 });
-    expect((await h.series.get(created.id))?.remoteMarker).toBe("m2");
+    expect((await firstSource(created.id)).remoteMarker).toBe("m2");
   });
 
   it("turns a site that is down into a retryable error, from the marker and from the extract", async () => {
@@ -251,7 +256,7 @@ describe("CheckSeries: failures", () => {
     site.marker = "m2";
     site.failExtract = networkError();
     await expect(check(created.id)).rejects.toBeInstanceOf(RetryableError);
-    expect((await h.series.get(created.id))?.remoteMarker).toBe("m1");
+    expect((await firstSource(created.id)).remoteMarker).toBe("m1");
   });
 
   it("passes the site's Retry-After on to the retry", async () => {

@@ -1,12 +1,14 @@
 import type { Extraction } from "@orca/extractor-core";
+import { mapEpisode } from "@orca/hm-contract";
 import { uuidv7 } from "../domain/ids.ts";
-import type { Episode, Source } from "../domain/series.ts";
+import type { Episode, SeriesSource, Source } from "../domain/series.ts";
 
 export type ExtractedEpisode = Extraction["episodes"][number];
 
 export function sourceOf(episode: ExtractedEpisode): Source {
   const { media } = episode;
   if (media.kind === "page") return { kind: "page", url: media.url };
+  if (media.kind === "mirrors") return { kind: "mirrors", url: media.url };
   return {
     kind: "direct",
     url: media.url,
@@ -17,13 +19,27 @@ export function sourceOf(episode: ExtractedEpisode): Source {
   };
 }
 
-/** A new, not yet downloaded episode row for something an extractor found. */
-export function newEpisode(seriesId: string, extracted: ExtractedEpisode, now: number): Episode {
+/** Where a source puts an episode the site found: its season, and its number moved by the offset. */
+export function numberOf(
+  source: Pick<SeriesSource, "season" | "episodeOffset">,
+  extracted: Pick<ExtractedEpisode, "season" | "episode">,
+): { season: number; episode: number } {
+  return mapEpisode(extracted, { season: source.season, offset: source.episodeOffset });
+}
+
+/** A new, not yet downloaded episode row for something an extractor found on a source. */
+export function newEpisode(
+  source: Pick<SeriesSource, "id" | "seriesId" | "season" | "episodeOffset">,
+  extracted: ExtractedEpisode,
+  now: number,
+): Episode {
+  const { season, episode } = numberOf(source, extracted);
   return {
     id: uuidv7(now),
-    seriesId,
-    season: extracted.season,
-    episode: extracted.episode,
+    seriesId: source.seriesId,
+    sourceId: source.id,
+    season,
+    episode,
     title: extracted.title,
     plot: extracted.plot ?? null,
     airDate: extracted.airDate ?? null,

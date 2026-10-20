@@ -3,8 +3,16 @@ import { describe, expect, it } from "vite-plus/test";
 import { makePreview } from "@/test/fixtures";
 import {
   canConfirm,
+  clashingCodes,
   episodeCode,
+  episodeRanges,
   initialForm,
+  invalidFields,
+  numberer,
+  parseFirstEpisode,
+  parseImdbId,
+  parseSeason,
+  parseTmdbId,
   matchExtractor,
   parseYear,
   setAllIncluded,
@@ -75,10 +83,46 @@ describe("toCreateBody", () => {
       previewId: "p1",
       title: "Beverly",
       year: 1962,
+      tmdbId: null,
+      imdbId: null,
+      season: null,
+      firstEpisode: null,
       episodeKeys: ["e1", "e2", "e4"],
       follow: true,
       downloadNow: true,
     });
+  });
+
+  it("sends the ids and the numbering of a new series, trimmed", () => {
+    const preview = makePreview();
+    const body = toCreateBody(preview, {
+      ...initialForm(preview),
+      tmdbId: " 12345 ",
+      imdbId: "tt0123456",
+      season: "2",
+      firstEpisode: "13",
+    });
+    expect(CreateSeriesBody.parse(body)).toMatchObject({
+      tmdbId: "12345",
+      imdbId: "tt0123456",
+      season: 2,
+      firstEpisode: 13,
+    });
+  });
+
+  it("adds to an existing series without a title, a year, ids or a follow setting of its own", () => {
+    const preview = makePreview();
+    const body = toCreateBody(preview, {
+      ...initialForm(preview),
+      addTo: "s9",
+      tmdbId: "999",
+      season: "1",
+      firstEpisode: "13",
+    });
+    const parsed = CreateSeriesBody.parse(body);
+    expect(parsed).toMatchObject({ seriesId: "s9", season: 1, firstEpisode: 13, tmdbId: null });
+    expect(parsed).not.toHaveProperty("title");
+    expect(parsed).not.toHaveProperty("year");
   });
 
   it("keeps the episodes in the preview's order", () => {
@@ -160,5 +204,66 @@ describe("matchExtractor", () => {
     expect(matchExtractor("https://example.com", extractors)).toBeNull();
     expect(matchExtractor("not a url", extractors)).toBeNull();
     expect(matchExtractor("", extractors)).toBeNull();
+  });
+});
+
+describe("numbering", () => {
+  // The preview lists S01E01, S01E02 and S01E04.
+  const preview = makePreview();
+  const codes = (form: ReturnType<typeof initialForm>) =>
+    preview.episodes.map((episode) => {
+      const mapped = numberer(preview, form)(episode);
+      return episodeCode(mapped.season, mapped.episode);
+    });
+
+  it("keeps the site's numbers when the fields are empty", () => {
+    expect(codes(initialForm(preview))).toEqual(["S01E01", "S01E02", "S01E04"]);
+  });
+
+  it("moves the lowest episode to the first episode given, and the rest with it, into the season given", () => {
+    expect(codes({ ...initialForm(preview), season: "3", firstEpisode: "13" })).toEqual([
+      "S03E13",
+      "S03E14",
+      "S03E16",
+    ]);
+  });
+
+  it("refuses what is not a whole number", () => {
+    const form = { ...initialForm(preview), season: "x", firstEpisode: "-1" };
+    expect([...invalidFields(form)].sort()).toEqual(["firstEpisode", "season"]);
+    expect(canConfirm(form)).toBe(false);
+    expect(parseSeason("")).toBeNull();
+    expect(parseFirstEpisode("0")).toBe(0);
+  });
+
+  it("checks the ids only for a new series", () => {
+    const bad = { ...initialForm(preview), tmdbId: "abc", imdbId: "123" };
+    expect([...invalidFields(bad)].sort()).toEqual(["imdbId", "tmdbId"]);
+    expect(invalidFields({ ...bad, addTo: "s9" }).size).toBe(0);
+    expect(parseTmdbId(" 12345 ")).toBe("12345");
+    expect(parseImdbId("")).toBeNull();
+  });
+
+  it("finds the chosen episodes that would land on ones the series has", () => {
+    const form = { ...initialForm(preview), addTo: "s9", firstEpisode: "12" };
+    const existing = [
+      { season: 1, episode: 12 },
+      { season: 1, episode: 13 },
+    ];
+    expect(clashingCodes(preview, form, existing)).toEqual(["S01E12", "S01E13"]);
+    expect(canConfirm(form, ["S01E12"])).toBe(false);
+    // Leaving the clashing episodes out clears it.
+    expect(clashingCodes(preview, { ...form, included: ["e4"] }, existing)).toEqual([]);
+  });
+
+  it("sums up what a series has, season by season", () => {
+    expect(
+      episodeRanges([
+        { season: 1, episode: 1 },
+        { season: 1, episode: 12 },
+        { season: 2, episode: 5 },
+      ]),
+    ).toBe("S01E01–S01E12, S02E05");
+    expect(episodeRanges([])).toBe("");
   });
 });

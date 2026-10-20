@@ -260,6 +260,57 @@ describe("SeriesDetailScreen", () => {
     });
   });
 
+  it("saves the TMDB and IMDb ids, refusing one that is not an id", async () => {
+    const user = userEvent.setup();
+    const { requests } = detailSetup();
+    const form = await screen.findByRole("form", { name: "TMDB e IMDb" });
+    const save = within(form).getByRole("button", { name: "Guardar ids" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.type(within(form).getByLabelText("Id de IMDb"), "nope");
+    expect(save.disabled).toBe(true);
+    await user.clear(within(form).getByLabelText("Id de IMDb"));
+    await user.type(within(form).getByLabelText("Id de TMDB"), "12345");
+    await user.click(save);
+    await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
+    expect(await requests.find((r) => r.method === "PATCH")!.json()).toEqual({ tmdbId: "12345" });
+  });
+
+  it("lists every address of the series with how it numbers its episodes", async () => {
+    renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        path: "/series/s1",
+        handler: (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/api/series/s1") {
+            const base = makeSeries().sources[0]!;
+            return jsonResponse(
+              makeSeries({
+                sources: [
+                  { ...base, id: "a", sourceUrl: "https://site.test/part-1" },
+                  {
+                    ...base,
+                    id: "b",
+                    sourceUrl: "https://site.test/part-2",
+                    season: 1,
+                    episodeOffset: 12,
+                  },
+                ],
+              }),
+            );
+          }
+          if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
+          return jsonResponse({}, 404);
+        },
+      },
+    );
+    expect(await screen.findByText("https://site.test/part-2")).toBeTruthy();
+    expect(screen.getByText("(numeración del sitio)")).toBeTruthy();
+    expect(screen.getByText("(a la temporada 1, episodios +12)")).toBeTruthy();
+  });
+
   it("refuses a language that is not a three-letter code before sending anything", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();

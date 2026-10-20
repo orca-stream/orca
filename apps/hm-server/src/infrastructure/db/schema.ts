@@ -8,24 +8,40 @@ export const series = sqliteTable(
     title: text("title").notNull(),
     year: integer("year"),
     plot: text("plot"),
-    extractorId: text("extractor_id").notNull(),
-    externalId: text("external_id").notNull(),
-    sourceUrl: text("source_url").notNull(),
+    tmdbId: text("tmdb_id"),
+    imdbId: text("imdb_id"),
     folderName: text("folder_name").notNull(),
     hasPoster: integer("has_poster", { mode: "boolean" }).notNull().default(false),
     follow: integer("follow", { mode: "boolean" }).notNull().default(false),
     checkIntervalHours: integer("check_interval_hours").notNull().default(12),
     lastCheckedAt: integer("last_checked_at"),
-    remoteMarker: text("last_remote_marker"),
-    knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
     maxHeight: integer("max_height"),
     audioLangs: text("audio_langs", { mode: "json" }).$type<string[]>(),
     subtitleLangs: text("subtitle_langs", { mode: "json" }).$type<string[]>(),
     createdAt: integer("created_at").notNull(),
   },
+  (t) => [uniqueIndex("series_folder").on(t.folderName)],
+);
+
+export const seriesSources = sqliteTable(
+  "series_sources",
+  {
+    id: text("id").primaryKey(),
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => series.id, { onDelete: "cascade" }),
+    extractorId: text("extractor_id").notNull(),
+    externalId: text("external_id").notNull(),
+    sourceUrl: text("source_url").notNull(),
+    season: integer("season"),
+    episodeOffset: integer("episode_offset").notNull().default(0),
+    remoteMarker: text("remote_marker"),
+    knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
+    createdAt: integer("created_at").notNull(),
+  },
   (t) => [
-    uniqueIndex("series_external").on(t.extractorId, t.externalId),
-    uniqueIndex("series_folder").on(t.folderName),
+    uniqueIndex("series_sources_external").on(t.extractorId, t.externalId),
+    index("series_sources_series").on(t.seriesId),
   ],
 );
 
@@ -36,6 +52,7 @@ export const episodes = sqliteTable(
     seriesId: text("series_id")
       .notNull()
       .references(() => series.id, { onDelete: "cascade" }),
+    sourceId: text("source_id").references(() => seriesSources.id, { onDelete: "set null" }),
     season: integer("season").notNull(),
     episode: integer("episode").notNull(),
     title: text("title").notNull(),

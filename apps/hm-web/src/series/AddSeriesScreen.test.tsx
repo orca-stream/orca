@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vite-plus/test";
-import { makePreview, makeSeries } from "@/test/fixtures";
+import { makeEpisode, makePreview, makeSeries } from "@/test/fixtures";
 import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { AddSeriesScreen } from "./AddSeriesScreen";
 
@@ -38,11 +38,21 @@ function setup({
   createStatus = 201,
   createBody = { error: "x", message: "y" },
   previews,
-}: Options = {}) {
+  series,
+  episodesOf = {},
+}: Options & {
+  /** The series the panel already has; absent, the list is not served at all. */
+  series?: ReturnType<typeof makeSeries>[];
+  episodesOf?: Record<string, ReturnType<typeof makeEpisode>[]>;
+} = {}) {
   let previewCalls = 0;
   const handler: Handler = async (request) => {
     const { pathname } = new URL(request.url);
     if (pathname === "/api/extractors") return jsonResponse(extractors);
+    if (series && pathname === "/api/series" && request.method === "GET")
+      return jsonResponse(series);
+    const episodes = /^\/api\/series\/([^/]+)\/episodes$/.exec(pathname);
+    if (episodes) return jsonResponse(episodesOf[decodeURIComponent(episodes[1]!)] ?? []);
     if (pathname === "/api/series/preview")
       return jsonResponse(
         previews ? previews[Math.min(previewCalls++, previews.length - 1)] : preview,
@@ -194,6 +204,10 @@ describe("AddSeriesScreen", () => {
       previewId: "p1",
       title: "The Beverly Hillbillies",
       year: 1962,
+      tmdbId: null,
+      imdbId: null,
+      season: null,
+      firstEpisode: null,
       episodeKeys: ["e1", "e2"],
       follow: true,
       downloadNow: true,
@@ -218,12 +232,78 @@ describe("AddSeriesScreen", () => {
     );
   });
 
-  it("explains a series that already exists (409)", async () => {
+  it("explains a clash (409) with the server's own detail", async () => {
     const user = userEvent.setup();
-    setup({ createStatus: 409 });
+    setup({
+      createStatus: 409,
+      createBody: { error: "conflict", message: "This address was already added to “Show”" },
+    });
     await previewIt(user);
     await user.click(confirmButton());
-    expect((await screen.findByRole("alert")).textContent).toContain("ya está añadida");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Choca con algo que ya existe");
+    expect(alert.textContent).toContain("already added to “Show”");
+  });
+
+  it("adds the address to a series that exists, as a later part of a season", async () => {
+    const user = userEvent.setup();
+    const existing = Array.from({ length: 12 }, (_, i) =>
+      makeEpisode({ id: `x${i + 1}`, season: 1, episode: i + 1 }),
+    );
+    const { requests, location } = setup({
+      series: [makeSeries({ id: "s9", title: "Show", year: 2023 })],
+      episodesOf: { s9: existing },
+    });
+    await previewIt(user);
+    await user.selectOptions(screen.getByLabelText("Añadir a"), "s9");
+    expect(await screen.findByText("«Show» ya tiene S01E01–S01E12.")).toBeTruthy();
+    // The new series' own fields are gone: the series keeps its title, year and ids.
+    expect(screen.queryByLabelText("Título")).toBeNull();
+    expect(screen.queryByLabelText("Id de TMDB")).toBeNull();
+
+    // As the site numbers it, it would land on what the series has.
+    expect((await screen.findByRole("alert")).textContent).toContain("S01E01, S01E02, S01E04");
+    expect(confirmButton()).toHaveProperty("disabled", true);
+
+    await user.type(screen.getByLabelText("Primer episodio"), "13");
+    expect(screen.getByText("S01E13")).toBeTruthy();
+    expect(screen.getByText("en el sitio S01E01")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.click(confirmButton());
+
+    await waitFor(() => expect(location.history.at(-1)).toBe("/series/new1"));
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series",
+    )!;
+    expect(await post.json()).toMatchObject({
+      previewId: "p1",
+      seriesId: "s9",
+      season: null,
+      firstEpisode: 13,
+      episodeKeys: ["e1", "e2", "e4"],
+    });
+  });
+
+  it("sends the TMDB id and the season of a new series", async () => {
+    const user = userEvent.setup();
+    const { requests } = setup({ series: [] });
+    await previewIt(user);
+    await user.type(screen.getByLabelText("Id de TMDB"), "abc");
+    expect(screen.getByText(/Un número, como en/)).toBeTruthy();
+    expect(confirmButton()).toHaveProperty("disabled", true);
+    await user.clear(screen.getByLabelText("Id de TMDB"));
+    await user.type(screen.getByLabelText("Id de TMDB"), "12345");
+    await user.type(screen.getByLabelText("Temporada"), "2");
+    await user.click(confirmButton());
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === "POST" && new URL(r.url).pathname === "/api/series"),
+      ).toBe(true),
+    );
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series",
+    )!;
+    expect(await post.json()).toMatchObject({ tmdbId: "12345", season: 2, firstEpisode: null });
   });
 
   it("says when the site has nothing readable (422)", async () => {

@@ -43,5 +43,8 @@ apps/jp/xbox/out
 # Bifrost: the real config names hosts and addresses; only bifrost.example.yaml is versioned
 apps/bifrost/bifrost.yaml
 
+# Orca'H&M: the sites file names real sites; only sites.example.json is versioned
+apps/hm-server/sites.json
+
 # Orca'H&M: the local database (DB_FILE=./data/hm.sqlite in a dev .env)
 apps/hm-server/data

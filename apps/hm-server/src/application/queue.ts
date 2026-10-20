@@ -1,7 +1,7 @@
 import type { ProgressDetail } from "@orca/hm-contract";
 import { backoffMs } from "../domain/backoff.ts";
-import { AbortedError, AppError, RetryableError } from "../domain/errors.ts";
-import { isTerminal, type Job, type Resource } from "../domain/job.ts";
+import { AbortedError, AppError, RerouteError, RetryableError } from "../domain/errors.ts";
+import { isTerminal, type FixedResource, type Job, type Resource } from "../domain/job.ts";
 import type { Clock, JobCanceller, JobRepository, QueueSignal, Random } from "./ports.ts";
 
 export interface JobContext {
@@ -30,8 +30,8 @@ export interface QueueOptions {
   random: Random;
   handler: JobHandler;
   events: QueueEvents;
-  /** How many jobs of each resource may run at once. */
-  limits: Record<Resource, number>;
+  /** How many jobs of each fixed resource may run at once; every host lane runs one at a time. */
+  limits: Record<FixedResource, number>;
   owner?: string;
   leaseMs?: number;
   heartbeatMs?: number;
@@ -41,7 +41,9 @@ export interface QueueOptions {
   onError?: (error: unknown) => void;
 }
 
-const RESOURCES: Resource[] = ["browser", "ffmpeg", "download", "none"];
+const RESOURCES: FixedResource[] = ["browser", "ffmpeg", "download", "none"];
+/** A host of video players serves one download at a time, whatever the configuration says. */
+const HOST_LANE_LIMIT = 1;
 
 /**
  * The persistent in-process queue: jobs live in SQLite, so a crash loses nothing. Workers claim the
@@ -51,12 +53,7 @@ const RESOURCES: Resource[] = ["browser", "ffmpeg", "download", "none"];
  */
 export class JobQueue implements JobCanceller, QueueSignal {
   private readonly options: Required<Omit<QueueOptions, "limits">> & Pick<QueueOptions, "limits">;
-  private readonly active: Record<Resource, number> = {
-    browser: 0,
-    ffmpeg: 0,
-    download: 0,
-    none: 0,
-  };
+  private readonly active = new Map<Resource, number>();
   private readonly running = new Map<
     string,
     { controller: AbortController; done: Promise<void> }
@@ -116,17 +113,28 @@ export class JobQueue implements JobCanceller, QueueSignal {
       this.pumpAgain = false;
       await this.options.jobs.recoverExpired([...this.running.keys()]);
       for (const resource of RESOURCES) {
-        while (this.active[resource] < this.options.limits[resource]) {
-          const job = await this.options.jobs.claim(
-            resource,
-            this.options.owner,
-            this.options.leaseMs,
-          );
-          if (!job) break;
-          this.launch(job);
+        while (this.activeIn(resource) < this.options.limits[resource]) {
+          if (!(await this.claimAndLaunch(resource))) break;
+        }
+      }
+      // As many hosts as have work, each with its own single slot.
+      for (const lane of await this.options.jobs.readyHostLanes()) {
+        while (this.activeIn(lane) < HOST_LANE_LIMIT) {
+          if (!(await this.claimAndLaunch(lane))) break;
         }
       }
     } while (this.pumpAgain);
+  }
+
+  private activeIn(resource: Resource): number {
+    return this.active.get(resource) ?? 0;
+  }
+
+  private async claimAndLaunch(resource: Resource): Promise<boolean> {
+    const job = await this.options.jobs.claim(resource, this.options.owner, this.options.leaseMs);
+    if (!job) return false;
+    this.launch(job);
+    return true;
   }
 
   /** For tests: pumps until nothing is running and nothing more is due. */
@@ -182,16 +190,26 @@ export class JobQueue implements JobCanceller, QueueSignal {
   }
 
   private launch(job: Job): void {
-    this.active[job.resource]++;
+    this.active.set(job.resource, this.activeIn(job.resource) + 1);
     const controller = new AbortController();
-    const done = this.execute(job, controller)
+    // A job moved to another lane is due at once, so a pump can claim it again while its previous run
+    // is still settling (events, onOutcome): the new run starts once that one has finished.
+    const previous = this.running.get(job.id)?.done ?? Promise.resolve();
+    const entry: { controller: AbortController; done: Promise<void> } = {
+      controller,
+      done: Promise.resolve(),
+    };
+    entry.done = previous
+      .then(() => this.execute(job, controller))
       .catch(this.options.onError)
       .finally(() => {
-        this.active[job.resource]--;
-        this.running.delete(job.id);
+        const left = this.activeIn(job.resource) - 1;
+        if (left > 0) this.active.set(job.resource, left);
+        else this.active.delete(job.resource);
+        if (this.running.get(job.id) === entry) this.running.delete(job.id);
         this.notify();
       });
-    this.running.set(job.id, { controller, done });
+    this.running.set(job.id, entry);
   }
 
   private async execute(job: Job, controller: AbortController): Promise<void> {
@@ -235,6 +253,20 @@ export class JobQueue implements JobCanceller, QueueSignal {
         return;
       }
       const message = error instanceof Error ? error.message : String(error);
+      if (
+        error instanceof RerouteError &&
+        !(error.countsAttempt && job.attempts >= job.maxAttempts)
+      ) {
+        const next = await jobs.reroute(job.id, owner, {
+          resource: error.resource,
+          payload: error.payload,
+          runAfter: clock.now() + error.delayMs,
+          refund: !error.countsAttempt,
+          note: message === "" ? null : message,
+        });
+        await settled(next, "requeued");
+        return;
+      }
       if (error instanceof RetryableError && job.attempts < job.maxAttempts) {
         const delay = backoffMs(job.attempts, random.next(), error.retryAfterMs);
         await settled(await jobs.requeue(job.id, owner, clock.now() + delay, message), "requeued");

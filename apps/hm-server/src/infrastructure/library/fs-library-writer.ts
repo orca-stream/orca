@@ -128,7 +128,10 @@ export class FsLibraryWriter implements LibraryWriter {
     await this.place(stagedPath, destination);
     for (const { sidecar, name } of named) await this.place(sidecar.path, join(folder, name));
     await Promise.all(dropped.map((sidecar) => rm(sidecar.path, { force: true })));
-    await this.atomicWrite(`${base}.nfo`, episodeNfo(series, episode));
+    const nfo = episodeNfo(series, episode);
+    // A series Jellyfin looks up online gets its episodes' metadata from there; a stale file is removed.
+    if (nfo === null) await rm(`${base}.nfo`, { force: true });
+    else await this.atomicWrite(`${base}.nfo`, nfo);
     return { relativePath: relative(this.root, destination).split(sep).join("/") };
   }
 

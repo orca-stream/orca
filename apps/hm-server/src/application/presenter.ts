@@ -6,10 +6,11 @@ import type {
   PreviewDto,
   PreviewWarning,
   SeriesDto,
+  SourceDto,
 } from "@orca/hm-contract";
 import type { Notification } from "../domain/notification.ts";
 import type { Job } from "../domain/job.ts";
-import { episodeCode, type Episode, type Series } from "../domain/series.ts";
+import { episodeCode, type Episode, type Series, type SeriesSource } from "../domain/series.ts";
 import type { SeriesWithCounts } from "./ports.ts";
 
 const WARNING_KIND: Record<ExtractionWarning["code"], PreviewWarning["kind"]> = {
@@ -64,8 +65,20 @@ export function toPreviewDto(
   };
 }
 
+export function toSourceDto(source: SeriesSource): SourceDto {
+  return {
+    id: source.id,
+    extractorId: source.extractorId,
+    externalId: source.externalId,
+    sourceUrl: source.sourceUrl,
+    season: source.season,
+    episodeOffset: source.episodeOffset,
+  };
+}
+
 export function toSeriesDto(
   series: Series | SeriesWithCounts,
+  sources: readonly SeriesSource[],
   downloadingCount: number,
   counts?: { episodeCount: number; availableCount: number },
 ): SeriesDto {
@@ -75,9 +88,9 @@ export function toSeriesDto(
     title: series.title,
     year: series.year,
     plot: series.plot,
-    extractorId: series.extractorId,
-    externalId: series.externalId,
-    sourceUrl: series.sourceUrl,
+    tmdbId: series.tmdbId,
+    imdbId: series.imdbId,
+    sources: sources.map(toSourceDto),
     follow: series.follow,
     checkIntervalHours: series.checkIntervalHours,
     lastCheckedAt: series.lastCheckedAt,

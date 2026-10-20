@@ -7,7 +7,7 @@ import type {
   ListJobsFilter,
 } from "../../application/ports.ts";
 import { uuidv7 } from "../../domain/ids.ts";
-import type { Job, NewJob } from "../../domain/job.ts";
+import { HOST_LANE_PREFIX, type HostLane, type Job, type NewJob } from "../../domain/job.ts";
 import type { Database_, Db } from "./client.ts";
 import { jobs } from "./schema.ts";
 
@@ -128,6 +128,37 @@ export class DrizzleJobRepository implements JobRepository {
     return raw ? fromRaw(raw) : null;
   }
 
+  async readyHostLanes(): Promise<HostLane[]> {
+    const rows = this.db
+      .selectDistinct({ resource: jobs.resource })
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.status, "queued"),
+          sql`${jobs.runAfter} <= ${this.clock.now()}`,
+          sql`substr(${jobs.resource}, 1, ${HOST_LANE_PREFIX.length}) = ${HOST_LANE_PREFIX}`,
+        ),
+      )
+      .orderBy(jobs.resource)
+      .all();
+    return rows.map((row) => row.resource as HostLane);
+  }
+
+  async countActiveByHostLane(): Promise<Map<HostLane, number>> {
+    const rows = this.db
+      .select({ resource: jobs.resource, count: sql<number>`count(*)` })
+      .from(jobs)
+      .where(
+        and(
+          ACTIVE,
+          sql`substr(${jobs.resource}, 1, ${HOST_LANE_PREFIX.length}) = ${HOST_LANE_PREFIX}`,
+        ),
+      )
+      .groupBy(jobs.resource)
+      .all();
+    return new Map(rows.map((row) => [row.resource as HostLane, row.count]));
+  }
+
   async heartbeat(id: string, leaseOwner: string, leaseMs: number): Promise<void> {
     this.db
       .update(jobs)
@@ -183,6 +214,31 @@ export class DrizzleJobRepository implements JobRepository {
       runAfter,
       lastError: error,
       errorKind: "retryable",
+      progress: null,
+      progressDetail: null,
+    });
+  }
+
+  async reroute(
+    id: string,
+    leaseOwner: string,
+    move: {
+      resource: Job["resource"];
+      payload: unknown;
+      runAfter: number;
+      refund: boolean;
+      /** Why it moved, shown as the job's last error; null for a plain move. */
+      note: string | null;
+    },
+  ): Promise<Job | null> {
+    return this.settle(id, this.running(leaseOwner), {
+      status: "queued",
+      resource: move.resource,
+      payload: move.payload,
+      runAfter: move.runAfter,
+      ...(move.refund ? { attempts: sql`max(${jobs.attempts} - 1, 0)` as unknown as number } : {}),
+      lastError: move.note,
+      errorKind: move.note === null ? null : "retryable",
       progress: null,
       progressDetail: null,
     });

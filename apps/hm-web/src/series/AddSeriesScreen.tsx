@@ -28,12 +28,18 @@ function previewError(error: unknown, t: Messages): string {
   return t.add.previewFailed;
 }
 
-function createError(error: unknown, t: Messages): string {
+/** The reason in the panel's language, and the server's own detail when it said which clash. */
+function createError(error: unknown, t: Messages): { sentence: string; detail: string | null } {
   if (error instanceof ApiError) {
-    if (error.status === 0) return t.errors.network;
-    if (error.status === 409) return t.add.alreadyAdded;
+    if (error.status === 0) return { sentence: t.errors.network, detail: null };
+    if (error.status === 409) {
+      return {
+        sentence: t.add.alreadyAdded,
+        detail: error.message === error.code ? null : error.message,
+      };
+    }
   }
-  return t.add.createFailed;
+  return { sentence: t.add.createFailed, detail: null };
 }
 
 export function AddSeriesScreen() {
@@ -43,6 +49,7 @@ export function AddSeriesScreen() {
   const [, navigate] = useLocation();
   const { preview: previewMutation, createSeries } = useMutations();
   const extractors = useQuery(queries.extractors(api));
+  const seriesList = useQuery(queries.seriesList(api));
 
   const [url, setUrl] = useState(params.get("url") ?? "");
   // "" lets the address pick the extractor; an id is a choice among the ones that never match by address.
@@ -102,6 +109,9 @@ export function AddSeriesScreen() {
   }
 
   const gone = createSeries.error instanceof ApiError && createSeries.error.status === 410;
+  const addTo = form?.addTo ?? "";
+  const targetEpisodes = useQuery({ ...queries.episodes(api, addTo), enabled: addTo !== "" });
+  const failure = createSeries.isError && !gone ? createError(createSeries.error, t) : null;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -169,9 +179,12 @@ export function AddSeriesScreen() {
           <AlertDescription className="text-warning">{notice}</AlertDescription>
         </Alert>
       )}
-      {createSeries.isError && !gone && (
+      {failure && (
         <p role="alert" className="text-sm text-warning">
-          {createError(createSeries.error, t)}
+          {failure.sentence}
+          {failure.detail && (
+            <span className="block text-xs text-muted-foreground">{failure.detail}</span>
+          )}
         </p>
       )}
 
@@ -179,6 +192,8 @@ export function AddSeriesScreen() {
         <PreviewEditor
           preview={preview}
           form={form}
+          seriesOptions={seriesList.data ?? []}
+          targetEpisodes={addTo === "" ? undefined : targetEpisodes.data}
           onChange={setForm}
           onConfirm={confirm}
           confirming={createSeries.isPending || (gone && previewMutation.isPending)}

@@ -13,29 +13,24 @@ export type Source =
       headers?: Record<string, string>;
     }
   | { kind: "hls"; url: string; headers?: Record<string, string>; durationSec?: number }
-  | { kind: "page"; url: string };
+  | { kind: "page"; url: string }
+  /** An episode page listing several players of the same video; its extractor reads them. */
+  | { kind: "mirrors"; url: string };
 
 export interface Series {
   id: string;
   title: string;
   year: number | null;
   plot: string | null;
-  extractorId: string;
-  externalId: string;
-  sourceUrl: string;
+  /** Ids Jellyfin looks the show up by; with one, Jellyfin fetches the metadata and the images. */
+  tmdbId: string | null;
+  imdbId: string | null;
   /** Folder under MEDIA_ROOT, e.g. `The Beverly Hillbillies (1962)`. */
   folderName: string;
   hasPoster: boolean;
   follow: boolean;
   checkIntervalHours: number;
   lastCheckedAt: number | null;
-  remoteMarker: string | null;
-  /**
-   * Every episode key the site listed when the series was last read, chosen or not. A check adds only
-   * keys outside this list (plus the series' own episodes), so an episode the user left out stays out.
-   * Null is a series from before the column existed: its first check only learns what is listed.
-   */
-  knownRefs: string[] | null;
   /** The series' own track choices; null follows the server's defaults. Languages are ISO 639-2. */
   maxHeight: number | null;
   audioLangs: string[] | null;
@@ -43,9 +38,35 @@ export interface Series {
   createdAt: number;
 }
 
+/**
+ * One address a series is read from: the whole show, one season, or one part of a season. A series
+ * has one or more, each read (and checked) on its own.
+ */
+export interface SeriesSource {
+  id: string;
+  seriesId: string;
+  extractorId: string;
+  externalId: string;
+  sourceUrl: string;
+  /** The season its episodes go to; null keeps the site's. */
+  season: number | null;
+  /** Added to the site's episode numbers. */
+  episodeOffset: number;
+  remoteMarker: string | null;
+  /**
+   * Every episode key the site listed when the address was last read, chosen or not. A check adds only
+   * keys outside this list (plus the series' own episodes), so an episode the user left out stays out.
+   * Null is a source from before the column existed: its first check only learns what is listed.
+   */
+  knownRefs: string[] | null;
+  createdAt: number;
+}
+
 export interface Episode {
   id: string;
   seriesId: string;
+  /** The address it was found on; null only if that source was removed. */
+  sourceId: string | null;
   season: number;
   episode: number;
   title: string;

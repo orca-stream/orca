@@ -2,6 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   ApiErrorBody,
   CreateSeriesBody,
+  episodeOffset,
+  ImdbId,
+  mapEpisode,
+  TmdbId,
   HmEvent,
   ListJobsQuery,
   LoginBody,
@@ -264,5 +268,47 @@ describe("track preferences", () => {
     expect(SeriesDto.shape.maxHeight.safeParse(null).success).toBe(true);
     expect(SeriesDto.shape.audioLangs.safeParse(["eng"]).success).toBe(true);
     expect(SeriesDto.shape.subtitleLangs.safeParse(undefined).success).toBe(false);
+  });
+});
+
+describe("seasons in parts", () => {
+  it("moves the lowest episode of an address to the first episode given, whatever the site counts from", () => {
+    expect(episodeOffset(13, [1, 2, 3])).toBe(12);
+    expect(episodeOffset(13, [13, 14])).toBe(0);
+    expect(episodeOffset(1, [25, 26])).toBe(-24);
+    expect(episodeOffset(null, [5])).toBe(0);
+    expect(episodeOffset(7, [])).toBe(0);
+    expect(mapEpisode({ season: 1, episode: 2 }, { season: 3, offset: 12 })).toEqual({
+      season: 3,
+      episode: 14,
+    });
+    expect(mapEpisode({ season: 2, episode: 2 }, { season: null, offset: 0 })).toEqual({
+      season: 2,
+      episode: 2,
+    });
+  });
+
+  it("needs a title for a new series only, and defaults the numbering and the ids to none", () => {
+    const base = { previewId: "p", episodeKeys: ["a"] };
+    expect(CreateSeriesBody.safeParse(base).success).toBe(false);
+    expect(CreateSeriesBody.parse({ ...base, seriesId: "s1" })).toMatchObject({
+      seriesId: "s1",
+      season: null,
+      firstEpisode: null,
+      tmdbId: null,
+      imdbId: null,
+    });
+    expect(CreateSeriesBody.safeParse({ ...base, title: "x", season: -1 }).success).toBe(false);
+  });
+
+  it("accepts TMDB and IMDb ids only in their own shapes", () => {
+    expect(TmdbId.safeParse("12345").success).toBe(true);
+    expect(TmdbId.safeParse("tv/12345").success).toBe(false);
+    expect(ImdbId.safeParse("tt0123456").success).toBe(true);
+    expect(ImdbId.safeParse("0123456").success).toBe(false);
+    expect(SeriesPatch.parse({ tmdbId: null, imdbId: " tt0123456 " })).toEqual({
+      tmdbId: null,
+      imdbId: "tt0123456",
+    });
   });
 });

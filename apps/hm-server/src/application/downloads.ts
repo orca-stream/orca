@@ -4,8 +4,21 @@ import type { Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createJobEvents } from "./job-events.ts";
 
+/**
+ * Where a download starts. An episode with several players starts with a quick read of its page
+ * (`none`) and moves to the lane of the player it picks from there.
+ */
 export function resourceFor(source: Source): Resource {
-  return source.kind === "direct" ? "download" : source.kind === "hls" ? "ffmpeg" : "browser";
+  switch (source.kind) {
+    case "direct":
+      return "download";
+    case "hls":
+      return "ffmpeg";
+    case "page":
+      return "browser";
+    case "mirrors":
+      return "none";
+  }
 }
 
 /** Queues a download job for each episode that isn't in the library or already queued. */

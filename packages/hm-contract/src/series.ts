@@ -1,6 +1,12 @@
 import * as z from "zod";
 import { LicenseKindSchema } from "./common.ts";
-import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT } from "./rules.ts";
+import {
+  IMDB_ID_PATTERN,
+  LANGUAGE_CODE_PATTERN,
+  MAX_MAX_HEIGHT,
+  MIN_MAX_HEIGHT,
+  TMDB_ID_PATTERN,
+} from "./rules.ts";
 
 /** Titles become folder names; this keeps them well under file-name limits. */
 export const MAX_TITLE_LENGTH = 150;
@@ -63,15 +69,42 @@ export const PreviewDto = z.object({
 });
 export type PreviewDto = z.infer<typeof PreviewDto>;
 
-export const CreateSeriesBody = z.object({
-  previewId: z.string().min(1),
-  title: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
-  year: z.number().int().min(1800).max(2200).nullable(),
-  episodeKeys: z.array(z.string()).min(1),
-  follow: z.boolean().default(false),
-  downloadNow: z.boolean().default(false),
-});
+/** The TMDB id of a show, as on its page (`themoviedb.org/tv/<id>`). */
+export const TmdbId = z.string().trim().regex(TMDB_ID_PATTERN, "A TMDB id is a number");
+/** The IMDb id of a show, as on its page (`imdb.com/title/<id>`). */
+export const ImdbId = z.string().trim().regex(IMDB_ID_PATTERN, "An IMDb id looks like tt0123456");
+
+const Title = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
+const Year = z.number().int().min(1800).max(2200).nullable();
+
+export const CreateSeriesBody = z
+  .object({
+    previewId: z.string().min(1),
+    /**
+     * Adds the address to this series (another season, or another part of one) instead of making a
+     * new series; title, year and the ids are the series' own then and are left out.
+     */
+    seriesId: z.string().min(1).optional(),
+    title: Title.optional(),
+    year: Year.optional(),
+    /** Lets Jellyfin fetch the show's metadata and images itself. */
+    tmdbId: TmdbId.nullable().default(null),
+    imdbId: ImdbId.nullable().default(null),
+    /** The season this address's episodes go to; null keeps the site's. */
+    season: z.number().int().min(0).max(999).nullable().default(null),
+    /** The number the lowest episode of this address gets in that season; null keeps the site's. */
+    firstEpisode: z.number().int().min(0).max(9999).nullable().default(null),
+    episodeKeys: z.array(z.string()).min(1),
+    follow: z.boolean().default(false),
+    downloadNow: z.boolean().default(false),
+  })
+  .refine((body) => body.seriesId !== undefined || body.title !== undefined, {
+    message: "A new series needs a title",
+    path: ["title"],
+  });
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
+/** What a caller may send: the fields with a default can be left out. */
+export type CreateSeriesInput = z.input<typeof CreateSeriesBody>;
 
 /**
  * An ISO 639-2 language code: three lower-case letters, as ffprobe reports a track's language
@@ -84,8 +117,10 @@ export const LanguageCode = z
 const MAX_LANGUAGES = 10;
 
 export const SeriesPatch = z.object({
-  title: z.string().trim().min(1).max(MAX_TITLE_LENGTH).optional(),
-  year: z.number().int().min(1800).max(2200).nullable().optional(),
+  title: Title.optional(),
+  year: Year.optional(),
+  tmdbId: TmdbId.nullable().optional(),
+  imdbId: ImdbId.nullable().optional(),
   follow: z.boolean().optional(),
   checkIntervalHours: z
     .number()
@@ -102,14 +137,28 @@ export const SeriesPatch = z.object({
 });
 export type SeriesPatch = z.infer<typeof SeriesPatch>;
 
+/** One address a series is read from: a whole show, a season, or a part of a season. */
+export const SourceDto = z.object({
+  id: z.string(),
+  extractorId: z.string(),
+  externalId: z.string(),
+  sourceUrl: z.string(),
+  /** The season its episodes go to; null keeps the site's. */
+  season: z.number().int().nullable(),
+  /** Added to the site's episode numbers. */
+  episodeOffset: z.number().int(),
+});
+export type SourceDto = z.infer<typeof SourceDto>;
+
 export const SeriesDto = z.object({
   id: z.string(),
   title: z.string(),
   year: z.number().int().nullable(),
   plot: z.string().nullable(),
-  extractorId: z.string(),
-  externalId: z.string(),
-  sourceUrl: z.string(),
+  tmdbId: z.string().nullable(),
+  imdbId: z.string().nullable(),
+  /** Oldest first. */
+  sources: z.array(SourceDto),
   follow: z.boolean(),
   checkIntervalHours: z.number().int(),
   lastCheckedAt: z.number().nullable(),

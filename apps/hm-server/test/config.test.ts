@@ -179,3 +179,31 @@ describe("the generic detector", () => {
     expect(loadConfig({ ...minimal, HM_DETECTOR_TIMEOUT_MS: "oops" }).detector).toBeNull();
   });
 });
+
+describe("the sites file", () => {
+  const tuning = {
+    HM_DETECTOR_MAX_CONCURRENT: "2",
+    HM_DETECTOR_TIMEOUT_MS: "45000",
+    HM_DETECTOR_SETTLE_MS: "3000",
+  };
+
+  it("turns the browser on for the sites' players, without the generic extractor", () => {
+    const config = loadConfig({ ...minimal, ...tuning, HM_SITES_FILE: "./sites.json" });
+    expect(config).toMatchObject({ sitesFile: "./sites.json", genericExtractor: false });
+    expect(config.detector).toMatchObject({ maxConcurrent: 2 });
+    expect(loadConfig(minimal)).toMatchObject({ sitesFile: undefined, genericExtractor: false });
+  });
+
+  it("asks for the browser's tuning, which has no default", () => {
+    expect(() => loadConfig({ ...minimal, HM_SITES_FILE: "./sites.json" })).toThrow(
+      /HM_DETECTOR_TIMEOUT_MS/,
+    );
+  });
+
+  it("ships an example that is a valid sites file", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { parseSitesFile } = await import("@orca/extractor-html");
+    const example = await readFile(new URL("../sites.example.json", import.meta.url), "utf8");
+    expect(parseSitesFile(example).sites.map((site) => site.id)).toEqual(["site-a"]);
+  });
+});

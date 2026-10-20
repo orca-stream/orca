@@ -43,7 +43,7 @@ describe("naming", () => {
 });
 
 describe("nfo", () => {
-  it("writes tvshow.nfo with locked data and the source id", () => {
+  it("writes tvshow.nfo with locked data", () => {
     expect(tvshowNfo(aSeries({ plot: "Hillbillies & oil <strike>" })))
       .toBe(`<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <tvshow>
@@ -51,7 +51,6 @@ describe("nfo", () => {
   <originaltitle>The Beverly Hillbillies</originaltitle>
   <year>1962</year>
   <plot>Hillbillies &amp; oil &lt;strike&gt;</plot>
-  <uniqueid type="internet-archive" default="true">bevhill</uniqueid>
   <lockdata>true</lockdata>
 </tvshow>
 `);
@@ -81,15 +80,33 @@ describe("nfo", () => {
   <episode>2</episode>
   <aired>1962-10-03</aired>
   <plot>They move.</plot>
-  <uniqueid type="internet-archive">bevhill/s1e2.mp4</uniqueid>
+  <uniqueid type="orca-hm">bevhill/s1e2.mp4</uniqueid>
   <lockdata>true</lockdata>
 </episodedetails>
 `);
     expect(episodeNfo(aSeries(), anEpisode())).not.toContain("<aired>");
   });
 
-  it("escapes quotes in attributes", () => {
-    expect(tvshowNfo(aSeries({ extractorId: 'a"b' }))).toContain('type="a&quot;b"');
+  it("names a show Jellyfin looks up online, and leaves the rest to Jellyfin", () => {
+    const series = aSeries({ tmdbId: "12345", imdbId: "tt0123456", plot: "Ours, not TMDB's." });
+    expect(tvshowNfo(series)).toBe(`<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<tvshow>
+  <title>The Beverly Hillbillies</title>
+  <year>1962</year>
+  <uniqueid type="tmdb" default="true">12345</uniqueid>
+  <uniqueid type="imdb">tt0123456</uniqueid>
+  <tmdbid>12345</tmdbid>
+  <imdb_id>tt0123456</imdb_id>
+</tvshow>
+`);
+    // No episode nfo either: what a local file says would win over TMDB's episode titles.
+    expect(episodeNfo(series, anEpisode())).toBeNull();
+  });
+
+  it("makes the IMDb id the default when there is no TMDB id", () => {
+    const xml = tvshowNfo(aSeries({ imdbId: "tt0123456" }));
+    expect(xml).toContain('<uniqueid type="imdb" default="true">tt0123456</uniqueid>');
+    expect(xml).not.toContain("lockdata");
   });
 
   it("drops characters XML cannot carry", () => {
@@ -143,6 +160,22 @@ describe("FsLibraryWriter", () => {
     ]);
     expect(await readFile(join(root, relativePath), "utf8")).toBe("video");
     await expect(stat(staged)).rejects.toThrow();
+  });
+
+  it("writes no episode nfo for a show Jellyfin looks up, and removes one a looked-up show left", async () => {
+    const series = aSeries({ tmdbId: "12345" });
+    const episode = anEpisode({ season: 1, episode: 2 });
+    await writer.writeSeries(series);
+    const dir = join(root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "The Beverly Hillbillies S01E02.nfo"), "stale");
+    const staged = writer.stagingPath(episode);
+    await mkdir(join(root, ".hm-staging"), { recursive: true });
+    await writeFile(staged, "video");
+
+    await writer.commitEpisode(series, episode, staged);
+
+    expect(await readdir(dir)).toEqual(["The Beverly Hillbillies S01E02.mp4"]);
   });
 
   it("keeps the extension of the poster it was given", async () => {

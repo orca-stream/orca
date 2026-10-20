@@ -2,15 +2,32 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { AppError } from "../../domain/errors.ts";
 import type { EpisodeStatus } from "@orca/hm-contract";
 import type { SeriesRepository, SeriesWithCounts } from "../../application/ports.ts";
-import type { Episode, Series, Source } from "../../domain/series.ts";
+import type { Episode, Series, SeriesSource, Source } from "../../domain/series.ts";
 import type { Db } from "./client.ts";
-import { episodes, series } from "./schema.ts";
+import { episodes, series, seriesSources } from "./schema.ts";
 
 type SeriesRow = typeof series.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
+type SourceRow = typeof seriesSources.$inferSelect;
 
 function toSeries(row: SeriesRow): Series {
+  return row;
+}
+
+function toSource(row: SourceRow): SeriesSource {
   return { ...row, knownRefs: row.knownRefs ?? null };
+}
+
+/** The unique indexes are the last word when two submits slip past the lookups. */
+function rethrowConflict(error: unknown): never {
+  const message = String((error as Error).message);
+  if (/UNIQUE constraint failed: series_sources\./.test(message))
+    throw new AppError("conflict", "This address was already added");
+  if (/UNIQUE constraint failed: series\./.test(message))
+    throw new AppError("conflict", "This series was already added, or its folder is taken");
+  if (/UNIQUE constraint failed: episodes\./.test(message))
+    throw new AppError("conflict", "Two episodes would get the same season and number");
+  throw error;
 }
 
 function toEpisode(row: EpisodeRow): Episode {
@@ -24,31 +41,63 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     this.db = db;
   }
 
-  async create(value: Series, list: Episode[]): Promise<void> {
+  async create(value: Series, source: SeriesSource, list: Episode[]): Promise<void> {
     try {
       this.db.transaction((tx) => {
         tx.insert(series).values(value).run();
+        tx.insert(seriesSources).values(source).run();
         for (const episode of list) tx.insert(episodes).values(episode).run();
       });
     } catch (error) {
-      // Two submits that slipped past the lookups: the unique indexes are the last word.
-      if (/UNIQUE constraint failed: series\./.test(String((error as Error).message)))
-        throw new AppError("conflict", "This series was already added, or its folder is taken");
-      throw error;
+      rethrowConflict(error);
     }
+  }
+
+  async addSource(source: SeriesSource, list: Episode[]): Promise<void> {
+    try {
+      this.db.transaction((tx) => {
+        tx.insert(seriesSources).values(source).run();
+        for (const episode of list) tx.insert(episodes).values(episode).run();
+      });
+    } catch (error) {
+      rethrowConflict(error);
+    }
+  }
+
+  async findSourceByExternal(
+    extractorId: string,
+    externalId: string,
+  ): Promise<SeriesSource | null> {
+    const row = this.db
+      .select()
+      .from(seriesSources)
+      .where(
+        sql`${seriesSources.extractorId} = ${extractorId} and ${seriesSources.externalId} = ${externalId}`,
+      )
+      .get();
+    return row ? toSource(row) : null;
+  }
+
+  async listSources(seriesIds?: string[]): Promise<SeriesSource[]> {
+    if (seriesIds?.length === 0) return [];
+    const query = this.db.select().from(seriesSources);
+    const rows = (seriesIds ? query.where(inArray(seriesSources.seriesId, seriesIds)) : query)
+      .orderBy(seriesSources.createdAt, seriesSources.id)
+      .all();
+    return rows.map(toSource);
+  }
+
+  async updateSource(
+    id: string,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs">>,
+  ): Promise<void> {
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    if (Object.keys(defined).length === 0) return;
+    this.db.update(seriesSources).set(defined).where(eq(seriesSources.id, id)).run();
   }
 
   async get(id: string): Promise<Series | null> {
     const row = this.db.select().from(series).where(eq(series.id, id)).get();
-    return row ? toSeries(row) : null;
-  }
-
-  async findByExternal(extractorId: string, externalId: string): Promise<Series | null> {
-    const row = this.db
-      .select()
-      .from(series)
-      .where(sql`${series.extractorId} = ${extractorId} and ${series.externalId} = ${externalId}`)
-      .get();
     return row ? toSeries(row) : null;
   }
 
