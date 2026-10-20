@@ -120,7 +120,10 @@ public sealed partial class MainPage : Page
         _ = _web.CoreWebView2.ExecuteScriptAsync("window.orcaBack && window.orcaBack()");
     }
 
-    /// <summary>Messages from the page: {"type":"playing","on":true} keeps the screen on while a video plays.</summary>
+    /// <summary>
+    /// Messages from the page: {"type":"playing","on":true} keeps the screen on while a video plays;
+    /// {"type":"focus"} gives the WebView2 back the focus it lost.
+    /// </summary>
     private void OnWebMessageReceived(CoreWebView2 sender, CoreWebView2WebMessageReceivedEventArgs args)
     {
         if (!JsonObject.TryParse(args.TryGetWebMessageAsString(), out var message))
@@ -128,9 +131,15 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        if (message.GetNamedString("type", string.Empty) == "playing")
+        switch (message.GetNamedString("type", string.Empty))
         {
-            KeepScreenOn(message.GetNamedBoolean("on", false));
+            case "playing":
+                KeepScreenOn(message.GetNamedBoolean("on", false));
+                break;
+            case "focus":
+                // The page saw pad presses that never reached it as keys: the WebView2 lost focus.
+                FocusWeb();
+                break;
         }
     }
 

@@ -1,5 +1,9 @@
-import { getCurrentFocusKey, setFocus } from "@noriginmedia/norigin-spatial-navigation-core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  doesFocusableExist,
+  getCurrentFocusKey,
+  setFocus,
+} from "@noriginmedia/norigin-spatial-navigation-core";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 
 /** Screens opened over the home, which stays mounted underneath and keeps its scroll. */
 export type Overlay =
@@ -21,7 +25,8 @@ const BACK_KEYS = new Set(["Escape", "GoBack", "BrowserBack"]);
  * A stack of overlays tied to the browser history, so Android's back gesture, the browser's back
  * button and a remote's Back all close the top one, as they would leave a page.
  */
-export function useOverlays() {
+export function useOverlays(fallback: () => string) {
+  const landing = useEffectEvent(fallback);
   const [stack, setStack] = useState<Entry[]>([]);
   // Mirrors the state for the event handlers, so history and focus stay out of state updaters.
   const entries = useRef<Entry[]>([]);
@@ -36,8 +41,14 @@ export function useOverlays() {
       const target = (history.state as { orcaDepth?: number } | null)?.orcaDepth ?? 0;
       const closed = entries.current[target];
       commit(entries.current.slice(0, target));
-      // Once the overlay is gone, back to what opened it.
-      if (closed) setTimeout(() => void setFocus(closed.returnFocus), 0);
+      // Once the overlay is gone, back to what opened it. The home reloads quietly behind the
+      // player, so that card may be gone by now; focusing a missing key would strand the arrows.
+      if (closed) {
+        setTimeout(() => {
+          const key = closed.returnFocus;
+          void setFocus(doesFocusableExist(key) ? key : landing());
+        }, 0);
+      }
     }
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);

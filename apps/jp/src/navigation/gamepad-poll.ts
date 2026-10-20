@@ -1,4 +1,4 @@
-import { uwpHost } from "../host";
+import { refocusHost, uwpHost } from "../host";
 
 /**
  * In the Xbox app the WebView2 does not always hold focus, and without it no key reaches the page —
@@ -21,6 +21,8 @@ const STICK = 0.5;
 /** A held arrow repeats after this long, then at this pace, like a held key. */
 const REPEAT_DELAY_MS = 400;
 const REPEAT_EVERY_MS = 120;
+/** How long a press may take to show up as a key before the page counts it as lost. */
+const LOST_AFTER_MS = 150;
 
 export interface PadState {
   buttons: readonly boolean[];
@@ -78,29 +80,78 @@ export class PadReader {
   }
 }
 
+/**
+ * Pad presses that never reached the page as keys. The WebView2 can lose focus while
+ * `document.hasFocus()` still says it has it (seen coming back from the player): then no key arrives
+ * and only B, which comes through the system's Back, still works.
+ */
+export class LostKeys {
+  private lastKey = Number.NEGATIVE_INFINITY;
+  private pending: { key: string; at: number }[] = [];
+
+  /** A real key reached the page, so the presses waiting for one were not lost. */
+  keyArrived(now: number): void {
+    this.lastKey = now;
+    this.pending = [];
+  }
+
+  /** The pad was pressed; the key may already have come just before the poll saw it. */
+  pressed(key: string, now: number): void {
+    if (now - this.lastKey > LOST_AFTER_MS) this.pending.push({ key, at: now });
+  }
+
+  /** The presses that waited long enough without a key. */
+  lost(now: number): string[] {
+    const due = this.pending.filter((press) => now - press.at >= LOST_AFTER_MS);
+    this.pending = this.pending.filter((press) => now - press.at < LOST_AFTER_MS);
+    return due.map((press) => press.key);
+  }
+}
+
+function sendKey(type: PadKey["type"], key: string, repeat = false): void {
+  (document.activeElement ?? document.body).dispatchEvent(
+    new KeyboardEvent(type, { key, repeat, bubbles: true, cancelable: true }),
+  );
+}
+
+/** Must run before the other key listeners, which may stop a pad key before this one sees it. */
 export function initGamepadPolling(): void {
   if (uwpHost?.device !== "xbox" || !navigator.getGamepads) return;
   const reader = new PadReader();
+  const lostKeys = new LostKeys();
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.isTrusted) lostKeys.keyArrived(performance.now());
+    },
+    { capture: true },
+  );
   const poll = () => {
+    const now = performance.now();
     const pad = navigator.getGamepads().find((p) => p?.mapping === "standard") ?? null;
     const keys = pad
-      ? reader.read(
-          { buttons: pad.buttons.map((b) => b.pressed), axes: pad.axes },
-          performance.now(),
-        )
+      ? reader.read({ buttons: pad.buttons.map((b) => b.pressed), axes: pad.axes }, now)
       : [];
-    // With focus the WebView2 sends the pad as keys already; reading it too would move twice.
-    if (!document.hasFocus()) {
-      for (const { type, key, repeat } of keys) {
-        // B goes through the app's Back, which drops it if the app's own B just did the same.
-        if (key === "GoBack") {
-          if (type === "keydown" && !repeat) window.orcaBack?.();
-          continue;
-        }
-        (document.activeElement ?? document.body).dispatchEvent(
-          new KeyboardEvent(type, { key, repeat, bubbles: true, cancelable: true }),
-        );
+    const focused = document.hasFocus();
+    // In a text field the pad drives the console's on-screen keyboard, not the page.
+    const typing = document.activeElement?.matches("input, textarea, [contenteditable]") ?? false;
+    for (const { type, key, repeat } of keys) {
+      // B goes through the app's Back, which drops it if the app's own B just did the same.
+      if (key === "GoBack") {
+        if (!focused && type === "keydown" && !repeat) window.orcaBack?.();
+        continue;
       }
+      // With focus the WebView2 sends the pad as keys already; reading it too would move twice.
+      if (!focused) sendKey(type, key, repeat);
+      else if (type === "keydown" && !repeat && !typing) lostKeys.pressed(key, now);
+    }
+    const lost = lostKeys.lost(now);
+    if (lost.length > 0) {
+      for (const key of lost) {
+        sendKey("keydown", key);
+        sendKey("keyup", key);
+      }
+      refocusHost();
     }
     requestAnimationFrame(poll);
   };

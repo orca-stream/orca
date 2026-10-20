@@ -56,7 +56,16 @@ export function HomeScreen({ connection, account, onExpired, onUnreachable }: Pr
   const { ref, focusKey } = useFocusable({ focusKey: "HOME" });
   const expired = useEffectEvent(onExpired);
   const unreachable = useEffectEvent(onUnreachable);
-  const { overlays, open, replace, close, closeAll } = useOverlays();
+  // Where focus lands when the home has nothing better: Play, as Netflix does; without a billboard,
+  // the first card; meanwhile, the header.
+  function landingKey(): string {
+    if (state.kind !== "ready") return state.kind === "error" ? "HOME_RETRY" : "HEADER";
+    const { featured, shelves } = state.home;
+    if (featured) return BILLBOARD_PLAY;
+    if (shelves[0]) return firstCardKey(shelves[0]);
+    return "HEADER";
+  }
+  const { overlays, open, replace, close, closeAll } = useOverlays(landingKey);
   // Wide screens search in place, as Netflix web does: the results take the home's place.
   const [searchTerm, setSearchTerm] = useState("");
   const searching = wide && searchTerm.trim() !== "";
@@ -190,21 +199,13 @@ export function HomeScreen({ connection, account, onExpired, onUnreachable }: Pr
     }
   }
 
-  // Land on Play, as Netflix does; without a billboard, on the first card; meanwhile, the header.
   // A phone is touched, not driven by arrows: a ring on Play would only look stuck.
   // Read when the home changes, not a dependency: closing an overlay restores focus on its own.
   // A quiet reload (back from the player) changes the home but not its kind: focus stays put.
   const overlayOpen = useEffectEvent(() => overlays.length > 0);
   const land = useEffectEvent(() => {
     if (!wide || overlayOpen()) return;
-    if (state.kind !== "ready") {
-      void setFocus(state.kind === "error" ? "HOME_RETRY" : "HEADER");
-      return;
-    }
-    const { featured, shelves } = state.home;
-    if (featured) void setFocus(BILLBOARD_PLAY);
-    else if (shelves[0]) void setFocus(firstCardKey(shelves[0]));
-    else void setFocus("HEADER");
+    void setFocus(landingKey());
   });
   useEffect(() => land(), [state.kind, libraryId, wide]);
 

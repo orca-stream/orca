@@ -28,3 +28,8 @@ export const onXbox = uwpHost?.device === "xbox";
 export function keepScreenOn(on: boolean): void {
   window.chrome?.webview?.postMessage(JSON.stringify({ type: "playing", on }));
 }
+
+/** Asks the app to hand the keyboard back to the page, which the WebView2 sometimes loses. */
+export function refocusHost(): void {
+  window.chrome?.webview?.postMessage(JSON.stringify({ type: "focus" }));
+}

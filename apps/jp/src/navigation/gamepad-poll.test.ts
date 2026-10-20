@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { PadReader, type PadState } from "./gamepad-poll";
+import { LostKeys, PadReader, type PadState } from "./gamepad-poll";
 
 function pad(pressed: number[] = [], axes: number[] = [0, 0]): PadState {
   const buttons = Array.from({ length: 17 }, (_, i) => pressed.includes(i));
@@ -38,5 +38,29 @@ describe("PadReader", () => {
     expect(reader.read(pad([], [0, 0]), 20)).toEqual([
       { type: "keyup", key: "ArrowLeft", repeat: false },
     ]);
+  });
+});
+
+describe("LostKeys", () => {
+  it("counts a press as lost when no key reaches the page", () => {
+    const keys = new LostKeys();
+    keys.pressed("ArrowDown", 1000);
+    expect(keys.lost(1100)).toEqual([]);
+    expect(keys.lost(1150)).toEqual(["ArrowDown"]);
+    expect(keys.lost(2000)).toEqual([]);
+  });
+
+  it("lets a press go when its key arrives after it", () => {
+    const keys = new LostKeys();
+    keys.pressed("Enter", 1000);
+    keys.keyArrived(1020);
+    expect(keys.lost(1200)).toEqual([]);
+  });
+
+  it("lets a press go when its key came just before the poll saw it", () => {
+    const keys = new LostKeys();
+    keys.keyArrived(990);
+    keys.pressed("ArrowLeft", 1000);
+    expect(keys.lost(1200)).toEqual([]);
   });
 });

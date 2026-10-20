@@ -16,20 +16,34 @@ const SAME_PRESS_MS = 400;
 
 /**
  * In the Xbox app the pad's B may reach the page twice: as a key (Escape) and through the app's
- * system Back. The second one is dropped, or B would close two screens at once.
+ * system Back, in either order. The second one is dropped, or B would close two screens at once.
  */
-function initUwpBack(): void {
-  let lastKeyBack = 0;
+export function initUwpBack(): void {
+  let lastKeyBack = Number.NEGATIVE_INFINITY;
+  let lastAppBack = Number.NEGATIVE_INFINITY;
+  let fromApp = false;
   window.addEventListener(
     "keydown",
     (event) => {
-      if (event.key === "Escape" || event.key === "GoBack") lastKeyBack = performance.now();
+      if (event.key !== "Escape" && event.key !== "GoBack") return;
+      if (!fromApp && performance.now() - lastAppBack < SAME_PRESS_MS) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (!fromApp) lastKeyBack = performance.now();
     },
     { capture: true },
   );
   window.orcaBack = () => {
     if (performance.now() - lastKeyBack < SAME_PRESS_MS) return true;
-    return pressBack();
+    fromApp = true;
+    try {
+      return pressBack();
+    } finally {
+      fromApp = false;
+      lastAppBack = performance.now();
+    }
   };
 }
 

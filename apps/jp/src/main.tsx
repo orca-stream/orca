@@ -15,8 +15,10 @@ document.documentElement.lang = locale;
 // The console has no pointer to scroll with, so the WebView2's scrollbar is only clutter on the TV.
 if (uwpHost?.device === "xbox") document.documentElement.dataset.device = "xbox";
 
-initGamepadKeys();
+// The pad polling first: it watches for keys that never arrive, and must see them before
+// initGamepadKeys turns them into others.
 initGamepadPolling();
+initGamepadKeys();
 initSpatialNavigation();
 void initBackButton();
 
