@@ -239,9 +239,13 @@ export interface DetectedStream {
   headers: Record<string, string>;
 }
 
-/** Finds the media stream a web page plays. Implemented with a headless browser in a later phase. */
+/** Finds the media stream a web page plays, with a headless browser. */
 export interface StreamDetector {
-  detect(pageUrl: string, options: { signal: AbortSignal }): Promise<DetectedStream[]>;
+  /** `referer`: the page the player is embedded in, for players that refuse to play elsewhere. */
+  detect(
+    pageUrl: string,
+    options: { signal: AbortSignal; referer?: string },
+  ): Promise<DetectedStream[]>;
 }
 
 export interface FetchedImage {

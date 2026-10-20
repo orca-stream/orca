@@ -17,17 +17,31 @@ type Listener = (arg: never) => void;
 class FakePage implements PageLike {
   private readonly listeners = new Map<string, Listener[]>();
   gotoCalls: string[] = [];
+  gotoReferers: (string | undefined)[] = [];
   gotoImpl: (url: string) => Promise<unknown> = () => Promise.resolve(null);
+  clicks: { x: number; y: number }[] = [];
+  /** Set to make the page clickable, as a real one is. */
+  mouse: PageLike["mouse"];
 
-  on(event: "request" | "response", listener: Listener): void {
+  on(event: "request" | "response" | "popup", listener: Listener): void {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]);
   }
-  goto(url: string): Promise<unknown> {
+  goto(url: string, options?: { referer?: string }): Promise<unknown> {
     this.gotoCalls.push(url);
+    this.gotoReferers.push(options?.referer);
     return this.gotoImpl(url);
+  }
+  clickable(onClick: (page: FakePage) => void = () => {}): void {
+    this.mouse = {
+      click: async (x, y) => {
+        this.clicks.push({ x, y });
+        onClick(this);
+      },
+    };
   }
   emit(event: "request", arg: RequestLike): void;
   emit(event: "response", arg: ResponseLike): void;
+  emit(event: "popup", arg: { close(): Promise<unknown> }): void;
   emit(event: string, arg: unknown): void {
     for (const listener of this.listeners.get(event) ?? []) listener(arg as never);
   }
@@ -502,5 +516,83 @@ describe("buildLaunchOptions", () => {
     expect(launch.executablePath).toBe("/usr/bin/chromium");
     expect(launch.args).toContain("--no-sandbox");
     expect(launch.args).not.toContain("--no-proxy-server");
+  });
+});
+
+describe("PlaywrightStreamDetector: players embedded in another site", () => {
+  const manifest = () => {
+    const req = request("https://cdn.test/master.m3u8", {}, "fetch");
+    return {
+      req,
+      res: response(req, "application/vnd.apple.mpegurl", "#EXTM3U\n#EXT-X-STREAM-INF"),
+    };
+  };
+
+  it("opens the player with the page it is embedded in as the Referer", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.page.gotoImpl = () => {
+        const { req, res } = manifest();
+        context.page.emit("request", req);
+        context.page.emit("response", res);
+        return Promise.resolve(null);
+      };
+    };
+    await detectorWith(browser).detect("https://player.test/e/1", {
+      signal: noSignal(),
+      referer: "https://site.test/watch/1",
+    });
+    expect(browser.contexts[0]!.page.gotoReferers).toEqual(["https://site.test/watch/1"]);
+  });
+
+  it("clicks the middle of a player that waits for a click, and closes the ads it opens", async () => {
+    const browser = new FakeBrowser();
+    const popupsClosed: number[] = [];
+    browser.onNewContext = (context) => {
+      context.page.clickable((page) => {
+        if (page.clicks.length === 1) {
+          // The first click opens an ad; the second one starts the video.
+          page.emit("popup", { close: async () => popupsClosed.push(1) });
+          return;
+        }
+        const { req, res } = manifest();
+        page.emit("request", req);
+        page.emit("response", res);
+      });
+    };
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      timeoutMs: 500,
+      playClickDelaysMs: [5, 15],
+      launch: () => Promise.resolve(browser),
+    });
+    const streams = await detector.detect("https://player.test/e/1", { signal: noSignal() });
+    expect(streams.map((stream) => stream.url)).toEqual(["https://cdn.test/master.m3u8"]);
+    expect(browser.contexts[0]!.page.clicks).toEqual([
+      { x: 640, y: 360 },
+      { x: 640, y: 360 },
+    ]);
+    expect(popupsClosed).toEqual([1]);
+  });
+
+  it("does not click a player that already asked for its stream", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.page.clickable();
+      context.page.gotoImpl = () => {
+        const { req, res } = manifest();
+        context.page.emit("request", req);
+        context.page.emit("response", res);
+        return Promise.resolve(null);
+      };
+    };
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      settleMs: 30,
+      playClickDelaysMs: [1],
+      launch: () => Promise.resolve(browser),
+    });
+    await detector.detect("https://player.test/e/1", { signal: noSignal() });
+    expect(browser.contexts[0]!.page.clicks).toEqual([]);
   });
 });

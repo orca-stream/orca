@@ -58,7 +58,14 @@ export interface WebSocketRouteLike {
 export interface PageLike {
   on(event: "request", listener: (request: RequestLike) => void): void;
   on(event: "response", listener: (response: ResponseLike) => void): void;
-  goto(url: string, options: { waitUntil: "domcontentloaded"; timeout: number }): Promise<unknown>;
+  /** A window the page opens (players open ads on the first click). */
+  on(event: "popup", listener: (popup: { close(): Promise<unknown> }) => void): void;
+  goto(
+    url: string,
+    options: { waitUntil: "domcontentloaded"; timeout: number; referer?: string },
+  ): Promise<unknown>;
+  /** Clicks for players that wait for one before they play. Absent in fakes that don't need it. */
+  mouse?: { click(x: number, y: number): Promise<unknown> };
 }
 export interface ContextLike {
   newPage(): Promise<PageLike>;
@@ -141,6 +148,8 @@ export interface PlaywrightStreamDetectorOptions {
    */
   proxyUrl: string;
   launchOptions?: Pick<LaunchOptions, "executablePath" | "args">;
+  /** After how long without a stream the page is clicked in the middle, once per entry. */
+  playClickDelaysMs?: readonly number[];
   /** Replaces the Playwright launch. Meant for tests. */
   launch?: () => Promise<BrowserLike>;
 }
@@ -169,6 +178,20 @@ async function defaultLaunch(
   return (await chromium.launch(buildLaunchOptions(options, proxyUrl))) as unknown as BrowserLike;
 }
 
+/**
+ * When a player has not asked for a stream this long after the page opened, it is clicked in the
+ * middle (where players put their play button): the first click often only opens an ad, so twice.
+ */
+const DEFAULT_PLAY_CLICK_DELAYS_MS = [2_000, 5_000];
+/** The middle of Playwright's default 1280×720 viewport. */
+const PLAY_CLICK_POINT = { x: 640, y: 360 };
+
+export interface DetectOptions {
+  signal: AbortSignal;
+  /** Sent as the Referer of the page: players embedded in another site often refuse to play without it. */
+  referer?: string;
+}
+
 /** Watches what a page requests inside a headless Chromium and returns the streams it found. */
 export class PlaywrightStreamDetector {
   private readonly semaphore: Semaphore;
@@ -180,7 +203,7 @@ export class PlaywrightStreamDetector {
     this.semaphore = new Semaphore(options.maxConcurrent);
   }
 
-  async detect(pageUrl: string, { signal }: { signal: AbortSignal }): Promise<DetectedStream[]> {
+  async detect(pageUrl: string, { signal, referer }: DetectOptions): Promise<DetectedStream[]> {
     const aborted = () =>
       new StreamDetectionError("aborted", "Stream detection aborted", { cause: signal.reason });
     if (signal.aborted) throw aborted();
@@ -222,7 +245,7 @@ export class PlaywrightStreamDetector {
         this.forget(handle);
         throw new StreamDetectionError("browser", "The browser could not be confined", { cause });
       }
-      const found = await this.watch(context, closeContext, pageUrl, signal, aborted, () =>
+      const found = await this.watch(context, closeContext, pageUrl, referer, signal, aborted, () =>
         this.forget(handle),
       );
       return pickBest(found).map(({ url, kind, headers }) => ({ url, kind, headers }));
@@ -288,6 +311,7 @@ export class PlaywrightStreamDetector {
     context: ContextLike,
     closeContext: () => Promise<void>,
     pageUrl: string,
+    referer: string | undefined,
     signal: AbortSignal,
     aborted: () => StreamDetectionError,
     browserLost: () => void,
@@ -305,6 +329,7 @@ export class PlaywrightStreamDetector {
       const found = new Map<string, Candidate>();
       const pending = new Set<Promise<unknown>>();
       let settleTimer: ReturnType<typeof setTimeout> | undefined;
+      const clickTimers: ReturnType<typeof setTimeout>[] = [];
       let done = false;
 
       const finish = (outcome: () => void) => {
@@ -312,6 +337,7 @@ export class PlaywrightStreamDetector {
         done = true;
         clearTimeout(deadline);
         clearTimeout(settleTimer);
+        for (const timer of clickTimers) clearTimeout(timer);
         signal.removeEventListener("abort", onAbort);
         outcome();
       };
@@ -387,12 +413,35 @@ export class PlaywrightStreamDetector {
         );
       });
 
-      page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: timeoutMs }).catch((cause) => {
-        if (found.size > 0) return;
-        finish(() =>
-          reject(new StreamDetectionError("navigation", `Could not open ${pageUrl}`, { cause })),
-        );
+      // Ads a player opens are closed at once: nothing in them is the stream.
+      page.on("popup", (popup) => {
+        void popup.close().catch(() => undefined);
       });
+
+      const { mouse } = page;
+      page
+        .goto(pageUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: timeoutMs,
+          ...(referer === undefined ? {} : { referer }),
+        })
+        .then(() => {
+          if (!mouse) return;
+          for (const delay of this.options.playClickDelaysMs ?? DEFAULT_PLAY_CLICK_DELAYS_MS) {
+            clickTimers.push(
+              setTimeout(() => {
+                if (done || found.size > 0) return;
+                void mouse.click(PLAY_CLICK_POINT.x, PLAY_CLICK_POINT.y).catch(() => undefined);
+              }, delay),
+            );
+          }
+        })
+        .catch((cause) => {
+          if (found.size > 0) return;
+          finish(() =>
+            reject(new StreamDetectionError("navigation", `Could not open ${pageUrl}`, { cause })),
+          );
+        });
     });
   }
 }

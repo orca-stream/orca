@@ -20,13 +20,25 @@ const MASTER = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\n
 const PAGES: Record<string, string> = {
   "/plays": `<script>document.cookie = "${COOKIE}"; fetch("/media/master.m3u8");</script>`,
   "/silent": "<p>nothing to see</p>",
+  // A player that waits for a click: the first one only opens an ad, the second one plays.
+  "/player": `<body style="margin:0"><div style="width:100vw;height:100vh"></div><script>
+    let clicks = 0;
+    document.addEventListener("click", () => {
+      clicks += 1;
+      if (clicks === 1) window.open("/ad");
+      else fetch("/media/master.m3u8");
+    });
+  </script></body>`,
+  "/ad": "<p>an ad</p>",
 };
+/** The player only plays inside the site that embeds it. */
+const EMBEDDER = "https://site.test/watch/1";
 
 describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () => {
   let server: Server;
   let origin: string;
   let browser: Browser;
-  const detector = (overrides: { timeoutMs?: number } = {}) =>
+  const detector = (overrides: { timeoutMs?: number; playClickDelaysMs?: number[] } = {}) =>
     new PlaywrightStreamDetector({
       maxConcurrent: 2,
       timeoutMs: 8_000,
@@ -41,7 +53,9 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () =
   beforeAll(async () => {
     server = createServer((req, res) => {
       const path = new URL(req.url ?? "/", "http://x").pathname;
-      if (path === "/media/master.m3u8") {
+      if (path === "/player" && req.headers.referer !== EMBEDDER) {
+        res.writeHead(403).end();
+      } else if (path === "/media/master.m3u8") {
         res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl" }).end(MASTER);
       } else if (path in PAGES) {
         res.writeHead(200, { "content-type": "text/html" }).end(PAGES[path]);
@@ -67,6 +81,16 @@ describe.skipIf(!enabled)("PlaywrightStreamDetector against real Chromium", () =
     expect(found[0]!.headers["Referer"]).toBe(`${origin}/plays`);
     expect(found[0]!.headers["Cookie"]).toBe(COOKIE);
     expect(found[0]!.headers["User-Agent"]).toBeTruthy();
+    expect(browser.contexts()).toHaveLength(0);
+  });
+
+  it("opens a player with its embedder as Referer, clicks it until it plays, and closes the ad", async () => {
+    const found = await detector({ playClickDelaysMs: [500, 1_500] }).detect(`${origin}/player`, {
+      signal: new AbortController().signal,
+      referer: EMBEDDER,
+    });
+    expect(found.map((stream) => stream.url)).toEqual([`${origin}/media/master.m3u8`]);
+    expect(found[0]!.headers["Referer"]).toBe(`${origin}/player`);
     expect(browser.contexts()).toHaveLength(0);
   });
 

@@ -14,6 +14,7 @@ export {
   type BrowserLike,
   type ContextLike,
   type DetectedStream,
+  type DetectOptions,
   type LaunchOptions,
   type PageLike,
   type PlaywrightStreamDetectorOptions,

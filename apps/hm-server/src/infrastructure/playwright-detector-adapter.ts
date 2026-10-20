@@ -13,7 +13,10 @@ export class PlaywrightDetectorAdapter implements StreamDetector {
     this.inner = inner;
   }
 
-  async detect(pageUrl: string, options: { signal: AbortSignal }): Promise<DetectedStream[]> {
+  async detect(
+    pageUrl: string,
+    options: { signal: AbortSignal; referer?: string },
+  ): Promise<DetectedStream[]> {
     try {
       return await this.inner.detect(pageUrl, options);
     } catch (error) {
