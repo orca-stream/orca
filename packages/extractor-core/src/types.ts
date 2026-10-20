@@ -1,8 +1,16 @@
 import type { LicenseKind } from "./license.ts";
 
-/** The only way an extractor reaches the network: JSON in, JSON out. Tests answer from fixtures. */
+/** The only way an extractor reaches the network. Tests answer from fixtures. */
 export interface HttpClient {
   getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown>;
+  /**
+   * The body of a web page as text. `headers` (a Referer, a browser's User-Agent) go with the
+   * request. Optional: an extractor that reads only JSON never needs it.
+   */
+  getText?(
+    url: string,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<string>;
 }
 
 export type ExtractorErrorCode =
@@ -33,10 +41,12 @@ export class ExtractorError extends Error {
 /**
  * A file that can be fetched with a plain HTTP GET (Range supported). With kind `page`, `url` is
  * the address of a web page that plays the video: the server finds the stream on it with a browser
- * when it downloads, and `fileName` is only a placeholder.
+ * when it downloads, and `fileName` is only a placeholder. With kind `mirrors`, `url` is the
+ * episode's page, which lists several players of the same video (`SiteExtractor.resolveMirrors`):
+ * the server picks one when it downloads, and moves on to the next when it fails.
  */
 export interface DirectMedia {
-  kind: "direct" | "page";
+  kind: "direct" | "page" | "mirrors";
   url: string;
   fileName: string;
   sizeBytes?: number;
@@ -128,6 +138,14 @@ export interface ExtractorInfo {
   example: string;
 }
 
+/** One player of an episode, on whichever host serves it. */
+export interface Mirror {
+  /** The player's page: the browser opens it and records the stream it plays. */
+  url: string;
+  /** The page the player is embedded in, sent as the Referer when the browser opens it. */
+  referer?: string;
+}
+
 /** The port every site (Internet Archive today, others later) implements. */
 export interface SiteExtractor extends ExtractorInfo {
   /** True when the extractor must be chosen by the user: `canHandle` never claims an address. */
@@ -143,4 +161,9 @@ export interface SiteExtractor extends ExtractorInfo {
    * something did. Optional: an extractor without it is re-extracted on every check.
    */
   remoteMarker?(url: string, options?: { signal?: AbortSignal }): Promise<string>;
+  /**
+   * The players an episode page of kind `mirrors` offers, in the site's order. Read when the episode
+   * is downloaded, not when it is listed: the addresses may expire. Required for `mirrors` media.
+   */
+  resolveMirrors?(episodeUrl: string, options?: { signal?: AbortSignal }): Promise<Mirror[]>;
 }
