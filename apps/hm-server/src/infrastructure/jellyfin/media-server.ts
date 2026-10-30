@@ -1,5 +1,9 @@
-import type { Jellyfin } from "@jellyfin/sdk";
+import type { Api, Jellyfin } from "@jellyfin/sdk";
+import { BaseItemKind } from "@jellyfin/sdk/lib/generated-client/models/base-item-kind.js";
+import { ItemFields } from "@jellyfin/sdk/lib/generated-client/models/item-fields.js";
+import { MetadataRefreshMode } from "@jellyfin/sdk/lib/generated-client/models/metadata-refresh-mode.js";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api.js";
+import { getLibraryStructureApi } from "@jellyfin/sdk/lib/utils/api/library-structure-api.js";
 import { isAxiosError, type AxiosInstance } from "axios";
 import type { MediaServer } from "../../application/ports.ts";
 import { PermanentError, RetryableError } from "../../domain/errors.ts";
@@ -19,6 +23,9 @@ export interface JellyfinMediaServerOptions {
   timeoutMs?: number;
 }
 
+const trimSlashes = (path: string) => path.replace(/\/+$/, "");
+const isUnder = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`);
+
 export class JellyfinMediaServer implements MediaServer {
   private readonly options: JellyfinMediaServerOptions;
 
@@ -26,19 +33,27 @@ export class JellyfinMediaServer implements MediaServer {
     this.options = options;
   }
 
-  /** `POST /Library/Media/Updated`: a targeted scan of one folder, no full library refresh. */
+  /**
+   * Refreshes the series in that folder by its item id, or, when Jellyfin doesn't know it yet, the
+   * library that holds it. Not `POST /Library/Media/Updated`: Jellyfin answers it 204 and may drop it
+   * silently (a path under one it ignores while writing trickplay or images there).
+   */
   async libraryUpdated(path: string): Promise<void> {
     const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
-    const root = mediaRoot.replace(/\/+$/, "");
-    if (path !== root && !path.startsWith(`${root}/`)) {
+    const root = trimSlashes(mediaRoot);
+    if (!isUnder(path, root)) {
       throw new PermanentError(`${path} is not under the media root ${root}`);
     }
-    const jellyfinPath = jellyfinMediaRoot.replace(/\/+$/, "") + path.slice(root.length);
+    const jellyfinPath = trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length));
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
     try {
-      await getLibraryApi(api).postUpdatedMedia({
-        mediaUpdateInfoDto: { Updates: [{ Path: jellyfinPath, UpdateType: "Created" }] },
+      const itemId = await this.findItem(api, jellyfinPath);
+      // Default: only what is new or changed, not a full metadata refresh.
+      await getLibraryApi(api).refreshItem({
+        itemId,
+        metadataRefreshMode: MetadataRefreshMode.Default,
+        imageRefreshMode: MetadataRefreshMode.Default,
       });
     } catch (error) {
       if (!isAxiosError(error)) throw error;
@@ -51,5 +66,27 @@ export class JellyfinMediaServer implements MediaServer {
         { cause: error },
       );
     }
+  }
+
+  /** The series whose folder is `path`, else the library whose folder holds it. */
+  private async findItem(api: Api, path: string): Promise<string> {
+    const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
+    const library = libraries.find(
+      (folder) =>
+        folder.ItemId &&
+        (folder.Locations ?? []).some((location) => isUnder(path, trimSlashes(location))),
+    );
+    if (!library?.ItemId) {
+      throw new PermanentError(`No Jellyfin library holds ${path}`);
+    }
+    const { data } = await getLibraryApi(api).getItems({
+      parentId: library.ItemId,
+      includeItemTypes: [BaseItemKind.Series],
+      fields: [ItemFields.Path],
+      enableImages: false,
+      enableTotalRecordCount: false,
+    });
+    const series = (data.Items ?? []).find((item) => item.Path && trimSlashes(item.Path) === path);
+    return series?.Id ?? library.ItemId;
   }
 }

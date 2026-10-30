@@ -183,31 +183,80 @@ function mediaServer(
   };
 }
 
+const LIBRARIES = [
+  { Name: "Movies", ItemId: "lib-movies", Locations: ["/data/movies"] },
+  { Name: "Series", ItemId: "lib-tv", Locations: ["/data/tv/"] },
+];
+const SERIES = [
+  { Id: "show-other", Path: "/data/tv/Other (2001)" },
+  { Id: "show-hillbillies", Path: "/data/tv/The Beverly Hillbillies (1962)" },
+];
+
+/** A Jellyfin with those libraries and series, accepting any refresh. */
+function jellyfinWith(libraries: unknown[] = LIBRARIES, series: unknown[] = SERIES): Route {
+  return (config) => {
+    const path = new URL(config.url ?? "").pathname;
+    if (path === "/Library/VirtualFolders") return { status: 200, data: libraries };
+    if (path === "/Items") return { status: 200, data: { Items: series } };
+    if (path.endsWith("/Refresh")) return { status: 204, data: "" };
+    return { status: 404, data: "" };
+  };
+}
+
+/** The SDK puts the query in the URL itself. */
+const parts = (request?: { url?: string }) => {
+  const url = new URL(request?.url ?? "");
+  return { path: url.pathname, query: Object.fromEntries(url.searchParams) };
+};
+const refreshOf = <R extends { url?: string }>(requests: R[]) =>
+  requests.find((r) => parts(r).path.endsWith("/Refresh"));
+
 describe("JellyfinMediaServer", () => {
-  it("tells Jellyfin a folder was created, in Jellyfin's own path", async () => {
-    const { server, requests } = mediaServer(() => ({ status: 204, data: "" }));
+  it("refreshes the series by its id, found by Jellyfin's own path", async () => {
+    const { server, requests } = mediaServer(jellyfinWith());
     await server.libraryUpdated("/media/tv/The Beverly Hillbillies (1962)");
-    const [request] = requests;
-    expect(request?.url).toBe(`${URL_}/Library/Media/Updated`);
-    expect(request?.method).toBe("post");
-    expect(JSON.parse(request?.data as string)).toEqual({
-      Updates: [{ Path: "/data/tv/The Beverly Hillbillies (1962)", UpdateType: "Created" }],
+    const list = requests.find((r) => parts(r).path === "/Items");
+    expect(parts(list).query).toMatchObject({
+      parentId: "lib-tv",
+      includeItemTypes: "Series",
+      fields: "Path",
     });
-    expect(header(request!)).toContain('Token="api-key"');
+    const refresh = refreshOf(requests);
+    expect(parts(refresh)).toEqual({
+      path: "/Items/show-hillbillies/Refresh",
+      query: { metadataRefreshMode: "Default", imageRefreshMode: "Default" },
+    });
+    expect(refresh?.method).toBe("post");
+    expect(header(refresh!)).toContain('Token="api-key"');
+    expect(requests.some((r) => parts(r).path === "/Library/Media/Updated")).toBe(false);
+  });
+
+  it("refreshes the library when Jellyfin doesn't know the series yet", async () => {
+    const { server, requests } = mediaServer(jellyfinWith());
+    await server.libraryUpdated("/media/tv/Brand New (2026)");
+    expect(parts(refreshOf(requests)).path).toBe("/Items/lib-tv/Refresh");
   });
 
   it("leaves the path alone when both containers see the same one", async () => {
-    const { server, requests } = mediaServer(() => ({ status: 204, data: "" }), {
-      mediaRoot: "/media/tv",
-      jellyfinMediaRoot: "/media/tv",
-    });
+    const { server, requests } = mediaServer(
+      jellyfinWith(
+        [{ ItemId: "lib", Locations: ["/media/tv"] }],
+        [{ Id: "show", Path: "/media/tv/Show" }],
+      ),
+      { mediaRoot: "/media/tv", jellyfinMediaRoot: "/media/tv" },
+    );
     await server.libraryUpdated("/media/tv/Show");
-    expect(JSON.parse(requests[0]?.data as string).Updates[0].Path).toBe("/media/tv/Show");
+    expect(parts(refreshOf(requests)).path).toBe("/Items/show/Refresh");
   });
 
   it("refuses a path outside the media root", async () => {
-    const { server } = mediaServer(() => ({ status: 204, data: "" }));
+    const { server } = mediaServer(jellyfinWith());
     await expect(server.libraryUpdated("/etc/passwd")).rejects.toBeInstanceOf(PermanentError);
+  });
+
+  it("gives up when no Jellyfin library holds the folder", async () => {
+    const { server } = mediaServer(jellyfinWith([LIBRARIES[0]]));
+    await expect(server.libraryUpdated("/media/tv/x")).rejects.toBeInstanceOf(PermanentError);
   });
 
   it("retries when Jellyfin is down or erroring, and gives up when the key is refused", async () => {

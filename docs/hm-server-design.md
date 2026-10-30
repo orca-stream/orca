@@ -243,11 +243,12 @@ migrate(db, { migrationsFolder: join(import.meta.dirname, "../drizzle") });
 
 **Refresh** (`@jellyfin/sdk` 1.0.0 `library-api` plus the server source):
 
-- **Targeted, preferred:** `getLibraryApi(api).postUpdatedMedia({ mediaUpdateInfoDto: { Updates: [{ Path: "/media/tv/Show (1962)", UpdateType: "Created" }] } })`, which is `POST /Library/Media/Updated` (`[Authorize]`).
-  - `Path` must be **the path as Jellyfin sees it** (its container path). Use a config mapping `JELLYFIN_MEDIA_ROOT` in addition to H&M's own `MEDIA_ROOT`; both are required, with the same value when the two containers mount the folder at the same path.
-- **One library:**
-  1. `getLibraryStructureApi(api).getVirtualFolders()` and pick the `VirtualFolderInfo.ItemId` for the TV library. You can match `Locations` against the media root.
-  2. `getLibraryApi(api).refreshItem({ itemId, metadataRefreshMode: "Default", imageRefreshMode: "Default" })`, which is `POST /Items/{id}/Refresh` and queues the refresh at High priority. The SDK and the server have **no `recursive` parameter**: refreshing a folder validates its children.
+- **What H&M does: refresh the series by id.**
+  1. `getLibraryStructureApi(api).getVirtualFolders()` and pick the library whose `Locations` hold the series folder. Its `VirtualFolderInfo.ItemId` is the library's item.
+  2. `getLibraryApi(api).getItems({ parentId: <library ItemId>, includeItemTypes: ["Series"], fields: ["Path"] })` and pick the series whose `Path` is the folder.
+  3. `getLibraryApi(api).refreshItem({ itemId, metadataRefreshMode: "Default", imageRefreshMode: "Default" })`, which is `POST /Items/{id}/Refresh` and queues the refresh at High priority. The SDK and the server have **no `recursive` parameter**: refreshing a folder validates its children. When Jellyfin doesn't know the series yet (its first episode), `itemId` is the library's instead.
+  - Paths are **the paths as Jellyfin sees them** (its container path). Use a config mapping `JELLYFIN_MEDIA_ROOT` in addition to H&M's own `MEDIA_ROOT`; both are required, with the same value when the two containers mount the folder at the same path.
+- **Not used: `POST /Library/Media/Updated`** (`postUpdatedMedia`). It answers 204 and goes through Jellyfin's library monitor, which drops a path in silence when it is under one Jellyfin ignores for a while (one it is writing to, such as trickplay or images saved next to the media). Seen on 2026-10-29: 23 episodes on disk, 3 in Jellyfin, and every notice after the first ones lost.
 - **Every library:** `getLibraryApi(api).refreshLibrary()`, which is `POST /Library/Refresh` and needs `RequiresElevation`. Keep it as a last resort.
 - **Credentials:** background jobs use a **Jellyfin API key**. Bifröst creates it and passes it as `JELLYFIN_API_KEY`. Jobs never use a user token.
 
@@ -391,7 +392,7 @@ CMD ["node","dist/main.mjs"]
   - `ipc: host` or `shm_size: 1gb`, plus `init: true`, both recommended by Playwright.
   - `mem_limit: ~1.5g` (8 GB host).
   - Ports on the **LAN IP only**.
-  - Volumes: `hm-data:/data` and the 1 TB disk's TV folder mounted at **the same path inside both containers**, e.g. `/media/tv` in H&M and Jellyfin. That keeps the `Library/Media/Updated` paths identical. If the paths differ, use `JELLYFIN_MEDIA_ROOT`.
+  - Volumes: `hm-data:/data` and the 1 TB disk's TV folder mounted at **the same path inside both containers**, e.g. `/media/tv` in H&M and Jellyfin. That keeps the paths H&M looks up in Jellyfin identical. If the paths differ, use `JELLYFIN_MEDIA_ROOT`.
   - Env from `.env`: `JELLYFIN_URL`, `JELLYFIN_API_KEY`, `SESSION_SECRET`.
 - **Configuration is environment-only, with no environment defaults in code.** Required, validated by Zod at boot (the error lists everything missing): `HOST`, `PORT`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL`, `JELLYFIN_API_KEY`. Optional: `CONTACT_EMAIL` (User-Agent contact), `DEVICE_ID` (otherwise a UUID is generated once and stored in the database `settings` table), `WEB_ROOT`, `SECURE_COOKIES`, and the tuning knobs `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`, which keep named-constant defaults. Per-host politeness is declared by each extractor (`limits: { metadataPerSec, downloadsPerHost }`) and only overridden by the optional `DOWNLOADS_PER_HOST` / `METADATA_PER_SEC`. F5 adds, all optional: `HM_GENERIC_DETECTOR=1` (off by default; with it on, `HM_DETECTOR_MAX_CONCURRENT`, `HM_DETECTOR_TIMEOUT_MS` and `HM_DETECTOR_SETTLE_MS` are required, plus optional `HM_DETECTOR_USER_AGENT`, `HM_CHROMIUM_PATH`, `HM_CHROMIUM_NO_SANDBOX`), the server-wide track defaults `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS` (ISO 639-2 codes: `eng`, `spa`, `jpn`) and `SUBTITLES_EXTERNAL`. Values come from the process environment, or from `apps/hm-server/profiles/<name>.env` when `HM_PROFILE=<name>` is set (variables already in the environment win; a container gets its environment from Bifröst and sets no profile). `profiles/.env.example` holds suggestions only, all commented out.
 - The Orca'JP client (`apps/jp`) takes its suggested servers only from `VITE_JELLYFIN_SERVERS` (comma-separated; `VITE_JELLYFIN_SERVER_URL` still works and is listed first). Unset, it offers only servers already signed in to, plus manual entry.
@@ -411,7 +412,7 @@ CMD ["node","dist/main.mjs"]
   - Retry with `run_after`.
   - Cancellation of queued and running jobs via `AbortSignal`.
   - The semaphore never exceeding N.
-- **Jellyfin adapter:** reuse the fake axios adapter (`fake-server.ts`) for `authenticateUserByName` (admin and non-admin), `postUpdatedMedia` and `getVirtualFolders`.
+- **Jellyfin adapter:** reuse the fake axios adapter (`fake-server.ts`) for `authenticateUserByName` (admin and non-admin), `getVirtualFolders`, `getItems` and `refreshItem`.
 - **HTTP:** `app.request("/series/preview", { method: "POST", body, headers: { cookie } })` against `createApp(deps)` with fakes:
   - 401 without a session, 403 for a non-admin login, 400 from Zod.
   - SSE: read the first chunks of `res.body` and abort.

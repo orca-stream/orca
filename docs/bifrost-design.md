@@ -460,7 +460,7 @@ The optional `hm:` block adds the H&M container to the same compose file. `bifro
 
 **Config** (`hm:`): `port` (required, e.g. 8787; H&M listens on `host.address:port`), `dataDir` (required, e.g. `/srv/orca-hm`; must not overlap `host.dataDir`, `/` or any media root), `mediaDir` (host path of the TV library), `apiKeySecret` (default `ORCA_HM_JELLYFIN_API_KEY`), `contactEmailSecret` (optional), `source` (git ref, default `HEAD`).
 
-- `mediaDir` is validated: it must sit under one of Jellyfin's media mounts and, as Jellyfin sees it, inside a `tvshows` library path. H&M mounts it **at that same container path** (`MEDIA_ROOT` = `JELLYFIN_MEDIA_ROOT`), so the paths it sends to `postUpdatedMedia` are the ones Jellyfin knows. Jellyfin keeps its own mount (read-only); only H&M writes.
+- `mediaDir` is validated: it must sit under one of Jellyfin's media mounts and, as Jellyfin sees it, inside a `tvshows` library path. H&M mounts it **at that same container path** (`MEDIA_ROOT` = `JELLYFIN_MEDIA_ROOT`), so the paths it looks up in Jellyfin (to refresh a series by id) are the ones Jellyfin knows. Jellyfin keeps its own mount (read-only); only H&M writes.
 - Paths in the config must be normalized: no `..` segments, no trailing slash, no `//`; containment checks resolve them too.
 - There is no `genericDetector` key: hm-server has no such setting yet.
 
