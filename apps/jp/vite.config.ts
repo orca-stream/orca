@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, lazyPlugins, type Plugin } from "vite-plus";
+import { defineConfig, lazyPlugins, loadEnv, type Plugin } from "vite-plus";
 
 const { version } = JSON.parse(readFileSync(new URL("package.json", import.meta.url), "utf8")) as {
   version: string;
@@ -42,10 +42,18 @@ function serveDebugApk(): Plugin {
 
 // Build target stays at Vite's default (baseline widely available, ~Chrome 111), which is also
 // Tailwind 4's floor. Web and Xbox Edge come first; the LG TV (Chromium 94 or 120) comes later.
+// Extra host names the dev server answers to, such as a tunnel's (JP_ALLOWED_HOSTS, see .env.example).
 // https://vite.dev/config/
-export default defineConfig({
-  define: {
-    __APP_VERSION__: JSON.stringify(version),
-  },
-  plugins: lazyPlugins(() => [react(), tailwindcss(), serveDebugApk()]),
+export default defineConfig(({ mode }) => {
+  const allowedHosts = (loadEnv(mode, process.cwd(), "JP_").JP_ALLOWED_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim())
+    .filter(Boolean);
+  return {
+    define: {
+      __APP_VERSION__: JSON.stringify(version),
+    },
+    plugins: lazyPlugins(() => [react(), tailwindcss(), serveDebugApk()]),
+    server: allowedHosts.length > 0 ? { allowedHosts } : {},
+  };
 });
