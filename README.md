@@ -1,60 +1,94 @@
-# Orca'JP
+# Orca
 
-A Netflix-style client for [Jellyfin](https://jellyfin.org), built web-first so the same app runs in
-a desktop browser, on Android phones and Android TV, on LG webOS TVs and on Xbox (Edge first, then a
-UWP + WebView2 shell).
+**English** · [Español](README.es.md)
 
-> Private, early-stage project.
+A self-hosted streaming setup built around [Jellyfin](https://jellyfin.org). Four apps live in this
+pnpm monorepo; each one runs on its own, and they fit together:
 
-## Stack
+| App                          | What it is                                                                                                               | Guide                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| **Orca'JP** (`apps/jp`)      | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later              | [jp](docs/guides/jp.md)               |
+| **Orca'H&M** server          | Finds shows on public-domain sites (Internet Archive, or sites you describe), downloads them and files them for Jellyfin | [hm-server](docs/guides/hm-server.md) |
+| **Orca'H&M** panel           | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                                  | [hm-web](docs/guides/hm-web.md)       |
+| **Bifröst** (`apps/bifrost`) | Optional. Provisions a Jellyfin server over SSH from a YAML file: Docker, VA-API, plugins, libraries, H&M, backups       | [bifrost](docs/guides/bifrost.md)     |
 
-- [Vite+](https://viteplus.dev) toolchain (Vite, Vitest, Oxlint, Oxfmt) with React + TypeScript
-- pnpm, pinned through `packageManager` and run via corepack
+Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
+[Xbox and Windows](docs/guides/xbox.md). How the pieces combine: [Running them together](docs/guides/together.md).
 
-## Layout
+> Private, early-stage project. Nothing is published to a registry or an app store yet.
 
-A pnpm workspace. `apps/jp` is the client (Orca'JP); `packages/*` will hold shared code later.
-The lint, format and staged-file rules live in the root `vite.config.ts`; each package's own
-`vite.config.ts` keeps only Vite and Vitest settings.
+## Requirements
 
-## Getting started
+- **Node.js 24** or newer and **corepack** (it provides the pnpm pinned in `package.json`'s `packageManager`).
+- A **Jellyfin** server (10.10 or newer; developed against 12.2) for Orca'JP and Orca'H&M. Bifröst can create one.
+- Per app, extra tools (ffmpeg, JDK, a Windows machine…): see each guide.
+
+## Quick start
 
 ```bash
 corepack enable
 pnpm install
-cp apps/jp/.env.example apps/jp/.env   # list your servers in VITE_JELLYFIN_SERVERS (comma-separated; leave empty to offer only servers already signed in to)
-pnpm dev
+
+# Orca'JP in the browser
+cp apps/jp/.env.example apps/jp/.env      # optional: list your Jellyfin servers in VITE_JELLYFIN_SERVERS
+pnpm dev                                  # http://localhost:5173
+
+# Orca'H&M (server + panel) against a Jellyfin you already have
+cp apps/hm-server/profiles/.env.example apps/hm-server/profiles/home.env   # fill it in
+cp apps/hm-web/.env.example apps/hm-web/.env
+HM_PROFILE=home pnpm dev:hm
 ```
 
-## Scripts
+## Scripts (from the repository root)
 
-| Script           | What it does                                     |
-| ---------------- | ------------------------------------------------ |
-| `pnpm dev`       | Dev server with HMR                              |
-| `pnpm check`     | Format, lint and type checks in one pass         |
-| `pnpm lint`      | Oxlint (warnings fail)                           |
-| `pnpm format`    | Oxfmt, writing in place (`format:check` in CI)   |
-| `pnpm typecheck` | `tsc -b` in every workspace package              |
-| `pnpm test`      | Vitest, single run, in every workspace package   |
-| `pnpm build`     | Typecheck and production build, in every package |
+| Script                                                 | What it does                                                             |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `pnpm dev`                                             | Orca'JP dev server with HMR                                              |
+| `pnpm preview`                                         | Serves Orca'JP's production build                                        |
+| `HM_PROFILE=<name> pnpm dev:hm`                        | Orca'H&M server and panel together, in watch mode                        |
+| `pnpm bifrost <command>`                               | Bifröst CLI with `apps/bifrost/bifrost.yaml` (`-c` picks another)        |
+| `pnpm android:assets` / `android:sync` / `android:apk` | Android icons, sync, debug APK ([guide](docs/guides/android.md))         |
+| `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Xbox tiles, package, install on a console ([guide](docs/guides/xbox.md)) |
+| `pnpm check`                                           | Format, lint and type checks in one pass                                 |
+| `pnpm lint`                                            | Oxlint (warnings fail)                                                   |
+| `pnpm format` / `pnpm format:check`                    | Oxfmt, writing in place / checking only                                  |
+| `pnpm typecheck`                                       | `tsc` in every workspace package                                         |
+| `pnpm test`                                            | Vitest, single run, in every workspace package                           |
+| `pnpm build`                                           | Production build of every package                                        |
 
-## Android app
+Run a script of one package with `pnpm --filter @orca/<name> <script>` (`@orca/jp`, `@orca/hm-server`,
+`@orca/hm-web`, `@orca/bifrost`).
 
-One APK for phones and Android TV, built with [Capacitor](https://capacitorjs.com) from `apps/jp/android/`.
-The built site ships inside the app (`apps/jp/dist/` is copied in by `cap sync`), so every change means a
-rebuild and reinstall. Needs JDK 21 and the Android SDK (`ANDROID_HOME`).
+## Layout
 
-| Script                | What it does                                                                |
-| --------------------- | --------------------------------------------------------------------------- |
-| `pnpm android:assets` | Renders launcher icons, TV banner and splash from `apps/jp/resources/*.svg` |
-| `pnpm android:sync`   | Builds the site and copies it into the Android project                      |
-| `pnpm android:apk`    | Syncs, then builds `apps/jp/android/app/build/...`                          |
+```text
+apps/
+  jp/          Orca'JP client (React); android/ = Capacitor project, xbox/ = UWP + WebView2 project
+  hm-server/   Orca'H&M API, job queue and downloaders (Hono + SQLite)
+  hm-web/      Orca'H&M admin panel (React + shadcn/ui)
+  bifrost/     Bifröst CLI
+packages/      Shared code: Jellyfin helpers, extractors, media probing, UI, the H&M API contract
+docs/          Guides (docs/guides, Spanish in docs/guides/es) and design notes
+```
 
-The `android:*` and `xbox:*` scripts live in `apps/jp`; the root forwards them, or run
-`pnpm --filter @orca/jp <script>`.
+Toolchain: [Vite+](https://viteplus.dev) (Vite, Vitest, Oxlint, Oxfmt) with React and TypeScript. The
+lint, format and staged-file rules live in the root `vite.config.ts`; each package's own config keeps
+only its Vite and Vitest settings.
 
-Install it with `adb install -r apps/jp/android/app/build/outputs/apk/debug/app-debug.apk` (on Android TV,
-enable developer options and network debugging first, then `adb connect <tv-ip>`).
+## Configuration rule
+
+Nothing that depends on where it runs (addresses, hosts, ports, paths, device ids) is written in the
+code. It comes from environment variables or from the Bifröst YAML. Every template
+(`.env.example`, `bifrost.example.yaml`, `sites.example.json`) is versioned; the real files are
+gitignored and their values are **suggestions**, not defaults.
+
+## Design notes
+
+In-depth notes, in English only: [Bifröst design](docs/bifrost-design.md) ·
+[Orca'H&M design](docs/hm-server-design.md).
+
+## Contributing
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/), enforced by a
-`commit-msg` hook (`.vite-hooks/`) and in CI.
+`commit-msg` hook (`.vite-hooks/`) and in CI. History is linear (rebase only). Before a commit,
+`pnpm check`, `pnpm test` and `pnpm build` must pass.

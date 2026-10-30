@@ -136,8 +136,8 @@ const Config = z.strictObject({
     sshUser: z.string(),
     lanCidr: z.string(),
     renderGid: z.number().int().optional(),
-    renderDevice: devicePath.default("/dev/dri/renderD128"), // the GPU render node passed to the container
-    dataDir: z.string().default("/srv/jellyfin"),
+    renderDevice: devicePath, // the GPU render node passed to the container (required, no default)
+    dataDir: z.string(), // required, no default
     mediaDisk: z.strictObject({ uuid: z.string(), mount: z.string() }).optional(),
   }),
   jellyfin: z.strictObject({
@@ -194,8 +194,8 @@ host:
 jellyfin:
   image: jellyfin/jellyfin:12.2.20261005-225228
   url: http://192.168.1.10:8096
-  port: 8096 # host port for the UI and API (default; the container side is always 8096)
-  discoveryPort: 7359 # host UDP port for client discovery (default; the container side is 7359)
+  port: 8096 # host port for the UI and API (required; the container side is always 8096)
+  discoveryPort: 7359 # host UDP port for client discovery (required; the container side is 7359)
   server: { name: Orca, uiCulture: es-MX, metadataLanguage: es-419, metadataCountry: HN }
   admin: { username: admin, passwordSecret: JELLYFIN_ADMIN_PASSWORD }
   repositories:
@@ -280,7 +280,7 @@ services:
     container_name: jellyfin
     user: "${JF_UID}:${JF_GID}" # dedicated 'jellyfin' system user created by host prepare
     group_add: ["991"] # render GID, read by `getent group render | cut -d: -f3`
-    devices: ["${host.renderDevice}:${host.renderDevice}"] # default /dev/dri/renderD128
+    devices: ["${host.renderDevice}:${host.renderDevice}"] # e.g. /dev/dri/renderD128
     volumes:
       - /srv/jellyfin/config:/config
       - /srv/jellyfin/cache:/cache
@@ -458,7 +458,7 @@ Media is synced separately with rsync.
 
 The optional `hm:` block adds the H&M container to the same compose file. `bifrost up` stays Jellyfin-only; `bifrost hm up <host> [--dry-run]` is the explicit command.
 
-**Config** (`hm:`): `port` (default 8787; H&M listens on `host.address:port`), `dataDir` (default `/srv/orca-hm`; must not overlap `host.dataDir`, `/` or any media root), `mediaDir` (host path of the TV library), `apiKeySecret` (default `ORCA_HM_JELLYFIN_API_KEY`), `contactEmailSecret` (optional), `source` (git ref, default `HEAD`).
+**Config** (`hm:`): `port` (required, e.g. 8787; H&M listens on `host.address:port`), `dataDir` (required, e.g. `/srv/orca-hm`; must not overlap `host.dataDir`, `/` or any media root), `mediaDir` (host path of the TV library), `apiKeySecret` (default `ORCA_HM_JELLYFIN_API_KEY`), `contactEmailSecret` (optional), `source` (git ref, default `HEAD`).
 
 - `mediaDir` is validated: it must sit under one of Jellyfin's media mounts and, as Jellyfin sees it, inside a `tvshows` library path. H&M mounts it **at that same container path** (`MEDIA_ROOT` = `JELLYFIN_MEDIA_ROOT`), so the paths it sends to `postUpdatedMedia` are the ones Jellyfin knows. Jellyfin keeps its own mount (read-only); only H&M writes.
 - Paths in the config must be normalized: no `..` segments, no trailing slash, no `//`; containment checks resolve them too.
@@ -470,7 +470,7 @@ The optional `hm:` block adds the H&M container to the same compose file. `bifro
 2. Otherwise `git archive` of that commit (tracked files only; local edits are not included) is copied to `<dataDir>/src/<tag>.tar` and `docker build -f apps/hm-server/Dockerfile` runs on the host with the extracted tree as context (the Dockerfile expects the repo root). The tree is extracted with `--no-same-owner --no-same-permissions` and deleted afterwards; a tarball left by a dead run is cleared at the start of the next one.
 3. The system user `orca-hm` is created with primary group `jellyfin`; `<dataDir>/data` is `orca-hm:jellyfin 0750`, `mediaDir` is `orca-hm:jellyfin 2775` (setgid, so what H&M writes stays in the group Jellyfin reads through the group bits). The data directory is a bind mount, not a named volume: a fresh named volume copies the image's `node` ownership and the container runs as `orca-hm`.
 4. The "Orca H&M" API key is created in Jellyfin (signed in as the admin) if it is missing and stored under `apiKeySecret`.
-5. `<dataDir>/hm.env` (root, `0600`) holds every required variable: `HOST=<host.address>`, `PORT=<hm.port>`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL=http://<host.address>:<jellyfin.port>`, `JELLYFIN_API_KEY` and optionally `CONTACT_EMAIL`. The compose file only names it in `env_file`, so no secret is in the compose file, an argv or a log. `WEB_ROOT` is not set: the image does not ship the panel yet.
+5. `<dataDir>/hm.env` (root, `0600`) holds every required variable: `HOST=<host.address>`, `PORT=<hm.port>`, `DB_FILE`, `MEDIA_ROOT`, `JELLYFIN_MEDIA_ROOT`, `JELLYFIN_URL=http://<host.address>:<jellyfin.port>`, `JELLYFIN_API_KEY` and optionally `CONTACT_EMAIL`. The compose file only names it in `env_file`, so no secret is in the compose file, an argv or a log. `WEB_ROOT` is not in it: the image sets `WEB_ROOT=/app/public` itself and serves the built panel (`apps/hm-web`) from the same origin as the API.
 6. `<dataDir>/image` records the deployed tag. The compose file gets the `orca-hm` service only when this marker exists, so a later plain `bifrost up` keeps H&M instead of dropping it (`--remove-orphans`). Without `hm` in the config the file is byte-identical to before.
 7. ufw: `ufw allow from <lanCidr> to <host.address> port <hm.port> proto tcp`, added only if the rule is not already there.
 8. `docker compose up -d --no-deps orca-hm` (with `--force-recreate` when the env file changed), then wait for the container's health.
