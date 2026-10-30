@@ -118,7 +118,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   if (!parsed.success || (detectorParsed && !detectorParsed.success)) {
     const lines = issues.map((issue) => `  ${issue.path.join(".") || "(env)"}: ${issue.message}`);
     throw new ConfigError(
-      `Invalid configuration (set these in the environment, see .env.example):\n${lines.join("\n")}`,
+      `Invalid configuration (set these in the environment or in a profile picked with HM_PROFILE, see profiles/.env.example):\n${lines.join("\n")}`,
       { cause: parsed.success ? (detectorParsed as { error: unknown }).error : parsed.error },
     );
   }

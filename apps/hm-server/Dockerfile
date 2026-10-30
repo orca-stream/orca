@@ -3,7 +3,7 @@
 # The generic page detector needs Chromium, which is left out unless asked for:
 #   docker build -f apps/hm-server/Dockerfile --build-arg WITH_CHROMIUM=1 -t orca-hm .
 # (then run with HM_GENERIC_DETECTOR=1, HM_CHROMIUM_PATH=/usr/bin/chromium and the other
-# HM_DETECTOR_* variables of .env.example). Debian's Chromium is not the build Playwright pins, and the
+# HM_DETECTOR_* variables of profiles/.env.example). Debian's Chromium is not the build Playwright pins, and the
 # detector is confined by a guarded proxy: see "What the generic detector can reach" in docs/hm-server-design.md.
 FROM node:24-trixie-slim AS build
 RUN corepack enable

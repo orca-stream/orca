@@ -18,6 +18,7 @@ import { createUseCases } from "./application/use-cases.ts";
 import { resolveDeviceId } from "./application/device-id.ts";
 import { assertChromium } from "./infrastructure/chromium-check.ts";
 import { deprecatedEnvWarnings, loadConfig, userAgent } from "./infrastructure/config.ts";
+import { loadProfile } from "./infrastructure/profile.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleJobRepository } from "./infrastructure/db/job-repository.ts";
 import { DrizzleNotificationRepository } from "./infrastructure/db/notification-repository.ts";
@@ -50,6 +51,8 @@ const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "u
   version: string;
 };
 
+const profile = loadProfile(process.env, appRoot);
+if (profile) console.log(`profile: ${profile}`);
 const config = loadConfig(process.env);
 for (const warning of deprecatedEnvWarnings(process.env)) console.warn(warning);
 // Fail at boot, not on the first page job, when the browser the detector needs is not there.
