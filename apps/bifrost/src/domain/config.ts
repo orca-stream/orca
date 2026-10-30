@@ -53,12 +53,6 @@ const Library = z.strictObject({
   options: record.default({}),
 });
 
-/** The DRM render node handed to the container when the config doesn't name one. */
-export const DEFAULT_RENDER_DEVICE = "/dev/dri/renderD128";
-/** Host ports Jellyfin is published on when the config doesn't name any. */
-export const DEFAULT_HTTP_PORT = 8096;
-export const DEFAULT_DISCOVERY_PORT = 7359;
-
 const port = z.number().int().min(1).max(65535);
 
 const Host = z.strictObject({
@@ -87,9 +81,8 @@ const Host = z.strictObject({
   renderDevice: z
     .string()
     .regex(/^\/dev\/[A-Za-z0-9._/-]+$/, "must be a /dev path like /dev/dri/renderD128")
-    .refine((d) => !d.includes(".."), "must not contain ..")
-    .default(DEFAULT_RENDER_DEVICE),
-  dataDir: absPath.default("/srv/jellyfin"),
+    .refine((d) => !d.includes(".."), "must not contain .."),
+  dataDir: absPath,
   mediaDisk: z
     .strictObject({
       uuid: z.string().regex(/^[0-9A-Za-z-]+$/, "must be a filesystem UUID"),
@@ -112,9 +105,9 @@ const Jellyfin = z.strictObject({
   image: z.string().min(1),
   url: z.url(),
   /** Host port the web UI and API are published on (the container side is always 8096). */
-  port: port.default(DEFAULT_HTTP_PORT),
+  port,
   /** Host UDP port for client auto-discovery (the container side is always 7359). */
-  discoveryPort: port.default(DEFAULT_DISCOVERY_PORT),
+  discoveryPort: port,
   server: z.strictObject({
     name: z.string().min(1),
     uiCulture: z.string().min(1),
@@ -140,16 +133,13 @@ const Jellyfin = z.strictObject({
     .default({ plugins: false, libraries: false, paths: false, repositories: false }),
 });
 
-/** Host port Orca'H&M is published on when the config doesn't name one. */
-export const DEFAULT_HM_PORT = 8787;
-export const DEFAULT_HM_DATA_DIR = "/srv/orca-hm";
 export const DEFAULT_HM_API_KEY_SECRET = "ORCA_HM_JELLYFIN_API_KEY";
 
 const Hm = z.strictObject({
   /** Host port the H&M API is published on (the container side is fixed). */
-  port: port.default(DEFAULT_HM_PORT),
+  port,
   /** Host directory for H&M's database, env file and build sources. */
-  dataDir: absPath.default(DEFAULT_HM_DATA_DIR),
+  dataDir: absPath,
   /** The TV library on the host, written by H&M and read by Jellyfin. Must be inside a tvshows library. */
   mediaDir: absPath,
   /** SecretStore key of the Jellyfin API key H&M uses (created by `hm up` as "Orca H&M"). */

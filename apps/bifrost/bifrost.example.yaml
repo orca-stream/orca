@@ -1,4 +1,7 @@
-# Copy to bifrost.yaml (gitignored) and adjust. Secrets never go here: *Secret keys name entries in
+# Copy to bifrost.yaml (gitignored) and adjust: one file per server, any host reachable over SSH
+# (pnpm bifrost -c apps/bifrost/<server>.yaml --env-file apps/bifrost/<server>.env <command>). Bifröst is optional: Orca'H&M also runs on its own next to a
+# local Jellyfin (apps/hm-server/profiles/.env.example). No path or port has a default: the values
+# below are suggestions, and every one not marked optional must be set. Secrets never go here: *Secret keys name entries in
 # the gitignored .env (see EnvFileSecretStore); the values live only there.
 version: 1
 
@@ -8,7 +11,7 @@ host:
   sshUser: user
   lanCidr: 192.168.1.0/24
   renderGid: 991 # fallback; `up` reads the real GID of the `render` group from the host
-  renderDevice: /dev/dri/renderD128 # the GPU render node passed to the container (this is the default)
+  renderDevice: /dev/dri/renderD128 # the GPU render node passed to the container
   dataDir: /srv/jellyfin
   # Only used with `bifrost host prepare <host> --with-disk`, once the disk is connected.
   # mediaDisk: { uuid: 00000000-0000-0000-0000-000000000000, mount: /mnt/media }
@@ -16,8 +19,8 @@ host:
 jellyfin:
   image: jellyfin/jellyfin:12.2.20261005-225228 # dated tags are immutable; there is no 12.2.0 tag
   url: http://192.168.1.10:8096
-  port: 8096 # host port the UI/API are published on (default; the container side stays 8096)
-  discoveryPort: 7359 # host UDP port for client discovery (default)
+  port: 8096 # host port the UI/API are published on (the container side stays 8096)
+  discoveryPort: 7359 # host UDP port for client discovery (the container side stays 7359)
   server: { name: Orca, uiCulture: es-MX, metadataLanguage: es-419, metadataCountry: HN }
   admin: { username: admin, passwordSecret: JELLYFIN_ADMIN_PASSWORD }
   apiKeySecret: JELLYFIN_API_KEY # filled in by `bifrost init`
@@ -81,8 +84,8 @@ pathMap: { /data/jellyfin/movies: /media/movies, /data/jellyfin/tv: /media/tv }
 # Orca'H&M (scrapers + ingest), built on the host from this repo and run next to Jellyfin by
 # `bifrost hm up <host>`. Its media dir is mounted into both containers at the same path.
 # hm:
-#   port: 8787 # published on host.address only (default)
-#   dataDir: /srv/orca-hm # database, env file and build sources on the host (default)
+#   port: 8787 # published on host.address only
+#   dataDir: /srv/orca-hm # database, env file and build sources on the host
 #   mediaDir: /srv/jellyfin/media/tv # host path of the TV library; must be inside a tvshows library
 #   apiKeySecret: ORCA_HM_JELLYFIN_API_KEY # filled in by `hm up` (the "Orca H&M" API key; default)
 #   contactEmailSecret: HM_CONTACT_EMAIL # optional: .env key holding the e-mail for the User-Agent

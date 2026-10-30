@@ -10,7 +10,7 @@ import { FakeClock } from "./fakes/clock.ts";
 import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
 import { FakeRemoteHost } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
-import { exampleConfig } from "./fixtures.ts";
+import { exampleConfig, hmBase } from "./fixtures.ts";
 
 /**
  * Runs the generated scripts with `bash -se` against stub binaries on PATH, so the shell logic
@@ -58,7 +58,7 @@ function sandbox() {
       passwordSecret: "RESTIC_PASSWORD",
       keep: { daily: 7, weekly: 4 },
     };
-    r.hm = { mediaDir: `${jf}/media/tv`, dataDir: hm };
+    r.hm = { ...hmBase, mediaDir: `${jf}/media/tv`, dataDir: hm };
   };
   const run = (script: string, env: Record<string, string> = {}) => {
     const res = spawnSync("bash", ["-se"], {

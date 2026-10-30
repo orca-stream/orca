@@ -10,7 +10,7 @@ import { FakeClock } from "./fakes/clock.ts";
 import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
 import { FakeRemoteHost } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
-import { exampleConfig } from "./fixtures.ts";
+import { exampleConfig, hmBase } from "./fixtures.ts";
 
 const PASSWORD = "correct horse battery staple";
 const withBackup = (r: any) => {
@@ -167,7 +167,7 @@ describe("restore", () => {
 
 const withHm = (r: any) => {
   withBackup(r);
-  r.hm = { mediaDir: "/srv/jellyfin/media/tv" };
+  r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv" };
 };
 const backupScript = (remote: FakeRemoteHost) =>
   remote.scripts().find((s) => s.includes("restic backup"))!;

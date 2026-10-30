@@ -9,13 +9,13 @@ import { FakeRemoteHost, type Answer } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
 import { COMMIT, FakeSourceArchive } from "./fakes/source-archive.ts";
 import { SdkJellyfinAdmin } from "../src/infrastructure/sdk-jellyfin-admin.ts";
-import { exampleConfig } from "./fixtures.ts";
+import { exampleConfig, hmBase } from "./fixtures.ts";
 
 const IMAGE = hmImageTag(COMMIT);
 const COMPOSE = "/srv/jellyfin/compose.yaml";
 const ENV = "/srv/orca-hm/hm.env";
 const withHm = (r: any) => {
-  r.hm = { mediaDir: "/srv/jellyfin/media/tv", contactEmailSecret: "HM_CONTACT_EMAIL" };
+  r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv", contactEmailSecret: "HM_CONTACT_EMAIL" };
 };
 
 function answers(extra: Answer[] = []): Answer[] {

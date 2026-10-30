@@ -11,7 +11,7 @@ import { FakeJellyfinServer } from "./fakes/jellyfin-server.ts";
 import { FakeRemoteHost } from "./fakes/remote-host.ts";
 import { InMemorySecretStore } from "./fakes/secret-store.ts";
 import { FakeSourceArchive } from "./fakes/source-archive.ts";
-import { exampleConfig } from "./fixtures.ts";
+import { exampleConfig, hmBase } from "./fixtures.ts";
 
 const OLD_URL = "http://old:8096";
 const withSource = (r: any) => {
@@ -239,7 +239,7 @@ describe("cli", () => {
     expect(await run(["hm", "up", "homelab"], none.rt)).toBe(1);
     expect(text(none.err)).toMatch(/hm. section/);
 
-    const a = setup(undefined, (r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv" }));
+    const a = setup(undefined, (r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv" }));
     expect(await run(["hm", "up", "homelab", "--dry-run"], a.rt)).toBe(0);
     expect(a.remote.mutations()).toEqual([]);
     expect(await run(["hm", "down", "homelab"], a.rt)).toBe(2);

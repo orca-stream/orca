@@ -149,6 +149,8 @@ export function buildDump(
     jellyfin: {
       image: base.jellyfin.image,
       url: base.jellyfin.url,
+      port: base.jellyfin.port,
+      discoveryPort: base.jellyfin.discoveryPort,
       server: {
         name: str(live.system.ServerName),
         uiCulture: str(live.system.UICulture),

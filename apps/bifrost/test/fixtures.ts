@@ -7,6 +7,9 @@ export function exampleRaw(): any {
   return parse(readFileSync(new URL("../bifrost.example.yaml", import.meta.url), "utf8"));
 }
 
+/** The required hm values a test does not care about; spread first so a test can override them. */
+export const hmBase = { port: 8787, dataDir: "/srv/orca-hm" };
+
 export function exampleConfig(patch?: (raw: any) => void): Config {
   const raw = exampleRaw();
   patch?.(raw);

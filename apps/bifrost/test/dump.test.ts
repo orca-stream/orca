@@ -190,6 +190,18 @@ describe("dump", () => {
     expect(cfg.jellyfin.libraries.map((l) => l.paths)).toEqual([["/media/movies"], ["/media/tv"]]);
   });
 
+  it("keeps the published ports of the config it starts from", async () => {
+    const { deps } = laptop();
+    const base = exampleConfig((r) => {
+      r.jellyfin.port = 9096;
+      r.jellyfin.url = `http://${r.host.address}:9096`;
+      r.jellyfin.discoveryPort = 7360;
+    });
+    const { document } = await dump(deps, base, { mapPaths: true });
+    const cfg = parseConfig(document);
+    expect([cfg.jellyfin.port, cfg.jellyfin.discoveryPort]).toEqual([9096, 7360]);
+  });
+
   it("only reads", async () => {
     const { server, deps } = laptop();
     await dump(deps, exampleConfig(), { mapPaths: true });

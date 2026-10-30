@@ -6,7 +6,7 @@ import { ConfigError, parseConfig } from "../src/domain/config.ts";
 const example = parse(readFileSync(new URL("../bifrost.example.yaml", import.meta.url), "utf8"));
 
 describe("parseConfig", () => {
-  it("accepts the example config and fills in defaults", () => {
+  it("accepts the example config and fills in the non-path defaults", () => {
     const cfg = parseConfig(example);
     expect(cfg.host.address).toBe("192.168.1.10");
     expect(cfg.host.dataDir).toBe("/srv/jellyfin");
@@ -26,12 +26,28 @@ describe("parseConfig", () => {
     expect(cfg.jellyfin.apiKeySecret).toBe("JELLYFIN_API_KEY");
   });
 
-  it("defaults the published ports and the render device, and lets the config change them", () => {
-    const defaults = parseConfig(structuredClone(example));
-    expect(defaults.jellyfin.port).toBe(8096);
-    expect(defaults.jellyfin.discoveryPort).toBe(7359);
-    expect(defaults.host.renderDevice).toBe("/dev/dri/renderD128");
+  it.each([
+    ["host", "dataDir"],
+    ["host", "renderDevice"],
+    ["jellyfin", "port"],
+    ["jellyfin", "discoveryPort"],
+  ])("requires %s.%s: no path or port has a default", (section, key) => {
+    const raw = structuredClone(example);
+    delete raw[section][key];
+    expect(() => parseConfig(raw)).toThrow(ConfigError);
+  });
 
+  it("requires hm.port and hm.dataDir when hm is set", () => {
+    for (const key of ["port", "dataDir"]) {
+      const raw = structuredClone(example);
+      raw.hm = { port: 8787, dataDir: "/srv/orca-hm", mediaDir: "/srv/jellyfin/media/tv" };
+      parseConfig(structuredClone(raw));
+      delete raw.hm[key];
+      expect(() => parseConfig(raw)).toThrow(ConfigError);
+    }
+  });
+
+  it("takes the published ports and the render device from the config", () => {
     const custom = structuredClone(example);
     custom.jellyfin.port = 9096;
     custom.jellyfin.url = `http://${custom.host.address}:9096`;

@@ -4,12 +4,12 @@ import { renderCompose } from "../src/domain/compose.ts";
 import { insideAny, jellyfinPathOf } from "../src/domain/media.ts";
 import { hmEnvFile } from "../src/domain/hm.ts";
 import { ConfigError } from "../src/domain/errors.ts";
-import { exampleConfig } from "./fixtures.ts";
+import { exampleConfig, hmBase } from "./fixtures.ts";
 
 const ids = { uid: 998, gid: 997, renderGid: 991 };
 const hm = { uid: 996, gid: 997, image: "orca-hm:0123456789ab" };
 const withHm = (r: any) => {
-  r.hm = { mediaDir: "/srv/jellyfin/media/tv" };
+  r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv" };
 };
 
 describe("compose with hm", () => {
@@ -57,7 +57,9 @@ describe("compose with hm", () => {
   });
 
   it("uses the configured host port in the healthcheck", () => {
-    const cfg = exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", port: 9000 }));
+    const cfg = exampleConfig(
+      (r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv", port: 9000 }),
+    );
     const s = parse(renderCompose(cfg, ids, hm)).services["orca-hm"];
     expect(s.healthcheck.test.join(" ")).toContain("http://192.168.1.10:9000/health");
   });
@@ -66,7 +68,7 @@ describe("compose with hm", () => {
     const cfg = exampleConfig((r) => {
       r.host.mediaDisk = { uuid: "abc", mount: "/mnt/media" };
       r.jellyfin.libraries[1].paths = ["/media/tv"];
-      r.hm = { mediaDir: "/mnt/media/tv" };
+      r.hm = { ...hmBase, mediaDir: "/mnt/media/tv" };
     });
     const doc = parse(renderCompose(cfg, ids, hm));
     expect(doc.services.jellyfin.volumes).toContain("/mnt/media:/media:ro");
@@ -76,15 +78,19 @@ describe("compose with hm", () => {
 
 describe("hm config", () => {
   it("rejects a media dir Jellyfin cannot see", () => {
-    expect(() => exampleConfig((r) => (r.hm = { mediaDir: "/elsewhere/tv" }))).toThrow(ConfigError);
-  });
-  it("rejects a media dir outside every tvshows library", () => {
-    expect(() => exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/movies" }))).toThrow(
-      /tvshows/,
+    expect(() => exampleConfig((r) => (r.hm = { ...hmBase, mediaDir: "/elsewhere/tv" }))).toThrow(
+      ConfigError,
     );
   });
-  it("accepts a subfolder of a tvshows library and applies defaults", () => {
-    const cfg = exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv/kids" }));
+  it("rejects a media dir outside every tvshows library", () => {
+    expect(() =>
+      exampleConfig((r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/movies" })),
+    ).toThrow(/tvshows/);
+  });
+  it("accepts a subfolder of a tvshows library and fills in the non-path defaults", () => {
+    const cfg = exampleConfig(
+      (r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv/kids" }),
+    );
     expect(cfg.hm).toMatchObject({
       port: 8787,
       dataDir: "/srv/orca-hm",
@@ -94,7 +100,9 @@ describe("hm config", () => {
   });
   it("rejects a git ref that looks like an option", () => {
     expect(() =>
-      exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", source: "--output=x" })),
+      exampleConfig(
+        (r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv", source: "--output=x" }),
+      ),
     ).toThrow(ConfigError);
   });
   it("rejects .. segments and trailing slashes in paths", () => {
@@ -103,10 +111,12 @@ describe("hm config", () => {
       "/srv/jellyfin/media/tv/",
       "/srv/jellyfin/media//tv",
     ]) {
-      expect(() => exampleConfig((r) => (r.hm = { mediaDir }))).toThrow(ConfigError);
+      expect(() => exampleConfig((r) => (r.hm = { ...hmBase, mediaDir }))).toThrow(ConfigError);
     }
     expect(() =>
-      exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", dataDir: "/srv/x/../y" })),
+      exampleConfig(
+        (r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv", dataDir: "/srv/x/../y" }),
+      ),
     ).toThrow(ConfigError);
   });
   it("does not let a library path escape through ..", () => {
@@ -124,7 +134,7 @@ describe("hm config", () => {
     "/srv/jellyfin/media/tv/hm",
   ])("rejects hm.dataDir %s that overlaps Jellyfin's directories or the media", (dataDir) => {
     expect(() =>
-      exampleConfig((r) => (r.hm = { mediaDir: "/srv/jellyfin/media/tv", dataDir })),
+      exampleConfig((r) => (r.hm = { ...hmBase, mediaDir: "/srv/jellyfin/media/tv", dataDir })),
     ).toThrow(ConfigError);
   });
   it("refuses env values that could break the file", () => {
