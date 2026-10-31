@@ -13,8 +13,6 @@ import {
   CheckmarkCircle02Icon,
   CodeIcon,
   ConnectIcon,
-  CpuIcon,
-  DashboardSpeed01Icon,
   Delete02Icon,
   Download04Icon,
   FileAttachmentIcon,
@@ -23,11 +21,8 @@ import {
   FolderLibraryIcon,
   HourglassIcon,
   Key01Icon,
-  Layers01Icon,
   Link01Icon,
   LockPasswordIcon,
-  PlayListIcon,
-  Search01Icon,
   Shield01Icon,
   SubtitleIcon,
   Timer02Icon,
@@ -82,6 +77,7 @@ function DraftRow({
   inputMode?: "numeric" | "decimal" | "email" | "url";
   placeholder?: string;
   autoComplete?: string;
+  hint?: string;
 }) {
   const t = useT();
   const problem = errors[field];
@@ -110,6 +106,7 @@ function DraftNumber({
   max?: number;
   step?: number;
   placeholder?: string;
+  hint?: string;
 }) {
   const t = useT();
   const problem = errors[field];
@@ -159,11 +156,13 @@ function LanguagesRow({
   icon,
   label,
   placeholder,
+  hint,
 }: SectionProps & {
   field: "audioLangs" | "subtitleLangs";
   icon: IconSvgElement;
   label: string;
   placeholder: string;
+  hint: string;
 }) {
   const t = useT();
   const problem = errors[field];
@@ -179,6 +178,7 @@ function LanguagesRow({
       suggestions={COMMON_LANGUAGES}
       labelOf={(code) => t.series.detail.languages[code] ?? code}
       placeholder={placeholder}
+      hint={hint}
       error={problem ? t.settings.errors[problem] : undefined}
       add={t.settings.fields.add}
       remove={t.settings.fields.remove}
@@ -265,8 +265,9 @@ export function JellyfinSection({
       {!editing ? (
         <NoteRow
           icon={CheckmarkCircle02Icon}
+          className="pr-[7px]"
           action={
-            <Button variant="outline" className="rounded-full" onClick={() => setEditing(true)}>
+            <Button variant="outline" className={PRIMARY_BUTTON} onClick={() => setEditing(true)}>
               {t.settings.jellyfin.change}
             </Button>
           }
@@ -369,6 +370,7 @@ export function LibrarySection({
         <SelectRow
           icon={FolderLibraryIcon}
           label={t.settings.library.pick}
+          hint={t.settings.hints.library}
           value={draft.jellyfinMediaRoot}
           onChange={(jellyfinMediaRoot) => set({ jellyfinMediaRoot })}
           options={locations.map(({ library, location }) => ({
@@ -382,6 +384,7 @@ export function LibrarySection({
         icon={Folder01Icon}
         label={t.settings.library.jellyfinPath}
         placeholder={t.settings.library.jellyfinPathPlaceholder}
+        hint={t.settings.hints.jellyfinPath}
         draft={draft}
         set={set}
         errors={errors}
@@ -399,6 +402,7 @@ export function ExtrasSection({ draft, set, errors }: SectionProps) {
         field="tmdbApiKey"
         icon={Key01Icon}
         label={t.settings.tmdb.key}
+        hint={t.settings.hints.tmdbKey}
         placeholder={draft.hasTmdbApiKey ? t.settings.tmdb.keySet : t.settings.tmdb.keyPlaceholder}
         type="password"
         autoComplete="off"
@@ -410,6 +414,7 @@ export function ExtrasSection({ draft, set, errors }: SectionProps) {
         <ToggleRow
           icon={Delete02Icon}
           label={t.settings.tmdb.remove}
+          hint={t.settings.hints.tmdbRemove}
           checked={draft.removeTmdb}
           onChange={(removeTmdb) => set({ removeTmdb })}
         />
@@ -469,6 +474,7 @@ export function ExtractorsSection({
       {/* Its big buttons line up with the panel's own, below. */}
       <NoteRow
         icon={FileAttachmentIcon}
+        hint={t.settings.hints.extractors}
         className="pr-[7px]"
         action={
           <>
@@ -532,29 +538,37 @@ export function ExtractorsSection({
 /** A wrong file can have many problems; the first few say enough. */
 const MAX_ISSUES_SHOWN = 6;
 
-/** How downloads run: the common choices first, the tuning folded away. */
+/**
+ * How downloads run, in three choices. One episode at a time is the careful way (its players in
+ * order); more run side by side, each on the least busy server. The rest is the server's to tune.
+ */
 export function DownloadsSection(props: SectionProps) {
   const t = useT();
   const { draft, set, errors } = props;
   return (
     <Group title={t.settings.downloads.title}>
-      <ToggleRow
-        icon={PlayListIcon}
-        label={t.settings.downloads.sequential}
-        checked={draft.sequential}
-        onChange={(sequential) => set({ sequential })}
+      <DraftNumber
+        {...props}
+        field="concurrency"
+        icon={Download04Icon}
+        label={t.settings.downloads.concurrency}
+        hint={t.settings.hints.concurrency}
+        min={1}
+        max={SETTING_LIMITS.jobs}
       />
       <DraftNumber
         {...props}
         field="connections"
         icon={ConnectIcon}
         label={t.settings.downloads.connections}
+        hint={t.settings.hints.connections}
         min={1}
         max={SETTING_LIMITS.connections}
       />
       <ChipsRow
         icon={Shield01Icon}
         label={t.settings.downloads.skipPlayers}
+        hint={t.settings.hints.skipPlayers}
         values={valuesOf(draft.skipPlayers)}
         onChange={(hosts) =>
           set({ skipPlayers: hosts.slice(0, SETTING_LIMITS.skipPlayers).join(", ") })
@@ -565,59 +579,6 @@ export function DownloadsSection(props: SectionProps) {
         add={t.settings.fields.add}
         remove={t.settings.fields.remove}
       />
-      <AdvancedRows label={t.settings.downloads.advanced}>
-        <DraftNumber
-          {...props}
-          field="concurrency"
-          icon={Download04Icon}
-          label={t.settings.downloads.concurrency}
-          min={1}
-          max={SETTING_LIMITS.jobs}
-        />
-        <DraftNumber
-          {...props}
-          field="ffmpegConcurrency"
-          icon={CpuIcon}
-          label={t.settings.downloads.ffmpeg}
-          min={1}
-          max={SETTING_LIMITS.jobs}
-        />
-        <DraftNumber
-          {...props}
-          field="browserConcurrency"
-          icon={BrowserIcon}
-          label={t.settings.downloads.browserJobs}
-          min={1}
-          max={SETTING_LIMITS.jobs}
-        />
-        <DraftNumber
-          {...props}
-          field="downloadsPerHost"
-          icon={Layers01Icon}
-          label={t.settings.downloads.perHost}
-          placeholder={t.settings.downloads.byExtractor}
-          min={1}
-          max={SETTING_LIMITS.jobs}
-        />
-        <DraftNumber
-          {...props}
-          field="metadataPerSec"
-          icon={DashboardSpeed01Icon}
-          label={t.settings.downloads.metadataPerSec}
-          placeholder={t.settings.downloads.byExtractor}
-          min={0.5}
-          max={SETTING_LIMITS.metadataPerSec}
-          step={0.5}
-        />
-        <DraftNumber
-          {...props}
-          field="probeTimeoutSec"
-          icon={Search01Icon}
-          label={t.settings.downloads.probeTimeout}
-          min={SETTING_LIMITS.minProbeSec}
-          step={10}
-        />
-      </AdvancedRows>
     </Group>
   );
 }
@@ -631,6 +592,7 @@ export function TracksSection(props: SectionProps) {
       <SelectRow
         icon={Video01Icon}
         label={t.settings.tracks.maxHeight}
+        hint={t.settings.hints.maxHeight}
         value={draft.maxHeight}
         onChange={(maxHeight) => set({ maxHeight })}
         options={[
@@ -646,11 +608,13 @@ export function TracksSection(props: SectionProps) {
         field="audioLangs"
         icon={VolumeHighIcon}
         label={t.settings.tracks.audio}
+        hint={t.settings.hints.audio}
         placeholder={t.settings.tracks.audioPlaceholder}
       />
       <SelectRow
         icon={SubtitleIcon}
         label={t.settings.tracks.subtitles}
+        hint={t.settings.hints.subtitles}
         value={draft.subtitleMode}
         onChange={(mode) => set({ subtitleMode: mode as Draft["subtitleMode"] })}
         options={(["all", "none", "some"] as const).map((mode) => ({
@@ -664,6 +628,7 @@ export function TracksSection(props: SectionProps) {
           field="subtitleLangs"
           icon={SubtitleIcon}
           label={t.settings.tracks.subtitleLangs}
+          hint={t.settings.hints.subtitleLangs}
           placeholder={t.settings.fields.subtitlesPlaceholder}
         />
       )}
@@ -671,6 +636,7 @@ export function TracksSection(props: SectionProps) {
         <ToggleRow
           icon={Film01Icon}
           label={t.settings.tracks.external}
+          hint={t.settings.hints.external}
           checked={draft.externalSubtitles}
           onChange={(externalSubtitles) => set({ externalSubtitles })}
         />
@@ -700,6 +666,7 @@ export function BrowserSection({
       <ToggleRow
         icon={BrowserIcon}
         label={t.settings.browser.on}
+        hint={t.settings.hints.browser}
         {...(neededBySites ? { note: t.settings.browser.neededBySites } : {})}
         checked={on}
         disabled={neededBySites}
@@ -709,17 +676,10 @@ export function BrowserSection({
         <AdvancedRows label={t.settings.downloads.advanced}>
           <DraftNumber
             {...props}
-            field="maxConcurrent"
-            icon={Layers01Icon}
-            label={t.settings.browser.maxConcurrent}
-            min={1}
-            max={SETTING_LIMITS.pages}
-          />
-          <DraftNumber
-            {...props}
             field="timeoutSec"
             icon={Timer02Icon}
             label={t.settings.browser.timeout}
+            hint={t.settings.hints.timeout}
             min={1}
             step={5}
           />
@@ -728,6 +688,7 @@ export function BrowserSection({
             field="settleSec"
             icon={HourglassIcon}
             label={t.settings.browser.settle}
+            hint={t.settings.hints.settle}
             min={0}
             step={0.5}
           />
@@ -736,6 +697,7 @@ export function BrowserSection({
             field="userAgent"
             icon={CodeIcon}
             label={t.settings.browser.userAgent}
+            hint={t.settings.hints.userAgent}
             placeholder={t.settings.browser.userAgentPlaceholder}
           />
           <DraftRow
@@ -743,6 +705,7 @@ export function BrowserSection({
             field="chromiumPath"
             icon={Folder01Icon}
             label={t.settings.browser.chromium}
+            hint={t.settings.hints.chromium}
             placeholder={t.settings.browser.chromiumPlaceholder}
           />
         </AdvancedRows>

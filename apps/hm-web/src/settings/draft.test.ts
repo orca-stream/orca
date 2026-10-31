@@ -24,7 +24,7 @@ const VIEW: SettingsView = {
     concurrency: 2,
     ffmpegConcurrency: 1,
     browserConcurrency: 1,
-    sequential: true,
+    sequential: false,
     skipPlayers: ["player.example"],
     connections: 8,
     probeTimeoutMs: 180_000,
@@ -52,7 +52,7 @@ describe("settingsFromDraft", () => {
           jellyfinMediaRoot: "/media/tv",
         },
         downloads: {
-          concurrency: 2,
+          concurrency: 1,
           ffmpegConcurrency: 1,
           browserConcurrency: 1,
           sequential: true,
@@ -70,6 +70,19 @@ describe("settingsFromDraft", () => {
         },
       },
     });
+  });
+
+  it("downloads one episode at a time, its players in order, only when one is asked for", () => {
+    const downloads = (concurrency: string) => {
+      const result = settingsFromDraft(filled({ concurrency }));
+      return result.ok ? result.update.downloads : null;
+    };
+    expect(downloads("1")).toMatchObject({ concurrency: 1, sequential: true });
+    expect(downloads("3")).toMatchObject({ concurrency: 3, sequential: false });
+    // A server that went one at a time shows it as 1, whatever its concurrency was.
+    expect(
+      draftFromView({ ...VIEW, downloads: { ...VIEW.downloads, sequential: true } }).concurrency,
+    ).toBe("1");
   });
 
   it("says what is wrong with each field", () => {

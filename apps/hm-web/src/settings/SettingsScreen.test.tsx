@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vite-plus/test";
 import type { SettingsView } from "@/api/types";
@@ -127,7 +127,7 @@ describe("SettingsScreen", () => {
     const connections = await screen.findByLabelText("Conexiones por archivo");
     const value = () => (connections as HTMLInputElement).value;
     expect(value()).toBe("4");
-    await user.click(screen.getAllByRole("button", { name: "Más" })[0]!);
+    await user.click(within(connections.parentElement!).getByRole("button", { name: "Más" }));
     expect(value()).toBe("5");
     await user.click(connections);
     await user.keyboard("{ArrowDown}{ArrowDown}");

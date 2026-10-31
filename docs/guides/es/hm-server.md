@@ -139,8 +139,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
     sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
-  extractores describan algún sitio. Su ajuste fino (páginas a la vez, tiempo máximo, espera tras
-  cargar) viene con valores sugeridos.
+  extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras
+  el primer vídeo) viene con valores sugeridos.
 - En local, instala el Chromium de Playwright con
   `pnpm --filter @orca/hm-server exec playwright install chromium`, o escribe la ruta de otro Chromium
   en **Ajustes › Navegador**. En la imagen Docker construida con `WITH_CHROMIUM=1`, usa

@@ -510,18 +510,11 @@ const es = {
     },
     downloads: {
       title: "Descargas",
-      sequential: "Un episodio a la vez, probando sus reproductores en orden",
       connections: "Conexiones por archivo",
       skipPlayers: "Reproductores que nunca se prueban",
       skipPlaceholder: "Ninguno (escribe un host: player.example)",
       advanced: "Avanzado",
-      concurrency: "Descargas a la vez",
-      ffmpeg: "Procesos de ffmpeg a la vez",
-      browserJobs: "Páginas de reproductores a la vez",
-      perHost: "Descargas a la vez por host",
-      metadataPerSec: "Peticiones de datos por segundo y host",
-      byExtractor: "Lo de cada extractor",
-      probeTimeout: "Segundos que ffprobe puede leer un stream",
+      concurrency: "Episodios a la vez",
     },
     tracks: {
       title: "Pistas por defecto",
@@ -538,13 +531,43 @@ const es = {
       title: "Navegador",
       on: "Usar el navegador",
       neededBySites: "Los extractores lo necesitan.",
-      maxConcurrent: "Páginas abiertas a la vez",
       timeout: "Segundos como máximo por página",
       settle: "Segundos de espera tras ver el primer vídeo",
       userAgent: "User-Agent",
       userAgentPlaceholder: "El de Chromium",
       chromium: "Ruta de Chromium",
       chromiumPlaceholder: "El de Playwright",
+    },
+    hints: {
+      library: "La biblioteca de series de Jellyfin donde H&M deja los episodios que descarga.",
+      jellyfinPath:
+        "La carpeta tal como la ve Jellyfin. Si Jellyfin está en otro equipo, H&M tiene que poder escribir en esa misma ruta (por ejemplo, montándola).",
+      tmdbKey:
+        "Con ella, al añadir una serie eliges temporada y episodio de las listas de TMDB. Vale la API key (v3) o el token de lectura (v4): el servidor sabe cuál es.",
+      tmdbRemove: "Borra la clave guardada. Sin ella, temporada y episodio se escriben a mano.",
+      extractors:
+        "Un archivo JSON tuyo que describe los sitios de donde H&M lee las series. Nunca va en el código.",
+      concurrency:
+        "Cuántos episodios se descargan a la vez. Con 1, prueba los reproductores de cada episodio en orden y, si fallan todos, pasa al siguiente. Con más, cada uno usa el servidor menos ocupado y reintenta tras una espera.",
+      connections:
+        "En cuántos trozos a la vez se baja cada vídeo. Más trozos van más rápido, pero algunos servidores cortan pasadas unas 10 conexiones.",
+      skipPlayers:
+        "Servidores de vídeo que nunca se prueban, como uno que siempre falla. Un host incluye sus subdominios.",
+      maxHeight:
+        "La calidad más alta que se guarda. «La mejor» guarda la mayor que ofrezca el reproductor. Solo afecta a los vídeos por streaming (HLS).",
+      audio: "Las pistas de audio que se guardan, por idioma. «Todos» las guarda todas.",
+      subtitles: "Qué subtítulos de texto se guardan: todos, ninguno o los de ciertos idiomas.",
+      subtitleLangs: "Los idiomas de subtítulos que se guardan.",
+      external: "Guarda los subtítulos como archivos .srt junto al vídeo, en vez de dentro de él.",
+      browser:
+        "Un Chromium sin ventana abre los reproductores de los sitios para encontrar el vídeo. Los extractores lo necesitan.",
+      timeout:
+        "Si una página no muestra ningún vídeo en este tiempo, se da por fallida y se prueba el siguiente reproductor.",
+      settle:
+        "Tras ver el primer vídeo, espera esto por si era un anuncio y el episodio llega después.",
+      userAgent: "Cómo se presenta el navegador ante los sitios. Vacío, usa el de Chromium.",
+      chromium:
+        "Otro Chromium en lugar del que instala Playwright, como /usr/bin/chromium en la imagen Docker.",
     },
     fields: {
       less: "Menos",
@@ -1093,18 +1116,11 @@ const en: typeof es = {
     },
     downloads: {
       title: "Downloads",
-      sequential: "One episode at a time, trying its players in order",
       connections: "Connections per file",
       skipPlayers: "Players never tried",
       skipPlaceholder: "None (type a host: player.example)",
       advanced: "Advanced",
-      concurrency: "Downloads at once",
-      ffmpeg: "ffmpeg processes at once",
-      browserJobs: "Player pages at once",
-      perHost: "Downloads at once per host",
-      metadataPerSec: "Data requests per second and host",
-      byExtractor: "Each extractor's",
-      probeTimeout: "Seconds ffprobe may read a stream",
+      concurrency: "Episodes at once",
     },
     tracks: {
       title: "Default tracks",
@@ -1121,13 +1137,43 @@ const en: typeof es = {
       title: "Browser",
       on: "Use the browser",
       neededBySites: "The extractors need it.",
-      maxConcurrent: "Pages open at once",
       timeout: "Seconds at most per page",
       settle: "Seconds to wait after the first stream",
       userAgent: "User-Agent",
       userAgentPlaceholder: "Chromium's own",
       chromium: "Chromium path",
       chromiumPlaceholder: "Playwright's",
+    },
+    hints: {
+      library: "Jellyfin's shows library where H&M puts the episodes it downloads.",
+      jellyfinPath:
+        "The folder as Jellyfin sees it. When Jellyfin is on another machine, H&M has to be able to write to that same path (by mounting it, for instance).",
+      tmdbKey:
+        "With it, adding a show lets you pick its season and episode from TMDB's lists. Either the API key (v3) or the read access token (v4): the server tells which.",
+      tmdbRemove: "Deletes the saved key. Without one, season and episode are typed by hand.",
+      extractors:
+        "A JSON file of yours describing the sites H&M reads shows from. It never goes in the code.",
+      concurrency:
+        "How many episodes download at once. With 1, each episode's players are tried in order and, when they all fail, it moves on to the next. With more, each uses the least busy server and tries again after a wait.",
+      connections:
+        "How many pieces of each video are fetched at once. More pieces are faster, but some servers cut off past about 10 connections.",
+      skipPlayers:
+        "Video servers never tried, such as one that always fails. A host covers its subdomains.",
+      maxHeight:
+        'The highest quality kept. "The best" keeps the highest the player offers. Only affects streamed videos (HLS).',
+      audio: 'The audio tracks kept, by language. "All" keeps every one.',
+      subtitles: "Which text subtitles are kept: all, none or those of some languages.",
+      subtitleLangs: "The subtitle languages kept.",
+      external: "Keeps subtitles as .srt files beside the video instead of inside it.",
+      browser:
+        "A windowless Chromium opens the sites' players to find the video. The extractors need it.",
+      timeout:
+        "When a page shows no video within this time, it counts as failed and the next player is tried.",
+      settle:
+        "After the first video shows up, it waits this long in case it was an ad and the episode comes next.",
+      userAgent: "How the browser introduces itself to the sites. Empty: Chromium's own.",
+      chromium:
+        "Another Chromium instead of the one Playwright installs, such as /usr/bin/chromium in the Docker image.",
     },
     fields: {
       less: "Less",

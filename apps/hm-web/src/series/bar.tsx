@@ -38,6 +38,10 @@ export const BAR_ROW =
 export const BAR_POPUP =
   "rounded-2xl border border-(--glass-edge) bg-(--glass-strong) p-1 shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
 
+/** The glass card a hint or a warning says its piece in, on hover. */
+export const HINT_CARD =
+  "w-auto max-w-72 rounded-xl border border-(--glass-edge) bg-(--glass-strong) px-3 py-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]";
+
 /**
  * What is wrong with a part of the bar, in place of its icon: a red warning that says why on hover,
  * the way every field of the bar does. `className` sizes the warning's round.
@@ -56,11 +60,7 @@ export function ErrorHint({ error, className }: { error: string; className?: str
       >
         <HugeiconsIcon icon={Alert02Icon} className="size-5" />
       </HoverCardTrigger>
-      <HoverCardContent
-        side="top"
-        sideOffset={6}
-        className="w-auto max-w-72 rounded-xl border border-(--glass-edge) bg-(--glass-strong) px-3 py-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]"
-      >
+      <HoverCardContent side="top" sideOffset={6} className={HINT_CARD}>
         {error}
       </HoverCardContent>
     </HoverCard>

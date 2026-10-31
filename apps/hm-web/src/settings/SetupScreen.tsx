@@ -8,7 +8,6 @@ import logotype from "@/assets/logotype.svg";
 import { useLogin } from "@/auth/session";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
-import { cn } from "@/lib/utils";
 import { Backdrop } from "@/shell/Shell";
 import { useFinishSetup } from "./api";
 import {
@@ -175,29 +174,12 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
             {t.setup.title}
             <img src={logotype} alt={t.brand} className="h-7 w-auto" />
           </h1>
-          <div className="flex flex-col items-start gap-2 sm:items-end">
-            <p
-              className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums"
-              aria-live="polite"
-            >
-              {t.setup.step(index + 1, steps.length)}
-            </p>
-            <div aria-hidden="true" className="flex gap-1.5">
-              {steps.map((each, at) => (
-                <span
-                  key={each}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all",
-                    at === index
-                      ? "w-6 bg-primary"
-                      : at < index
-                        ? "w-1.5 bg-primary/60"
-                        : "w-1.5 bg-primary/20",
-                  )}
-                />
-              ))}
-            </div>
-          </div>
+          <p
+            className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums"
+            aria-live="polite"
+          >
+            {t.setup.step(index + 1, steps.length)}
+          </p>
         </header>
 
         {step === "code" && (

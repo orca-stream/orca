@@ -65,7 +65,7 @@ export function suggestedDraft(): Draft {
     hasTmdbApiKey: false,
     removeTmdb: false,
     contactEmail: "",
-    concurrency: "2",
+    concurrency: "1",
     ffmpegConcurrency: "1",
     browserConcurrency: "1",
     sequential: true,
@@ -105,7 +105,8 @@ export function draftFromView(view: SettingsView): Draft {
     mediaRoot: jellyfin.mediaRoot,
     hasTmdbApiKey: view.hasTmdbApiKey,
     contactEmail: view.contactEmail ?? "",
-    concurrency: text(downloads.concurrency),
+    // One at a time is how the careful way (players in order) shows: "1".
+    concurrency: downloads.sequential ? "1" : text(downloads.concurrency),
     ffmpegConcurrency: text(downloads.ffmpegConcurrency),
     browserConcurrency: text(downloads.browserConcurrency),
     sequential: downloads.sequential,
@@ -196,6 +197,7 @@ export function settingsFromDraft(
   if (draft.subtitleMode === "some" && subtitleLangs.length === 0)
     errors.subtitleLangs = "required";
 
+  const concurrency = number("concurrency") ?? 0;
   const update: SettingsUpdate = {
     jellyfin: {
       url,
@@ -210,10 +212,11 @@ export function settingsFromDraft(
         : {}),
     ...(contactEmail ? { contactEmail } : {}),
     downloads: {
-      concurrency: number("concurrency") ?? 0,
+      concurrency,
       ffmpegConcurrency: number("ffmpegConcurrency") ?? 0,
       browserConcurrency: number("browserConcurrency") ?? 0,
-      sequential: draft.sequential,
+      // One episode at a time tries its players in order; more run each on the least busy server.
+      sequential: concurrency === 1,
       skipPlayers,
       connections: number("connections") ?? 0,
       ...optional("downloadsPerHost", number("downloadsPerHost", 1, true)),

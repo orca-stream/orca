@@ -134,7 +134,7 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
-  tuning (pages at once, timeout, wait after loading) is filled in with suggested values.
+  tuning (timeout, wait after the first video) is filled in with suggested values.
 - Locally, install Playwright's Chromium with
   `pnpm --filter @orca/hm-server exec playwright install chromium`, or give another Chromium's path in
   **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`.
