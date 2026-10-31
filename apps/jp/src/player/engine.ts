@@ -18,13 +18,24 @@ function startAt(video: HTMLVideoElement, start: number) {
   video.addEventListener("loadedmetadata", () => (video.currentTime = start), { once: true });
 }
 
-export function browserEngine(): Engine {
+/** hls.js, imported on demand. A parameter so tests can hand in a fake. */
+type LoadHls = () => Promise<typeof import("hls.js/light")>;
+
+export function browserEngine(loadHls: LoadHls = () => import("hls.js/light")): Engine {
   let cleanup = () => {};
-  let destroyed = false;
+  // Bumped by every load and by destroy: a load still waiting on hls.js gives up when it is stale.
+  // Not a one-way "destroyed" flag: React's StrictMode runs the player's cleanup once before the
+  // first load, and that flag left every HLS stream spinning forever.
+  let loads = 0;
+  const stop = () => {
+    cleanup();
+    cleanup = () => {};
+  };
 
   return {
     load(video, source, start, onFatal) {
-      cleanup();
+      stop();
+      const ticket = ++loads;
       const plain = () => {
         startAt(video, start);
         video.src = source.url;
@@ -38,8 +49,8 @@ export function browserEngine(): Engine {
       // Loaded on demand: most of the time a file plays as is and hls.js is never needed. The light
       // build leaves out DRM and alternate tracks: the server muxes one audio track into the stream
       // and subtitles come as WebVTT files.
-      void import("hls.js/light").then(({ default: Hls }) => {
-        if (destroyed) return;
+      void loadHls().then(({ default: Hls }) => {
+        if (ticket !== loads) return;
         if (!Hls.isSupported()) {
           if (video.canPlayType(NATIVE_HLS)) plain();
           else onFatal();
@@ -66,8 +77,8 @@ export function browserEngine(): Engine {
       }, onFatal);
     },
     destroy() {
-      destroyed = true;
-      cleanup();
+      loads++;
+      stop();
     },
   };
 }
