@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   buildLaunchOptions,
+  launchWithSandboxFallback,
   PlaywrightStreamDetector,
   StreamDetectionError,
   type BrowserLike,
@@ -484,6 +485,37 @@ describe("PlaywrightStreamDetector and what a page can do around the route", () 
       .catch(() => null);
     expect(browser.contexts).toHaveLength(1);
     expect(browser.contextOptions).toEqual([{ userAgent: "UA/9", serviceWorkers: "block" }]);
+  });
+});
+
+describe("launchWithSandboxFallback", () => {
+  const options = { headless: true, args: ["--a"] };
+
+  it("starts Chromium with its sandbox when it can make one", async () => {
+    const seen: (string[] | undefined)[] = [];
+    await launchWithSandboxFallback(async (launch) => seen.push(launch.args), options);
+    expect(seen).toEqual([["--a"]]);
+  });
+
+  it("starts it again without the sandbox only when Chromium says it cannot make one", async () => {
+    const seen: (string[] | undefined)[] = [];
+    const browser = await launchWithSandboxFallback(async (launch) => {
+      seen.push(launch.args);
+      if (seen.length === 1) throw new Error("[FATAL] No usable sandbox! Update your kernel");
+      return "browser";
+    }, options);
+    expect(browser).toBe("browser");
+    expect(seen).toEqual([["--a"], ["--a", "--no-sandbox"]]);
+  });
+
+  it("lets any other failure through, once", async () => {
+    let tries = 0;
+    const failing = launchWithSandboxFallback(async () => {
+      tries += 1;
+      throw new Error("Executable doesn't exist");
+    }, options);
+    await expect(failing).rejects.toThrow("Executable doesn't exist");
+    expect(tries).toBe(1);
   });
 });
 

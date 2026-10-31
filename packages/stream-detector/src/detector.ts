@@ -174,12 +174,36 @@ function forwardedHeaders(all: Record<string, string>): Record<string, string> {
   return out;
 }
 
+/** What Chromium says when it cannot make its sandbox: in a container, or run as root. */
+const NO_SANDBOX_POSSIBLE = /No usable sandbox|Running as root without --no-sandbox/i;
+const NO_SANDBOX_ARG = "--no-sandbox";
+
+/**
+ * Starts Chromium with its sandbox, and without it only when Chromium says it cannot make one (a
+ * container without user namespaces, or running as root), so nobody has to know which case theirs is.
+ */
+export async function launchWithSandboxFallback<B>(
+  launch: (options: LaunchOptions) => Promise<B>,
+  options: LaunchOptions,
+): Promise<B> {
+  try {
+    return await launch(options);
+  } catch (error) {
+    const args = options.args ?? [];
+    if (args.includes(NO_SANDBOX_ARG) || !NO_SANDBOX_POSSIBLE.test(String(error))) throw error;
+    return await launch({ ...options, args: [...args, NO_SANDBOX_ARG] });
+  }
+}
+
 async function defaultLaunch(
   options: PlaywrightStreamDetectorOptions["launchOptions"],
   proxyUrl: string,
 ): Promise<BrowserLike> {
   const { chromium } = await import("playwright");
-  return (await chromium.launch(buildLaunchOptions(options, proxyUrl))) as unknown as BrowserLike;
+  return (await launchWithSandboxFallback(
+    (launchOptions) => chromium.launch(launchOptions),
+    buildLaunchOptions(options, proxyUrl),
+  )) as unknown as BrowserLike;
 }
 
 /**
