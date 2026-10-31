@@ -14,7 +14,15 @@ import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
 import { Dock, DockButton, DockExtractors, DockLink, DockSeparator } from "@/components/dock";
 import { Loading } from "@/components/loading";
-import { CENTRED_TILE_GRID, FILL_TILE_GRID, ROUND_ACTION, Tile, TileLink } from "@/components/tile";
+import {
+  CENTRED_TILE_GRID,
+  FILL_TILE_GRID,
+  ROUND_ACTION,
+  TILE_GRID,
+  Tile,
+  TileLink,
+} from "@/components/tile";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { AiringChip } from "./AiringChip";
@@ -134,6 +142,10 @@ function HomeTile() {
   );
 }
 
+/** A tile's narrowest column and the gap between them, from sm up (see FILL_TILE_GRID). */
+const TILE_MIN = 248;
+const TILE_GAP = 24;
+
 /** The card after it: the way to add one more, as plain as the series tile on home. */
 function AddTile() {
   const t = useT();
@@ -227,9 +239,13 @@ export function SeriesListScreen() {
   const [query, setQuery] = useState("");
   const needle = folded(query.trim());
   const shown = list.data?.filter((series) => folded(series.title).includes(needle)) ?? [];
+  const [measure, width] = useElementWidth<HTMLDivElement>();
+  // Fewer tiles than a row holds would sit to the left of a filling grid: they go in the middle,
+  // at home's size, until there are enough to fill the row.
+  const fillsARow = 2 + shown.length >= Math.floor((width + TILE_GAP) / (TILE_MIN + TILE_GAP));
 
   return (
-    <div className="flex w-full flex-col items-center gap-6">
+    <div ref={measure} className="flex w-full flex-col items-center gap-6">
       <h1 className="sr-only">{t.series.title}</h1>
       {list.isPending && <Loading />}
       {list.isError && (
@@ -238,7 +254,7 @@ export function SeriesListScreen() {
         </p>
       )}
       {list.isSuccess && (
-        <ul className={needle === "" ? FILL_TILE_GRID : CENTRED_TILE_GRID}>
+        <ul className={needle !== "" ? CENTRED_TILE_GRID : fillsARow ? FILL_TILE_GRID : TILE_GRID}>
           {/* While a search narrows the list, only the series that match are left. */}
           {needle === "" && (
             <>
