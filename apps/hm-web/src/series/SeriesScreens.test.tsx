@@ -382,12 +382,12 @@ describe("SeriesDetailScreen", () => {
 
   it("shows the last and the next check of a followed series, and checks now on demand", async () => {
     const user = userEvent.setup();
-    const hourAgo = Date.now() - 3_600_000;
+    let lastCheckedAt = Date.now() - 3_600_000;
     const handler: Handler = (request) =>
       new URL(request.url).pathname === "/api/series/s1" && request.method === "GET"
-        ? jsonResponse(makeSeries({ follow: true, checkIntervalHours: 24, lastCheckedAt: hourAgo }))
+        ? jsonResponse(makeSeries({ follow: true, checkIntervalHours: 24, lastCheckedAt }))
         : detailHandler(request);
-    const { requests } = renderApp(
+    const { requests, queryClient } = renderApp(
       <Route path="/series/:id">
         <SeriesDetailScreen />
       </Route>,
@@ -404,6 +404,11 @@ describe("SeriesDetailScreen", () => {
       ).toBe(true),
     );
     expect(await screen.findByText("Búsqueda en cola.")).toBeTruthy();
+    // Once the check has run, the series is refetched with its new time and the row shows it.
+    lastCheckedAt = Date.now();
+    await queryClient.invalidateQueries();
+    expect(await screen.findByText(/Última búsqueda de episodios nuevos/)).toBeTruthy();
+    expect(screen.queryByText("Búsqueda en cola.")).toBeNull();
   });
 
   it("looks for new episodes from the dock too, beside the ways home and to the series", async () => {

@@ -61,6 +61,16 @@ export function SeriesSettings({
   const now = useNow(30_000);
   const { patchSeries } = useMutations();
   const [draft, setDraft] = useState<SettingsForm | null>(null);
+  // When the last "look now" was sent, and when the series had last been read at that moment: the
+  // search stays "queued" only until the check that request started stamps a newer time.
+  const [request, setRequest] = useState({
+    submittedAt: checkSeries.submittedAt,
+    lastCheckedAt: series.lastCheckedAt,
+  });
+  if (checkSeries.submittedAt !== request.submittedAt) {
+    setRequest({ submittedAt: checkSeries.submittedAt, lastCheckedAt: series.lastCheckedAt });
+  }
+  const queued = checkSeries.isSuccess && series.lastCheckedAt === request.lastCheckedAt;
 
   const form = draft ?? settingsOf(series);
   const update = (next: Partial<SettingsForm>) => setDraft({ ...form, ...next });
@@ -126,7 +136,7 @@ export function SeriesSettings({
           <HugeiconsIcon icon={RefreshIcon} className="size-5" />
         </span>
         <p role="status" className="flex min-w-0 flex-1 flex-col pr-3 pl-1.5 text-sm leading-snug">
-          {checkSeries.isSuccess ? (
+          {queued ? (
             <span>{t.series.checkQueued}</span>
           ) : (
             <>
