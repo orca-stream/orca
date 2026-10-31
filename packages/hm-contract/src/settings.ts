@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT } from "./rules.ts";
+import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT, SETTING_LIMITS } from "./rules.ts";
 
 /*
  * What the server does, kept in its database and changed from the panel. Only what it needs to start
@@ -27,20 +27,23 @@ export type JellyfinSettings = z.infer<typeof JellyfinSettings>;
 
 export const DownloadSettings = z.object({
   /** Downloads running at once. */
-  concurrency: count(32),
-  ffmpegConcurrency: count(32),
-  browserConcurrency: count(32),
+  concurrency: count(SETTING_LIMITS.jobs),
+  ffmpegConcurrency: count(SETTING_LIMITS.jobs),
+  browserConcurrency: count(SETTING_LIMITS.jobs),
   /** One episode at a time, its players in order; failing them all fails the episode. */
   sequential: z.boolean(),
   /** Players never tried, by host (a host covers its subdomains). */
-  skipPlayers: z.array(Host).max(50),
+  skipPlayers: z.array(Host).max(SETTING_LIMITS.skipPlayers),
   /** Connections one direct file, or an HLS stream's segments, are fetched over. */
-  connections: count(16),
+  connections: count(SETTING_LIMITS.connections),
   /** Overrides of what each extractor declares for its hosts; absent keeps the declaration. */
-  downloadsPerHost: count(32).optional(),
-  metadataPerSec: z.number().positive().max(100).optional(),
+  downloadsPerHost: count(SETTING_LIMITS.jobs).optional(),
+  metadataPerSec: z.number().positive().max(SETTING_LIMITS.metadataPerSec).optional(),
   /** How long ffprobe may read a stream over the network. */
-  probeTimeoutMs: z.number().int().min(1000),
+  probeTimeoutMs: z
+    .number()
+    .int()
+    .min(SETTING_LIMITS.minProbeSec * 1000),
 });
 export type DownloadSettings = z.infer<typeof DownloadSettings>;
 
@@ -48,9 +51,9 @@ export const TrackSettings = z.object({
   /** Absent: the best quality. */
   maxHeight: z.number().int().min(MIN_MAX_HEIGHT).max(MAX_MAX_HEIGHT).optional(),
   /** Absent: every audio track. */
-  audioLangs: z.array(Language).max(10).optional(),
+  audioLangs: z.array(Language).max(SETTING_LIMITS.languages).optional(),
   /** Absent: every text subtitle; empty: none. */
-  subtitleLangs: z.array(Language).max(10).optional(),
+  subtitleLangs: z.array(Language).max(SETTING_LIMITS.languages).optional(),
   /** Subtitles as files beside the video instead of inside it. */
   externalSubtitles: z.boolean(),
 });
@@ -60,7 +63,7 @@ export type TrackSettings = z.infer<typeof TrackSettings>;
 export const BrowserSettings = z.object({
   /** Offer "Generic page" when adding a series. */
   genericDetector: z.boolean(),
-  maxConcurrent: count(8),
+  maxConcurrent: count(SETTING_LIMITS.pages),
   timeoutMs: z.number().int().min(1),
   settleMs: z.number().int().min(0),
   userAgent: z.string().min(1).optional(),

@@ -14,7 +14,16 @@ const CONNECTION = {
     { name: "Anime", locations: ["/media/anime"] },
   ],
 };
-const SITES = JSON.stringify({ mine: { reads: "page", name: "My site" } });
+const SITES = JSON.stringify({
+  mine: {
+    reads: "page",
+    name: "My site",
+    hosts: ["origin.test"],
+    example: "https://origin.test/anime/x",
+    listing: { episodes: { selector: "a" } },
+    mirrors: { selector: "button", attribute: "data-url" },
+  },
+});
 
 function server(code?: string): Handler {
   return async (request) => {
@@ -62,10 +71,8 @@ describe("SetupScreen", () => {
       username: "sam",
       password: "s3cret",
     });
-    await user.selectOptions(
-      screen.getByLabelText("Biblioteca de series de Jellyfin"),
-      "/media/anime",
-    );
+    await user.click(screen.getByRole("combobox", { name: "Biblioteca de series de Jellyfin" }));
+    await user.click(await screen.findByRole("option", { name: /\/media\/anime/ }));
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
     expect(screen.getByText("Paso 2 de 3")).toBeTruthy();

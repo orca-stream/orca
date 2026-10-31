@@ -89,16 +89,85 @@ describe("SettingsScreen", () => {
     expect(screen.getByText("Hace falta.")).toBeTruthy();
     expect(put(requests, "/api/settings")).toHaveLength(0);
 
-    await user.type(connections, "99");
+    await user.type(connections, "8");
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(await screen.findByText(/Too big: expected at most 16/)).toBeTruthy();
+  });
+
+  it("takes hosts and languages as chips, a pasted address as its host", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    const players = await screen.findByLabelText("Reproductores que nunca se prueban");
+    await user.type(players, "https://Player.example/file/x,");
+    await user.type(players, "other.example{Enter}");
+    expect(screen.getByText("player.example")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Quitar other.example" }));
+
+    await user.type(screen.getByLabelText("Idiomas de audio"), "jap");
+    await user.click(await screen.findByRole("option", { name: /Japonés/ }));
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(
+      await screen.findByText("Guardado. El servidor ya trabaja con los cambios."),
+    ).toBeTruthy();
+    const body = (await put(requests, "/api/settings")[0]!.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      downloads: { skipPlayers: ["player.example"] },
+      tracks: { audioLangs: ["jpn"] },
+    });
+  });
+
+  it("steps a number with its buttons and the arrow keys, within its limits", async () => {
+    const user = userEvent.setup();
+    renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    const connections = await screen.findByLabelText("Conexiones por archivo");
+    const value = () => (connections as HTMLInputElement).value;
+    expect(value()).toBe("4");
+    await user.click(screen.getAllByRole("button", { name: "Más" })[0]!);
+    expect(value()).toBe("5");
+    await user.click(connections);
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(value()).toBe("3");
+    await user.clear(connections);
+    await user.type(connections, "99");
+    await user.tab();
+    expect(value()).toBe("16");
+  });
+
+  it("refuses an extractors file that does not describe extractors, and says where", async () => {
+    const user = userEvent.setup();
+    renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    expect(await screen.findByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+    const pkg = JSON.stringify({ name: "x", version: "1.0.0" });
+    await user.upload(
+      screen.getByLabelText("Subir extractors.json"),
+      new File([pkg], "package.json", { type: "application/json" }),
+    );
+    expect(await screen.findByText("Ese archivo no describe extractores:")).toBeTruthy();
+    expect(screen.getByText("name")).toBeTruthy();
+    expect(screen.getByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+
+    await user.upload(
+      screen.getByLabelText("Subir extractors.json"),
+      new File(["{"], "extractors.json", { type: "application/json" }),
+    );
+    expect(await screen.findByText("Ese archivo no es un JSON válido.")).toBeTruthy();
   });
 
   it("takes a new extractors file and saves it on its own", async () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
     expect(await screen.findByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
-    const sites = JSON.stringify({ mine: { reads: "api", name: "Mine" } });
+    const sites = JSON.stringify({
+      mine: {
+        reads: "api",
+        name: "Mine",
+        hosts: ["other.test"],
+        example: "https://other.test/series/x",
+        showPath: "^/series/([^/]+)$",
+        api: "https://other.test/api/",
+      },
+    });
     await user.upload(
       screen.getByLabelText("Subir extractors.json"),
       new File([sites], "extractors.json", { type: "application/json" }),

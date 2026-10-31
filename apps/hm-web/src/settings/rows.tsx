@@ -1,11 +1,35 @@
-import { useId, type ComponentProps, type ReactNode } from "react";
+import { useId, useState, type ComponentProps, type ReactNode } from "react";
+import { NumberField } from "@base-ui/react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
-import { ArrowDown01Icon, Settings02Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowDown01Icon,
+  MinusSignIcon,
+  PlusSignIcon,
+  Settings02Icon,
+} from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { ErrorHint, GLASS_PANEL } from "@/series/bar";
+import { BAR_POPUP, ErrorHint, GLASS_PANEL } from "@/series/bar";
 
 /**
  * The settings' forms are built the way the new series bar is: one glass panel, rows split by its
@@ -116,7 +140,7 @@ export function FieldRow({
   );
 }
 
-/** A setting picked from a short list, with the browser's own list. */
+/** A setting picked from a short list, in the bar's own glass list. */
 export function SelectRow({
   icon,
   label,
@@ -130,34 +154,242 @@ export function SelectRow({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  return (
+    <Select items={options} value={value} onValueChange={(next) => onChange(next ?? value)}>
+      {/* An empty value is a choice of its own here ("the best"), not a placeholder: not dimmed. */}
+      <SelectTrigger
+        aria-label={label}
+        className={cn(
+          ROW,
+          "h-auto w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pl-0 text-base data-[size=default]:h-auto hover:bg-white/30 focus-visible:border-(--glass-edge) focus-visible:bg-white/45 focus-visible:ring-0 data-popup-open:bg-white/45 data-placeholder:text-foreground [&>svg:last-child]:ml-2",
+        )}
+      >
+        <IconCell icon={icon} />
+        <span className="min-w-0 flex-1 py-3.5 pr-4 pl-1.5 text-left leading-snug sm:flex-none">
+          {label}
+        </span>
+        <SelectValue className="ml-auto block! min-w-0 truncate text-right" />
+      </SelectTrigger>
+      <SelectContent
+        alignItemWithTrigger={false}
+        align="end"
+        className={cn(
+          BAR_POPUP,
+          "w-max max-w-[min(36rem,var(--available-width))] min-w-[min(16rem,var(--anchor-width))]",
+        )}
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="rounded-xl py-2 pl-3 text-base"
+          >
+            <span className="min-w-0 truncate">{option.label}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** The round − and + on either side of a number. */
+const STEP_BUTTON =
+  "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/60 hover:text-foreground focus-visible:bg-white/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40";
+
+/**
+ * A number: typed, stepped with the arrow keys, or with the − and + beside it, kept between `min`
+ * and `max`. Empty is allowed where the placeholder says what empty means.
+ */
+export function NumberRow({
+  icon,
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  placeholder,
+  error,
+  decrease,
+  increase,
+}: {
+  icon: IconSvgElement;
+  label: string;
+  /** The draft's text: empty, or a number. */
+  value: string;
+  onChange: (value: string) => void;
+  min: number;
+  max?: number | undefined;
+  step?: number;
+  placeholder?: string | undefined;
+  error?: string | undefined;
+  /** What the − and + say to a screen reader. */
+  decrease: string;
+  increase: string;
+}) {
   const id = useId();
+  const parsed = value.trim() === "" ? null : Number(value);
+  return (
+    <NumberField.Root
+      id={id}
+      value={parsed !== null && Number.isFinite(parsed) ? parsed : null}
+      onValueChange={(next) => onChange(next === null ? "" : String(next))}
+      min={min}
+      {...(max !== undefined ? { max } : {})}
+      step={step}
+      smallStep={step}
+      format={{ useGrouping: false, maximumFractionDigits: 3 }}
+      className={cn(ROW, "pr-[11px] has-focus-visible:bg-white/45")}
+    >
+      <IconCell icon={icon} error={error} />
+      <RowLabel htmlFor={id}>{label}</RowLabel>
+      <NumberField.Group className="ml-auto flex items-center gap-1">
+        <NumberField.Decrement aria-label={decrease} className={STEP_BUTTON}>
+          <HugeiconsIcon icon={MinusSignIcon} className="size-4" />
+        </NumberField.Decrement>
+        <NumberField.Input
+          placeholder={placeholder}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className="h-10 min-w-10 bg-transparent text-center text-base tabular-nums outline-none field-sizing-content placeholder:text-muted-foreground"
+        />
+        <NumberField.Increment aria-label={increase} className={STEP_BUTTON}>
+          <HugeiconsIcon icon={PlusSignIcon} className="size-4" />
+        </NumberField.Increment>
+      </NumberField.Group>
+      {error && (
+        <span id={`${id}-error`} className="sr-only">
+          {error}
+        </span>
+      )}
+    </NumberField.Root>
+  );
+}
+
+/**
+ * A list of short values as chips: typed and added with Enter or a comma, or picked from
+ * `suggestions` as they are typed; Backspace or a chip's ✕ takes one away.
+ */
+export function ChipsRow({
+  icon,
+  label,
+  values,
+  onChange,
+  normalize,
+  suggestions = [],
+  labelOf = (value) => value,
+  placeholder,
+  error,
+  add,
+  remove,
+}: {
+  icon: IconSvgElement;
+  label: string;
+  values: readonly string[];
+  onChange: (values: string[]) => void;
+  /** The value a typed text stands for, or null while it is not one yet. */
+  normalize: (text: string) => string | null;
+  suggestions?: readonly string[];
+  labelOf?: (value: string) => string;
+  placeholder: string;
+  error?: string | undefined;
+  /** The list's line for a typed value that is not a suggestion. */
+  add: (value: string) => string;
+  /** What a chip's ✕ says to a screen reader. */
+  remove: (label: string) => string;
+}) {
+  const id = useId();
+  const anchor = useComboboxAnchor();
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const typed = normalize(text);
+  const query = text.trim().toLowerCase();
+  const matching = suggestions.filter(
+    (value) =>
+      query === "" || value.includes(query) || labelOf(value).toLowerCase().includes(query),
+  );
+  const fresh = typed !== null && !suggestions.includes(typed) ? [typed] : [];
+  const shown = [...fresh, ...matching];
+  const items = [...new Set([...suggestions, ...values, ...fresh])];
+
+  function take(next: string[]) {
+    onChange([...new Set(next)]);
+    setText("");
+  }
+
   return (
     <div className={cn(ROW, "has-focus-visible:bg-white/45")}>
-      <IconCell icon={icon} />
+      <IconCell icon={icon} error={error} />
       <RowLabel htmlFor={id}>{label}</RowLabel>
-      <span className="relative ml-auto flex min-w-0 items-center">
-        <select
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-14 min-w-0 cursor-pointer appearance-none truncate bg-transparent pr-6 text-right text-base outline-none"
+      <Combobox
+        multiple
+        items={items}
+        filteredItems={shown}
+        value={[...values]}
+        onValueChange={(next: string[]) => take(next)}
+        inputValue={text}
+        onInputValueChange={setText}
+        open={open && shown.length > 0}
+        onOpenChange={setOpen}
+        itemToStringLabel={labelOf}
+        autoHighlight
+      >
+        <ComboboxChips
+          ref={anchor}
+          className="ml-auto min-h-14 min-w-0 flex-1 justify-end gap-1.5 rounded-none border-0 bg-transparent px-0 py-2 shadow-none focus-within:ring-0 has-data-[slot=combobox-chip]:px-0 dark:bg-transparent"
         >
-          {options.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              className="bg-[Canvas] text-[CanvasText]"
-            >
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          aria-hidden="true"
-          className="pointer-events-none absolute right-0 size-4 text-muted-foreground"
-        />
-      </span>
+          <ComboboxValue>
+            {(picked: string[]) =>
+              picked.map((value) => (
+                <ComboboxChip
+                  key={value}
+                  removeLabel={remove(labelOf(value))}
+                  className="h-7 rounded-full bg-primary/10 pl-2.5 text-sm text-primary"
+                >
+                  {labelOf(value)}
+                </ComboboxChip>
+              ))
+            }
+          </ComboboxValue>
+          <ComboboxChipsInput
+            id={id}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+            placeholder={values.length === 0 ? placeholder : undefined}
+            className={cn(
+              "h-8 bg-transparent text-right text-base placeholder:text-muted-foreground",
+              // With chips, a narrow input after the last one that widens while typed in.
+              values.length === 0 ? "min-w-0 flex-1" : "w-6 min-w-0 flex-none focus:w-28",
+            )}
+            onKeyDown={(event) => {
+              if (event.key !== ",") return;
+              event.preventDefault();
+              if (typed !== null) take([...values, typed]);
+            }}
+          />
+        </ComboboxChips>
+        <ComboboxContent anchor={anchor} align="end" sideOffset={8} className={BAR_POPUP}>
+          <ComboboxList>
+            {(value: string) => (
+              <ComboboxItem key={value} value={value} className="rounded-xl py-2 pl-3 text-base">
+                <span className="min-w-0 truncate">
+                  {fresh.includes(value) ? add(value) : labelOf(value)}
+                </span>
+                {!fresh.includes(value) && labelOf(value) !== value && (
+                  <span className="ml-auto shrink-0 pl-6 text-sm text-muted-foreground">
+                    {value}
+                  </span>
+                )}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      {error && (
+        <span id={`${id}-error`} className="sr-only">
+          {error}
+        </span>
+      )}
     </div>
   );
 }

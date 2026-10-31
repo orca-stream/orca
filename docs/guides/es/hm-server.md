@@ -15,7 +15,7 @@ Fuentes que entiende:
   páginas con selectores CSS o por su API JSON, donde una sola dirección de serie tiene todas las
   temporadas (cada temporada es entonces su propia fuente); ver abajo. Ningún sitio aparece en el código.
 - Opcionalmente, un **detector genérico de páginas** que abre una dirección en un navegador sin
-  interfaz y encuentra el vídeo que reproduce (apagado salvo que se active).
+  interfaz y encuentra el vídeo que reproduce (apagado, y por ahora el panel no lo ofrece).
 
 Descarga solo lo que tengas derecho a descargar.
 
@@ -124,8 +124,8 @@ variables antiguas, que el contenedor copia a su base de datos en su primer arra
 Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 
 - **Archivo de extractores.** Los sitios que lee H&M, en un archivo JSON tuyo que nunca va en el
-  repositorio: súbelo en la configuración o en **Ajustes › Extractores**, y descárgalo de ahí para
-  llevarlo a otro equipo. `apps/hm-server/extractors.example.json` muestra su forma. Tiene una entrada
+  repositorio: súbelo en la configuración o en **Ajustes › Extractores** (se revisa al elegirlo, y
+  uno erróneo dice dónde falla), y descárgalo desde **Ajustes** para llevarlo a otro equipo. `apps/hm-server/extractors.example.json` muestra su forma. Tiene una entrada
   por sitio, con el nombre que le des (las series recuerdan su sitio por ese nombre, así que no lo
   cambies una vez agregues una; `name` fija lo que muestra el panel, si no se usa el de la entrada).
   `"reads"` dice cómo se lee el sitio:
@@ -138,8 +138,6 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     `<dirección de la serie>?season=N` (sin `?season` se lee la primera y la vista previa avisa de las
     demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
     sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
-- **Detector genérico.** Activa «Ofrecer Página genérica» en **Ajustes › Navegador** para poder elegir
-  «Página genérica» al agregar una serie.
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (páginas a la vez, tiempo máximo, espera tras
   cargar) viene con valores sugeridos.

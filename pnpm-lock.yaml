@@ -599,6 +599,12 @@ importers:
       '@orca/extractor-core':
         specifier: workspace:*
         version: link:../extractor-core
+      '@orca/extractor-html':
+        specifier: workspace:*
+        version: link:../extractor-html
+      '@orca/extractor-show-api':
+        specifier: workspace:*
+        version: link:../extractor-show-api
       zod:
         specifier: 'catalog:'
         version: 4.6.7

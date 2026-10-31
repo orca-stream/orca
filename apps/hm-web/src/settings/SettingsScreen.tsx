@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Alert02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
 import type { JellyfinConnection, SettingsView } from "@/api/types";
 import { Loading } from "@/components/loading";
-import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import { useExtractorsFile, useSaveExtractors, useSaveSettings, useSettings } from "./api";
@@ -39,15 +38,15 @@ function Extractors() {
       <ExtractorsSection
         text={shown}
         onText={setText}
+        during="settings"
         action={
           changed && (
-            <PendingButton
-              className="rounded-full"
+            <PanelButton
               pending={save.isPending}
               onClick={() => save.mutate(shown, { onSuccess: () => setText(null) })}
             >
               {t.settings.save}
-            </PendingButton>
+            </PanelButton>
           )
         }
       />

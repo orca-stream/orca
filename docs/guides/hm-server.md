@@ -15,7 +15,7 @@ Sources it understands:
   with CSS selectors or through its JSON API, where one show address holds every season (each season
   is then its own source); see below. No site is named in the code.
 - Optionally, a **generic page detector** that opens an address in a headless browser and finds the
-  video it plays (off unless enabled).
+  video it plays (off, and not offered in the panel for now).
 
 Only download what you have the right to download.
 
@@ -121,8 +121,8 @@ which the container carries into its database on its first boot.
 Both need Chromium, driven by Playwright (pinned to 1.64.1).
 
 - **Extractors file.** The sites H&M reads, in a JSON file of yours that never goes in the repository:
-  upload it in the setup or in **Settings › Extractors**, and download it from there to take it to
-  another machine. `apps/hm-server/extractors.example.json` shows the shape. It holds one entry per
+  upload it in the setup or in **Settings › Extractors** (it is checked as it is picked, and a wrong
+  file says where it is wrong), and download it from **Settings** to take it to another machine. `apps/hm-server/extractors.example.json` shows the shape. It holds one entry per
   site, under the name you give it (series remember their site by that name, so keep it once you add
   one; `name` sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
   - `"page"`: its pages, by CSS selectors. Give its hosts, the path of a season address, the listing
@@ -133,8 +133,6 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
-- **Generic detector.** Turn on "Offer Generic page" in **Settings › Browser** to pick "Generic page"
-  when adding a series.
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (pages at once, timeout, wait after loading) is filled in with suggested values.
 - Locally, install Playwright's Chromium with

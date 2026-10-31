@@ -10,6 +10,22 @@ import type { HmEvent } from "./events.ts";
 export const MIN_MAX_HEIGHT = 144;
 export const MAX_MAX_HEIGHT = 4320;
 
+/** The settings' limits, kept by the schema and offered by the panel's fields. */
+export const SETTING_LIMITS = {
+  /** Downloads, ffmpeg processes and player pages at once; downloads at once per host. */
+  jobs: 32,
+  /** Connections one file is fetched over. */
+  connections: 16,
+  metadataPerSec: 100,
+  /** Pages the browser has open at once. */
+  pages: 8,
+  skipPlayers: 50,
+  /** Languages one track list can name. */
+  languages: 10,
+  /** ffprobe's least time to read a stream, in seconds. */
+  minProbeSec: 1,
+} as const;
+
 /** An ISO 639-2 language code: three lower-case letters (`eng`, `spa`, `jpn`). */
 export const LANGUAGE_CODE_PATTERN = /^[a-z]{3}$/;
 

@@ -60,6 +60,9 @@ export function toSettingsPatch(form: SettingsForm, series: SeriesDto): SeriesPa
   };
 }
 
+/** The heights worth offering; a height set another way still shows up as its own option. */
+export const COMMON_HEIGHTS = [2160, 1440, 1080, 720, 480, 360] as const;
+
 /** The languages every list offers; a code the series already has is offered after them. */
 export const COMMON_LANGUAGES = [
   "spa",

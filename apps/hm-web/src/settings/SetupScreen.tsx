@@ -234,7 +234,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
         {step === "extras" && (
           <>
             <ExtrasSection draft={draft} set={set} errors={errors} />
-            <ExtractorsSection text={extractors} onText={setExtractors} />
+            <ExtractorsSection text={extractors} onText={setExtractors} during="setup" />
           </>
         )}
         {step === "downloads" && (

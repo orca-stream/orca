@@ -22,6 +22,7 @@ import { digitsOf } from "./preview-form";
 import { SeriesSources } from "./SeriesSources";
 import {
   ALL_LANGUAGES,
+  COMMON_HEIGHTS,
   COMMON_LANGUAGES,
   NO_SUBTITLES,
   applyLanguagePick,
@@ -33,9 +34,6 @@ import {
   toSettingsPatch,
   type SettingsForm,
 } from "./settings-form";
-
-/** The heights worth offering; a height set another way still shows up as its own option. */
-const HEIGHTS = [2160, 1440, 1080, 720, 480, 360] as const;
 
 /** Two settings side by side, one above the other on a phone, where half a row is too narrow. */
 const PAIR = "grid sm:grid-cols-2";
@@ -71,9 +69,9 @@ export function SeriesSettings({
   const changes = patch === "invalid" ? null : Object.keys(patch).length;
   const dirty = draft !== null && changes !== 0;
   const heights =
-    series.maxHeight !== null && !(HEIGHTS as readonly number[]).includes(series.maxHeight)
-      ? [...HEIGHTS, series.maxHeight].sort((a, b) => b - a)
-      : HEIGHTS;
+    series.maxHeight !== null && !(COMMON_HEIGHTS as readonly number[]).includes(series.maxHeight)
+      ? [...COMMON_HEIGHTS, series.maxHeight].sort((a, b) => b - a)
+      : COMMON_HEIGHTS;
 
   // The languages on offer: the usual ones, then any other the series already has.
   const languages = [

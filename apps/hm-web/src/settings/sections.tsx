@@ -27,7 +27,6 @@ import {
   Link01Icon,
   LockPasswordIcon,
   PlayListIcon,
-  RepeatIcon,
   Search01Icon,
   Shield01Icon,
   SubtitleIcon,
@@ -36,6 +35,7 @@ import {
   Video01Icon,
   VolumeHighIcon,
 } from "@hugeicons/core-free-icons";
+import { LANGUAGE_CODE_PATTERN, SETTING_LIMITS } from "@orca/hm-contract/rules";
 import { ApiError } from "@/api/client";
 import type { JellyfinConnection } from "@/api/types";
 import { PendingButton } from "@/components/pending-button";
@@ -44,9 +44,22 @@ import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import { BarField } from "@/series/bar";
+import { COMMON_HEIGHTS, COMMON_LANGUAGES } from "@/series/settings-form";
 import { useConnectJellyfin } from "./api";
+import type { ExtractorsFileProblem } from "@orca/hm-contract/extractors-file";
 import { extractorNames, type Draft, type DraftErrors, type DraftField } from "./draft";
-import { AdvancedRows, FieldRow, Group, NoteRow, ROWS, SelectRow, ToggleRow } from "./rows";
+import {
+  AdvancedRows,
+  ChipsRow,
+  FieldRow,
+  Group,
+  NoteRow,
+  NumberRow,
+  PRIMARY_BUTTON,
+  ROWS,
+  SelectRow,
+  ToggleRow,
+} from "./rows";
 
 export interface SectionProps {
   draft: Draft;
@@ -78,6 +91,97 @@ function DraftRow({
       onChange={(event) => set({ [field]: event.target.value } as Partial<Draft>)}
       error={problem ? t.settings.errors[problem] : undefined}
       {...rest}
+    />
+  );
+}
+
+/** A number of the draft, stepped within the schema's limits. */
+function DraftNumber({
+  field,
+  draft,
+  set,
+  errors,
+  ...rest
+}: SectionProps & {
+  field: DraftField;
+  icon: IconSvgElement;
+  label: string;
+  min: number;
+  max?: number;
+  step?: number;
+  placeholder?: string;
+}) {
+  const t = useT();
+  const problem = errors[field];
+  return (
+    <NumberRow
+      value={draft[field] as string}
+      onChange={(value) => set({ [field]: value } as Partial<Draft>)}
+      error={problem ? t.settings.errors[problem] : undefined}
+      decrease={t.settings.fields.less}
+      increase={t.settings.fields.more}
+      {...rest}
+    />
+  );
+}
+
+/** The values of a comma-separated field of the draft. */
+const valuesOf = (text: string) =>
+  text
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter((part) => part !== "");
+
+/** A host as typed, or taken from a whole address pasted in. */
+function hostOf(text: string): string | null {
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed === "") return null;
+  let host = trimmed;
+  try {
+    if (/^[a-z][a-z0-9+.-]*:\/\//.test(trimmed)) host = new URL(trimmed).hostname;
+  } catch {
+    return null;
+  }
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) ? host : null;
+}
+
+const languageOf = (text: string): string | null => {
+  const code = text.trim().toLowerCase();
+  return LANGUAGE_CODE_PATTERN.test(code) ? code : null;
+};
+
+/** Languages as chips, the usual ones offered as they are typed, named in the panel's language. */
+function LanguagesRow({
+  field,
+  draft,
+  set,
+  errors,
+  icon,
+  label,
+  placeholder,
+}: SectionProps & {
+  field: "audioLangs" | "subtitleLangs";
+  icon: IconSvgElement;
+  label: string;
+  placeholder: string;
+}) {
+  const t = useT();
+  const problem = errors[field];
+  return (
+    <ChipsRow
+      icon={icon}
+      label={label}
+      values={valuesOf(draft[field])}
+      onChange={(values) =>
+        set({ [field]: values.slice(0, SETTING_LIMITS.languages).join(", ") } as Partial<Draft>)
+      }
+      normalize={languageOf}
+      suggestions={COMMON_LANGUAGES}
+      labelOf={(code) => t.series.detail.languages[code] ?? code}
+      placeholder={placeholder}
+      error={problem ? t.settings.errors[problem] : undefined}
+      add={t.settings.fields.add}
+      remove={t.settings.fields.remove}
     />
   );
 }
@@ -315,22 +419,24 @@ export function ExtrasSection({ draft, set, errors }: SectionProps) {
 }
 
 /**
- * The extractors file: uploaded from disk and downloaded back, so the sites travel as a file of the
- * person's own and never through the code.
+ * The extractors file: picked from disk and checked against the server's own schema before it is
+ * taken, so a wrong file says why at once. In the settings it can also be downloaded or removed.
  */
 export function ExtractorsSection({
   text,
   onText,
+  during,
   action,
 }: {
   text: string;
   onText: (text: string) => void;
+  during: "setup" | "settings";
   /** The settings screen's own save button. */
   action?: ReactNode;
 }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
-  const [invalid, setInvalid] = useState(false);
+  const [problem, setProblem] = useState<ExtractorsFileProblem | null>(null);
   const names = extractorNames(text);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
@@ -338,11 +444,14 @@ export function ExtractorsSection({
     event.target.value = "";
     if (!file) return;
     const content = await file.text();
-    if (extractorNames(content) === null) {
-      setInvalid(true);
+    // The schema brings Zod along, so it is only fetched when a file is picked.
+    const { checkExtractorsFile } = await import("@orca/hm-contract/extractors-file");
+    const checked = checkExtractorsFile(content);
+    if (!checked.ok) {
+      setProblem(checked.problem);
       return;
     }
-    setInvalid(false);
+    setProblem(null);
     onText(content);
   }
 
@@ -356,7 +465,7 @@ export function ExtractorsSection({
 
   const some = names !== null && names.length > 0;
   return (
-    <Group title={t.settings.extractors.title} description={t.settings.extractors.description}>
+    <Group title={t.settings.extractors.title}>
       <NoteRow
         icon={FileAttachmentIcon}
         action={
@@ -369,22 +478,22 @@ export function ExtractorsSection({
               aria-label={t.settings.extractors.upload}
               onChange={(event) => void upload(event)}
             />
-            {some && (
+            {some && during === "settings" && (
               <>
-                <Button variant="ghost" className="rounded-full" onClick={() => onText("")}>
+                <Button variant="ghost" className={PRIMARY_BUTTON} onClick={() => onText("")}>
                   {t.settings.extractors.clear}
                 </Button>
-                <Button variant="outline" className="rounded-full" onClick={download}>
+                <Button variant="outline" className={PRIMARY_BUTTON} onClick={download}>
                   {t.settings.extractors.download}
                 </Button>
               </>
             )}
             <Button
               variant="outline"
-              className="rounded-full"
+              className={PRIMARY_BUTTON}
               onClick={() => input.current?.click()}
             >
-              {t.settings.extractors.upload}
+              {some ? t.settings.extractors.another : t.settings.extractors.upload}
             </Button>
             {action}
           </>
@@ -394,19 +503,37 @@ export function ExtractorsSection({
           {some ? t.settings.extractors.sites(names.join(", ")) : t.settings.extractors.none}
         </p>
       </NoteRow>
-      {invalid && (
+      {problem && (
         <NoteRow icon={Alert02Icon} tone="warning">
-          <p role="alert">{t.settings.extractors.invalid}</p>
+          <div role="alert">
+            {problem.kind === "json" ? (
+              <p>{t.settings.extractors.notJson}</p>
+            ) : (
+              <>
+                <p>{t.settings.extractors.invalid}</p>
+                <ul className="mt-1 list-disc pl-5 text-sm">
+                  {problem.issues.slice(0, MAX_ISSUES_SHOWN).map((issue) => (
+                    <li key={`${issue.path}:${issue.message}`}>
+                      <code>{issue.path}</code>: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </NoteRow>
       )}
     </Group>
   );
 }
 
+/** A wrong file can have many problems; the first few say enough. */
+const MAX_ISSUES_SHOWN = 6;
+
 /** How downloads run: the common choices first, the tuning folded away. */
 export function DownloadsSection(props: SectionProps) {
   const t = useT();
-  const { draft, set } = props;
+  const { draft, set, errors } = props;
   return (
     <Group title={t.settings.downloads.title}>
       <ToggleRow
@@ -415,64 +542,78 @@ export function DownloadsSection(props: SectionProps) {
         checked={draft.sequential}
         onChange={(sequential) => set({ sequential })}
       />
-      <DraftRow
+      <DraftNumber
         {...props}
         field="connections"
         icon={ConnectIcon}
         label={t.settings.downloads.connections}
-        inputMode="numeric"
+        min={1}
+        max={SETTING_LIMITS.connections}
       />
-      <DraftRow
-        {...props}
-        field="skipPlayers"
+      <ChipsRow
         icon={Shield01Icon}
         label={t.settings.downloads.skipPlayers}
+        values={valuesOf(draft.skipPlayers)}
+        onChange={(hosts) =>
+          set({ skipPlayers: hosts.slice(0, SETTING_LIMITS.skipPlayers).join(", ") })
+        }
+        normalize={hostOf}
         placeholder={t.settings.downloads.skipPlaceholder}
+        error={errors.skipPlayers ? t.settings.errors[errors.skipPlayers] : undefined}
+        add={t.settings.fields.add}
+        remove={t.settings.fields.remove}
       />
       <AdvancedRows label={t.settings.downloads.advanced}>
-        <DraftRow
+        <DraftNumber
           {...props}
           field="concurrency"
           icon={Download04Icon}
           label={t.settings.downloads.concurrency}
-          inputMode="numeric"
+          min={1}
+          max={SETTING_LIMITS.jobs}
         />
-        <DraftRow
+        <DraftNumber
           {...props}
           field="ffmpegConcurrency"
           icon={CpuIcon}
           label={t.settings.downloads.ffmpeg}
-          inputMode="numeric"
+          min={1}
+          max={SETTING_LIMITS.jobs}
         />
-        <DraftRow
+        <DraftNumber
           {...props}
           field="browserConcurrency"
           icon={BrowserIcon}
           label={t.settings.downloads.browserJobs}
-          inputMode="numeric"
+          min={1}
+          max={SETTING_LIMITS.jobs}
         />
-        <DraftRow
+        <DraftNumber
           {...props}
           field="downloadsPerHost"
           icon={Layers01Icon}
           label={t.settings.downloads.perHost}
           placeholder={t.settings.downloads.byExtractor}
-          inputMode="numeric"
+          min={1}
+          max={SETTING_LIMITS.jobs}
         />
-        <DraftRow
+        <DraftNumber
           {...props}
           field="metadataPerSec"
           icon={DashboardSpeed01Icon}
           label={t.settings.downloads.metadataPerSec}
           placeholder={t.settings.downloads.byExtractor}
-          inputMode="decimal"
+          min={0.5}
+          max={SETTING_LIMITS.metadataPerSec}
+          step={0.5}
         />
-        <DraftRow
+        <DraftNumber
           {...props}
           field="probeTimeoutSec"
           icon={Search01Icon}
           label={t.settings.downloads.probeTimeout}
-          inputMode="numeric"
+          min={SETTING_LIMITS.minProbeSec}
+          step={10}
         />
       </AdvancedRows>
     </Group>
@@ -485,15 +626,20 @@ export function TracksSection(props: SectionProps) {
   const { draft, set } = props;
   return (
     <Group title={t.settings.tracks.title}>
-      <DraftRow
-        {...props}
-        field="maxHeight"
+      <SelectRow
         icon={Video01Icon}
         label={t.settings.tracks.maxHeight}
-        placeholder={t.settings.tracks.maxHeightPlaceholder}
-        inputMode="numeric"
+        value={draft.maxHeight}
+        onChange={(maxHeight) => set({ maxHeight })}
+        options={[
+          { value: "", label: t.settings.tracks.maxHeightPlaceholder },
+          ...heightsWith(draft.maxHeight).map((height) => ({
+            value: String(height),
+            label: t.series.detail.heightOption(height),
+          })),
+        ]}
       />
-      <DraftRow
+      <LanguagesRow
         {...props}
         field="audioLangs"
         icon={VolumeHighIcon}
@@ -511,12 +657,12 @@ export function TracksSection(props: SectionProps) {
         }))}
       />
       {draft.subtitleMode === "some" && (
-        <DraftRow
+        <LanguagesRow
           {...props}
           field="subtitleLangs"
           icon={SubtitleIcon}
           label={t.settings.tracks.subtitleLangs}
-          placeholder="spa, eng"
+          placeholder={t.settings.fields.subtitlesPlaceholder}
         />
       )}
       <ToggleRow
@@ -527,6 +673,14 @@ export function TracksSection(props: SectionProps) {
       />
     </Group>
   );
+}
+
+/** The usual heights, and one set another way (the environment of old) in its place among them. */
+function heightsWith(current: string): number[] {
+  const height = Number(current);
+  return current !== "" && !(COMMON_HEIGHTS as readonly number[]).includes(height)
+    ? [...COMMON_HEIGHTS, height].sort((a, b) => b - a)
+    : [...COMMON_HEIGHTS];
 }
 
 /** The headless browser; switched on for good while the extractors describe sites. */
@@ -548,57 +702,52 @@ export function BrowserSection({
         onChange={(browserOn) => set({ browserOn })}
       />
       {on && (
-        <>
-          <ToggleRow
-            icon={RepeatIcon}
-            label={t.settings.browser.generic}
-            checked={draft.genericDetector}
-            onChange={(genericDetector) => set({ genericDetector })}
+        <AdvancedRows label={t.settings.downloads.advanced}>
+          <DraftNumber
+            {...props}
+            field="maxConcurrent"
+            icon={Layers01Icon}
+            label={t.settings.browser.maxConcurrent}
+            min={1}
+            max={SETTING_LIMITS.pages}
           />
-          <AdvancedRows label={t.settings.downloads.advanced}>
-            <DraftRow
-              {...props}
-              field="maxConcurrent"
-              icon={Layers01Icon}
-              label={t.settings.browser.maxConcurrent}
-              inputMode="numeric"
-            />
-            <DraftRow
-              {...props}
-              field="timeoutSec"
-              icon={Timer02Icon}
-              label={t.settings.browser.timeout}
-              inputMode="numeric"
-            />
-            <DraftRow
-              {...props}
-              field="settleSec"
-              icon={HourglassIcon}
-              label={t.settings.browser.settle}
-              inputMode="decimal"
-            />
-            <DraftRow
-              {...props}
-              field="userAgent"
-              icon={CodeIcon}
-              label={t.settings.browser.userAgent}
-              placeholder={t.settings.browser.userAgentPlaceholder}
-            />
-            <DraftRow
-              {...props}
-              field="chromiumPath"
-              icon={Folder01Icon}
-              label={t.settings.browser.chromium}
-              placeholder={t.settings.browser.chromiumPlaceholder}
-            />
-            <ToggleRow
-              icon={Shield01Icon}
-              label={t.settings.browser.noSandbox}
-              checked={draft.noSandbox}
-              onChange={(noSandbox) => set({ noSandbox })}
-            />
-          </AdvancedRows>
-        </>
+          <DraftNumber
+            {...props}
+            field="timeoutSec"
+            icon={Timer02Icon}
+            label={t.settings.browser.timeout}
+            min={1}
+            step={5}
+          />
+          <DraftNumber
+            {...props}
+            field="settleSec"
+            icon={HourglassIcon}
+            label={t.settings.browser.settle}
+            min={0}
+            step={0.5}
+          />
+          <DraftRow
+            {...props}
+            field="userAgent"
+            icon={CodeIcon}
+            label={t.settings.browser.userAgent}
+            placeholder={t.settings.browser.userAgentPlaceholder}
+          />
+          <DraftRow
+            {...props}
+            field="chromiumPath"
+            icon={Folder01Icon}
+            label={t.settings.browser.chromium}
+            placeholder={t.settings.browser.chromiumPlaceholder}
+          />
+          <ToggleRow
+            icon={Shield01Icon}
+            label={t.settings.browser.noSandbox}
+            checked={draft.noSandbox}
+            onChange={(noSandbox) => set({ noSandbox })}
+          />
+        </AdvancedRows>
       )}
     </Group>
   );
