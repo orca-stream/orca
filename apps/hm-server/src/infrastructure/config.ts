@@ -7,7 +7,7 @@ const bool = z
   .transform((value) => value === "true" || value === "1");
 const count = (fallback: number) => z.coerce.number().int().min(1).max(32).default(fallback);
 
-/** Required once the browser is on (generic detector, a sites or show API file); no default fits every site. */
+/** Required once the browser is on (generic detector or an extractors file); no default fits every site. */
 const positive = z.coerce.number().int().min(1);
 const DetectorEnv = z.object({
   HM_DETECTOR_MAX_CONCURRENT: positive.max(8),
@@ -54,10 +54,8 @@ const Env = z.object({
   DEFAULT_SUBTITLE_LANGS: languageList.optional(),
   SUBTITLES_EXTERNAL: bool.default(false),
   HM_GENERIC_DETECTOR: bool.default(false),
-  /** A JSON file describing sites by their selectors; their players need the browser too. */
-  HM_SITES_FILE: z.string().min(1).optional(),
-  /** A JSON file describing sites whose JSON API lists a show; their players need the browser too. */
-  HM_SHOW_API_FILE: z.string().min(1).optional(),
+  /** A JSON file describing the sites H&M reads; their players need the browser too. */
+  HM_EXTRACTORS_FILE: z.string().min(1).optional(),
   DB_FILE: z.string().min(1),
   MEDIA_ROOT: z.string().min(1),
   JELLYFIN_URL: z.url(),
@@ -105,7 +103,7 @@ export interface Config {
   streamDefaults: StreamPrefs;
   /** Write text subtitles as files beside the video instead of inside it. */
   externalSubtitles: boolean;
-  /** Null while neither HM_GENERIC_DETECTOR nor HM_SITES_FILE asks for it: no browser. */
+  /** Null while neither HM_GENERIC_DETECTOR nor HM_EXTRACTORS_FILE asks for it: no browser. */
   detector: DetectorConfig | null;
   /** One episode at a time, its players in order (SEQUENTIAL_DOWNLOADS). */
   sequentialDownloads: boolean;
@@ -113,10 +111,8 @@ export interface Config {
   skipPlayers: string[];
   /** Offer the "Generic page" extractor (HM_GENERIC_DETECTOR). */
   genericExtractor: boolean;
-  /** Where the sites described by selectors are (HM_SITES_FILE). */
-  sitesFile: string | undefined;
-  /** Where the sites read through their JSON API are (HM_SHOW_API_FILE). */
-  showApiFile: string | undefined;
+  /** Where the sites H&M reads are described (HM_EXTRACTORS_FILE). */
+  extractorsFile: string | undefined;
   dbFile: string;
   mediaRoot: string;
   jellyfinUrl: string;
@@ -154,9 +150,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   const parsed = Env.safeParse(env);
   const detectorOn =
     parsed.success &&
-    (parsed.data.HM_GENERIC_DETECTOR ||
-      parsed.data.HM_SITES_FILE !== undefined ||
-      parsed.data.HM_SHOW_API_FILE !== undefined);
+    (parsed.data.HM_GENERIC_DETECTOR || parsed.data.HM_EXTRACTORS_FILE !== undefined);
   const detectorParsed = detectorOn ? DetectorEnv.safeParse(env) : null;
   const issues = [
     ...(parsed.success ? [] : parsed.error.issues),
@@ -191,8 +185,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
         }
       : null,
     genericExtractor: e.HM_GENERIC_DETECTOR,
-    sitesFile: e.HM_SITES_FILE,
-    showApiFile: e.HM_SHOW_API_FILE,
+    extractorsFile: e.HM_EXTRACTORS_FILE,
     dbFile: e.DB_FILE,
     mediaRoot: e.MEDIA_ROOT,
     jellyfinUrl: e.JELLYFIN_URL.replace(/\/+$/, ""),
@@ -230,6 +223,13 @@ export function userAgent(version: string, contactEmail: string | undefined): st
 /** Variables that used to do something and now are ignored, so a deployment is told rather than surprised. */
 export function deprecatedEnvWarnings(env: Record<string, string | undefined>): string[] {
   const warnings: string[] = [];
+  for (const name of ["HM_SITES_FILE", "HM_SHOW_API_FILE"]) {
+    if (env[name] !== undefined) {
+      warnings.push(
+        `${name} is ignored now: both kinds of site live in one file, HM_EXTRACTORS_FILE (see extractors.example.json).`,
+      );
+    }
+  }
   if (env["IA_HOST_CONCURRENCY"] !== undefined) {
     warnings.push(
       "IA_HOST_CONCURRENCY is ignored now: each extractor declares its own limits, and DOWNLOADS_PER_HOST / METADATA_PER_SEC override them.",

@@ -11,10 +11,9 @@ refresh. It can follow a series and fetch new episodes as they appear. It expose
 Sources it understands:
 
 - **Internet Archive** (`archive.org`), built in: public-domain items and collections.
-- **Sites you describe** in a JSON file (`HM_SITES_FILE`) with CSS selectors; see below. No site is
-  named in the code.
-- **Sites read through their JSON API** (`HM_SHOW_API_FILE`), where one show address holds every
-  season; see below. Each season is its own source.
+- **Sites you describe** in one JSON file (`HM_EXTRACTORS_FILE`), each read either through its pages
+  with CSS selectors or through its JSON API, where one show address holds every season (each season
+  is then its own source); see below. No site is named in the code.
 - Optionally, a **generic page detector** that opens an address in a headless browser and finds the
   video it plays (off unless enabled).
 
@@ -26,7 +25,7 @@ Only download what you have the right to download.
 - **ffmpeg** and **ffprobe** on the `PATH`.
 - A **Jellyfin** server with a **TV shows** library, and an **API key** (Jellyfin › Dashboard › API Keys).
 - Write access to that library's folder from where the server runs.
-- For a sites file or the generic detector: Chromium (see [Browser](#browser-sites-file-and-generic-detector)).
+- For an extractors file or the generic detector: Chromium (see [Browser](#browser-extractors-file-and-generic-detector)).
 
 ## Profiles
 
@@ -55,22 +54,22 @@ out as a suggestion. Give each profile its own `DB_FILE`: what it records points
 
 ### Optional
 
-| Variable                                                                 | Meaning                                                                                                                                                                                                             |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONTACT_EMAIL`                                                          | Goes in the User-Agent so sites such as archive.org can reach you                                                                                                                                                   |
-| `TMDB_API_KEY`                                                           | A TMDB v3 key or v4 read token (themoviedb.org > Settings > API): the panel lists a show's seasons and episodes to number an address, and lays its backdrop behind the add screen. Free only for non-commercial use |
-| `WEB_ROOT`                                                               | Absolute path of the built panel; the server then serves it on the same origin                                                                                                                                      |
-| `SECURE_COOKIES`                                                         | `true` only behind HTTPS                                                                                                                                                                                            |
-| `DEVICE_ID`                                                              | Overrides the device id generated once and kept in the database                                                                                                                                                     |
-| `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`      | Work in parallel (2, 1, 1 when unset)                                                                                                                                                                               |
-| `SEQUENTIAL_DOWNLOADS`                                                   | `true` downloads one episode at a time, its players in the page's order; when they all fail the episode is marked failed and the next one starts                                                                    |
-| `SKIP_PLAYERS`                                                           | Hosts whose players are never tried, comma separated (a host covers its subdomains), such as `player.example,site-a.uns.bio`: those that never give a readable stream. An episode with only those fails at once          |
-| `DOWNLOADS_PER_HOST`, `METADATA_PER_SEC`                                 | Override each source's politeness limits                                                                                                                                                                            |
-| `DOWNLOAD_CONNECTIONS`                                                   | Connections one direct file, or the segments of an HLS stream, are fetched over at once (players cap each connection: 4 is ~5× faster on player-c). Default 1; archive.org always uses 1                           |
-| `PROBE_TIMEOUT_MS`                                                       | How long ffprobe may read a stream over the network (one that cannot be copied first, such as a live one). Default 180000                                                                                           |
-| `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS`    | Default tracks for streams (ISO 639-2: `eng`, `spa`, `jpn`); each series can override them                                                                                                                          |
-| `SUBTITLES_EXTERNAL`                                                     | `true` writes subtitles as `.srt` files beside the video instead of inside the mkv                                                                                                                                  |
-| `HM_SITES_FILE`, `HM_GENERIC_DETECTOR`, `HM_DETECTOR_*`, `HM_CHROMIUM_*` | Browser-based sources, below                                                                                                                                                                                        |
+| Variable                                                                      | Meaning                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONTACT_EMAIL`                                                               | Goes in the User-Agent so sites such as archive.org can reach you                                                                                                                                                   |
+| `TMDB_API_KEY`                                                                | A TMDB v3 key or v4 read token (themoviedb.org > Settings > API): the panel lists a show's seasons and episodes to number an address, and lays its backdrop behind the add screen. Free only for non-commercial use |
+| `WEB_ROOT`                                                                    | Absolute path of the built panel; the server then serves it on the same origin                                                                                                                                      |
+| `SECURE_COOKIES`                                                              | `true` only behind HTTPS                                                                                                                                                                                            |
+| `DEVICE_ID`                                                                   | Overrides the device id generated once and kept in the database                                                                                                                                                     |
+| `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`           | Work in parallel (2, 1, 1 when unset)                                                                                                                                                                               |
+| `SEQUENTIAL_DOWNLOADS`                                                        | `true` downloads one episode at a time, its players in the page's order; when they all fail the episode is marked failed and the next one starts                                                                    |
+| `SKIP_PLAYERS`                                                                | Hosts whose players are never tried, comma separated (a host covers its subdomains), such as `player.example,site-a.uns.bio`: those that never give a readable stream. An episode with only those fails at once          |
+| `DOWNLOADS_PER_HOST`, `METADATA_PER_SEC`                                      | Override each source's politeness limits                                                                                                                                                                            |
+| `DOWNLOAD_CONNECTIONS`                                                        | Connections one direct file, or the segments of an HLS stream, are fetched over at once (players cap each connection: 4 is ~5× faster on player-c). Default 1; archive.org always uses 1                           |
+| `PROBE_TIMEOUT_MS`                                                            | How long ffprobe may read a stream over the network (one that cannot be copied first, such as a live one). Default 180000                                                                                           |
+| `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS`         | Default tracks for streams (ISO 639-2: `eng`, `spa`, `jpn`); each series can override them                                                                                                                          |
+| `SUBTITLES_EXTERNAL`                                                          | `true` writes subtitles as `.srt` files beside the video instead of inside the mkv                                                                                                                                  |
+| `HM_EXTRACTORS_FILE`, `HM_GENERIC_DETECTOR`, `HM_DETECTOR_*`, `HM_CHROMIUM_*` | Browser-based sources, below                                                                                                                                                                                        |
 
 The server checks everything at boot and lists every missing or invalid value at once.
 
@@ -114,7 +113,7 @@ One image holds the server and the built panel. Build it from the repository roo
 
 ```bash
 docker build -f apps/hm-server/Dockerfile -t orca-hm .
-# with Chromium, for a sites file or the generic detector:
+# with Chromium, for an extractors file or the generic detector:
 docker build -f apps/hm-server/Dockerfile --build-arg WITH_CHROMIUM=1 -t orca-hm .
 ```
 
@@ -131,20 +130,22 @@ docker run -d --name orca-hm -p 8787:8787 \
 
 Bifröst's `hm up` builds and runs this same image for you on a server.
 
-## Browser: sites file and generic detector
+## Browser: extractors file and generic detector
 
 Both need Chromium, driven by Playwright (pinned to 1.64.1).
 
-- **Sites file.** Copy `apps/hm-server/sites.example.json` to `sites.json` (gitignored) and describe
-  each site: its hosts, the path of a season address, the listing and episode selectors, the
-  episode-number pattern and the selector of the players. Set `HM_SITES_FILE=./sites.json`.
-- **Show API file.** For sites whose JSON API lists a show's seasons, episodes and players. Copy
-  `apps/hm-server/show-api.example.json` to `show-api.json` (gitignored) and give each site its hosts,
-  the show path (its first group is the slug), the API's base address and, optionally, the audio
-  languages to keep, best first. Set `HM_SHOW_API_FILE=./show-api.json`. A season is added like any
-  other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
-  preview lists the others), then pick its target season and first episode. Several site seasons can
-  go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
+- **Extractors file.** Copy `apps/hm-server/extractors.example.json` to `extractors.json`
+  (gitignored) and set `HM_EXTRACTORS_FILE=./extractors.json`. It holds one entry per site, under the
+  name you give it (series remember their site by that name, so keep it once you add one; `name`
+  sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
+  - `"page"`: its pages, by CSS selectors. Give its hosts, the path of a season address, the listing
+    and episode selectors, the episode-number pattern and the selector of the players.
+  - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
+    show path (its first group is the slug), the API's base address and, optionally, the audio
+    languages to keep, best first. A season is added like any
+    other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
+    preview lists the others), then pick its target season and first episode. Several site seasons can
+    go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
 - **Generic detector.** `HM_GENERIC_DETECTOR=1` lets you pick "Generic page" when adding a series.
 - With any of them on, `HM_DETECTOR_MAX_CONCURRENT`, `HM_DETECTOR_TIMEOUT_MS` and `HM_DETECTOR_SETTLE_MS` are
   required (suggested values in the template).

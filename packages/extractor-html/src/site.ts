@@ -71,39 +71,3 @@ export const SiteConfig = z.object({
   mirrors: Pick.extend({ attribute: z.string().min(1) }),
 });
 export type SiteConfig = z.infer<typeof SiteConfig>;
-
-export const SitesFile = z
-  .object({ sites: z.array(SiteConfig) })
-  .refine((file) => new Set(file.sites.map((site) => site.id)).size === file.sites.length, {
-    message: "Two sites have the same id",
-  });
-export type SitesFile = z.infer<typeof SitesFile>;
-
-export class SitesFileError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "SitesFileError";
-  }
-}
-
-/** Validates the JSON of a sites file, with every problem listed by where it is. */
-export function parseSitesFile(json: string): SitesFile {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    throw new SitesFileError(`The sites file is not valid JSON: ${(error as Error).message}`, {
-      cause: error,
-    });
-  }
-  const parsed = SitesFile.safeParse(raw);
-  if (!parsed.success) {
-    const lines = parsed.error.issues.map(
-      (issue) => `  ${issue.path.join(".") || "(file)"}: ${issue.message}`,
-    );
-    throw new SitesFileError(`The sites file is not valid:\n${lines.join("\n")}`, {
-      cause: parsed.error,
-    });
-  }
-  return parsed.data;
-}

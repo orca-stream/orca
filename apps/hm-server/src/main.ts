@@ -4,9 +4,9 @@ import { dirname, resolve } from "node:path";
 import { serve } from "@hono/node-server";
 import { Agent, fetch as undiciFetch } from "undici";
 import type { SiteExtractor } from "@orca/extractor-core";
-import { createHtmlExtractor, parseSitesFile } from "@orca/extractor-html";
+import { createHtmlExtractor } from "@orca/extractor-html";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
-import { createShowApiExtractor, parseShowApiFile } from "@orca/extractor-show-api";
+import { createShowApiExtractor } from "@orca/extractor-show-api";
 import { createJellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
 import { GuardedProxy, PlaywrightStreamDetector } from "@orca/stream-detector";
@@ -39,6 +39,7 @@ import { GenericPageExtractor } from "./infrastructure/generic-page-extractor.ts
 import { PlaywrightDetectorAdapter } from "./infrastructure/playwright-detector-adapter.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { StaticExtractorRegistry } from "./infrastructure/extractor-registry.ts";
+import { parseExtractorsFile } from "./infrastructure/extractors-file.ts";
 import { connectionsFor, HostLimiter, hostLimitsFor } from "./infrastructure/host-limiter.ts";
 import { FetchHttpClient } from "./infrastructure/http-client.ts";
 import { FetchImageFetcher } from "./infrastructure/image-fetcher.ts";
@@ -111,15 +112,13 @@ const downloadFetch = ((input, init) =>
   )) as typeof fetch;
 extractors.push(createInternetArchiveExtractor({ http }));
 // Read once at boot: a typo in a selector or a pattern stops the server here, not on the first job.
-if (config.sitesFile) {
-  const { sites } = parseSitesFile(readFileSync(resolve(config.sitesFile), "utf8"));
-  for (const site of sites) extractors.push(createHtmlExtractor({ site, http }));
-  console.log(`sites file: ${sites.length} site(s) from ${resolve(config.sitesFile)}`);
-}
-if (config.showApiFile) {
-  const { sites } = parseShowApiFile(readFileSync(resolve(config.showApiFile), "utf8"));
-  for (const site of sites) extractors.push(createShowApiExtractor({ site, http }));
-  console.log(`show API file: ${sites.length} site(s) from ${resolve(config.showApiFile)}`);
+if (config.extractorsFile) {
+  const { pages, apis } = parseExtractorsFile(readFileSync(resolve(config.extractorsFile), "utf8"));
+  for (const site of pages) extractors.push(createHtmlExtractor({ site, http }));
+  for (const site of apis) extractors.push(createShowApiExtractor({ site, http }));
+  console.log(
+    `extractors file: ${pages.length + apis.length} site(s) from ${resolve(config.extractorsFile)}`,
+  );
 }
 // Everything the browser and ffmpeg fetch goes through this proxy, which checks each address it is
 // asked for (redirects, segments and keys included) and connects to the IP it checked.
@@ -127,7 +126,7 @@ const proxy = config.detector ? new GuardedProxy({ isBlockedAddress }) : null;
 await proxy?.start();
 
 // The browser exists only when something needs it (the generic extractor, or the players of the
-// sites in the sites and show API files); the generic extractor only when HM_GENERIC_DETECTOR asks for it.
+// sites in the extractors file); the generic extractor only when HM_GENERIC_DETECTOR asks for it.
 const detector =
   config.detector && proxy
     ? new PlaywrightDetectorAdapter(

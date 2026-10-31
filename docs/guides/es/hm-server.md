@@ -11,10 +11,9 @@ aparecen. Expone una API HTTP bajo `/api`, que usa el [panel de administración]
 Fuentes que entiende:
 
 - **Internet Archive** (`archive.org`), integrado: elementos y colecciones de dominio público.
-- **Sitios que describas** en un archivo JSON (`HM_SITES_FILE`) con selectores CSS; ver abajo. Ningún
-  sitio aparece en el código.
-- **Sitios leídos por su API JSON** (`HM_SHOW_API_FILE`), donde una sola dirección de serie tiene todas
-  las temporadas; ver abajo. Cada temporada es su propia fuente.
+- **Sitios que describas** en un solo archivo JSON (`HM_EXTRACTORS_FILE`), cada uno leído por sus
+  páginas con selectores CSS o por su API JSON, donde una sola dirección de serie tiene todas las
+  temporadas (cada temporada es entonces su propia fuente); ver abajo. Ningún sitio aparece en el código.
 - Opcionalmente, un **detector genérico de páginas** que abre una dirección en un navegador sin
   interfaz y encuentra el vídeo que reproduce (apagado salvo que se active).
 
@@ -26,7 +25,7 @@ Descarga solo lo que tengas derecho a descargar.
 - **ffmpeg** y **ffprobe** en el `PATH`.
 - Un servidor **Jellyfin** con una biblioteca de **Series** y una **API key** (Jellyfin › Panel › Claves de API).
 - Permiso de escritura en la carpeta de esa biblioteca desde donde corre el servidor.
-- Para un archivo de sitios o el detector genérico: Chromium (ver [Navegador](#navegador-archivo-de-sitios-y-detector-genérico)).
+- Para un archivo de extractores o el detector genérico: Chromium (ver [Navegador](#navegador-archivo-de-extractores-y-detector-genérico)).
 
 ## Perfiles
 
@@ -56,22 +55,22 @@ biblioteca de ese destino.
 
 ### Opcionales
 
-| Variable                                                                 | Significado                                                                                                                                                                                                                                              |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONTACT_EMAIL`                                                          | Va en el User-Agent para que sitios como archive.org puedan contactarte                                                                                                                                                                                  |
-| `TMDB_API_KEY`                                                           | Clave v3 o token de lectura v4 de TMDB (themoviedb.org > Settings > API): el panel lista las temporadas y episodios de la serie para numerar una dirección, y pone su imagen de fondo detrás de la pantalla de añadir. Gratis solo para uso no comercial |
-| `WEB_ROOT`                                                               | Ruta absoluta del panel compilado; el servidor lo sirve en el mismo origen                                                                                                                                                                               |
-| `SECURE_COOKIES`                                                         | `true` solo detrás de HTTPS                                                                                                                                                                                                                              |
-| `DEVICE_ID`                                                              | Sustituye el id de dispositivo generado una vez y guardado en la base de datos                                                                                                                                                                           |
-| `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`      | Trabajo en paralelo (2, 1, 1 si no se ponen)                                                                                                                                                                                                             |
-| `SEQUENTIAL_DOWNLOADS`                                                   | `true` descarga un episodio a la vez, con sus reproductores en el orden de la página; si fallan todos, el episodio queda fallido y empieza el siguiente                                                                                                  |
-| `SKIP_PLAYERS`                                                           | Hosts cuyos reproductores no se prueban nunca, separados por comas (un host cubre sus subdominios), como `player.example,site-a.uns.bio`: los que nunca dan un stream legible. Un episodio que solo tiene esos falla al momento                               |
-| `DOWNLOADS_PER_HOST`, `METADATA_PER_SEC`                                 | Sustituyen los límites de cortesía de cada fuente                                                                                                                                                                                                        |
-| `DOWNLOAD_CONNECTIONS`                                                   | Conexiones con que se baja a la vez un archivo directo, o los segmentos de un stream HLS (los reproductores limitan cada una: con 4, player-c va ~5× más rápido). Por defecto 1; archive.org siempre usa 1                                              |
-| `PROBE_TIMEOUT_MS`                                                       | Cuánto puede tardar ffprobe en leer un stream por la red (uno que no se puede copiar antes, como uno en directo). Por defecto 180000                                                                                                                     |
-| `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS`    | Pistas por defecto de los streams (ISO 639-2: `eng`, `spa`, `jpn`); cada serie puede cambiarlas                                                                                                                                                          |
-| `SUBTITLES_EXTERNAL`                                                     | `true` escribe los subtítulos como `.srt` junto al vídeo en vez de dentro del mkv                                                                                                                                                                        |
-| `HM_SITES_FILE`, `HM_GENERIC_DETECTOR`, `HM_DETECTOR_*`, `HM_CHROMIUM_*` | Fuentes con navegador, abajo                                                                                                                                                                                                                             |
+| Variable                                                                      | Significado                                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CONTACT_EMAIL`                                                               | Va en el User-Agent para que sitios como archive.org puedan contactarte                                                                                                                                                                                  |
+| `TMDB_API_KEY`                                                                | Clave v3 o token de lectura v4 de TMDB (themoviedb.org > Settings > API): el panel lista las temporadas y episodios de la serie para numerar una dirección, y pone su imagen de fondo detrás de la pantalla de añadir. Gratis solo para uso no comercial |
+| `WEB_ROOT`                                                                    | Ruta absoluta del panel compilado; el servidor lo sirve en el mismo origen                                                                                                                                                                               |
+| `SECURE_COOKIES`                                                              | `true` solo detrás de HTTPS                                                                                                                                                                                                                              |
+| `DEVICE_ID`                                                                   | Sustituye el id de dispositivo generado una vez y guardado en la base de datos                                                                                                                                                                           |
+| `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`           | Trabajo en paralelo (2, 1, 1 si no se ponen)                                                                                                                                                                                                             |
+| `SEQUENTIAL_DOWNLOADS`                                                        | `true` descarga un episodio a la vez, con sus reproductores en el orden de la página; si fallan todos, el episodio queda fallido y empieza el siguiente                                                                                                  |
+| `SKIP_PLAYERS`                                                                | Hosts cuyos reproductores no se prueban nunca, separados por comas (un host cubre sus subdominios), como `player.example,site-a.uns.bio`: los que nunca dan un stream legible. Un episodio que solo tiene esos falla al momento                               |
+| `DOWNLOADS_PER_HOST`, `METADATA_PER_SEC`                                      | Sustituyen los límites de cortesía de cada fuente                                                                                                                                                                                                        |
+| `DOWNLOAD_CONNECTIONS`                                                        | Conexiones con que se baja a la vez un archivo directo, o los segmentos de un stream HLS (los reproductores limitan cada una: con 4, player-c va ~5× más rápido). Por defecto 1; archive.org siempre usa 1                                              |
+| `PROBE_TIMEOUT_MS`                                                            | Cuánto puede tardar ffprobe en leer un stream por la red (uno que no se puede copiar antes, como uno en directo). Por defecto 180000                                                                                                                     |
+| `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS`         | Pistas por defecto de los streams (ISO 639-2: `eng`, `spa`, `jpn`); cada serie puede cambiarlas                                                                                                                                                          |
+| `SUBTITLES_EXTERNAL`                                                          | `true` escribe los subtítulos como `.srt` junto al vídeo en vez de dentro del mkv                                                                                                                                                                        |
+| `HM_EXTRACTORS_FILE`, `HM_GENERIC_DETECTOR`, `HM_DETECTOR_*`, `HM_CHROMIUM_*` | Fuentes con navegador, abajo                                                                                                                                                                                                                             |
 
 El servidor lo comprueba todo al arrancar y lista de una vez cada valor que falte o sea inválido.
 
@@ -116,7 +115,7 @@ Una sola imagen lleva el servidor y el panel compilado. Se construye desde la ra
 
 ```bash
 docker build -f apps/hm-server/Dockerfile -t orca-hm .
-# con Chromium, para un archivo de sitios o el detector genérico:
+# con Chromium, para un archivo de extractores o el detector genérico:
 docker build -f apps/hm-server/Dockerfile --build-arg WITH_CHROMIUM=1 -t orca-hm .
 ```
 
@@ -133,22 +132,24 @@ docker run -d --name orca-hm -p 8787:8787 \
 
 El `hm up` de Bifröst construye y ejecuta esta misma imagen por ti en un servidor.
 
-## Navegador: archivo de sitios y detector genérico
+## Navegador: archivo de extractores y detector genérico
 
 Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 
-- **Archivo de sitios.** Copia `apps/hm-server/sites.example.json` a `sites.json` (en `.gitignore`) y
-  describe cada sitio: sus hosts, la ruta de una dirección de temporada, los selectores del listado y de
-  los episodios, el patrón del número de episodio y el selector de los reproductores. Pon
-  `HM_SITES_FILE=./sites.json`.
-- **Archivo de API de series.** Para sitios cuya API JSON lista las temporadas, episodios y
-  reproductores de una serie. Copia `apps/hm-server/show-api.example.json` a `show-api.json` (en
-  `.gitignore`) y dale a cada sitio sus hosts, la ruta de la serie (su primer grupo es el slug), la
-  dirección base de la API y, si quieres, los idiomas de audio que conservar, el mejor primero. Pon
-  `HM_SHOW_API_FILE=./show-api.json`. Una temporada se agrega como cualquier fuente: pega
-  `<dirección de la serie>?season=N` (sin `?season` se lee la primera y la vista previa avisa de las
-  demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
-  sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
+- **Archivo de extractores.** Copia `apps/hm-server/extractors.example.json` a `extractors.json` (en
+  `.gitignore`) y pon `HM_EXTRACTORS_FILE=./extractors.json`. Tiene una entrada por sitio, con el
+  nombre que le des (las series recuerdan su sitio por ese nombre, así que no lo cambies una vez
+  agregues una; `name` fija lo que muestra el panel, si no se usa el de la entrada). `"reads"` dice
+  cómo se lee el sitio:
+  - `"page"`: sus páginas, con selectores CSS. Dale sus hosts, la ruta de una dirección de temporada,
+    los selectores del listado y de los episodios, el patrón del número de episodio y el selector de
+    los reproductores.
+  - `"api"`: su API JSON, que lista las temporadas, episodios y reproductores de una serie. Dale sus
+    hosts, la ruta de la serie (su primer grupo es el slug), la dirección base de la API y, si quieres,
+    los idiomas de audio que conservar, el mejor primero. Una temporada se agrega como cualquier fuente: pega
+    `<dirección de la serie>?season=N` (sin `?season` se lee la primera y la vista previa avisa de las
+    demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
+    sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
 - **Detector genérico.** `HM_GENERIC_DETECTOR=1` permite elegir «Página genérica» al agregar una serie.
 - Con cualquiera de ellos, `HM_DETECTOR_MAX_CONCURRENT`, `HM_DETECTOR_TIMEOUT_MS` y
   `HM_DETECTOR_SETTLE_MS` son obligatorias (valores sugeridos en la plantilla).

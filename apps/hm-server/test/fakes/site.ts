@@ -1,5 +1,5 @@
 import { ExtractorError, type HttpClient } from "@orca/extractor-core";
-import { createHtmlExtractor, parseSitesFile } from "@orca/extractor-html";
+import { createHtmlExtractor, SiteConfig } from "@orca/extractor-html";
 
 export const ORIGIN = "https://origin.test";
 
@@ -7,32 +7,25 @@ export const ORIGIN = "https://origin.test";
 export const seasonUrl = (slug: string) => `${ORIGIN}/anime/${slug}`;
 export const episodeUrl = (slug: string, n: number) => `${seasonUrl(slug)}/episodio/episodio-${n}`;
 
-/** The site as a sites file describes it: listing pages, then the players of each episode. */
-const { sites } = parseSitesFile(
-  JSON.stringify({
-    sites: [
-      {
-        id: "site-a",
-        name: "Site A",
-        hosts: ["origin.test"],
-        example: seasonUrl("some-show"),
-        seasonPath: "^/anime/[^/]+$",
-        title: { selector: "h1" },
-        listing: {
-          pages: {
-            selector: "#episode-range-select option",
-            attribute: "value",
-            path: "{url}/episodes/{value}",
-          },
-          episodes: { selector: "a.episode-card" },
-          number: "episodio-(\\d+)",
-        },
-        mirrors: { selector: "button.watch-server", attribute: "data-server-url" },
-      },
-    ],
-  }),
-);
-export const SITE = sites[0]!;
+/** The site as the extractors file describes it: listing pages, then the players of each episode. */
+export const SITE = SiteConfig.parse({
+  id: "site-a",
+  name: "Site A",
+  hosts: ["origin.test"],
+  example: seasonUrl("some-show"),
+  seasonPath: "^/anime/[^/]+$",
+  title: { selector: "h1" },
+  listing: {
+    pages: {
+      selector: "#episode-range-select option",
+      attribute: "value",
+      path: "{url}/episodes/{value}",
+    },
+    episodes: { selector: "a.episode-card" },
+    number: "episodio-(\\d+)",
+  },
+  mirrors: { selector: "button.watch-server", attribute: "data-server-url" },
+});
 
 /**
  * The site's pages, which a test changes as it goes: `season(slug, title, numbers)` lists episodes on

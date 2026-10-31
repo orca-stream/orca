@@ -1,37 +1,31 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ExtractorError, type HttpClient } from "@orca/extractor-core";
 import { createHtmlExtractor } from "../src/extractor.ts";
-import { parseSitesFile, SitesFileError, type SiteConfig } from "../src/site.ts";
+import { SiteConfig } from "../src/site.ts";
 
 const ORIGIN = "https://origin.test";
 const SEASON = `${ORIGIN}/anime/random-anime`;
 
 /** A site shaped like the one this extractor was written for: episodes spread over listing pages. */
-const site: SiteConfig = parseSitesFile(
-  JSON.stringify({
-    sites: [
-      {
-        id: "site-a",
-        name: "Site A",
-        hosts: ["origin.test"],
-        example: `${SEASON}`,
-        seasonPath: "^/anime/[^/]+$",
-        userAgent: "Mozilla/5.0 test",
-        title: { selector: "h1.title" },
-        listing: {
-          pages: {
-            selector: "#episode-range-select option",
-            attribute: "value",
-            path: "{url}/episodes/{value}",
-          },
-          episodes: { selector: "a.episode-card", title: { selector: ".name" } },
-          number: "episodio-(\\d+)",
-        },
-        mirrors: { selector: "button.watch-server", attribute: "data-server-url" },
-      },
-    ],
-  }),
-).sites[0]!;
+const site: SiteConfig = SiteConfig.parse({
+  id: "site-a",
+  name: "Site A",
+  hosts: ["origin.test"],
+  example: `${SEASON}`,
+  seasonPath: "^/anime/[^/]+$",
+  userAgent: "Mozilla/5.0 test",
+  title: { selector: "h1.title" },
+  listing: {
+    pages: {
+      selector: "#episode-range-select option",
+      attribute: "value",
+      path: "{url}/episodes/{value}",
+    },
+    episodes: { selector: "a.episode-card", title: { selector: ".name" } },
+    number: "episodio-(\\d+)",
+  },
+  mirrors: { selector: "button.watch-server", attribute: "data-server-url" },
+});
 
 const card = (n: number, name?: string) =>
   `<a class="episode-card" href="/anime/random-anime/episodio/episodio-${n}">${name ? `<span class="name">${name}</span>` : ""}</a>`;
@@ -157,47 +151,32 @@ describe("HTML extractor: the players of an episode", () => {
   });
 });
 
-describe("the sites file", () => {
+describe("a site's description", () => {
   it("lists every problem by where it is", () => {
-    const bad = JSON.stringify({
-      sites: [
-        {
-          id: "Site A",
-          name: "",
-          hosts: ["https://x.test"],
-          example: "nope",
-          listing: {},
-          mirrors: {},
-        },
-      ],
+    const parsed = SiteConfig.safeParse({
+      id: "Site A",
+      name: "",
+      hosts: ["https://x.test"],
+      example: "nope",
+      listing: {},
+      mirrors: {},
     });
-    try {
-      parseSitesFile(bad);
-      expect.unreachable();
-    } catch (error) {
-      expect(error).toBeInstanceOf(SitesFileError);
-      const message = (error as Error).message;
-      for (const path of [
-        "sites.0.id",
-        "sites.0.name",
-        "sites.0.hosts.0",
-        "sites.0.example",
-        "sites.0.listing.episodes",
-        "sites.0.mirrors.selector",
-      ]) {
-        expect(message).toContain(path);
-      }
+    expect(parsed.success).toBe(false);
+    const paths = parsed.error!.issues.map((issue) => issue.path.join("."));
+    for (const path of [
+      "id",
+      "name",
+      "hosts.0",
+      "example",
+      "listing.episodes",
+      "mirrors.selector",
+    ]) {
+      expect(paths).toContain(path);
     }
   });
 
-  it("refuses a pattern that does not compile, and two sites with one id", () => {
-    const base = JSON.parse(JSON.stringify({ sites: [site] })) as {
-      sites: Record<string, unknown>[];
-    };
-    expect(() =>
-      parseSitesFile(JSON.stringify({ sites: [{ ...base.sites[0], seasonPath: "([" }] })),
-    ).toThrow(/seasonPath/);
-    expect(() => parseSitesFile(JSON.stringify({ sites: [site, site] }))).toThrow(/same id/);
-    expect(() => parseSitesFile("{")).toThrow(/not valid JSON/);
+  it("refuses a pattern that does not compile", () => {
+    const parsed = SiteConfig.safeParse({ ...site, seasonPath: "([" });
+    expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toEqual(["seasonPath"]);
   });
 });

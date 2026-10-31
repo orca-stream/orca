@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { ExtractorError, type HttpClient } from "@orca/extractor-core";
 import { createShowApiExtractor } from "../src/extractor.ts";
-import { parseShowApiFile, ShowApiFileError, type ShowApiSite } from "../src/site.ts";
+import { ShowApiSite } from "../src/site.ts";
 
 const ORIGIN = "https://origin.test";
 const API = `${ORIGIN}/api-prefix/v1`;
@@ -17,7 +17,7 @@ const siteJson = {
   userAgent: "Mozilla/5.0 test",
 };
 const parseSite = (overrides: Record<string, unknown> = {}): ShowApiSite =>
-  parseShowApiFile(JSON.stringify({ sites: [{ ...siteJson, ...overrides }] })).sites[0]!;
+  ShowApiSite.parse({ ...siteJson, ...overrides });
 const site = parseSite();
 
 const ok = (data: unknown) => ({ error: false, message: "", data });
@@ -241,13 +241,9 @@ describe("show API extractor: the players", () => {
   });
 });
 
-describe("show API sites file", () => {
-  it("refuses a show path without a group for the slug, and repeated ids", () => {
-    expect(() => parseSite({ showPath: "^/series/[^/]+$" })).toThrow(ShowApiFileError);
-    expect(() => parseShowApiFile(JSON.stringify({ sites: [siteJson, siteJson] }))).toThrow(
-      /same id/,
-    );
-    expect(() => parseShowApiFile("{")).toThrow(/not valid JSON/);
+describe("a show API site's description", () => {
+  it("refuses a show path without a group for the slug", () => {
+    expect(() => parseSite({ showPath: "^/series/[^/]+$" })).toThrow(/slug/);
   });
 
   it("drops the API's trailing slash", () => {

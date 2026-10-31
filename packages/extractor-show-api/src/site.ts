@@ -52,39 +52,3 @@ export const ShowApiSite = z.object({
     .optional(),
 });
 export type ShowApiSite = z.infer<typeof ShowApiSite>;
-
-export const ShowApiFile = z
-  .object({ sites: z.array(ShowApiSite) })
-  .refine((file) => new Set(file.sites.map((site) => site.id)).size === file.sites.length, {
-    message: "Two sites have the same id",
-  });
-export type ShowApiFile = z.infer<typeof ShowApiFile>;
-
-export class ShowApiFileError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "ShowApiFileError";
-  }
-}
-
-/** Validates the JSON of a show-API sites file, with every problem listed by where it is. */
-export function parseShowApiFile(json: string): ShowApiFile {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    throw new ShowApiFileError(`The show API file is not valid JSON: ${(error as Error).message}`, {
-      cause: error,
-    });
-  }
-  const parsed = ShowApiFile.safeParse(raw);
-  if (!parsed.success) {
-    const lines = parsed.error.issues.map(
-      (issue) => `  ${issue.path.join(".") || "(file)"}: ${issue.message}`,
-    );
-    throw new ShowApiFileError(`The show API file is not valid:\n${lines.join("\n")}`, {
-      cause: parsed.error,
-    });
-  }
-  return parsed.data;
-}
