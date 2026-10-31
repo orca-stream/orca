@@ -42,7 +42,7 @@ async function connect(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
   await user.type(screen.getByLabelText("Usuario administrador"), "sam");
   await user.type(screen.getByLabelText("Contraseña"), "s3cret");
-  await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
+  await user.click(screen.getByRole("button", { name: "¡Vamos!" }));
   await screen.findByText("Conectado a Casa. H&M ya tiene su clave.");
 }
 
@@ -54,9 +54,7 @@ describe("SetupScreen", () => {
     });
     expect(screen.getByText("Paso 1 de 3")).toBeTruthy();
     // One button: it connects first, and only once there is an address and a user.
-    expect(screen.getByRole("button", { name: "Conectar y seguir" }).hasAttribute("disabled")).toBe(
-      true,
-    );
+    expect(screen.getByRole("button", { name: "¡Vamos!" }).hasAttribute("disabled")).toBe(true);
 
     await connect(user);
     expect(await bodyOf(requests, "/api/setup/jellyfin")).toEqual({
@@ -117,7 +115,7 @@ describe("SetupScreen", () => {
     });
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "sam");
-    await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
+    await user.click(screen.getByRole("button", { name: "¡Vamos!" }));
     expect(await screen.findByText("Paso 2 de 3")).toBeTruthy();
   });
 
@@ -148,7 +146,7 @@ describe("SetupScreen", () => {
     });
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "kid");
-    await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
+    await user.click(screen.getByRole("button", { name: "¡Vamos!" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Esa cuenta no es de administrador.",
     );
