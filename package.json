@@ -27,8 +27,8 @@
     "bifrost": "node apps/bifrost/src/cli.ts -c apps/bifrost/bifrost.yaml"
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@types/node": "^24.13.3",
     "typescript": "~7.0.2",
     "vite-plus": "catalog:"
