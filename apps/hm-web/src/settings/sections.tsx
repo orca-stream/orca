@@ -82,7 +82,7 @@ function DraftRow({
   );
 }
 
-/** The bar's inputs drop to a smaller size on wide screens; the sign-in keeps the address's. */
+/** The bar's inputs drop to a smaller size on wide screens; the sign-in keeps the rows' size. */
 const SAME_TEXT = "md:[&_input]:text-base";
 
 function connectError(error: unknown, t: Messages): string {
@@ -175,8 +175,10 @@ export function JellyfinSection({
         </NoteRow>
       ) : (
         <form id={formId} onSubmit={submit} className={ROWS}>
-          <FieldRow
+          {/* Like the new series bar's address: the whole row, named by its icon and example. */}
+          <BarField
             icon={Link01Icon}
+            className={SAME_TEXT}
             label={t.settings.jellyfin.url}
             placeholder={t.settings.jellyfin.urlPlaceholder}
             inputMode="url"
