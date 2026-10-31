@@ -82,7 +82,7 @@ function SeriesHero({
   const hint = airingHint(series.follow, tmdb?.status ?? null);
 
   return (
-    <section aria-labelledby="series-title" className="relative p-6">
+    <section aria-labelledby="series-title" className="relative p-4">
       {/* The page has no bar of its own, as adding a series hasn't: this is the way back. */}
       <Link
         href="/series"
@@ -92,13 +92,13 @@ function SeriesHero({
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} className="size-5" />
       </Link>
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <PosterImage
           src={poster}
           className="w-32 shrink-0 self-start rounded-2xl shadow-sm sm:w-36"
         />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <h1 id="series-title" className="line-clamp-2 pr-10 text-2xl leading-tight font-semibold">
+          <h1 id="series-title" className="line-clamp-2 pr-13 text-2xl leading-tight font-semibold">
             {series.title}
           </h1>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
@@ -141,7 +141,7 @@ function SeriesHero({
       </div>
 
       {/* How much of it is here, as the bar under the card; holding it gets a column of its own. */}
-      <div className="mt-5 flex items-center gap-4">
+      <div className="mt-4 flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="font-medium tabular-nums">
@@ -295,7 +295,7 @@ export function SeriesDetailScreen() {
         style={{ "--panel-h": `${panelHeight}px` } as CSSProperties}
         className={cn(
           GLASS_PANEL,
-          "min-w-0 overflow-clip xl:sticky xl:top-[min(1.5rem,calc(100svh-var(--panel-h)-1.5rem))]",
+          "min-w-0 overflow-clip xl:sticky xl:top-[min(1rem,calc(100svh-var(--panel-h)-1rem))]",
         )}
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />

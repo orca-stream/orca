@@ -56,7 +56,7 @@ export function Group({
 }) {
   return (
     <section className="border-t border-t-(--glass-edge)">
-      <header className="flex flex-col gap-1 px-6 pt-6 pb-4">
+      <header className="flex flex-col gap-1 p-4">
         <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {title}
         </h2>
@@ -85,8 +85,9 @@ function IconCell({
   return (
     <span
       className={cn(
-        // The icon 24px from the panel's edge, as the titles and the buttons are; the text at 69px.
-        "flex w-[63px] shrink-0 items-center self-stretch pl-[18px] transition-colors",
+        // The icon 16px from the panel's edge, as the titles and the buttons are, and the text 16px
+        // after it, at 52px (its 32px round leaves 6px each side of the icon; the text brings 6px).
+        "flex w-[46px] shrink-0 items-center self-stretch pl-[10px] transition-colors",
         active === false && "text-muted-foreground",
         active === true && "text-primary",
       )}
@@ -129,8 +130,8 @@ function RowLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string
   );
 }
 
-/** Every row ends 24px from the panel's edge, as its titles and buttons do. */
-const ROW = "flex min-h-14 items-center pr-6 transition-colors";
+/** Every row ends 16px from the panel's edge, as its titles and buttons do. */
+const ROW = "flex min-h-14 items-center pr-4 transition-colors";
 
 /**
  * A typed setting: its name on the left and the value at the row's end. What an empty one means is
@@ -184,7 +185,7 @@ export function FieldRow({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
-        className="-mt-2 h-11 min-w-0 basis-full bg-transparent pb-2 pl-[69px] text-base outline-none placeholder:text-muted-foreground sm:mt-0 sm:h-14 sm:flex-1 sm:basis-0 sm:pb-0 sm:pl-0 sm:text-right"
+        className="-mt-2 h-11 min-w-0 basis-full bg-transparent pb-2 pl-[52px] text-base outline-none placeholder:text-muted-foreground sm:mt-0 sm:h-14 sm:flex-1 sm:basis-0 sm:pb-0 sm:pl-0 sm:text-right"
         {...input}
       />
       {error && (
@@ -301,12 +302,11 @@ export function NumberRow({
       step={step}
       smallStep={step}
       format={{ useGrouping: false, maximumFractionDigits: 3 }}
-      // The + is a round button: its sign, not its round, ends where the other rows' values do.
-      className={cn(ROW, "pr-[14px] has-focus-visible:bg-white/45")}
+      className={cn(ROW, "has-focus-visible:bg-white/45")}
     >
       <IconCell icon={icon} error={error} hint={hint} />
       <RowLabel htmlFor={id}>{label}</RowLabel>
-      <NumberField.Group className="ml-auto flex items-center gap-1">
+      <NumberField.Group className="ml-auto flex items-center gap-2">
         <NumberField.Decrement aria-label={decrease} className={STEP_BUTTON}>
           <HugeiconsIcon icon={MinusSignIcon} className="size-4" />
         </NumberField.Decrement>
@@ -425,7 +425,7 @@ export function ChipsRow({
         {/* Under the name, where its text starts, to the row's end, on the row's own glass. */}
         <ComboboxChips
           ref={anchor}
-          className="mr-6 ml-[69px] min-h-8 gap-1.5 rounded-none border-0 bg-transparent p-0 shadow-none focus-within:ring-0 has-data-[slot=combobox-chip]:px-0 dark:bg-transparent"
+          className="mr-4 ml-[52px] min-h-8 gap-1.5 rounded-none border-0 bg-transparent p-0 shadow-none focus-within:ring-0 has-data-[slot=combobox-chip]:px-0 dark:bg-transparent"
         >
           <ComboboxValue>
             {(picked: string[]) =>
@@ -570,7 +570,7 @@ export function FooterRow({ children, className }: { children: ReactNode; classN
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-3 border-t border-t-(--glass-edge) p-6",
+        "flex flex-wrap items-center gap-4 border-t border-t-(--glass-edge) p-4",
         className,
       )}
     >

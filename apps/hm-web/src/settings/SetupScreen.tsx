@@ -170,7 +170,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
     <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
       <Panel>
-        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 p-4">
           {/* "Set up" and the logotype as one title, read as "Set up ORCA'H&M". */}
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
             {t.setup.title}
@@ -227,7 +227,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
         )}
 
         {(finish.isError || login.isError) && (
-          <div className="flex flex-col gap-1 border-t border-t-(--glass-edge) px-6 py-4">
+          <div className="flex flex-col gap-1 border-t border-t-(--glass-edge) p-4">
             <p role="alert" className="text-sm text-warning">
               {t.setup.failed}
             </p>
@@ -235,12 +235,12 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
           </div>
         )}
         {step !== "code" && (
-          // Back's text, not its round, starts 24px in, as everything else does.
+          // Back's text, not its round, starts 16px in, as everything else does.
           <FooterRow className="justify-between pl-0">
             {index > 0 && steps[index - 1] !== "code" ? (
               <Button
                 variant="ghost"
-                className={PRIMARY_BUTTON}
+                className={`${PRIMARY_BUTTON} px-4`}
                 onClick={() => setStep(steps[index - 1]!)}
               >
                 {t.setup.back}

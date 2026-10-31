@@ -30,12 +30,12 @@ const ROUND_BUTTON =
 /** Rows one under the other, with the bar's hairline between them. */
 const ROWS = "[&>*+*]:border-t [&>*+*]:border-t-(--glass-edge)";
 
-/** A row of the bar: its round mark, its two lines, and its buttons at the end. */
-const ROW = "flex min-h-18 min-w-0 items-center gap-2 pr-2";
+/** A row of the bar: its mark, its two lines, and its buttons at the end, 8px apart as siblings. */
+const ROW = "flex min-h-18 min-w-0 items-center gap-2 pr-4";
 
-/** The round mark at the start of a row, centred on the bar's own column. */
+/** The mark at the start of a row, in the bar's own column: its left edge on the panel's margin. */
 function RowMark({ children }: { children: React.ReactNode }) {
-  return <span className="flex w-[63px] shrink-0 justify-center pl-[7px]">{children}</span>;
+  return <span className="flex w-[46px] shrink-0 pl-4">{children}</span>;
 }
 
 /** Close or reopen one source, right where it is listed: a padlock, always the last button. */
@@ -131,14 +131,14 @@ function SourceRow({
         target="_blank"
         rel="noreferrer noopener"
         title={t.series.detail.openSource}
-        className="source group/source flex min-w-0 flex-1 items-center self-stretch py-3 focus-visible:outline-none"
+        className="source group/source flex min-w-0 flex-1 items-center self-stretch py-3 pr-2 focus-visible:outline-none"
       >
         <RowMark>
           {extractor ? (
             <ExtractorMark
               extractor={extractor}
-              className={cn("size-10 rounded-full", source.closed && "opacity-45 grayscale")}
-              iconClassName="size-5"
+              className={cn("size-5 rounded-full", source.closed && "opacity-45 grayscale")}
+              iconClassName="size-3"
             />
           ) : (
             <HugeiconsIcon icon={Link01Icon} className="size-5 text-muted-foreground" />
@@ -208,11 +208,13 @@ export function SeriesSources({ series }: { series: SeriesDto }) {
   return (
     <Collapsible.Root open={open} onOpenChange={setOpen} className={ROWS}>
       <div className={ROW}>
-        <Collapsible.Trigger className="group/head flex min-w-0 flex-1 items-center self-stretch py-3 text-left focus-visible:outline-none">
+        <Collapsible.Trigger className="group/head flex min-w-0 flex-1 items-center self-stretch py-3 pr-2 text-left focus-visible:outline-none">
           <RowMark>
-            <span className="flex size-10 items-center justify-center rounded-full bg-black/5 text-muted-foreground">
-              <HugeiconsIcon icon={Link01Icon} className="size-5" aria-hidden="true" />
-            </span>
+            <HugeiconsIcon
+              icon={Link01Icon}
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
           </RowMark>
           <span className="flex min-w-0 flex-1 flex-col pl-1.5 leading-snug">
             <span className="truncate text-lg group-hover/head:underline underline-offset-3">

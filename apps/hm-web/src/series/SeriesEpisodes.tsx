@@ -124,7 +124,7 @@ export function SeriesEpisodes({
     // One panel, as adding a series shows its episodes: the header and the selection's bar float
     // inside it over the frames. A clip, not a hidden overflow, so both can stick.
     <section aria-labelledby="episodes-title" className={cn(GLASS_PANEL, "min-w-0 overflow-clip")}>
-      <header className={cn(ISLAND, "top-6 mx-4 mt-4")}>
+      <header className={cn(ISLAND, "top-4 mx-4 mt-4")}>
         <h2 id="episodes-title" className="text-base font-medium">
           {t.series.episodes}
         </h2>
@@ -178,15 +178,15 @@ export function SeriesEpisodes({
         </button>
       </header>
       {failed && (
-        <p role="alert" className="px-8 pt-3 text-sm text-warning">
+        <p role="alert" className="px-4 pt-4 text-sm text-warning">
           {t.series.actionFailed}
         </p>
       )}
 
       {group && (
-        // No lines between the cards: each one's padding, and its rounded hover, keeps them apart.
+        // No gap: the grid's 8px plus each card's own 8px make the panel's 16px, to its edge and between frames.
         <section aria-label={titleOf(group.season)} className="px-2 pt-2 pb-2">
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-1">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]">
             {group.episodes.map((episode) => (
               <li key={episode.id}>
                 <EpisodeCard
@@ -209,7 +209,7 @@ export function SeriesEpisodes({
         <div
           role="toolbar"
           aria-label={t.series.selected(selection.size)}
-          className={cn(ISLAND, "bottom-6 mx-4 mb-4")}
+          className={cn(ISLAND, "bottom-4 mx-4 mb-4")}
         >
           <span className="mr-auto text-sm font-medium tabular-nums">
             {t.series.selected(selection.size)}

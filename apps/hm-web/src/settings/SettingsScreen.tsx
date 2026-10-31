@@ -127,9 +127,9 @@ export function SettingsScreen() {
   const t = useT();
   const settings = useSettings();
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-10">
       <Panel className="overflow-visible">
-        <header className="p-6">
+        <header className="p-4">
           <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
         </header>
         {settings.isError ? (

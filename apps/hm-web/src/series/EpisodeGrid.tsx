@@ -115,7 +115,7 @@ export function EpisodeGrid({
     // One panel, as a series shows its episodes: the header floats inside it over the frames. A
     // clip, not a hidden overflow, so the header can stick.
     <section aria-labelledby="episodes-title" className={cn(GLASS_PANEL, "min-w-0 overflow-clip")}>
-      <header className={cn(ISLAND, "top-6 mx-4 mt-4")}>
+      <header className={cn(ISLAND, "top-4 mx-4 mt-4")}>
         <h2 id="episodes-title" className="text-base font-medium">
           {t.add.episodesTitle}
         </h2>
@@ -124,7 +124,7 @@ export function EpisodeGrid({
         </span>
         {matches.length > 0 && <TmdbMatch matches={matches} />}
         {general.length > 0 && <GeneralWarnings warnings={general} />}
-        <label className="ml-auto flex cursor-pointer items-center gap-2.5 pr-3 text-sm">
+        <label className="ml-auto flex cursor-pointer items-center gap-2.5 text-sm">
           {t.add.includeAllShort}
           <Switch
             size="lg"
@@ -134,8 +134,8 @@ export function EpisodeGrid({
           />
         </label>
       </header>
-      {/* No lines between the cards: each one's padding, and its rounded hover, keeps them apart. */}
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-1 p-2">
+      {/* No gap: the grid's 8px plus each card's own 8px make the panel's 16px, to its edge and between frames. */}
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] p-2">
         {cells.map((cell) => {
           if (cell.kind === "gap") {
             const code = episodeCode(cell.at.season, cell.at.episode);

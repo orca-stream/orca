@@ -154,27 +154,27 @@ function ExtractorIndicator({
     return (
       <span
         aria-hidden="true"
-        className="flex size-14 items-center justify-center rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5"
+        className="flex size-10 items-center justify-center rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5"
       >
-        <HugeiconsIcon icon={Link01Icon} className="size-6" />
+        <HugeiconsIcon icon={Link01Icon} className="size-5" />
       </span>
     );
   }
   // The icon alone keeps the address wide; the name slides out over it on hover.
   return (
-    <span role="status" className="group/reader relative block size-14">
+    <span role="status" className="group/reader relative block size-10">
       <span
         className={cn(
           // Always on its white rim, so the gap to the edge of the address reads the same all round.
-          "absolute top-0 left-0 z-10 flex h-14 items-center rounded-full bg-white/90 p-1.5 shadow-xs ring-1 ring-black/5 transition-all duration-300 ease-out",
-          "group-hover/reader:pr-4 group-hover/reader:shadow-md",
+          "absolute top-0 left-0 z-10 flex h-10 items-center rounded-full bg-white/90 p-1 shadow-xs ring-1 ring-black/5 transition-all duration-300 ease-out",
+          "group-hover/reader:pr-3 group-hover/reader:shadow-md",
           faded && "opacity-60 group-hover/reader:opacity-100",
         )}
       >
         <ExtractorMark
           extractor={extractor}
-          className="size-11 rounded-full"
-          iconClassName="size-5"
+          className="size-8 rounded-full"
+          iconClassName="size-4"
         />
         <span
           aria-hidden="true"
@@ -636,7 +636,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   return (
     <div
       className={cn(
-        "mx-auto flex w-full flex-col gap-6",
+        "mx-auto flex w-full flex-col gap-4",
         // Once read: the bar on the left, the episodes on the right, each taking half the width.
         attached ? "xl:grid xl:grid-cols-2 xl:items-start xl:gap-4" : "max-w-5xl",
       )}
@@ -651,8 +651,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
         ref={columnRef}
         style={{ "--panel-h": `${columnHeight}px` } as CSSProperties}
         className={cn(
-          "flex min-w-0 flex-col gap-6",
-          attached && "xl:sticky xl:top-[min(1.5rem,calc(100svh-var(--panel-h)-1.5rem))]",
+          "flex min-w-0 flex-col gap-4",
+          attached && "xl:sticky xl:top-[min(1rem,calc(100svh-var(--panel-h)-1rem))]",
         )}
       >
         {/* The address floats as it is while the page scrolls, always clear of the window's top. */}
@@ -692,13 +692,13 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                     setUrlInvalid(false);
                     if (previewMutation.isError) previewMutation.reset();
                   }}
-                  className="h-full text-base md:text-lg"
+                  className="h-full pl-4! text-base md:text-lg"
                 />
-                <InputGroupAddon align="inline-start" className="cursor-default pl-[7px]">
+                <InputGroupAddon align="inline-start" className="cursor-default pl-[15px]">
                   {urlError ? (
                     <ErrorHint
                       error={urlError}
-                      className="size-14 bg-white/90 shadow-xs ring-1 ring-destructive/20 hover:bg-white [&_svg]:size-6"
+                      className="size-10 bg-white/90 shadow-xs ring-1 ring-destructive/20 hover:bg-white [&_svg]:size-5"
                     />
                   ) : (
                     <ExtractorIndicator extractor={reader} faded={!urlFilled} />
@@ -709,10 +709,10 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                     </span>
                   )}
                 </InputGroupAddon>
-                <InputGroupAddon align="inline-end" className="pr-[7px] has-[>button]:mr-0">
+                <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
                   {/* A circle that keeps the address wide; into an existing series it is that
                       series' cover, and its name slides out leftwards on hover, like the reader's. */}
-                  <span className="group/preview relative block size-14">
+                  <span className="group/preview relative block size-10">
                     <InputGroupButton
                       type="submit"
                       variant="default"
@@ -724,8 +724,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                             : t.add.preview
                       }
                       className={cn(
-                        "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
-                        goesInto && "p-1.5 group-hover/preview:pl-4",
+                        "absolute top-0 right-0 z-10 h-10 w-auto gap-0 rounded-full p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
+                        goesInto && "p-1 group-hover/preview:pl-3",
                       )}
                       disabled={!urlFilled || previewMutation.isPending}
                       aria-busy={previewMutation.isPending || undefined}
@@ -741,7 +741,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                       <span
                         className={cn(
                           "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
-                          goesInto ? "size-11 bg-white/20" : "size-14",
+                          goesInto ? "size-8 bg-white/20" : "size-10",
                         )}
                       >
                         {previewMutation.isPending ? (
@@ -764,9 +764,9 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
               {attached && offer && (
                 // The series this one already is, offered in place of the list: the whole row says
                 // it, and the two buttons at its end take it or set it aside.
-                <div className="flex h-14 items-center border-t border-t-(--glass-edge) bg-primary/5 pr-2">
+                <div className="flex h-14 items-center gap-2 border-t border-t-(--glass-edge) bg-primary/5 pr-4">
                   {/* No gap after the icon: the text then starts where the other rows' inputs do. */}
-                  <span className="flex w-[63px] shrink-0 justify-center pl-[7px] text-primary">
+                  <span className="flex w-[46px] shrink-0 justify-start pl-4 text-primary">
                     <HugeiconsIcon icon={FolderCheckIcon} className="size-5" />
                   </span>
                   <p role="status" className="min-w-0 flex-1 truncate pr-2 pl-1.5 text-base">
@@ -790,7 +790,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                     aria-label={t.add.addToIt}
                     title={t.add.addToIt}
                     onClick={() => setForm({ ...form, addTo: offer.value })}
-                    className="ml-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
                   >
                     <HugeiconsIcon icon={Tick02Icon} className="size-5" />
                   </button>
@@ -812,14 +812,11 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                       showClear={form.addTo !== ""}
                       className={cn(
                         BAR_ROW,
-                        "w-full rounded-none border-t border-t-(--glass-edge) pr-[19px] [&_input]:text-base",
+                        "w-full rounded-none border-t border-t-(--glass-edge) pr-4 [&_input]:text-base",
                       )}
                     >
                       {/* In the indicator's column above, so both texts start at the same place. */}
-                      <InputGroupAddon
-                        align="inline-start"
-                        className="w-[63px] justify-center pl-[7px]"
-                      >
+                      <InputGroupAddon align="inline-start" className="w-[46px] justify-start pl-4">
                         <HugeiconsIcon
                           icon={form.addTo === "" ? FolderAddIcon : Folder01Icon}
                           className="size-5"
@@ -1010,10 +1007,9 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                     className="flex-1"
                   />
                 </div>
-                {/* The bar ends the way it starts: what it will do, and the button that does it. The
-                    row's top line comes on top of the 72px, so the button sits as far from the
-                    rim as Preview does. */}
-                <div className="flex h-[calc(--spacing(18)+1px)] items-center gap-3 pr-[7px] pl-6">
+                {/* The bar ends the way it starts: what it will do, and the button that does it,
+                    16px from the rim as Preview is. */}
+                <div className="flex items-center gap-4 p-4">
                   <p
                     role={blocker ? "status" : undefined}
                     className={cn(
@@ -1043,7 +1039,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
               // hover cards do.
               <section
                 aria-label={sideCard.caption}
-                className="hidden border-t border-t-(--glass-edge) p-6 text-sm xl:block"
+                className="hidden border-t border-t-(--glass-edge) p-4 text-sm xl:block"
               >
                 <p className="mb-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   {sideCard.caption}

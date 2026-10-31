@@ -206,11 +206,8 @@ function LanguagesRow<Mode extends string>({
   );
 }
 
-/**
- * The bar's inputs drop to a smaller size on wide screens, and its icons sit a pixel further in; the
- * sign-in keeps the rows' text size and their icons' 24px from the edge.
- */
-const SAME_TEXT = "md:[&_input]:text-base [&>[data-slot=input-group-addon]]:pl-[5px]";
+/** The bar's inputs drop to a smaller size on wide screens; the sign-in keeps the rows' text size. */
+const SAME_TEXT = "md:[&_input]:text-base";
 
 function connectError(error: unknown, t: Messages): string {
   if (error instanceof ApiError) {

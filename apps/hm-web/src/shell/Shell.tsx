@@ -222,7 +222,7 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
         <Backdrop />
         {/* Home, the series and adding one have no bar: just their content, centred on the screen. */}
         {panelled && (
-          <header className="sticky top-0 z-20 px-3 pt-3 sm:px-6 sm:pt-4">
+          <header className="sticky top-0 z-20 px-4 pt-4">
             <nav
               aria-label={t.nav.label}
               className={cn(
@@ -251,15 +251,14 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
             "flex-1",
             // Centred while it fits; once it is taller than the window it starts at the top instead
             // of spilling above it.
-            bare
+            bare && location !== "/series/new"
               ? "flex items-center-safe justify-center p-3 sm:p-6" // the tile grid's gap
-              : isSeries
-                ? "px-3 py-4 sm:px-6 sm:py-6"
-                : "px-3 py-6 sm:px-6 sm:py-10",
+              : // Every form page: the panels' own 16px.
+                cn("p-4", bare && "flex items-center-safe justify-center"),
           )}
         >
           {panelled && !ownPanels ? (
-            <div className="glass mx-auto max-w-6xl rounded-3xl p-5 sm:p-8">{children}</div>
+            <div className="glass mx-auto max-w-6xl rounded-3xl p-4">{children}</div>
           ) : (
             children
           )}

@@ -33,7 +33,7 @@ export function ShowCard({ show, large = false }: { show: ShowCardData; large?: 
     show.imdbId === null ? null : `IMDb ${show.imdbId}`,
   ].filter((id) => id !== null);
   return (
-    <div className={cn("flex", large ? "gap-5" : "gap-3.5")}>
+    <div className={cn("flex", large ? "gap-4" : "gap-3.5")}>
       <PosterImage
         src={show.posterUrl}
         className={cn(

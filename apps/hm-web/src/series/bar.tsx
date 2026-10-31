@@ -28,7 +28,13 @@ export const GLASS_PANEL =
  * 16px, the grid's 8px plus a card's 8px, so their edges line up with the frames'.
  */
 export const ISLAND =
-  "sticky z-10 flex min-h-18 flex-wrap items-center gap-x-3 gap-y-2 rounded-[28px] border border-(--glass-edge) bg-(--glass-strong) py-3 pr-3 pl-6 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
+  "sticky z-10 flex min-h-18 flex-wrap items-center gap-4 rounded-[28px] border border-(--glass-edge) bg-(--glass-strong) px-4 py-3 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
+
+/*
+ * The one spacing of every panel: 16px from its edges to whatever is in it (icons, circles, buttons,
+ * text), between the things in it, and between the panels themselves. The icon column below is that
+ * margin, a 20px icon and the same 16px again before the text, less the 6px the text brings.
+ */
 
 /** Every row below the address: no border or ring of its own, a light tint while focused. */
 export const BAR_ROW =
@@ -106,7 +112,7 @@ export function BarField({
         )}
         {...input}
       />
-      <InputGroupAddon align="inline-start" className="w-[63px] justify-center pl-[7px]">
+      <InputGroupAddon align="inline-start" className="w-[46px] justify-start pl-4">
         {error ? (
           <ErrorHint error={error} />
         ) : busy ? (
@@ -122,7 +128,7 @@ export function BarField({
         <InputGroupAddon
           align="inline-end"
           aria-hidden="true"
-          className={cn("pr-5 text-sm", alignEnd && "pl-0.5")}
+          className={cn("pr-4 text-sm", alignEnd && "pl-0.5")}
         >
           {suffix}
         </InputGroupAddon>
@@ -179,12 +185,12 @@ export function BarPicker({
       <SelectTrigger
         aria-label={label}
         className={cn(
-          "h-14 w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pr-[19px] pl-0 text-base data-[size=default]:h-14 focus-visible:bg-white/45 focus-visible:border-(--glass-edge) focus-visible:ring-0 data-popup-open:bg-white/45",
+          "h-14 w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pr-4 pl-0 text-base data-[size=default]:h-14 focus-visible:bg-white/45 focus-visible:border-(--glass-edge) focus-visible:ring-0 data-popup-open:bg-white/45",
           className,
         )}
       >
         {/* In the indicator's column, with no gap after it: the text starts where the inputs' do. */}
-        <span className="flex w-[63px] shrink-0 justify-center pl-[7px]">
+        <span className="flex w-[46px] shrink-0 justify-start pl-4">
           {busy ? (
             <Spinner aria-label={busy} className="size-5" />
           ) : (
@@ -251,11 +257,11 @@ export function BarMultiPicker({
       <SelectTrigger
         aria-label={label}
         className={cn(
-          "h-14 w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pr-[19px] pl-0 text-base data-[size=default]:h-14 focus-visible:bg-white/45 focus-visible:border-(--glass-edge) focus-visible:ring-0 data-popup-open:bg-white/45",
+          "h-14 w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pr-4 pl-0 text-base data-[size=default]:h-14 focus-visible:bg-white/45 focus-visible:border-(--glass-edge) focus-visible:ring-0 data-popup-open:bg-white/45",
           className,
         )}
       >
-        <span className="flex w-[63px] shrink-0 justify-center pl-[7px]">
+        <span className="flex w-[46px] shrink-0 justify-start pl-4">
           <HugeiconsIcon icon={icon} className="size-5" />
         </span>
         <span title={summary} className="min-w-0 flex-1 truncate pr-2 pl-1.5 text-left">
@@ -311,13 +317,13 @@ export function BarToggle({
     <label
       title={hint}
       className={cn(
-        "flex h-14 min-w-0 cursor-pointer items-center pr-[19px] transition-colors hover:bg-white/30 has-focus-visible:bg-white/45",
+        "flex h-14 min-w-0 cursor-pointer items-center pr-4 transition-colors hover:bg-white/30 has-focus-visible:bg-white/45",
         className,
       )}
     >
       <span
         className={cn(
-          "flex w-[63px] shrink-0 justify-center pl-[7px] transition-colors",
+          "flex w-[46px] shrink-0 justify-start pl-4 transition-colors",
           checked ? "text-primary" : "text-muted-foreground",
         )}
       >
