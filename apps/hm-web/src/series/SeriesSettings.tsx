@@ -1,5 +1,5 @@
 import type { SeriesDto } from "@orca/hm-contract";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Clock01Icon,
@@ -12,12 +12,13 @@ import {
   VolumeHighIcon,
 } from "@hugeicons/core-free-icons";
 import { useMutations } from "@/api/mutations";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Spinner } from "@/components/ui/spinner";
 import { useNow } from "@/hooks/use-now";
 import { formatRelative } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
-import { BarField, BarMultiPicker, BarPicker, BarToggle, type PickItem } from "./bar";
+import { BarField, BarMultiPicker, BarPicker, BarToggle, HINT_CARD, type PickItem } from "./bar";
 import { digitsOf } from "./preview-form";
 import { SeriesSources } from "./SeriesSources";
 import {
@@ -44,9 +45,14 @@ const SECOND = "border-(--glass-edge) max-sm:border-t sm:border-l";
 const ROW_BUTTON =
   "flex h-10 shrink-0 items-center gap-2 rounded-full bg-white/70 px-4 text-sm font-medium ring-1 ring-black/5 transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
 
+/** How long typing has to stop before a typed setting saves itself. */
+const TYPING_PAUSE_MS = 800;
+
 /**
- * The series' settings as one bar, the way adding a series is: its addresses, when it is checked,
- * and every choice of its own as rows. One Save at the end sends whatever changed.
+ * The series' settings as one bar, the way adding a series is: its addresses and every choice of
+ * its own as rows. Each change saves itself: a switch or a list at once, a typed one once the typing
+ * stops (and only while it is valid). Looking for new episodes now is a round button beside how
+ * often it is done, with when it was and will be on hover.
  */
 export function SeriesSettings({
   series,
@@ -73,11 +79,27 @@ export function SeriesSettings({
   const queued = checkSeries.isSuccess && series.lastCheckedAt === request.lastCheckedAt;
 
   const form = draft ?? settingsOf(series);
-  const update = (next: Partial<SettingsForm>) => setDraft({ ...form, ...next });
   const invalid = invalidSettings(form);
-  const patch = toSettingsPatch(form, series);
-  const changes = patch === "invalid" ? null : Object.keys(patch).length;
-  const dirty = draft !== null && changes !== 0;
+
+  // Sends what differs from the series. The draft stays after it is saved: dropping it before the
+  // refetched series arrives would flash the old values back for a moment.
+  const typing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(typing.current), []);
+  function save(next: SettingsForm) {
+    clearTimeout(typing.current);
+    const patch = toSettingsPatch(next, series);
+    if (patch === "invalid" || Object.keys(patch).length === 0) return;
+    patchSeries.mutate({ seriesId: series.id, patch });
+  }
+  function update(change: Partial<SettingsForm>, typed = false) {
+    const next = { ...form, ...change };
+    setDraft(next);
+    if (!typed) save(next);
+    else {
+      clearTimeout(typing.current);
+      typing.current = setTimeout(() => save(next), TYPING_PAUSE_MS);
+    }
+  }
   const heights =
     series.maxHeight !== null && !(COMMON_HEIGHTS as readonly number[]).includes(series.maxHeight)
       ? [...COMMON_HEIGHTS, series.maxHeight].sort((a, b) => b - a)
@@ -113,10 +135,7 @@ export function SeriesSettings({
       : null,
   ].filter((part) => part !== null);
 
-  function save() {
-    if (patch === "invalid" || changes === 0) return;
-    patchSeries.mutate({ seriesId: series.id, patch }, { onSuccess: () => setDraft(null) });
-  }
+  const checkStatus = queued ? [t.series.checkQueued] : checks;
 
   return (
     <form
@@ -124,40 +143,11 @@ export function SeriesSettings({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        save();
+        save(form);
       }}
       className="border-t border-(--glass-edge) [&>*+*]:border-t [&>*+*]:border-t-(--glass-edge)"
     >
       <SeriesSources series={series} />
-
-      {/* When the site was last read, and the way to read it again right now. */}
-      <div className="flex min-h-14 items-center py-2 pr-2">
-        <span className="flex w-[63px] shrink-0 justify-center pl-[7px] text-muted-foreground">
-          <HugeiconsIcon icon={RefreshIcon} className="size-5" />
-        </span>
-        <p role="status" className="flex min-w-0 flex-1 flex-col pr-3 pl-1.5 text-sm leading-snug">
-          {queued ? (
-            <span>{t.series.checkQueued}</span>
-          ) : (
-            <>
-              <span className="truncate">{checks[0]}</span>
-              {checks[1] && (
-                <span className="truncate text-xs text-muted-foreground">{checks[1]}</span>
-              )}
-            </>
-          )}
-        </p>
-        <button
-          type="button"
-          disabled={checkSeries.isPending}
-          aria-busy={checkSeries.isPending || undefined}
-          onClick={() => checkSeries.mutate(series.id)}
-          className={ROW_BUTTON}
-        >
-          {checkSeries.isPending && <Spinner aria-hidden="true" />}
-          {t.series.checkNow}
-        </button>
-      </div>
 
       <div className={PAIR}>
         <BarToggle
@@ -167,21 +157,57 @@ export function SeriesSettings({
           checked={form.follow}
           onChange={(follow) => update({ follow })}
         />
-        <BarField
-          icon={Clock01Icon}
-          label={t.series.checkEvery}
-          placeholder={t.series.detail.intervalPlaceholder}
-          type="number"
-          min={1}
-          max={MAX_CHECK_HOURS}
-          step={1}
-          suffix={t.series.detail.hours}
-          alignEnd
-          error={invalid.has("interval") ? t.series.detail.intervalInvalid : undefined}
-          value={form.interval}
-          onChange={(event) => update({ interval: digitsOf(event.target.value) })}
-          className={SECOND}
-        />
+        <div className={cn(SECOND, "flex min-w-0 items-center pr-4")}>
+          <BarField
+            icon={Clock01Icon}
+            label={t.series.checkEvery}
+            placeholder={t.series.detail.intervalPlaceholder}
+            type="number"
+            min={1}
+            max={MAX_CHECK_HOURS}
+            step={1}
+            suffix={t.series.detail.hours}
+            alignEnd
+            error={invalid.has("interval") ? t.series.detail.intervalInvalid : undefined}
+            value={form.interval}
+            onChange={(event) => update({ interval: digitsOf(event.target.value) }, true)}
+            onBlur={() => save(form)}
+            className="min-w-0 flex-1"
+          />
+          {/* Looking now, beside how often: when it was and when it will be, on hover. */}
+          <HoverCard>
+            <HoverCardTrigger
+              delay={0}
+              closeDelay={100}
+              render={
+                <button
+                  type="button"
+                  aria-label={t.series.checkNow}
+                  disabled={checkSeries.isPending}
+                  aria-busy={checkSeries.isPending || undefined}
+                  onClick={() => checkSeries.mutate(series.id)}
+                />
+              }
+              className={cn(ROW_BUTTON, "size-10 justify-center px-0", queued && "text-primary")}
+            >
+              {checkSeries.isPending ? (
+                <Spinner aria-hidden="true" />
+              ) : (
+                <HugeiconsIcon icon={RefreshIcon} className="size-4" aria-hidden="true" />
+              )}
+            </HoverCardTrigger>
+            <HoverCardContent side="top" align="end" sideOffset={6} className={HINT_CARD}>
+              {checkStatus.map((line, index) => (
+                <p key={line} className={cn(index > 0 && "text-muted-foreground")}>
+                  {line}
+                </p>
+              ))}
+            </HoverCardContent>
+          </HoverCard>
+          <p role="status" className="sr-only">
+            {checkStatus.join(". ")}
+          </p>
+        </div>
       </div>
 
       <div className={PAIR}>
@@ -193,7 +219,8 @@ export function SeriesSettings({
           inputMode="numeric"
           error={invalid.has("tmdbId") ? t.add.tmdbInvalid : undefined}
           value={form.tmdbId}
-          onChange={(event) => update({ tmdbId: digitsOf(event.target.value) })}
+          onChange={(event) => update({ tmdbId: digitsOf(event.target.value) }, true)}
+          onBlur={() => save(form)}
         />
         <BarField
           icon={Tv01Icon}
@@ -202,7 +229,8 @@ export function SeriesSettings({
           title={t.series.ids.hint}
           error={invalid.has("imdbId") ? t.add.imdbInvalid : undefined}
           value={form.imdbId}
-          onChange={(event) => update({ imdbId: event.target.value.trim() })}
+          onChange={(event) => update({ imdbId: event.target.value.trim() }, true)}
+          onBlur={() => save(form)}
           className={SECOND}
         />
       </div>
@@ -260,45 +288,17 @@ export function SeriesSettings({
         />
       </div>
 
-      {/* The bar ends the way adding a series does: what it will do, and the button that does it. */}
-      <div className="flex h-[calc(--spacing(18)+1px)] items-center gap-3 pr-[7px] pl-6">
-        <p
-          role="status"
-          className={cn(
-            "min-w-0 flex-1 truncate text-sm",
-            patchSeries.isError ? "text-warning" : "text-muted-foreground",
-          )}
-        >
-          {patchSeries.isError
-            ? t.series.detail.saveFailed
-            : dirty && changes !== null
-              ? t.series.detail.unsaved(changes)
-              : patchSeries.isSuccess && draft === null
-                ? t.series.detail.saved
-                : null}
-        </p>
-        {draft !== null && (
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(null);
-              patchSeries.reset();
-            }}
-            className={cn(ROW_BUTTON, "h-14 px-6 text-base")}
-          >
-            {t.series.detail.discard}
+      {/* Nothing to press: only a save that failed says so, with the way to try again. */}
+      {patchSeries.isError && (
+        <div className="flex items-center gap-4 p-4">
+          <p role="alert" className="min-w-0 flex-1 text-sm text-warning">
+            {t.series.detail.saveFailed}
+          </p>
+          <button type="button" onClick={() => save(form)} className={ROW_BUTTON}>
+            {t.common.retry}
           </button>
-        )}
-        <button
-          type="submit"
-          disabled={!dirty || changes === null || patchSeries.isPending}
-          aria-busy={patchSeries.isPending || undefined}
-          className="flex h-14 shrink-0 items-center gap-2 rounded-full bg-primary px-6 text-base font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-        >
-          {patchSeries.isPending && <Spinner aria-hidden="true" />}
-          {patchSeries.isPending ? t.series.detail.saving : t.series.detail.save}
-        </button>
-      </div>
+        </div>
+      )}
     </form>
   );
 }

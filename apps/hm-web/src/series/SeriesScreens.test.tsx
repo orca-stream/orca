@@ -343,41 +343,42 @@ describe("SeriesDetailScreen", () => {
     expect(within(screen.getByText("Uno").closest("article")!).getByText("En pausa")).toBeTruthy();
   });
 
-  it("follows the series and changes the check interval in one PATCH, on Save", async () => {
+  it("saves a switch at once and a typed setting once the typing stops, with no Save", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
-    const save = (await screen.findByRole("button", {
-      name: "Guardar cambios",
-    })) as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
-    await user.click(screen.getByRole("switch", { name: "Seguir la serie" }));
+    const patches = () => requests.filter((r) => r.method === "PATCH");
+    await user.click(await screen.findByRole("switch", { name: "Seguir la serie" }));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(await patches()[0]!.json()).toEqual({ follow: true });
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
+
     const interval = screen.getByLabelText("Buscar episodios nuevos cada (horas)");
     await user.clear(interval);
     await user.type(interval, "6");
-    expect(screen.getByText("2 cambios sin guardar")).toBeTruthy();
-    // Nothing leaves until Save.
-    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
-    await user.click(save);
-    await waitFor(() => expect(requests.filter((r) => r.method === "PATCH")).toHaveLength(1));
-    expect(await requests.find((r) => r.method === "PATCH")!.json()).toEqual({
-      follow: true,
-      checkIntervalHours: 6,
-    });
+    // Not a request per key: one, once the typing stops.
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    expect(await patches()[1]!.json()).toMatchObject({ checkIntervalHours: 6 });
   });
 
-  it("puts the series back as it was on Discard", async () => {
+  it("says when a change could not be saved and tries it again", async () => {
     const user = userEvent.setup();
-    detailSetup();
-    const interval = (await screen.findByLabelText(
-      "Buscar episodios nuevos cada (horas)",
-    )) as HTMLInputElement;
-    await user.clear(interval);
-    await user.type(interval, "6");
-    await user.click(screen.getByRole("button", { name: "Descartar" }));
-    expect(interval.value).toBe("24");
-    expect(
-      (screen.getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    let fail = true;
+    const handler: Handler = (request) =>
+      request.method === "PATCH" && fail
+        ? jsonResponse({ error: "boom" }, 500)
+        : detailHandler(request);
+    const { requests } = renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      { handler, path: "/series/s1" },
+    );
+    await user.click(await screen.findByRole("switch", { name: "Seguir la serie" }));
+    expect(await screen.findByText("No se pudieron guardar los cambios.")).toBeTruthy();
+    fail = false;
+    const form = screen.getByRole("form", { name: "Ajustes de la serie" });
+    await user.click(within(form).getByRole("button", { name: "Reintentar" }));
+    await waitFor(() => expect(requests.filter((r) => r.method === "PATCH")).toHaveLength(2));
   });
 
   it("shows the last and the next check of a followed series, and checks now on demand", async () => {
@@ -403,12 +404,14 @@ describe("SeriesDetailScreen", () => {
         ),
       ).toBe(true),
     );
-    expect(await screen.findByText("Búsqueda en cola.")).toBeTruthy();
+    expect((await screen.findAllByText("Búsqueda en cola.")).length).toBeGreaterThan(0);
     // Once the check has run, the series is refetched with its new time and the row shows it.
     lastCheckedAt = Date.now();
     await queryClient.invalidateQueries();
-    expect(await screen.findByText(/Última búsqueda de episodios nuevos/)).toBeTruthy();
-    expect(screen.queryByText("Búsqueda en cola.")).toBeNull();
+    expect(
+      (await screen.findAllByText(/Última búsqueda de episodios nuevos/)).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryAllByText("Búsqueda en cola.")).toHaveLength(0);
   });
 
   it("looks for new episodes from the dock too, beside the ways home and to the series", async () => {
@@ -425,8 +428,8 @@ describe("SeriesDetailScreen", () => {
         ),
       ).toBe(true),
     );
-    // The row in the settings shares its state.
-    expect(await screen.findByText("Búsqueda en cola.")).toBeTruthy();
+    // The button beside the interval shares its state.
+    expect((await screen.findAllByText("Búsqueda en cola.")).length).toBeGreaterThan(0);
   });
 
   it("offers one more source and the missing episodes from the dock", async () => {
@@ -452,15 +455,19 @@ describe("SeriesDetailScreen", () => {
     expect(screen.getByRole("button", { name: "Buscar ahora" })).toBeTruthy();
   });
 
-  it("saves the series' own quality and tracks, sending only what changed", async () => {
+  it("saves the series' own quality and tracks as they are picked, sending only what changed", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
     const form = await screen.findByRole("form", { name: "Ajustes de la serie" });
-    const save = within(form).getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
+    const lastPatch = async () => {
+      const patches = requests.filter((r) => r.method === "PATCH");
+      return patches[patches.length - 1]!.clone().json();
+    };
 
     await user.click(within(form).getByRole("combobox", { name: "Altura máxima del vídeo" }));
     await user.click(await screen.findByRole("option", { name: "Hasta 720p" }));
+    await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
+    expect(await lastPatch()).toEqual({ maxHeight: 720 });
     const audio = within(form).getByRole("combobox", { name: "Idiomas de audio" });
     expect(audio.textContent).toBe("Audio: todos los idiomas");
     await user.click(audio);
@@ -474,28 +481,21 @@ describe("SeriesDetailScreen", () => {
     await user.click(await screen.findByRole("option", { name: /Sin subtítulos/ }));
     await user.keyboard("{Escape}");
     expect(subtitles.textContent).toBe("Sin subtítulos");
-    await user.click(save);
-
-    await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
-    const patch = requests.find((r) => r.method === "PATCH")!;
-    expect(await patch.json()).toEqual({
-      maxHeight: 720,
-      audioLangs: ["spa", "eng"],
-      subtitleLangs: [],
-    });
+    await waitFor(async () => expect(await lastPatch()).toMatchObject({ subtitleLangs: [] }));
   });
 
   it("saves the TMDB and IMDb ids, refusing one that is not an id", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
     const form = await screen.findByRole("form", { name: "Ajustes de la serie" });
-    const save = within(form).getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
     await user.type(within(form).getByLabelText("Id de IMDb"), "nope");
-    expect(save.disabled).toBe(true);
+    await user.tab();
+    // Not an id: nothing is sent, however long it waits.
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
     await user.clear(within(form).getByLabelText("Id de IMDb"));
     await user.type(within(form).getByLabelText("Id de TMDB"), "12345");
-    await user.click(save);
+    await user.tab();
     await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
     expect(await requests.find((r) => r.method === "PATCH")!.json()).toEqual({ tmdbId: "12345" });
   });
