@@ -88,9 +88,9 @@ cookie works.
 
 `pnpm setup:hm` writes `apps/hm-web/.env` for you; by hand, copy `apps/hm-web/.env.example`:
 
-| Variable        | Meaning                                                                                        |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `HM_SERVER_URL` | Where the H&M server listens, e.g. `http://127.0.0.1:8787` (match the profile's `HOST`/`PORT`) |
+| Variable        | Meaning                                                                                                                                         |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HM_SERVER_URL` | Where the H&M server listens, e.g. `http://127.0.0.1:8787` — only without `HM_PROFILE`: with it, the proxy follows that profile's `HOST`/`PORT` |
 
 While the server is not set up, the panel shows its **setup** at every address; once it is, the server's
 settings are in **Settings** (see [the server guide](hm-server.md#first-run)).

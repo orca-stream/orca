@@ -91,9 +91,9 @@ solo origen y la cookie de sesión funciona.
 
 `pnpm setup:hm` escribe `apps/hm-web/.env` por ti; a mano, copia `apps/hm-web/.env.example`:
 
-| Variable        | Significado                                                                                        |
-| --------------- | -------------------------------------------------------------------------------------------------- |
-| `HM_SERVER_URL` | Dónde escucha el servidor H&M, p. ej. `http://127.0.0.1:8787` (igual que `HOST`/`PORT` del perfil) |
+| Variable        | Significado                                                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `HM_SERVER_URL` | Dónde escucha el servidor H&M, p. ej. `http://127.0.0.1:8787` — solo sin `HM_PROFILE`: con él, el proxy va al `HOST`/`PORT` de ese perfil |
 
 Mientras el servidor no esté configurado, el panel muestra su **configuración** en cualquier dirección;
 después, los ajustes del servidor están en **Ajustes** (ver [la guía del servidor](hm-server.md#primera-vez)).
