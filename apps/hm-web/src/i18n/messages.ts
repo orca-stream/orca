@@ -502,7 +502,6 @@ const es = {
       upload: "Subir extractors.json",
       another: "Elegir otro archivo",
       download: "Descargar",
-      none: "Ningún sitio: solo Internet Archive.",
       sites: (names: string) => `Sitios: ${names}.`,
       notJson: "Ese archivo no es un JSON válido.",
       invalid: "Ese archivo no describe extractores:",
@@ -537,8 +536,6 @@ const es = {
     },
     browser: {
       title: "Navegador",
-      description:
-        "Un Chromium sin ventana abre los reproductores de los sitios para encontrar el vídeo.",
       on: "Usar el navegador",
       neededBySites: "Los extractores lo necesitan.",
       maxConcurrent: "Páginas abiertas a la vez",
@@ -548,7 +545,6 @@ const es = {
       userAgentPlaceholder: "El de Chromium",
       chromium: "Ruta de Chromium",
       chromiumPlaceholder: "El de Playwright",
-      noSandbox: "Sin sandbox (solo dentro de un contenedor)",
     },
     fields: {
       less: "Menos",
@@ -1089,7 +1085,6 @@ const en: typeof es = {
       upload: "Upload extractors.json",
       another: "Choose another file",
       download: "Download",
-      none: "No sites: Internet Archive only.",
       sites: (names: string) => `Sites: ${names}.`,
       notJson: "That file is not valid JSON.",
       invalid: "That file does not describe extractors:",
@@ -1124,7 +1119,6 @@ const en: typeof es = {
     },
     browser: {
       title: "Browser",
-      description: "A windowless Chromium opens the sites' players to find the video.",
       on: "Use the browser",
       neededBySites: "The extractors need it.",
       maxConcurrent: "Pages open at once",
@@ -1134,7 +1128,6 @@ const en: typeof es = {
       userAgentPlaceholder: "Chromium's own",
       chromium: "Chromium path",
       chromiumPlaceholder: "Playwright's",
-      noSandbox: "No sandbox (only inside a container)",
     },
     fields: {
       less: "Less",

@@ -144,7 +144,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 - En local, instala el Chromium de Playwright con
   `pnpm --filter @orca/hm-server exec playwright install chromium`, o escribe la ruta de otro Chromium
   en **Ajustes › Navegador**. En la imagen Docker construida con `WITH_CHROMIUM=1`, usa
-  `/usr/bin/chromium` y activa «Sin sandbox».
+  `/usr/bin/chromium`. Chromium arranca con su sandbox, y sin él solo cuando dice que no puede crearlo
+  (un contenedor, o ejecutado como root): no hay nada que activar.
 
 El navegador y ffmpeg pasan por un proxy local protegido que rechaza direcciones privadas y locales; ver
 [What the generic detector can reach](../../hm-server-design.md#what-the-generic-detector-can-reach).

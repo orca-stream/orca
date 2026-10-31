@@ -16,6 +16,7 @@ import {
   ComboboxContent,
   ComboboxItem,
   ComboboxList,
+  ComboboxTrigger,
   ComboboxValue,
   useComboboxAnchor,
 } from "@/components/ui/combobox";
@@ -328,7 +329,11 @@ export function ChipsRow({
         value={[...values]}
         onValueChange={(next: string[]) => take(next)}
         inputValue={text}
-        onInputValueChange={setText}
+        // Only what is typed: Base UI also empties the text when the list closes, which here happens
+        // as soon as the text stops being a value ("mega." on the way to "player.example").
+        onInputValueChange={(next, details) => {
+          if (details.reason === "input-change") setText(next);
+        }}
         open={open && shown.length > 0}
         onOpenChange={setOpen}
         itemToStringLabel={labelOf}
@@ -344,7 +349,8 @@ export function ChipsRow({
                 <ComboboxChip
                   key={value}
                   removeLabel={remove(labelOf(value))}
-                  className="h-7 rounded-full bg-primary/10 pl-2.5 text-sm text-primary"
+                  // The ✕ as round as the chip, as far from its end as from its top and bottom.
+                  className="h-7 rounded-full bg-primary/10 pl-2.5 text-sm text-primary has-data-[slot=combobox-chip-remove]:pr-0.5 [&_[data-slot=combobox-chip-remove]]:ml-0 [&_[data-slot=combobox-chip-remove]]:rounded-full"
                 >
                   {labelOf(value)}
                 </ComboboxChip>
@@ -356,10 +362,14 @@ export function ChipsRow({
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-error` : undefined}
             placeholder={values.length === 0 ? placeholder : undefined}
+            // Before the chips, taking the room they leave, so they stay flush with the row's end and
+            // what is typed shows up beside them.
+            // With a list to pick from, empty reads as that list's own choice ("All"), as a Select's does.
             className={cn(
-              "h-8 bg-transparent text-right text-base placeholder:text-muted-foreground",
-              // With chips, a narrow input after the last one that widens while typed in.
-              values.length === 0 ? "min-w-0 flex-1" : "w-6 min-w-0 flex-none focus:w-28",
+              "order-first h-8 min-w-16 flex-1 bg-transparent text-right text-base",
+              suggestions.length > 0
+                ? "placeholder:text-foreground"
+                : "placeholder:text-muted-foreground",
             )}
             onKeyDown={(event) => {
               if (event.key !== ",") return;
@@ -368,6 +378,14 @@ export function ChipsRow({
             }}
           />
         </ComboboxChips>
+        {suggestions.length > 0 && (
+          // A pointer's way to the list; the keyboard opens it from the input itself.
+          <ComboboxTrigger
+            aria-hidden="true"
+            tabIndex={-1}
+            className="ml-2 flex h-14 items-center"
+          />
+        )}
         <ComboboxContent anchor={anchor} align="end" sideOffset={8} className={BAR_POPUP}>
           <ComboboxList>
             {(value: string) => (
@@ -436,14 +454,23 @@ export function NoteRow({
   children,
   action,
   tone,
+  className,
 }: {
   icon: IconSvgElement;
   children: ReactNode;
   action?: ReactNode;
   tone?: "warning";
+  className?: string;
 }) {
   return (
-    <div className={cn(ROW, "flex-wrap gap-y-2 pr-[11px]", tone === "warning" && "text-warning")}>
+    <div
+      className={cn(
+        ROW,
+        "flex-wrap gap-y-2 pr-[11px]",
+        tone === "warning" && "text-warning",
+        className,
+      )}
+    >
       <IconCell icon={icon} />
       <div className="min-w-0 flex-1 py-3.5 pr-4 pl-1.5 text-base leading-snug">{children}</div>
       {action && <div className="ml-auto flex flex-wrap gap-2 py-2">{action}</div>}

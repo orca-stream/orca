@@ -466,8 +466,10 @@ export function ExtractorsSection({
   const some = names !== null && names.length > 0;
   return (
     <Group title={t.settings.extractors.title}>
+      {/* Its big buttons line up with the panel's own, below. */}
       <NoteRow
         icon={FileAttachmentIcon}
+        className="pr-[7px]"
         action={
           <>
             <input
@@ -500,7 +502,7 @@ export function ExtractorsSection({
         }
       >
         <p role="status">
-          {some ? t.settings.extractors.sites(names.join(", ")) : t.settings.extractors.none}
+          {some ? t.settings.extractors.sites(names.join(", ")) : t.settings.extractors.title}
         </p>
       </NoteRow>
       {problem && (
@@ -665,12 +667,14 @@ export function TracksSection(props: SectionProps) {
           placeholder={t.settings.fields.subtitlesPlaceholder}
         />
       )}
-      <ToggleRow
-        icon={Film01Icon}
-        label={t.settings.tracks.external}
-        checked={draft.externalSubtitles}
-        onChange={(externalSubtitles) => set({ externalSubtitles })}
-      />
+      {draft.subtitleMode !== "none" && (
+        <ToggleRow
+          icon={Film01Icon}
+          label={t.settings.tracks.external}
+          checked={draft.externalSubtitles}
+          onChange={(externalSubtitles) => set({ externalSubtitles })}
+        />
+      )}
     </Group>
   );
 }
@@ -692,7 +696,7 @@ export function BrowserSection({
   const { draft, set } = props;
   const on = draft.browserOn || neededBySites;
   return (
-    <Group title={t.settings.browser.title} description={t.settings.browser.description}>
+    <Group title={t.settings.browser.title}>
       <ToggleRow
         icon={BrowserIcon}
         label={t.settings.browser.on}
@@ -740,12 +744,6 @@ export function BrowserSection({
             icon={Folder01Icon}
             label={t.settings.browser.chromium}
             placeholder={t.settings.browser.chromiumPlaceholder}
-          />
-          <ToggleRow
-            icon={Shield01Icon}
-            label={t.settings.browser.noSandbox}
-            checked={draft.noSandbox}
-            onChange={(noSandbox) => set({ noSandbox })}
           />
         </AdvancedRows>
       )}

@@ -137,8 +137,9 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   tuning (pages at once, timeout, wait after loading) is filled in with suggested values.
 - Locally, install Playwright's Chromium with
   `pnpm --filter @orca/hm-server exec playwright install chromium`, or give another Chromium's path in
-  **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`
-  and turn on "No sandbox".
+  **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`.
+  Chromium starts with its sandbox, and without it only when it says it cannot make one (a container,
+  or running as root): nothing to turn on.
 
 The browser and ffmpeg go through a guarded local proxy that refuses private and local addresses; see
 [What the generic detector can reach](../hm-server-design.md#what-the-generic-detector-can-reach).

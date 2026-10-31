@@ -98,6 +98,10 @@ describe("SettingsScreen", () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
     const players = await screen.findByLabelText("Reproductores que nunca se prueban");
+    // Rubbing out what is typed keeps the rest, even while it is not a host ("mega.").
+    await user.type(players, "player.example{Backspace}{Backspace}");
+    expect((players as HTMLInputElement).value).toBe("mega.");
+    await user.clear(players);
     await user.type(players, "https://Player.example/file/x,");
     await user.type(players, "other.example{Enter}");
     expect(screen.getByText("player.example")).toBeTruthy();
@@ -137,7 +141,7 @@ describe("SettingsScreen", () => {
   it("refuses an extractors file that does not describe extractors, and says where", async () => {
     const user = userEvent.setup();
     renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
-    expect(await screen.findByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+    expect(await screen.findByText("Extractores", { selector: "p" })).toBeTruthy();
     const pkg = JSON.stringify({ name: "x", version: "1.0.0" });
     await user.upload(
       screen.getByLabelText("Subir extractors.json"),
@@ -145,7 +149,7 @@ describe("SettingsScreen", () => {
     );
     expect(await screen.findByText("Ese archivo no describe extractores:")).toBeTruthy();
     expect(screen.getByText("name")).toBeTruthy();
-    expect(screen.getByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+    expect(screen.getByText("Extractores", { selector: "p" })).toBeTruthy();
 
     await user.upload(
       screen.getByLabelText("Subir extractors.json"),
@@ -157,7 +161,7 @@ describe("SettingsScreen", () => {
   it("takes a new extractors file and saves it on its own", async () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
-    expect(await screen.findByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+    expect(await screen.findByText("Extractores", { selector: "p" })).toBeTruthy();
     const sites = JSON.stringify({
       mine: {
         reads: "api",
