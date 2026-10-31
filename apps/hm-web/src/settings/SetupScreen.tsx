@@ -34,6 +34,9 @@ import { FieldRow, FooterRow, Group, Panel, PRIMARY_BUTTON } from "./rows";
 
 type Step = "code" | "jellyfin" | "extras" | "downloads";
 
+/** The sign-in's form, submitted by the step's one button. */
+const JELLYFIN_FORM = "setup-jellyfin";
+
 /** Which step each field is asked in, to go back to the first one that is wrong. */
 const STEP_OF: Partial<Record<DraftField, Step>> = {
   jellyfinUrl: "jellyfin",
@@ -164,17 +167,20 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
   }
 
   const canLeaveJellyfin = draft.apiKey !== "";
+  // The step's one button connects while the sign-in is open, and goes on once it is not.
+  const [jellyfinForm, setJellyfinForm] = useState({ editing: true, ready: false, pending: false });
+  const connecting = step === "jellyfin" && jellyfinForm.editing;
 
   return (
     <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
       <Panel>
-        <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
-          <div className="flex flex-col gap-3">
-            <img src={logotype} alt={t.brand} className="h-6 w-auto self-start" />
-            <h1 className="text-2xl font-semibold tracking-tight">{t.setup.title}</h1>
-            <p className="text-muted-foreground">{t.setup.intro}</p>
-          </div>
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+          {/* "Set up" and the logotype as one title, read as "Set up ORCA'H&M". */}
+          <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+            {t.setup.title}
+            <img src={logotype} alt={t.brand} className="h-7 w-auto" />
+          </h1>
           <div className="flex flex-col items-start gap-2 sm:items-end">
             <p
               className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums"
@@ -215,9 +221,15 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
               set={set}
               during="setup"
               {...(code ? { code } : {})}
+              formId={JELLYFIN_FORM}
+              onFormState={setJellyfinForm}
               onConnected={(connection, signIn) => {
                 setLibraries(connection.libraries);
                 setCredentials(signIn);
+                // With a single folder there is nothing to pick: straight on. With several, or none,
+                // the folder is shown to pick or type.
+                const folders = connection.libraries.flatMap((library) => library.locations);
+                if (folders.length === 1) setStep(steps[index + 1]!);
               }}
             />
             {canLeaveJellyfin && (
@@ -271,6 +283,18 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
                   : finish.isPending
                     ? t.setup.finishing
                     : t.setup.finish}
+              </PendingButton>
+            ) : connecting ? (
+              <PendingButton
+                type="submit"
+                form={JELLYFIN_FORM}
+                className={PRIMARY_BUTTON}
+                disabled={!jellyfinForm.ready}
+                pending={jellyfinForm.pending}
+              >
+                {jellyfinForm.pending
+                  ? t.settings.jellyfin.connecting
+                  : t.settings.jellyfin.connectAndGo}
               </PendingButton>
             ) : (
               <Button

@@ -1,4 +1,11 @@
-import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
@@ -35,6 +42,7 @@ import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
+import { BarField } from "@/series/bar";
 import { useConnectJellyfin } from "./api";
 import { extractorNames, type Draft, type DraftErrors, type DraftField } from "./draft";
 import { AdvancedRows, FieldRow, Group, NoteRow, ROWS, SelectRow, ToggleRow } from "./rows";
@@ -91,10 +99,18 @@ export function JellyfinSection({
   set,
   during,
   code,
+  formId,
+  onFormState,
   onConnected,
 }: Omit<SectionProps, "errors"> & {
   during: "setup" | "settings";
   code?: string;
+  /**
+   * When the panel's own button connects (the setup's one button), the form's id for it, and how the
+   * form stands so the button can say so. Without it, the section has its own Connect button.
+   */
+  formId?: string;
+  onFormState?: (state: { editing: boolean; ready: boolean; pending: boolean }) => void;
   /** With the sign-in that made the key, so the setup can sign the person in when it is done. */
   onConnected: (
     connection: JellyfinConnection,
@@ -108,6 +124,10 @@ export function JellyfinSection({
   const [password, setPassword] = useState("");
   const [editing, setEditing] = useState(draft.jellyfinUrl === "");
   const [connectedTo, setConnectedTo] = useState<string | null>(null);
+  const ready = url.trim() !== "" && username !== "";
+  useEffect(() => {
+    onFormState?.({ editing, ready, pending: connect.isPending });
+  }, [onFormState, editing, ready, connect.isPending]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -150,7 +170,7 @@ export function JellyfinSection({
           </p>
         </NoteRow>
       ) : (
-        <form onSubmit={submit} className={ROWS}>
+        <form id={formId} onSubmit={submit} className={ROWS}>
           <FieldRow
             icon={Link01Icon}
             label={t.settings.jellyfin.url}
@@ -160,41 +180,50 @@ export function JellyfinSection({
             value={url}
             onChange={(event) => setUrl(event.target.value)}
           />
-          <FieldRow
-            icon={UserIcon}
-            label={t.settings.jellyfin.username}
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <FieldRow
-            icon={LockPasswordIcon}
-            label={t.settings.jellyfin.password}
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <NoteRow
-            icon={ConnectIcon}
-            tone={connect.isError ? "warning" : undefined}
-            action={
-              <PendingButton
-                type="submit"
-                className="rounded-full"
-                disabled={url.trim() === "" || username === ""}
-                pending={connect.isPending}
-              >
-                {connect.isPending ? t.settings.jellyfin.connecting : t.settings.jellyfin.connect}
-              </PendingButton>
-            }
-          >
-            {connect.isError ? (
-              <p role="alert">{connectError(connect.error, t)}</p>
-            ) : (
-              <p className="text-muted-foreground">{t.settings.jellyfin.connectHint}</p>
-            )}
-          </NoteRow>
+          {/* The sign-in side by side, each named by its placeholder, as the new series bar does. */}
+          <div className="grid sm:grid-cols-2">
+            <BarField
+              icon={UserIcon}
+              label={t.settings.jellyfin.username}
+              placeholder={t.settings.jellyfin.username}
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+            <BarField
+              icon={LockPasswordIcon}
+              label={t.settings.jellyfin.password}
+              placeholder={t.settings.jellyfin.password}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="border-t border-t-(--glass-edge) sm:border-t-0 sm:border-l sm:border-l-(--glass-edge)"
+            />
+          </div>
+          {/* An error, or the section's own button; the setup's button is the panel's. */}
+          {(connect.isError || !formId) && (
+            <NoteRow
+              icon={connect.isError ? Alert02Icon : ConnectIcon}
+              tone={connect.isError ? "warning" : undefined}
+              action={
+                !formId && (
+                  <PendingButton
+                    type="submit"
+                    className="rounded-full"
+                    disabled={!ready}
+                    pending={connect.isPending}
+                  >
+                    {connect.isPending
+                      ? t.settings.jellyfin.connecting
+                      : t.settings.jellyfin.connect}
+                  </PendingButton>
+                )
+              }
+            >
+              {connect.isError && <p role="alert">{connectError(connect.error, t)}</p>}
+            </NoteRow>
+          )}
         </form>
       )}
     </Group>

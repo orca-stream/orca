@@ -42,7 +42,7 @@ async function connect(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
   await user.type(screen.getByLabelText("Usuario administrador"), "sam");
   await user.type(screen.getByLabelText("Contraseña"), "s3cret");
-  await user.click(screen.getByRole("button", { name: "Conectar" }));
+  await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
   await screen.findByText("Conectado a Casa. H&M ya tiene su clave.");
 }
 
@@ -53,8 +53,10 @@ describe("SetupScreen", () => {
       handler: server(),
     });
     expect(screen.getByText("Paso 1 de 3")).toBeTruthy();
-    // Nothing to go on with until Jellyfin made the key.
-    expect(screen.getByRole("button", { name: "Siguiente" }).hasAttribute("disabled")).toBe(true);
+    // One button: it connects first, and only once there is an address and a user.
+    expect(screen.getByRole("button", { name: "Conectar y seguir" }).hasAttribute("disabled")).toBe(
+      true,
+    );
 
     await connect(user);
     expect(await bodyOf(requests, "/api/setup/jellyfin")).toEqual({
@@ -103,6 +105,22 @@ describe("SetupScreen", () => {
     });
   });
 
+  it("goes straight on when Jellyfin has a single shows folder", async () => {
+    const user = userEvent.setup();
+    const single = { ...CONNECTION, libraries: [{ name: "Series", locations: ["/media/tv"] }] };
+    const base = server();
+    renderApp(<SetupScreen needsCode={false} />, {
+      handler: (request) =>
+        new URL(request.url).pathname === "/api/setup/jellyfin"
+          ? jsonResponse(single)
+          : base(request),
+    });
+    await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
+    await user.type(screen.getByLabelText("Usuario administrador"), "sam");
+    await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
+    expect(await screen.findByText("Paso 2 de 3")).toBeTruthy();
+  });
+
   it("asks for the console's code first when opened from another device", async () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<SetupScreen needsCode />, { handler: server("ABCD-EFGH") });
@@ -130,7 +148,7 @@ describe("SetupScreen", () => {
     });
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "kid");
-    await user.click(screen.getByRole("button", { name: "Conectar" }));
+    await user.click(screen.getByRole("button", { name: "Conectar y seguir" }));
     expect((await screen.findByRole("alert")).textContent).toBe(
       "Esa cuenta no es de administrador.",
     );
