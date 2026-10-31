@@ -32,6 +32,8 @@ export interface QueueOptions {
   events: QueueEvents;
   /** How many jobs of each fixed resource may run at once; every host lane runs one at a time. */
   limits: Record<FixedResource, number>;
+  /** Downloads take turns by episode: the next one starts once the current one is done or failed. */
+  oneEpisodeAtATime?: boolean;
   owner?: string;
   leaseMs?: number;
   heartbeatMs?: number;
@@ -58,6 +60,8 @@ export class JobQueue implements JobCanceller, QueueSignal {
     string,
     { controller: AbortController; done: Promise<void> }
   >();
+  /** Jobs stopped to wait (their series was paused): back to the queue, not cancelled. */
+  private readonly interrupting = new Set<string>();
   private pumping: Promise<void> | undefined;
   private pumpAgain = false;
   private stopping = false;
@@ -70,6 +74,7 @@ export class JobQueue implements JobCanceller, QueueSignal {
       heartbeatMs: 15_000,
       pollMs: 2_000,
       progressIntervalMs: 1_000,
+      oneEpisodeAtATime: false,
       onError: (error: unknown) => console.error("job queue:", error),
       ...options,
     };
@@ -131,7 +136,9 @@ export class JobQueue implements JobCanceller, QueueSignal {
   }
 
   private async claimAndLaunch(resource: Resource): Promise<boolean> {
-    const job = await this.options.jobs.claim(resource, this.options.owner, this.options.leaseMs);
+    const job = await this.options.jobs.claim(resource, this.options.owner, this.options.leaseMs, {
+      oneEpisodeAtATime: this.options.oneEpisodeAtATime,
+    });
     if (!job) return false;
     this.launch(job);
     return true;
@@ -187,6 +194,18 @@ export class JobQueue implements JobCanceller, QueueSignal {
     if (isTerminal(last.status)) return last;
     // Still live after every attempt: say so instead of handing back a job that did not stop.
     throw new AppError("conflict", `Job ${id} is still ${last.status}; try cancelling it again`);
+  }
+
+  /**
+   * Stops a running job and queues it again as it was (payload, lane), refunding the attempt. Its
+   * files stay, so a download picks up where it stopped. Nothing to do for a job not running here.
+   */
+  async interrupt(id: string): Promise<void> {
+    const running = this.running.get(id);
+    if (!running) return;
+    this.interrupting.add(id);
+    running.controller.abort();
+    await running.done;
   }
 
   private launch(job: Job): void {
@@ -249,6 +268,17 @@ export class JobQueue implements JobCanceller, QueueSignal {
     } catch (error) {
       if (controller.signal.aborted || error instanceof AbortedError) {
         if (this.stopping) return;
+        if (this.interrupting.delete(job.id)) {
+          const next = await jobs.reroute(job.id, owner, {
+            resource: job.resource,
+            payload: job.payload,
+            runAfter: clock.now(),
+            refund: true,
+            note: "Paused",
+          });
+          await settled(next, "requeued");
+          return;
+        }
         await settled(await jobs.cancelRunning(job.id, owner), "cancelled");
         return;
       }
@@ -283,6 +313,8 @@ export class JobQueue implements JobCanceller, QueueSignal {
       );
     } finally {
       if (heartbeat) clearInterval(heartbeat);
+      // A job that finished before the interrupt reached it.
+      this.interrupting.delete(job.id);
     }
   }
 

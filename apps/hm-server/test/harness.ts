@@ -18,6 +18,7 @@ import {
   FakeAuthenticator,
   FakeDownloader,
   FakeImageFetcher,
+  FakeEpisodeGuide,
   FakeMediaServer,
   RecordingNotifier,
   FakeStreamDetector,
@@ -38,6 +39,10 @@ export async function createHarness(
     limits?: Partial<Record<"browser" | "ffmpeg" | "download" | "none", number>>;
     /** Extra sites next to Internet Archive. */
     extractors?: SiteExtractor[];
+    /** One episode at a time, players in order (SEQUENTIAL_DOWNLOADS). */
+    sequentialDownloads?: boolean;
+    /** Hosts whose players are never tried (SKIP_PLAYERS). */
+    skipPlayers?: string[];
   } = {},
 ) {
   const db = testDatabase();
@@ -49,6 +54,7 @@ export async function createHarness(
   const { http, requests } = fakeHttp({ [metadataUrl(BEVHILL)]: fixture(`${BEVHILL}.metadata`) });
   const downloader = new FakeDownloader();
   const mediaServer = new FakeMediaServer();
+  const episodeGuide = new FakeEpisodeGuide();
   const authenticator = new FakeAuthenticator();
   const images = new FakeImageFetcher();
   const detector = new FakeStreamDetector();
@@ -70,10 +76,13 @@ export async function createHarness(
     images,
     authenticator,
     mediaServer,
+    episodeGuide,
     downloaders: [downloader],
     detector,
     guard: testGuard(),
     streamDefaults: {},
+    sequentialDownloads: options.sequentialDownloads ?? false,
+    skipPlayers: options.skipPlayers ?? [],
     events: bus,
     notifications: new NotificationService({
       notifiers: [new PanelNotifier(db.notifications, bus), extraNotifier],
@@ -86,7 +95,7 @@ export async function createHarness(
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     adminRecheckMs: 3600 * 1000,
     queue: { notify: () => queue.notify() },
-    canceller: { cancel: (id) => queue.cancel(id) },
+    canceller: { cancel: (id) => queue.cancel(id), interrupt: (id) => queue.interrupt(id) },
   };
 
   const { queueEvents } = createJobEvents(deps);
@@ -97,6 +106,7 @@ export async function createHarness(
     handler: createJobHandler(deps),
     events: queueEvents,
     limits: { browser: 1, ffmpeg: 1, download: 2, none: 4, ...options.limits },
+    oneEpisodeAtATime: options.sequentialDownloads ?? false,
     heartbeatMs: 0,
     owner: "harness",
   });
@@ -113,6 +123,7 @@ export async function createHarness(
     requests,
     downloader,
     mediaServer,
+    episodeGuide,
     authenticator,
     images,
     detector,

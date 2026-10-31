@@ -62,3 +62,11 @@ export function formatRelative(date: Date, now: Date, locale: Locale): string {
   }
   return formatter.format(seconds, "second");
 }
+
+/** `2021-04-11` as the panel's language writes a date. */
+export function formatDate(date: string, locale: string): string {
+  const parsed = new Date(`${date}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? date
+    : parsed.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+}

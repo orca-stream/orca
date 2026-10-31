@@ -293,6 +293,46 @@ describe("FsLibraryWriter", () => {
     void other;
   });
 
+  it("renames a show's own episodes, leaving behind a companion it is not allowed to move", async () => {
+    const { rename } = await import("node:fs/promises");
+    const guarded = new FsLibraryWriter(root, {
+      rename: async (from, to) => {
+        if (String(from).endsWith(".trickplay")) {
+          const error = new Error("permission denied") as NodeJS.ErrnoException;
+          error.code = "EACCES";
+          throw error;
+        }
+        await rename(from, to);
+      },
+    });
+    const series = aSeries();
+    const old = join(root, "The Beverly Hillbillies (1962)", "Season 2");
+    await mkdir(join(old, "S02E02.trickplay"), { recursive: true });
+    await writeFile(join(old, "S02E02.mp4"), "video");
+    await writeFile(join(old, "S02E02-thumb.jpg"), "thumb");
+    await writeFile(join(old, "S02E02.spa.srt"), "subs");
+
+    const placed = await guarded.renameEpisodes(series, [
+      { season: 2, episode: 2, path: join(old, "S02E02.mp4") },
+    ]);
+
+    expect(placed).toEqual([
+      {
+        season: 2,
+        episode: 2,
+        relativePath: "The Beverly Hillbillies (1962)/Season 02/The Beverly Hillbillies S02E02.mp4",
+      },
+    ]);
+    expect(
+      (await readdir(join(root, "The Beverly Hillbillies (1962)", "Season 02"))).sort(),
+    ).toEqual([
+      "The Beverly Hillbillies S02E02-thumb.jpg",
+      "The Beverly Hillbillies S02E02.mp4",
+      "The Beverly Hillbillies S02E02.spa.srt",
+    ]);
+    expect(await readdir(old)).toEqual(["S02E02.trickplay"]);
+  });
+
   describe("subtitle files with names that cannot be used", () => {
     async function commitWith(sidecars: { name: string; options: object }[]) {
       const series = aSeries();

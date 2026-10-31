@@ -7,7 +7,7 @@ const bool = z
   .transform((value) => value === "true" || value === "1");
 const count = (fallback: number) => z.coerce.number().int().min(1).max(32).default(fallback);
 
-/** Required once the browser is on (generic detector or a sites file); no default fits every site. */
+/** Required once the browser is on (generic detector, a sites or show API file); no default fits every site. */
 const positive = z.coerce.number().int().min(1);
 const DetectorEnv = z.object({
   HM_DETECTOR_MAX_CONCURRENT: positive.max(8),
@@ -31,6 +31,23 @@ const languageList = z
     z.array(z.string().regex(/^[a-z]{3}$/, "use ISO 639-2 codes such as eng, spa, jpn")).max(10),
   );
 
+/** `player.example, other.example` as ["player.example", "other.example"]; an empty string is an empty list. */
+const hostList = z
+  .string()
+  .transform((value) =>
+    value
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter((part) => part !== ""),
+  )
+  .pipe(
+    z
+      .array(
+        z.string().regex(/^[a-z0-9.-]+$/, "host names without scheme or path, such as player.example"),
+      )
+      .max(50),
+  );
+
 const Env = z.object({
   DEFAULT_MAX_HEIGHT: z.coerce.number().int().min(144).max(4320).optional(),
   DEFAULT_AUDIO_LANGS: languageList.optional(),
@@ -39,11 +56,15 @@ const Env = z.object({
   HM_GENERIC_DETECTOR: bool.default(false),
   /** A JSON file describing sites by their selectors; their players need the browser too. */
   HM_SITES_FILE: z.string().min(1).optional(),
+  /** A JSON file describing sites whose JSON API lists a show; their players need the browser too. */
+  HM_SHOW_API_FILE: z.string().min(1).optional(),
   DB_FILE: z.string().min(1),
   MEDIA_ROOT: z.string().min(1),
   JELLYFIN_URL: z.url(),
   JELLYFIN_API_KEY: z.string().min(1),
   JELLYFIN_MEDIA_ROOT: z.string().min(1),
+  /** Lists a show's seasons and episodes when adding one; without it they are typed by hand. */
+  TMDB_API_KEY: z.string().trim().min(1).optional(),
   PORT: z.coerce.number().int().min(1).max(65535),
   HOST: z.string().min(1),
   WEB_ROOT: z.string().min(1).optional(),
@@ -53,9 +74,20 @@ const Env = z.object({
   DOWNLOAD_CONCURRENCY: count(2),
   FFMPEG_CONCURRENCY: count(1),
   BROWSER_CONCURRENCY: count(1),
+  /** One episode at a time, its players in the page's order; failing them all fails the episode. */
+  SEQUENTIAL_DOWNLOADS: bool.default(false),
+  /** Players never tried, by host (a host covers its subdomains): those no download can come from. */
+  SKIP_PLAYERS: hostList.optional(),
   // Overrides of what each extractor declares for its hosts; absent means "use the declaration".
   DOWNLOADS_PER_HOST: z.coerce.number().int().min(1).max(32).optional(),
   METADATA_PER_SEC: z.coerce.number().positive().max(100).optional(),
+  /** Connections one direct file is fetched over, for hosts whose extractor does not say. */
+  DOWNLOAD_CONNECTIONS: z.coerce.number().int().min(1).max(16).default(1),
+  /**
+   * How long ffprobe may read a stream over the network before the player counts as failed. A copied
+   * HLS stream is read from disk instead; this is for what cannot be copied, on slow players.
+   */
+  PROBE_TIMEOUT_MS: z.coerce.number().int().min(1000).default(180_000),
 });
 
 export interface DetectorConfig {
@@ -75,16 +107,24 @@ export interface Config {
   externalSubtitles: boolean;
   /** Null while neither HM_GENERIC_DETECTOR nor HM_SITES_FILE asks for it: no browser. */
   detector: DetectorConfig | null;
+  /** One episode at a time, its players in order (SEQUENTIAL_DOWNLOADS). */
+  sequentialDownloads: boolean;
+  /** Hosts of players never tried (SKIP_PLAYERS); empty when the environment names none. */
+  skipPlayers: string[];
   /** Offer the "Generic page" extractor (HM_GENERIC_DETECTOR). */
   genericExtractor: boolean;
   /** Where the sites described by selectors are (HM_SITES_FILE). */
   sitesFile: string | undefined;
+  /** Where the sites read through their JSON API are (HM_SHOW_API_FILE). */
+  showApiFile: string | undefined;
   dbFile: string;
   mediaRoot: string;
   jellyfinUrl: string;
   jellyfinApiKey: string;
   /** The media root as Jellyfin sees it. */
   jellyfinMediaRoot: string;
+  /** TMDB_API_KEY: a v3 key or a v4 read token; undefined turns the episode guide off. */
+  tmdbApiKey: string | undefined;
   port: number;
   host: string;
   webRoot: string | undefined;
@@ -96,6 +136,10 @@ export interface Config {
   concurrency: { download: number; ffmpeg: number; browser: number; none: number };
   /** Overrides of the per-host limits the extractors declare; empty when the environment says nothing. */
   hostLimits: Partial<ExtractorLimits>;
+  /** Connections one direct file is fetched over when its host's extractor does not say. */
+  downloadConnections: number;
+  /** How long ffprobe may read a stream over the network. */
+  probeTimeoutMs: number;
 }
 
 export class ConfigError extends Error {
@@ -109,7 +153,10 @@ export class ConfigError extends Error {
 export function loadConfig(env: Record<string, string | undefined>): Config {
   const parsed = Env.safeParse(env);
   const detectorOn =
-    parsed.success && (parsed.data.HM_GENERIC_DETECTOR || parsed.data.HM_SITES_FILE !== undefined);
+    parsed.success &&
+    (parsed.data.HM_GENERIC_DETECTOR ||
+      parsed.data.HM_SITES_FILE !== undefined ||
+      parsed.data.HM_SHOW_API_FILE !== undefined);
   const detectorParsed = detectorOn ? DetectorEnv.safeParse(env) : null;
   const issues = [
     ...(parsed.success ? [] : parsed.error.issues),
@@ -145,17 +192,21 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
       : null,
     genericExtractor: e.HM_GENERIC_DETECTOR,
     sitesFile: e.HM_SITES_FILE,
+    showApiFile: e.HM_SHOW_API_FILE,
     dbFile: e.DB_FILE,
     mediaRoot: e.MEDIA_ROOT,
     jellyfinUrl: e.JELLYFIN_URL.replace(/\/+$/, ""),
     jellyfinApiKey: e.JELLYFIN_API_KEY,
     jellyfinMediaRoot: e.JELLYFIN_MEDIA_ROOT,
+    tmdbApiKey: e.TMDB_API_KEY,
     port: e.PORT,
     host: e.HOST,
     webRoot: e.WEB_ROOT,
     deviceId: e.DEVICE_ID,
     contactEmail: e.CONTACT_EMAIL,
     secureCookies: e.SECURE_COOKIES,
+    sequentialDownloads: e.SEQUENTIAL_DOWNLOADS,
+    skipPlayers: e.SKIP_PLAYERS ?? [],
     concurrency: {
       download: e.DOWNLOAD_CONCURRENCY,
       ffmpeg: e.FFMPEG_CONCURRENCY,
@@ -166,6 +217,8 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
       ...(e.DOWNLOADS_PER_HOST !== undefined ? { downloadsPerHost: e.DOWNLOADS_PER_HOST } : {}),
       ...(e.METADATA_PER_SEC !== undefined ? { metadataPerSec: e.METADATA_PER_SEC } : {}),
     },
+    downloadConnections: e.DOWNLOAD_CONNECTIONS,
+    probeTimeoutMs: e.PROBE_TIMEOUT_MS,
   };
 }
 

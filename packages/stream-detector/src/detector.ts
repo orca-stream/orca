@@ -1,6 +1,8 @@
 import {
+  adMediaUrls,
   classifyPlaylistBody,
   classifyRequest,
+  mayDescribeAds,
   pickBest,
   type Candidate,
   type StreamKind,
@@ -38,6 +40,8 @@ export interface RequestLike {
   url(): string;
   resourceType(): string;
   allHeaders(): Promise<Record<string, string>>;
+  /** The request this one is a redirect of. Absent in fakes that don't redirect. */
+  redirectedFrom?(): RequestLike | null;
 }
 export interface ResponseLike {
   request(): RequestLike;
@@ -327,6 +331,13 @@ export class PlaywrightStreamDetector {
 
     return new Promise<Candidate[]>((resolve, reject) => {
       const found = new Map<string, Candidate>();
+      // Every address each candidate went through, redirects included: an ad is named by its first.
+      const chains = new Map<string, string[]>();
+      // Video files that VAST/VMAP documents the page read play as ads.
+      const ads = new Set<string>();
+      const isAd = (url: string) => (chains.get(url) ?? [url]).some((hop) => ads.has(hop));
+      /** The candidates that are not ads: an ad starts first and must not stand for the episode. */
+      const streams = () => [...found.values()].filter((candidate) => !isAd(candidate.url));
       const pending = new Set<Promise<unknown>>();
       let settleTimer: ReturnType<typeof setTimeout> | undefined;
       const clickTimers: ReturnType<typeof setTimeout>[] = [];
@@ -364,9 +375,12 @@ export class PlaywrightStreamDetector {
       const startSettling = () => {
         if (settleTimer !== undefined) return;
         settleTimer = setTimeout(() => {
-          void Promise.allSettled([...pending]).then(() =>
-            finish(() => resolve([...found.values()])),
-          );
+          void Promise.allSettled([...pending]).then(() => {
+            const real = streams();
+            // Only ads so far: the episode comes after them, so keep watching until the deadline.
+            if (real.length === 0) settleTimer = undefined;
+            else finish(() => resolve(real));
+          });
         }, settleMs);
       };
       const register = (request: RequestLike, kind: StreamKind): Candidate => {
@@ -375,6 +389,11 @@ export class PlaywrightStreamDetector {
         if (!candidate) {
           candidate = { url, kind, playlist: "unknown", headers: {} };
           found.set(url, candidate);
+          const chain: string[] = [];
+          for (let hop: RequestLike | null = request; hop; hop = hop.redirectedFrom?.() ?? null) {
+            chain.push(hop.url());
+          }
+          chains.set(url, chain);
           const entry = candidate;
           track(
             request
@@ -395,6 +414,17 @@ export class PlaywrightStreamDetector {
       });
       page.on("response", (response) => {
         const request = response.request();
+        if (mayDescribeAds(request.url(), response.headers()["content-type"])) {
+          track(
+            response
+              .text()
+              .then((body) => {
+                for (const url of adMediaUrls(body)) ads.add(url);
+              })
+              .catch(() => undefined),
+          );
+          return;
+        }
         const kind = classifyRequest({
           url: request.url(),
           resourceType: request.resourceType(),
@@ -430,7 +460,7 @@ export class PlaywrightStreamDetector {
           for (const delay of this.options.playClickDelaysMs ?? DEFAULT_PLAY_CLICK_DELAYS_MS) {
             clickTimers.push(
               setTimeout(() => {
-                if (done || found.size > 0) return;
+                if (done || streams().length > 0) return;
                 void mouse.click(PLAY_CLICK_POINT.x, PLAY_CLICK_POINT.y).catch(() => undefined);
               }, delay),
             );

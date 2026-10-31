@@ -9,6 +9,7 @@ import type {
   JobCanceller,
   JobRepository,
   LibraryWriter,
+  EpisodeGuide,
   MediaServer,
   NotificationRepository,
   PreviewStore,
@@ -34,6 +35,8 @@ export interface Deps {
   images: ImageFetcher;
   authenticator: Authenticator;
   mediaServer: MediaServer;
+  /** Null without a TMDB key (TMDB_API_KEY): the panel then asks for the numbers by hand. */
+  episodeGuide: EpisodeGuide | null;
   downloaders: Downloader[];
   /** Absent until the browser-based detector exists. */
   detector: StreamDetector | null;
@@ -41,6 +44,16 @@ export interface Deps {
   guard: UrlGuard;
   /** The track choices of a series that has none of its own. */
   streamDefaults: StreamPrefs;
+  /**
+   * One episode at a time (SEQUENTIAL_DOWNLOADS): its players are tried in the page's order, and once
+   * every one has failed the episode fails and the next one starts. The queue enforces the "one".
+   */
+  sequentialDownloads: boolean;
+  /**
+   * Hosts whose players are left out of an episode's list before any is tried (SKIP_PLAYERS): those
+   * that never give a stream (player.example decrypts in the page) would only burn the detector's timeout.
+   */
+  skipPlayers: readonly string[];
   events: EventBus;
   notifications: NotificationService;
   /** Read side of the notifications: the bell lists and marks them. */

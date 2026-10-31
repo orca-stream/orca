@@ -44,8 +44,8 @@ interface SourceRead {
 }
 
 /**
- * The `check_series` job: for each source of the series (the whole show, or one season or part of
- * one), asks the site for a cheap marker, and only when it moved reads that source again, stores what
+ * The `check_series` job: for each open source of the series (the whole show, or one season or part
+ * of one), asks the site for a cheap marker, and only when it moved reads that source again, stores what
  * is new and (for a followed series) queues the new episodes. Every source is read before anything is
  * stored, so a site that fails leaves the whole series as it was, to be checked again; each marker is
  * saved after the episodes, so a failure in between is simply read again.
@@ -77,6 +77,8 @@ export function createCheckSeries(deps: Deps) {
 
     const reads: SourceRead[] = [];
     for (const source of await deps.series.listSources([series.id])) {
+      // A closed source was marked as bringing nothing new: reading it would only cost requests.
+      if (source.closed) continue;
       const found = await read(source, signal);
       if (found) reads.push(found);
     }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import { AbortedError } from "../src/domain/errors.ts";
-import { HostLimiter, hostLimitsFor, type HostLimits } from "../src/infrastructure/host-limiter.ts";
+import {
+  connectionsFor,
+  HostLimiter,
+  hostLimitsFor,
+  type HostLimits,
+} from "../src/infrastructure/host-limiter.ts";
 import { ManualClock } from "./fakes/clock.ts";
 
 const limits = (
@@ -218,5 +223,22 @@ describe("hostLimitsFor", () => {
     const resolve = hostLimitsFor(extractors, {});
     expect(resolve("silent.example")).toEqual(limits());
     expect(resolve("unknown.example")).toEqual(limits());
+  });
+});
+
+describe("connectionsFor", () => {
+  const extractors = [
+    {
+      hosts: ["archive.org"],
+      limits: { metadataPerSec: 1, downloadsPerHost: 1, connectionsPerDownload: 1 },
+    },
+    { hosts: ["silent.example"], limits: { metadataPerSec: 1, downloadsPerHost: 1 } },
+  ];
+
+  it("keeps what the owning extractor declares, the configured number everywhere else", () => {
+    const resolve = connectionsFor(extractors, 4);
+    expect(resolve("ia800.us.archive.org")).toBe(1);
+    expect(resolve("silent.example")).toBe(4);
+    expect(resolve("a3.player.example")).toBe(4);
   });
 });

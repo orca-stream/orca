@@ -108,6 +108,9 @@ describe("an episode with several players", () => {
     expect(h.downloader.calls.map((call) => hostOf(call.source)).sort()).toEqual([P1, P2]);
     const queued = (await h.jobs.list({ status: ["queued"], limit: 10 })).items;
     expect(queued.map((job) => job.resource).sort()).toEqual([`host:${P1}`, `host:${P2}`]);
+    // Every one of them says which player it is on, or will try, to the panel.
+    const shown = await h.useCases.listEpisodes((await h.useCases.listSeries())[0]!.id);
+    expect(shown.map((episode) => String(episode.player)).toSorted()).toEqual([P1, P1, P2, P2]);
 
     release();
     await until(() => h.downloader.calls.length === 4);
@@ -210,5 +213,97 @@ describe("an episode with several players", () => {
       lastError: "The episode page lists no players",
       resource: "none",
     });
+  });
+});
+
+describe("players on skipped hosts (SKIP_PLAYERS)", () => {
+  beforeEach(async () => {
+    await h.cleanup();
+    h = await createHarness({ extractors: [site.extractor], skipPlayers: [P1] });
+  });
+
+  it("never opens a player on a skipped host, nor on a subdomain of one", async () => {
+    episodesOn(1, [P1, `www.${P1}`, P2]);
+    await addShow();
+    await h.queue.settle();
+    expect(h.detector.calls).toEqual([player(P2, 1)]);
+    expect(h.downloader.calls.map((call) => hostOf(call.source))).toEqual([P2]);
+  });
+
+  it("fails for good, naming the hosts, when every player is on a skipped host", async () => {
+    episodesOn(1, [P1]);
+    await addShow();
+    await h.queue.settle();
+    expect(h.detector.calls).toEqual([]);
+    const [failed] = (await h.jobs.list({ status: ["failed"], limit: 10 })).items;
+    expect(failed?.lastError).toBe(
+      `Every player of the episode is on a skipped host (SKIP_PLAYERS): ${P1}`,
+    );
+  });
+});
+
+describe("one episode at a time (SEQUENTIAL_DOWNLOADS)", () => {
+  beforeEach(async () => {
+    await h.cleanup();
+    h = await createHarness({ extractors: [site.extractor], sequentialDownloads: true });
+  });
+
+  /** Which episode, and from which player's host, each download was. */
+  const downloads = () =>
+    h.downloader.calls.map((call) => {
+      const [, host, n] = new URL((call.source as { url: string }).url).pathname.split("/");
+      return `${n}@${host}`;
+    });
+
+  it("downloads one episode after the other, even when the next one's host is free", async () => {
+    episodesOn(3, [P1, P2]);
+    // Episode 2 plays only on P2: its host is idle while episode 1 downloads from P1.
+    site.players(SLUG, 2, [player(P2, 2)]);
+    const release = holdDownloads(3);
+    await addShow();
+
+    await until(() => h.downloader.calls.length === 1);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(downloads()).toEqual([`1@${P1}`]);
+    for (let n = 2; n <= 3; n++) {
+      release();
+      await until(() => h.downloader.calls.length === n);
+    }
+    release();
+    await h.queue.settle();
+
+    expect(h.downloader.peak).toBe(1);
+    expect(downloads()).toEqual([`1@${P1}`, `2@${P2}`, `3@${P1}`]);
+  });
+
+  it("tries the same episode's players in the page's order before moving on", async () => {
+    episodesOn(2, [P1, P2]);
+    h.detector.byPage.set(player(P1, 1), new PermanentError("No video stream found"));
+    await addShow();
+    await h.queue.settle();
+
+    expect(h.detector.calls).toEqual([player(P1, 1), player(P2, 1), player(P1, 2)]);
+    expect(downloads()).toEqual([`1@${P2}`, `2@${P1}`]);
+  });
+
+  it("fails an episode once every player failed, and goes on with the next one", async () => {
+    episodesOn(2, [P1, P2]);
+    for (const host of [P1, P2])
+      h.detector.byPage.set(player(host, 1), new Error(`${host} is down`));
+    await addShow();
+    await h.queue.settle();
+
+    expect(h.detector.calls).toEqual([player(P1, 1), player(P2, 1), player(P1, 2)]);
+    expect(downloads()).toEqual([`2@${P1}`]);
+    // Nothing waits to try the failed episode again (only the library refresh is queued).
+    const queued = (await h.jobs.list({ status: ["queued"], limit: 10 })).items;
+    expect(queued.map((job) => job.kind)).toEqual(["refresh_library"]);
+    const [failed] = (await h.jobs.list({ status: ["failed"], limit: 10 })).items;
+    expect(failed).toMatchObject({
+      attempts: 1,
+      lastError: `Every player failed: ${P1}: ${P1} is down; ${P2}: ${P2} is down`,
+    });
+    const episodes = await h.series.listEpisodes((await h.useCases.listSeries())[0]!.id);
+    expect(episodes.map((episode) => episode.status)).toEqual(["failed", "available"]);
   });
 });

@@ -55,21 +55,51 @@ function fromRaw(raw: Record<string, unknown>): Job {
 }
 
 const ACTIVE = sql`${jobs.status} in ('queued', 'running')`;
+/**
+ * The downloads of a paused series wait: they are not claimed, and one stopped half way does not
+ * hold the one-episode-at-a-time line either. Its other jobs (checks, refreshes) still run.
+ */
+const NOT_PAUSED = `NOT (kind = 'download_episode' AND series_id IN (SELECT id FROM series WHERE paused = 1))`;
 
 export class DrizzleJobRepository implements JobRepository {
   private readonly db: Db;
   private readonly clock: Clock;
   private readonly claimStatement;
+  private readonly claimOneEpisodeStatement;
 
   constructor(database: Pick<Database_, "db" | "sqlite">, clock: Clock) {
     this.db = database.db;
     this.clock = clock;
     // One UPDATE ... RETURNING is atomic in SQLite, and better-sqlite3 is synchronous, so two
     // workers can never take the same job.
+    const claimSet = `UPDATE jobs SET status = 'running', attempts = attempts + 1, lease_owner = @owner,
+         lease_expires_at = @leaseUntil, started_at = @now, updated_at = @now, finished_at = NULL`;
     this.claimStatement = database.sqlite.prepare(
-      `UPDATE jobs SET status = 'running', attempts = attempts + 1, lease_owner = @owner,
-         lease_expires_at = @leaseUntil, started_at = @now, updated_at = @now, finished_at = NULL
+      `${claimSet}
        WHERE id = (SELECT id FROM jobs WHERE status = 'queued' AND run_after <= @now AND resource = @resource
+                   AND ${NOT_PAUSED}
+                   ORDER BY priority DESC, created_at, id LIMIT 1)
+       RETURNING *`,
+    );
+    // An episode is under way while one of its downloads runs, or waits after having started: a
+    // retry (attempts > 0), the next player, the stream a page handed over, or a fresh detection.
+    this.claimOneEpisodeStatement = database.sqlite.prepare(
+      `WITH under_way AS (
+         SELECT episode_id FROM jobs
+         WHERE kind = 'download_episode' AND ${NOT_PAUSED} AND (status = 'running' OR (status = 'queued' AND (
+           attempts > 0 OR json_type(payload, '$.mirrors') IS NOT NULL
+           OR json_type(payload, '$.resolved') IS NOT NULL
+           OR json_type(payload, '$.redetected') IS NOT NULL)))
+       )
+       ${claimSet}
+       WHERE id = (SELECT id FROM jobs WHERE status = 'queued' AND run_after <= @now AND resource = @resource
+                   AND ${NOT_PAUSED}
+                   AND (kind <> 'download_episode'
+                        OR episode_id IN (SELECT episode_id FROM under_way)
+                        OR (NOT EXISTS (SELECT 1 FROM under_way) AND id = (
+                              SELECT id FROM jobs WHERE kind = 'download_episode' AND status = 'queued'
+                                AND run_after <= @now AND ${NOT_PAUSED}
+                              ORDER BY priority DESC, created_at, id LIMIT 1)))
                    ORDER BY priority DESC, created_at, id LIMIT 1)
        RETURNING *`,
     );
@@ -117,9 +147,17 @@ export class DrizzleJobRepository implements JobRepository {
     return { job: toJob(row), created: true };
   }
 
-  async claim(resource: Job["resource"], leaseOwner: string, leaseMs: number): Promise<Job | null> {
+  async claim(
+    resource: Job["resource"],
+    leaseOwner: string,
+    leaseMs: number,
+    options: { oneEpisodeAtATime?: boolean } = {},
+  ): Promise<Job | null> {
     const now = this.clock.now();
-    const raw = this.claimStatement.get({
+    const statement = options.oneEpisodeAtATime
+      ? this.claimOneEpisodeStatement
+      : this.claimStatement;
+    const raw = statement.get({
       owner: leaseOwner,
       leaseUntil: now + leaseMs,
       now,

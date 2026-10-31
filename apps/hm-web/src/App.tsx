@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
-import { DashboardScreen } from "./dashboard/DashboardScreen";
+import { DownloadsScreen } from "./dashboard/DownloadsScreen";
 import { useLiveEvents } from "./events/use-live-events";
-import { ExtractorsScreen } from "./extractors/ExtractorsScreen";
+import { HomeScreen } from "./home/HomeScreen";
 import { Providers } from "./providers";
 import { AddSeriesScreen } from "./series/AddSeriesScreen";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
@@ -22,12 +22,12 @@ function Panel() {
     <AuthGate>
       <LiveShell>
         <Switch>
-          <Route path="/" component={DashboardScreen} />
+          <Route path="/" component={HomeScreen} />
+          <Route path="/downloads" component={DownloadsScreen} />
           {/* "new" before ":id", or the add screen would be read as a series called new. */}
           <Route path="/series/new" component={AddSeriesScreen} />
           <Route path="/series/:id" component={SeriesDetailScreen} />
           <Route path="/series" component={SeriesListScreen} />
-          <Route path="/extractors" component={ExtractorsScreen} />
           <Route>
             <Redirect to="/" replace />
           </Route>

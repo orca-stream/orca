@@ -21,9 +21,15 @@ export class FetchHttpClient implements HttpClient {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
-  getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown> {
+  getJson(
+    url: string,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<unknown> {
     return this.limiter.run(new URL(url).host, "metadata", options?.signal, async () => {
-      const response = await this.request(url, options?.signal, { accept: "application/json" });
+      const response = await this.request(url, options?.signal, {
+        accept: "application/json",
+        ...lowerCaseKeys(options?.headers ?? {}),
+      });
       try {
         return await response.json();
       } catch (error) {

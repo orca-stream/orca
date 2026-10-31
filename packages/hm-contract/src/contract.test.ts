@@ -80,6 +80,8 @@ describe("HmEvent", () => {
       type: "job.progress",
       seq: 3,
       jobId: "j1",
+      seriesId: "s1",
+      episodeId: "e1",
       progress: 0.5,
       detail: { bytes: 5, total: 10 },
     });
@@ -167,7 +169,15 @@ describe("isHmEvent", () => {
   };
   const valid = [
     { type: "job.updated", seq: 1, job },
-    { type: "job.progress", seq: 2, jobId: "j1", progress: 0.5, detail: null },
+    {
+      type: "job.progress",
+      seq: 2,
+      jobId: "j1",
+      seriesId: null,
+      episodeId: null,
+      progress: 0.5,
+      detail: null,
+    },
     { type: "series.updated", seq: 3, seriesId: "s1" },
     { type: "notification.created", seq: 4, notification },
   ];
@@ -299,6 +309,16 @@ describe("seasons in parts", () => {
       imdbId: null,
     });
     expect(CreateSeriesBody.safeParse({ ...base, title: "x", season: -1 }).success).toBe(false);
+  });
+
+  it("adds to a show in Jellyfin without a title, but never to a series and a show at once", () => {
+    const base = { previewId: "p", episodeKeys: ["a"] };
+    expect(CreateSeriesBody.parse({ ...base, jellyfinId: "jf1" })).toMatchObject({
+      jellyfinId: "jf1",
+    });
+    expect(CreateSeriesBody.safeParse({ ...base, jellyfinId: "jf1", seriesId: "s1" }).success).toBe(
+      false,
+    );
   });
 
   it("accepts TMDB and IMDb ids only in their own shapes", () => {

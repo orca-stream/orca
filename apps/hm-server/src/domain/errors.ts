@@ -60,7 +60,8 @@ export type AppErrorCode =
   | "not_found"
   | "conflict"
   | "gone"
-  | "upstream";
+  | "upstream"
+  | "unavailable";
 
 /** An error a caller can act on; the HTTP layer maps `code` to a status. */
 export class AppError extends Error {

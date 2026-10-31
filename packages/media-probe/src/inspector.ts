@@ -21,6 +21,7 @@ export function buildFfprobeArgs(
   headers: Record<string, string>,
   protocolWhitelist: string,
   viaProxy = false,
+  inputOptions: readonly string[] = [],
 ): string[] {
   const entries = Object.entries(headers);
   for (const [name, value] of entries) {
@@ -39,6 +40,7 @@ export function buildFfprobeArgs(
     // Reaching the proxy is its own protocol in ffmpeg.
     viaProxy ? `${protocolWhitelist},httpproxy` : protocolWhitelist,
     ...headerArgs,
+    ...inputOptions,
     "-show_programs",
     "-show_streams",
     "-of",
@@ -65,6 +67,8 @@ export interface FfprobeInspectorOptions {
   httpProxy?: string;
   /** Kill ffprobe after this long. Absent: only the caller's signal stops it. */
   timeoutMs?: number;
+  /** Options for the input's demuxer, before the address (`-allowed_extensions ALL`). */
+  inputOptions?: readonly string[];
   /** Replaces the process spawn. Meant for tests. */
   run?: RunFfprobe;
 }
@@ -74,6 +78,7 @@ export class FfprobeInspector implements StreamInspector {
   private readonly protocolWhitelist: string;
   private readonly httpProxy: string | undefined;
   private readonly timeoutMs: number | undefined;
+  private readonly inputOptions: readonly string[];
   private readonly run: RunFfprobe;
 
   constructor(options: FfprobeInspectorOptions = {}) {
@@ -81,6 +86,7 @@ export class FfprobeInspector implements StreamInspector {
     this.protocolWhitelist = options.protocolWhitelist ?? DEFAULT_PROTOCOL_WHITELIST;
     this.httpProxy = options.httpProxy;
     this.timeoutMs = options.timeoutMs;
+    this.inputOptions = options.inputOptions ?? [];
     this.run = options.run ?? ((args, signal, env) => this.spawnFfprobe(args, signal, env));
   }
 
@@ -94,6 +100,7 @@ export class FfprobeInspector implements StreamInspector {
       options.headers ?? {},
       this.protocolWhitelist,
       this.httpProxy !== undefined,
+      this.inputOptions,
     );
     const env =
       this.httpProxy === undefined

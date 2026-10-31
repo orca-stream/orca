@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { LicenseKindSchema } from "./common.ts";
+import { ProgressDetail } from "./jobs.ts";
 import {
   IMDB_ID_PATTERN,
   LANGUAGE_CODE_PATTERN,
@@ -37,6 +38,14 @@ export const PreviewEpisode = z.object({
   durationSec: z.number().nullable(),
   sizeBytes: z.number().nullable(),
   format: z.string().nullable(),
+  /**
+   * Where it is fetched from: a file (`direct`), a page that plays it (`page`), or a page listing
+   * several players of it (`mirrors`, one is picked when it downloads). `host` is that address's.
+   */
+  source: z.object({
+    kind: z.enum(["direct", "page", "mirrors"]),
+    host: z.string().nullable(),
+  }),
 });
 export type PreviewEpisode = z.infer<typeof PreviewEpisode>;
 
@@ -74,6 +83,96 @@ export const TmdbId = z.string().trim().regex(TMDB_ID_PATTERN, "A TMDB id is a n
 /** The IMDb id of a show, as on its page (`imdb.com/title/<id>`). */
 export const ImdbId = z.string().trim().regex(IMDB_ID_PATTERN, "An IMDb id looks like tt0123456");
 
+export const ShowLookupParams = z.object({ tmdbId: TmdbId });
+export type ShowLookupParams = z.infer<typeof ShowLookupParams>;
+
+/**
+ * What TMDB says a show is called, as Jellyfin looks it up: in the server's preferred metadata
+ * language, which is the language the rest of the show's metadata comes in.
+ */
+export const ShowLookupDto = z.object({
+  tmdbId: z.string(),
+  title: z.string(),
+  year: z.number().int().nullable(),
+  imdbId: z.string().nullable(),
+  /** TMDB's synopsis, in that same language. */
+  overview: z.string().nullable(),
+  /** TMDB's poster, an absolute http(s) address the panel loads as is. */
+  posterUrl: z.string().nullable(),
+  /** A wide still of the show from TMDB's image host; null without a TMDB key of this server's own. */
+  backdropUrl: z.string().nullable(),
+  /**
+   * Whether the show still airs, as TMDB says: `airing` with a next episode on the calendar,
+   * `returning` when more is expected but undated, `ended` / `canceled` once no new episodes will
+   * come; null without a TMDB key of this server's own, or for a status it can't read.
+   */
+  status: z.enum(["airing", "returning", "ended", "canceled"]).nullable(),
+  /** The next episode on TMDB's calendar (`airDate` is `YYYY-MM-DD`); null when none is dated. */
+  nextEpisode: z
+    .object({ season: z.number().int(), number: z.number().int(), airDate: z.string().nullable() })
+    .nullable(),
+});
+export type ShowLookupDto = z.infer<typeof ShowLookupDto>;
+
+/** The language TMDB answers in (`es`, `en-US`); TMDB's default when absent. */
+const GuideLanguage = z
+  .string()
+  .regex(/^[a-z]{2}(-[A-Z]{2})?$/, "A language looks like es or en-US")
+  .optional();
+
+export const GuideSeasonsParams = z.object({ tmdbId: TmdbId });
+export type GuideSeasonsParams = z.infer<typeof GuideSeasonsParams>;
+export const GuideEpisodesParams = z.object({
+  tmdbId: TmdbId,
+  season: z.coerce.number().int().min(0).max(999),
+});
+export type GuideEpisodesParams = z.infer<typeof GuideEpisodesParams>;
+export const GuideQuery = z.object({ language: GuideLanguage });
+export type GuideQuery = z.infer<typeof GuideQuery>;
+
+/** A season as TMDB numbers it: 0 holds the specials. */
+export const GuideSeasonDto = z.object({
+  number: z.number().int(),
+  name: z.string(),
+  episodeCount: z.number().int(),
+  year: z.number().int().nullable(),
+});
+export type GuideSeasonDto = z.infer<typeof GuideSeasonDto>;
+
+/** An episode of a TMDB season, to pick where an address starts and to show what it is. */
+export const GuideEpisodeDto = z.object({
+  number: z.number().int(),
+  name: z.string(),
+  airDate: z.string().nullable(),
+  overview: z.string().nullable(),
+  runtimeMin: z.number().int().nullable(),
+  /** A frame of the episode from TMDB's image host, an absolute https address loaded as is. */
+  stillUrl: z.string().nullable(),
+});
+export type GuideEpisodeDto = z.infer<typeof GuideEpisodeDto>;
+
+/** A show in Jellyfin's libraries, and whether this server already has it as a series. */
+export const LibraryShowDto = z.object({
+  /** Jellyfin's item id; `CreateSeriesBody.jellyfinId` takes it. */
+  id: z.string(),
+  title: z.string(),
+  year: z.number().int().nullable(),
+  tmdbId: z.string().nullable(),
+  imdbId: z.string().nullable(),
+  /** The series this server has for it (same folder, or same TMDB or IMDb id); null when none. */
+  seriesId: z.string().nullable(),
+  /** False when its folder is outside this server's media root: it can be seen, not added to. */
+  adoptable: z.boolean(),
+});
+export type LibraryShowDto = z.infer<typeof LibraryShowDto>;
+
+/** An episode a Jellyfin show has as a file: adopting the show keeps it instead of downloading it. */
+export const LibraryEpisodeDto = z.object({
+  season: z.number().int(),
+  episode: z.number().int(),
+});
+export type LibraryEpisodeDto = z.infer<typeof LibraryEpisodeDto>;
+
 const Title = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
 const Year = z.number().int().min(1800).max(2200).nullable();
 
@@ -85,6 +184,12 @@ export const CreateSeriesBody = z
      * new series; title, year and the ids are the series' own then and are left out.
      */
     seriesId: z.string().min(1).optional(),
+    /**
+     * Adds the address to a show Jellyfin already has and this server doesn't (see
+     * `GET /api/library/shows`): the series takes the show's folder, title, year and ids, its episode
+     * files are renamed to this server's names, and the chosen episodes already there aren't downloaded.
+     */
+    jellyfinId: z.string().min(1).optional(),
     title: Title.optional(),
     year: Year.optional(),
     /** Lets Jellyfin fetch the show's metadata and images itself. */
@@ -98,9 +203,14 @@ export const CreateSeriesBody = z
     follow: z.boolean().default(false),
     downloadNow: z.boolean().default(false),
   })
-  .refine((body) => body.seriesId !== undefined || body.title !== undefined, {
-    message: "A new series needs a title",
-    path: ["title"],
+  .refine(
+    (body) =>
+      body.seriesId !== undefined || body.jellyfinId !== undefined || body.title !== undefined,
+    { message: "A new series needs a title", path: ["title"] },
+  )
+  .refine((body) => body.seriesId === undefined || body.jellyfinId === undefined, {
+    message: "Add to a series or to a show in Jellyfin, not both",
+    path: ["jellyfinId"],
   });
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 /** What a caller may send: the fields with a default can be left out. */
@@ -122,6 +232,8 @@ export const SeriesPatch = z.object({
   tmdbId: TmdbId.nullable().optional(),
   imdbId: ImdbId.nullable().optional(),
   follow: z.boolean().optional(),
+  /** Holds the series' downloads (the one under way stops and keeps what it has) until `false`. */
+  paused: z.boolean().optional(),
   checkIntervalHours: z
     .number()
     .int()
@@ -137,6 +249,13 @@ export const SeriesPatch = z.object({
 });
 export type SeriesPatch = z.infer<typeof SeriesPatch>;
 
+/** What can change of one address of a series. */
+export const SourcePatch = z.strictObject({
+  /** A closed source (a finished season) is no longer read when the series is checked. */
+  closed: z.boolean(),
+});
+export type SourcePatch = z.infer<typeof SourcePatch>;
+
 /** One address a series is read from: a whole show, a season, or a part of a season. */
 export const SourceDto = z.object({
   id: z.string(),
@@ -147,6 +266,10 @@ export const SourceDto = z.object({
   season: z.number().int().nullable(),
   /** Added to the site's episode numbers. */
   episodeOffset: z.number().int(),
+  /** Marked as bringing nothing new: checks skip it. */
+  closed: z.boolean(),
+  /** Where its site most likely keeps what comes next (the next season); null when unknown. */
+  nextUrl: z.string().nullable(),
 });
 export type SourceDto = z.infer<typeof SourceDto>;
 
@@ -160,6 +283,8 @@ export const SeriesDto = z.object({
   /** Oldest first. */
   sources: z.array(SourceDto),
   follow: z.boolean(),
+  /** Its downloads wait in the queue until it is resumed. */
+  paused: z.boolean(),
   checkIntervalHours: z.number().int(),
   lastCheckedAt: z.number().nullable(),
   /** The series' own track choices; `null` means it follows the server's defaults. */
@@ -178,6 +303,8 @@ export type SeriesDto = z.infer<typeof SeriesDto>;
 export const EpisodeDto = z.object({
   id: z.string(),
   seriesId: z.string(),
+  /** The source it was found on; null only if that source was removed. */
+  sourceId: z.string().nullable(),
   season: z.number().int(),
   episode: z.number().int(),
   title: z.string(),
@@ -188,7 +315,11 @@ export const EpisodeDto = z.object({
   sizeBytes: z.number().nullable(),
   format: z.string().nullable(),
   status: EpisodeStatus,
-  /** 0..1 while downloading. */
+  /** 0..1 while downloading, when the total size is known. */
   progress: z.number().nullable(),
+  /** Bytes so far, total, speed and ETA of the download in progress. */
+  progressDetail: ProgressDetail.nullable(),
+  /** The host of the video player being tried, while queued or downloading from mirrors. */
+  player: z.string().nullable(),
 });
 export type EpisodeDto = z.infer<typeof EpisodeDto>;

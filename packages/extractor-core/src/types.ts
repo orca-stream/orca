@@ -2,7 +2,11 @@ import type { LicenseKind } from "./license.ts";
 
 /** The only way an extractor reaches the network. Tests answer from fixtures. */
 export interface HttpClient {
-  getJson(url: string, options?: { signal?: AbortSignal }): Promise<unknown>;
+  /** `headers` (a browser's User-Agent) go with the request. */
+  getJson(
+    url: string,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<unknown>;
   /**
    * The body of a web page as text. `headers` (a Referer, a browser's User-Agent) go with the
    * request. Optional: an extractor that reads only JSON never needs it.
@@ -129,6 +133,8 @@ export interface ExtractorLimits {
   metadataPerSec: number;
   /** Simultaneous file downloads from one host. */
   downloadsPerHost: number;
+  /** Connections one file is fetched over. Absent: whatever the server is configured with. */
+  connectionsPerDownload?: number;
 }
 
 export interface ExtractorInfo {
@@ -161,6 +167,11 @@ export interface SiteExtractor extends ExtractorInfo {
    * something did. Optional: an extractor without it is re-extracted on every check.
    */
   remoteMarker?(url: string, options?: { signal?: AbortSignal }): Promise<string>;
+  /**
+   * Pure: the address that most likely comes after this one on the same site (its next season), so
+   * adding another source can start from it. Null or absent: nothing to suggest.
+   */
+  nextSourceUrl?(url: string): string | null;
   /**
    * The players an episode page of kind `mirrors` offers, in the site's order. Read when the episode
    * is downloaded, not when it is listed: the addresses may expire. Required for `mirrors` media.

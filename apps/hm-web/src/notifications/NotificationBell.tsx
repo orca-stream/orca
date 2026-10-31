@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { BellIcon } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useApi } from "@/api/context";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { notificationText } from "./notification-text";
 import { useUnreadTitle } from "./use-unread-title";
 
-/** The bell in the sidebar: unread count, the recent notifications and "mark as read". */
+/** The bell in the top bar: unread count, the recent notifications and "mark as read". */
 export function NotificationBell() {
   const t = useT();
   const locale = useLocale();
@@ -38,11 +39,11 @@ export function NotificationBell() {
             variant="ghost"
             size="icon-lg"
             aria-label={t.notifications.bell(unread)}
-            className="relative text-muted-foreground"
+            className="relative rounded-full text-muted-foreground hover:bg-white/70 hover:text-foreground"
           />
         }
       >
-        <BellIcon className="size-5" />
+        <HugeiconsIcon icon={Notification03Icon} className="size-5" />
         {unread > 0 && (
           <span
             aria-hidden="true"
@@ -53,7 +54,7 @@ export function NotificationBell() {
         )}
       </PopoverTrigger>
       <PopoverContent
-        align="start"
+        align="end"
         aria-label={t.notifications.title}
         className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
       >

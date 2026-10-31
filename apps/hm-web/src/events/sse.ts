@@ -34,6 +34,11 @@ export interface EventsOptions {
   clock?: Clock;
   /** In [0, 1): the share of `JITTER_MS` added to each retry delay. */
   random?: () => number;
+  /**
+   * How long an open stream may stay silent before it is taken for dead. The server pings every
+   * 25 s, so silence for longer means a proxy or a sleeping laptop kept a dead connection open.
+   */
+  staleMs?: number;
 }
 
 export interface EventsConnection {
@@ -45,6 +50,9 @@ const READY_CLOSED = 2;
 const BASE_MS = 1_000;
 const MAX_MS = 30_000;
 const JITTER_MS = 1_000;
+const STALE_MS = 60_000;
+/** The server's keep-alive: it says nothing, but proves the stream is still alive. */
+const PING_EVENT = "ping";
 
 /**
  * A native EventSource reconnects by itself after a network drop and sends Last-Event-ID, but when
@@ -59,10 +67,12 @@ export function connectEvents(options: EventsOptions): EventsConnection {
     clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
   };
   const random = options.random ?? Math.random;
+  const staleMs = options.staleMs ?? STALE_MS;
 
   let status: SseStatus = "connecting";
   let source: EventSourceLike | null = null;
   let timer: unknown = null;
+  let watchdog: unknown = null;
   let attempt = 0;
   let dropped = false;
   let disposed = false;
@@ -81,6 +91,7 @@ export function connectEvents(options: EventsOptions): EventsConnection {
     current.onopen = () => {
       if (!alive()) return;
       attempt = 0;
+      rearmWatchdog();
       setStatus("open");
       if (dropped) {
         dropped = false;
@@ -89,6 +100,7 @@ export function connectEvents(options: EventsOptions): EventsConnection {
     };
     current.onerror = () => {
       if (!alive()) return;
+      disarmWatchdog();
       dropped = true;
       setStatus("reconnecting");
       // Still CONNECTING: the browser is retrying on its own, nothing to do.
@@ -96,9 +108,33 @@ export function connectEvents(options: EventsOptions): EventsConnection {
     };
     for (const type of ["message", ...options.eventTypes]) {
       current.addEventListener(type, (event) => {
-        if (alive()) options.onEvent(type, event.data, event.lastEventId);
+        if (!alive()) return;
+        rearmWatchdog();
+        options.onEvent(type, event.data, event.lastEventId);
       });
     }
+    current.addEventListener(PING_EVENT, () => {
+      if (alive()) rearmWatchdog();
+    });
+  }
+
+  function disarmWatchdog() {
+    if (watchdog !== null) clock.clearTimeout(watchdog);
+    watchdog = null;
+  }
+
+  function rearmWatchdog() {
+    disarmWatchdog();
+    watchdog = clock.setTimeout(() => {
+      watchdog = null;
+      if (disposed) return;
+      // Open as far as the browser knows, yet silent: drop it and come back as after any drop.
+      source?.close();
+      source = null;
+      dropped = true;
+      setStatus("reconnecting");
+      schedule();
+    }, staleMs);
   }
 
   function schedule() {
@@ -124,6 +160,7 @@ export function connectEvents(options: EventsOptions): EventsConnection {
 
   function dispose() {
     disposed = true;
+    disarmWatchdog();
     if (timer !== null) clock.clearTimeout(timer);
     timer = null;
     source?.close();

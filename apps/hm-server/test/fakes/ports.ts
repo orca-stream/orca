@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
+  EpisodeFile,
+  LibraryShow,
   Authenticated,
   Authenticator,
   DownloadContext,
@@ -8,8 +10,13 @@ import type {
   Downloader,
   FetchedImage,
   ImageFetcher,
+  EpisodeGuide,
+  GuideEpisode,
+  GuideSeason,
+  GuideShow,
   MediaServer,
   Notifier,
+  ShowMatch,
   StreamDetector,
   DetectedStream,
 } from "../../src/application/ports.ts";
@@ -81,9 +88,63 @@ export class FakeMediaServer implements MediaServer {
   readonly updated: string[] = [];
   fail: Error | null = null;
 
+  /** What TMDB knows, by TMDB id. */
+  readonly shows = new Map<string, ShowMatch>();
+  /** The shows in Jellyfin's libraries. */
+  library: LibraryShow[] = [];
+  /** Their episode files, by show id. */
+  readonly episodeFiles = new Map<string, EpisodeFile[]>();
+
   async libraryUpdated(path: string): Promise<void> {
     if (this.fail) throw this.fail;
     this.updated.push(path);
+  }
+
+  async findShowByTmdbId(tmdbId: string): Promise<ShowMatch | null> {
+    if (this.fail) throw this.fail;
+    return this.shows.get(tmdbId) ?? null;
+  }
+
+  async listShows(): Promise<LibraryShow[]> {
+    if (this.fail) throw this.fail;
+    return this.library;
+  }
+
+  async listEpisodeFiles(showId: string): Promise<EpisodeFile[]> {
+    if (this.fail) throw this.fail;
+    return this.episodeFiles.get(showId) ?? [];
+  }
+}
+
+export class FakeEpisodeGuide implements EpisodeGuide {
+  fail: Error | null = null;
+  /** What TMDB lists, by TMDB id. */
+  readonly shows = new Map<string, GuideSeason[]>();
+  /** By `<tmdbId>/<season>`. */
+  readonly seasonEpisodes = new Map<string, GuideEpisode[]>();
+  readonly languages: (string | undefined)[] = [];
+  /** The show beyond its seasons, by TMDB id. */
+  readonly showFacts = new Map<string, GuideShow>();
+
+  async seasons(tmdbId: string, language: string | undefined): Promise<GuideSeason[] | null> {
+    if (this.fail) throw this.fail;
+    this.languages.push(language);
+    return this.shows.get(tmdbId) ?? null;
+  }
+
+  async episodes(
+    tmdbId: string,
+    season: number,
+    language: string | undefined,
+  ): Promise<GuideEpisode[] | null> {
+    if (this.fail) throw this.fail;
+    this.languages.push(language);
+    return this.seasonEpisodes.get(`${tmdbId}/${season}`) ?? null;
+  }
+
+  async show(tmdbId: string): Promise<GuideShow | null> {
+    if (this.fail) throw this.fail;
+    return this.showFacts.get(tmdbId) ?? null;
   }
 }
 

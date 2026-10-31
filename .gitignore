@@ -47,6 +47,7 @@ apps/bifrost/*.env
 
 # Orca'H&M: the sites file names real sites; only sites.example.json is versioned
 apps/hm-server/sites.json
+apps/hm-server/show-api.json
 
 # Orca'H&M: profiles name hosts and hold keys; only profiles/.env.example is versioned
 apps/hm-server/profiles/*.env

@@ -21,7 +21,14 @@ export function createJobEvents(deps: Pick<Deps, "series" | "events">) {
     updated: (job) =>
       void publishJob(job).catch((error: unknown) => console.error("job event failed", error)),
     progress: (job: Job, progress: number | null, detail: ProgressDetail | null) =>
-      deps.events.publish({ type: "job.progress", jobId: job.id, progress, detail }),
+      deps.events.publish({
+        type: "job.progress",
+        jobId: job.id,
+        seriesId: job.seriesId,
+        episodeId: job.episodeId,
+        progress,
+        detail,
+      }),
   };
 
   return { publishJob, queueEvents };

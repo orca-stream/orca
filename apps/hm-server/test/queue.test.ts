@@ -200,6 +200,29 @@ describe("JobQueue", () => {
     expect((await jobs.get(job.id))?.status).toBe("cancelled");
   });
 
+  it("puts an interrupted job back in the queue as it was, without spending an attempt", async () => {
+    const started = deferred();
+    const { queue, add, jobs, outcomes } = setup(async (_job, { signal }) => {
+      started.resolve();
+      await new Promise<void>((_, reject) =>
+        signal.addEventListener("abort", () => reject(new AbortedError())),
+      );
+    });
+    const { job } = await add({ payload: { mirrors: ["a"], mirror: 0 } });
+    await queue.pump();
+    await started.promise;
+    await queue.interrupt(job.id);
+    expect(await jobs.get(job.id)).toMatchObject({
+      status: "queued",
+      attempts: 0,
+      resource: "download",
+      payload: { mirrors: ["a"], mirror: 0 },
+    });
+    expect(outcomes).toEqual([[job.id, "requeued"]]);
+    // A job not running here has nothing to stop.
+    await expect(queue.interrupt("nope")).resolves.toBeUndefined();
+  });
+
   it("leaves running jobs running when the server stops, so the next boot recovers them", async () => {
     const started = deferred();
     const { queue, add, jobs } = setup(async (_job, { signal }) => {

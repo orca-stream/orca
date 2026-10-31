@@ -8,6 +8,9 @@ export const HmEvent = z.discriminatedUnion("type", [
     type: z.literal("job.progress"),
     seq: z.number().int(),
     jobId: z.string(),
+    /** So a screen showing the series can move its episode without loading the job list. */
+    seriesId: z.string().nullable(),
+    episodeId: z.string().nullable(),
     progress: z.number().nullable(),
     detail: ProgressDetail.nullable(),
   }),

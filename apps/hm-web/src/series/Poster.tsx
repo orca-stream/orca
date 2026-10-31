@@ -1,5 +1,6 @@
 import type { SeriesDto } from "@orca/hm-contract";
-import { TvIcon } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Tv01Icon } from "@hugeicons/core-free-icons";
 import { posterUrl } from "@/api/queries";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ export function PosterImage({
         className,
       )}
     >
-      <TvIcon className="size-10" />
+      <HugeiconsIcon icon={Tv01Icon} className="size-10" />
     </div>
   );
 }

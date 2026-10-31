@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, rm, readdir, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, readdir, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -16,7 +16,12 @@ import {
   outTimeSeconds,
 } from "../src/infrastructure/download/ffmpeg-progress.ts";
 import type { UrlGuard } from "../src/application/ports.ts";
-import { FfmpegDownloader } from "../src/infrastructure/download/ffmpeg-downloader.ts";
+import {
+  FfmpegDownloader,
+  LOCAL_INPUT_OPTIONS,
+  LOCAL_PROTOCOLS,
+} from "../src/infrastructure/download/ffmpeg-downloader.ts";
+import { HlsCopier } from "../src/infrastructure/download/hls-copier.ts";
 
 // Recorded from `ffmpeg -progress pipe:1` (ffmpeg 6.1): two blocks.
 const SAMPLE = `frame=0
@@ -530,6 +535,106 @@ describe("FfmpegDownloader choosing tracks with the inspector", () => {
   });
 });
 
+describe("FfmpegDownloader reading a copy of the stream on disk", () => {
+  const withDir = async (run: (dir: string) => Promise<void>) => {
+    const dir = await mkdtemp(join(tmpdir(), "hm-ff-copy-"));
+    try {
+      await run(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+  /** A copier that "copies" by making the folder, and says where its playlist is. */
+  const fakeCopier = (entry: "playlist" | null = "playlist") => {
+    const calls: string[] = [];
+    return {
+      calls,
+      async copy(_source: unknown, folder: string, ctx: { onProgress(p: object): void }) {
+        calls.push(folder);
+        await mkdir(folder, { recursive: true });
+        ctx.onProgress({ bytes: 10, fraction: 1 });
+        if (entry === null) return null;
+        const path = join(folder, "master.m3u8");
+        writeFileSync(path, "#EXTM3U\n");
+        return path;
+      },
+    };
+  };
+
+  it("reads only local files, with the local inspector, and removes the copy once done", async () => {
+    await withDir(async (dir) => {
+      const { runs, envs, spawn } = recordingSpawn();
+      const copier = fakeCopier();
+      const network = fakeInspector(probeFixture("mkv-two-audio-two-subs"));
+      const local = fakeInspector(probeFixture("mkv-two-audio-two-subs"));
+      const ctx = context();
+      await new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        httpProxy: "http://u:p@127.0.0.1:9",
+        inspector: network,
+        localInspector: local,
+        copier,
+      }).download(hls, join(dir, "ep.mkv"), ctx);
+
+      expect(copier.calls).toEqual([join(dir, "ep.hls")]);
+      expect(network.calls).toEqual([]);
+      expect(local.calls).toEqual([
+        { url: join(dir, "ep.hls", "master.m3u8"), headers: undefined },
+      ]);
+      const args = runs[0]!;
+      expect(args[args.indexOf("-protocol_whitelist") + 1]).toBe(LOCAL_PROTOCOLS);
+      expect(args[args.indexOf("-i") + 1]).toBe(join(dir, "ep.hls", "master.m3u8"));
+      expect(args).not.toContain("-headers");
+      expect(envs[0]).toBeUndefined();
+      expect(await readdir(dir)).toEqual(["ep.mkv"]);
+      // The copy fills the bar; ffmpeg joining the files does not send it back to zero.
+      expect(ctx.progress.map((p) => p.fraction).every((f) => f === undefined || f >= 0.97)).toBe(
+        true,
+      );
+    });
+  });
+
+  it("reads the network as before when the stream cannot be copied", async () => {
+    await withDir(async (dir) => {
+      const { runs, spawn } = recordingSpawn();
+      const network = fakeInspector(probeFixture("mkv-two-audio-two-subs"));
+      await new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        spawn,
+        inspector: network,
+        localInspector: fakeInspector(new Error("not used")),
+        copier: fakeCopier(null),
+      }).download(hls, join(dir, "ep.mkv"), context());
+      expect(network.calls).toEqual([{ url: hls.url, headers: hls.headers }]);
+      expect(runs[0]![runs[0]!.indexOf("-i") + 1]).toBe(hls.url);
+      expect(await readdir(dir)).toEqual(["ep.mkv"]);
+    });
+  });
+
+  it.each([
+    ["keeps the copy for the next try after a failure worth retrying", "Connection reset", true],
+    ["drops the copy when the stream is refused for good", "Server returned 404 Not Found", false],
+  ])("%s", async (_name, message, kept) => {
+    await withDir(async (dir) => {
+      const downloader = new FfmpegDownloader({
+        guard: allowAll,
+        userAgent: "x",
+        copier: fakeCopier(),
+        spawn: fakeSpawn((child) => {
+          child.stderr.write(`${message}\n`);
+          child.stdout.end();
+          setTimeout(() => child.emit("close", 1), 1);
+        }),
+      });
+      await expect(downloader.download(hls, join(dir, "ep.mkv"), context())).rejects.toThrow();
+      expect((await readdir(dir)).includes("ep.hls")).toBe(kept);
+    });
+  });
+});
+
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
 describe.skipIf(!hasFfmpeg)("FfmpegDownloader with the real ffmpeg (opt-in: needs ffmpeg)", () => {
@@ -841,6 +946,66 @@ describe.skipIf(!hasFfmpeg || !hasFfprobe)(
         ).rejects.toThrow();
         expect(privateHits).toEqual([]);
       });
+    });
+  },
+);
+
+describe.skipIf(!hasFfmpeg || !hasFfprobe)(
+  "FfmpegDownloader copying an encrypted HLS stream with the real ffmpeg (opt-in: needs ffmpeg and ffprobe)",
+  () => {
+    it("fetches the segments and the key, then muxes them with the network closed", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "hm-ff-copy-real-"));
+      try {
+        const served = join(dir, "served");
+        await mkdir(served);
+        writeFileSync(join(served, "enc.key"), Buffer.alloc(16, 7));
+        writeFileSync(
+          join(dir, "keyinfo"),
+          `enc.key\n${join(served, "enc.key")}\n00000000000000000000000000000001\n`,
+        );
+        const made = spawnSync("ffmpeg", [
+          ...["-hide_banner", "-loglevel", "error", "-f", "lavfi"],
+          ...["-i", "testsrc=duration=4:size=64x64:rate=10", "-f", "lavfi"],
+          ...["-i", "sine=duration=4", "-c:v", "libx264", "-g", "10", "-c:a", "aac"],
+          ...["-f", "hls", "-hls_time", "1", "-hls_list_size", "0"],
+          ...["-hls_key_info_file", join(dir, "keyinfo")],
+          join(served, "stream.m3u8"),
+        ]);
+        expect(made.status).toBe(0);
+        const server = createServer((req, res) => {
+          readFile(join(served, new URL(req.url ?? "/", "http://x").pathname.slice(1)))
+            .then((body) => res.writeHead(200).end(body))
+            .catch(() => res.writeHead(404).end());
+        });
+        await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/stream.m3u8`;
+        const copier = new HlsCopier({ userAgent: "x", guard: allowAll, connectionsFor: () => 3 });
+        const staged = join(dir, "out.mkv");
+        const result = await new FfmpegDownloader({
+          guard: allowAll,
+          userAgent: "x",
+          // Once copied, nothing more may come from the network.
+          copier: {
+            copy: async (source, folder, ctx) => {
+              const entry = await copier.copy(source, folder, ctx);
+              await new Promise((resolve) => server.close(resolve));
+              return entry;
+            },
+          },
+          localInspector: new FfprobeInspector({
+            protocolWhitelist: LOCAL_PROTOCOLS,
+            inputOptions: LOCAL_INPUT_OPTIONS,
+          }),
+        }).download({ kind: "hls", url, durationSec: 4 }, staged, context());
+        const out = result.path ?? staged;
+        const probe = spawnSync("ffprobe", [
+          ...["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", out],
+        ]);
+        expect(probe.stdout.toString().trim().split("\n").sort()).toEqual(["audio", "video"]);
+        expect(await readdir(dir)).not.toContain("out.hls");
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
     });
   },
 );

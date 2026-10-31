@@ -11,4 +11,11 @@ export const keys = {
   seriesList: ["series", "list"] as const,
   seriesDetail: (id: string) => ["series", "detail", id] as const,
   episodes: (id: string) => ["series", "episodes", id] as const,
+  libraryShows: ["library", "shows"] as const,
+  libraryEpisodes: (showId: string) => ["library", "shows", showId, "episodes"] as const,
+  showLookup: (tmdbId: string) => ["lookup", "tmdb", tmdbId] as const,
+  guideSeasons: (tmdbId: string, language: string) =>
+    ["lookup", "tmdb", tmdbId, "seasons", language] as const,
+  guideEpisodes: (tmdbId: string, season: number, language: string) =>
+    ["lookup", "tmdb", tmdbId, "seasons", season, language] as const,
 };

@@ -170,6 +170,34 @@ describe("connectEvents", () => {
     expect(probe).toHaveBeenCalledTimes(3);
   });
 
+  it("takes an open but silent stream for dead and reconnects with a resync", async () => {
+    const { clock, connection, onResync, probe } = setup();
+    const first = current();
+    first.open();
+    await clock.advance(59_999);
+    expect(connection.status).toBe("open");
+    await clock.advance(1); // a minute of silence
+    expect(first.closed).toBe(true);
+    expect(connection.status).toBe("reconnecting");
+    await clock.advance(1000);
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    current().open();
+    expect(onResync).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["ping", "job.updated"])("keeps a stream that sends %s now and then", async (type) => {
+    const { clock, connection } = setup();
+    const source = current();
+    source.open();
+    for (let i = 0; i < 4; i++) {
+      await clock.advance(50_000);
+      source.emit(type, type === "ping" ? "" : '{"seq":1}');
+    }
+    expect(source.closed).toBe(false);
+    expect(connection.status).toBe("open");
+  });
+
   it("close() closes the source and cancels the timers", async () => {
     const { clock, connection, probe } = setup();
     current().dropClosed();

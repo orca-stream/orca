@@ -89,7 +89,7 @@ export class DrizzleSeriesRepository implements SeriesRepository {
 
   async updateSource(
     id: string,
-    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs">>,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "closed">>,
   ): Promise<void> {
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (Object.keys(defined).length === 0) return;
@@ -104,6 +104,21 @@ export class DrizzleSeriesRepository implements SeriesRepository {
   async findByFolder(folderName: string): Promise<Series | null> {
     const row = this.db.select().from(series).where(eq(series.folderName, folderName)).get();
     return row ? toSeries(row) : null;
+  }
+
+  async findByProviderIds(ids: {
+    tmdbId: string | null;
+    imdbId: string | null;
+  }): Promise<Series | null> {
+    for (const [column, value] of [
+      [series.tmdbId, ids.tmdbId],
+      [series.imdbId, ids.imdbId],
+    ] as const) {
+      if (value === null) continue;
+      const row = this.db.select().from(series).where(eq(column, value)).get();
+      if (row) return toSeries(row);
+    }
+    return null;
   }
 
   async list(): Promise<SeriesWithCounts[]> {

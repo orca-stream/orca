@@ -31,16 +31,24 @@ function applyOp(queryClient: QueryClient, op: Op) {
     }
     case "progress": {
       const active = queryClient.getQueryData<JobDto[]>(keys.jobsActive);
-      if (!active) return;
-      const job = active.find((item) => item.id === op.jobId);
-      queryClient.setQueryData(
-        keys.jobsActive,
-        patchProgress(active, op.jobId, op.progress, op.detail),
-      );
-      if (job?.seriesId && job.episodeId) {
-        queryClient.setQueryData<EpisodeDto[]>(keys.episodes(job.seriesId), (episodes) =>
+      if (active) {
+        queryClient.setQueryData(
+          keys.jobsActive,
+          patchProgress(active, op.jobId, op.progress, op.detail),
+        );
+      }
+      // The event names its episode, so a series on screen moves without the job list loaded.
+      const { seriesId, episodeId } = op;
+      if (seriesId && episodeId) {
+        queryClient.setQueryData<EpisodeDto[]>(keys.episodes(seriesId), (episodes) =>
           episodes?.map((episode) =>
-            episode.id === job.episodeId ? { ...episode, progress: op.progress } : episode,
+            episode.id === episodeId
+              ? {
+                  ...episode,
+                  progress: op.progress,
+                  progressDetail: op.detail ?? episode.progressDetail,
+                }
+              : episode,
           ),
         );
       }

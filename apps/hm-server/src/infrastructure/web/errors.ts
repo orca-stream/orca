@@ -11,6 +11,7 @@ const APP_STATUS: Record<AppError["code"], ContentfulStatusCode> = {
   conflict: 409,
   gone: 410,
   upstream: 502,
+  unavailable: 503,
 };
 
 const EXTRACTOR_STATUS: Record<ExtractorError["code"], ContentfulStatusCode> = {

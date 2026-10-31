@@ -1,6 +1,7 @@
+import { Download04Icon, Logout03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { HouseIcon, LogOutIcon, PlusIcon, PuzzleIcon, TvIcon } from "lucide-react";
-import { Fragment, type CSSProperties, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
@@ -14,23 +15,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SseStatus } from "@/events/sse";
 import { useT } from "@/i18n/locale";
@@ -45,174 +31,47 @@ const LIVE_TONE: Record<SseStatus, string> = {
   closed: "bg-muted-foreground/40",
 };
 
-const NAV = [
-  { href: "/", icon: HouseIcon, label: "dashboard" },
-  { href: "/series", icon: TvIcon, label: "series" },
-  { href: "/extractors", icon: PuzzleIcon, label: "extractors" },
-] as const;
-
-/** The active item is a white tile lifted off the grey sidebar, not a tint. */
-const ITEM =
-  "h-9 gap-3 px-2.5 text-sidebar-foreground [&_svg]:size-[18px] data-active:bg-background data-active:text-foreground data-active:shadow-xs data-active:ring-1 data-active:ring-sidebar-border data-active:hover:bg-background group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
-
-/** Text that only makes sense beside the icon: gone on the rail, so the icon sits centred. */
-const LABEL = "group-data-[collapsible=icon]:hidden";
-
-/** The sidebar_state cookie the sidebar writes; read back so a reload keeps it collapsed. */
-function initiallyOpen() {
-  return !document.cookie.split("; ").includes("sidebar_state=false");
-}
-
-function isActive(href: string, location: string) {
-  return href === "/" ? location === "/" : location === href || location.startsWith(`${href}/`);
-}
-
-function Nav() {
-  const t = useT();
-  const [location] = useLocation();
-  const { isMobile, setOpenMobile } = useSidebar();
-  // On a phone the sidebar is a sheet over the page: going somewhere closes it.
-  const close = () => isMobile && setOpenMobile(false);
-
-  return (
-    <SidebarGroup>
-      <nav aria-label={t.nav.label}>
-        <SidebarMenu className="gap-1">
-          {NAV.map(({ href, icon: Icon, label }) => {
-            const active = isActive(href, location);
-            return (
-              <SidebarMenuItem key={href}>
-                <SidebarMenuButton
-                  render={
-                    <Link href={href} aria-current={active ? "page" : undefined} onClick={close} />
-                  }
-                  isActive={active}
-                  tooltip={t.nav[label]}
-                  className={ITEM}
-                >
-                  <Icon />
-                  <span className={LABEL}>{t.nav[label]}</span>
-                </SidebarMenuButton>
-                {href === "/series" && (
-                  <SidebarMenuAction
-                    render={<Link href="/series/new" aria-label={t.series.add} onClick={close} />}
-                    className="right-1.5 w-6 text-muted-foreground hover:bg-sidebar-accent"
-                    showOnHover
-                  >
-                    <PlusIcon />
-                  </SidebarMenuAction>
-                )}
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
-      </nav>
-    </SidebarGroup>
-  );
-}
-
-/**
- * Who is signed in and the way out, in one control: a white card that signs out, whose exit icon
- * turns red on hover so it never reads as a profile link.
- */
-function Account() {
-  const t = useT();
-  const me = useMe();
-  const logout = useLogout();
-  const name = me.data?.userName;
-
-  return (
-    <SidebarFooter>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="lg"
-            onClick={() => logout.mutate()}
-            disabled={logout.isPending}
-            aria-busy={logout.isPending || undefined}
-            tooltip={name ? `${t.nav.signedInAs(name)} · ${t.nav.signOut}` : t.nav.signOut}
-            className={cn(
-              ITEM,
-              "h-12 bg-background pr-2 shadow-xs ring-1 ring-sidebar-border hover:bg-background hover:ring-destructive/25 active:bg-background",
-            )}
-          >
-            <span
-              aria-hidden="true"
-              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground uppercase"
-            >
-              {name?.charAt(0) ?? "?"}
-            </span>
-            <span className={cn("grid flex-1 leading-tight", LABEL)}>
-              <span className="truncate font-medium text-foreground">{name ?? "…"}</span>
-              <span className="truncate text-xs text-muted-foreground transition-colors group-hover/menu-button:text-destructive">
-                {t.nav.signOut}
-              </span>
-            </span>
-            <span
-              aria-hidden="true"
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover/menu-button:bg-destructive/10 group-hover/menu-button:text-destructive",
-                LABEL,
-              )}
-            >
-              <LogOutIcon />
-            </span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarFooter>
-  );
-}
+/** The round, glassy icon buttons of the top bar. */
+const BAR_BUTTON = "rounded-full text-muted-foreground hover:bg-white/70 hover:text-foreground";
 
 /**
  * Whether the live event stream is up (queue and notifications update by themselves when it is):
- * a dot beside the logotype, or a badge on the icon tile when the sidebar is folded.
+ * a dot beside the logotype.
  */
 function LiveDot({ live }: { live: SseStatus }) {
   const t = useT();
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={<span role="status" />}
-        className="flex size-4 items-center justify-center group-data-[collapsible=icon]:absolute group-data-[collapsible=icon]:-top-1 group-data-[collapsible=icon]:-right-1"
-      >
+      <TooltipTrigger render={<span role="status" />} className="flex size-4 items-center">
         <span
           aria-hidden="true"
           className={cn(
-            "size-2.5 rounded-full ring-2 ring-sidebar",
+            "size-2.5 rounded-full ring-2 ring-white",
             LIVE_TONE[live],
             (live === "connecting" || live === "reconnecting") && "animate-pulse",
           )}
         />
         <span className="sr-only">{t.live[live]}</span>
       </TooltipTrigger>
-      <TooltipContent side="right">{t.live[live]}</TooltipContent>
+      <TooltipContent side="bottom">{t.live[live]}</TooltipContent>
     </Tooltip>
   );
 }
 
-/** The detail page's own query, so the title comes from the cache the screen already fills. */
-function SeriesTitle({ id }: { id: string }) {
-  const api = useApi();
-  const series = useQuery(queries.seriesDetail(api, id));
-  return <>{series.data?.title ?? "…"}</>;
-}
-
+/** Where you are below home. */
 function Crumbs() {
   const t = useT();
   const [location] = useLocation();
-  const [isDetail, params] = useRoute("/series/:id");
-  const section = NAV.find(({ href }) => href !== "/" && isActive(href, location));
 
-  const crumbs: { label: ReactNode; href?: string }[] = [
-    section ? { label: t.nav[section.label], href: section.href } : { label: t.nav.dashboard },
-  ];
-  if (location === "/series/new") crumbs.push({ label: t.add.title });
-  else if (isDetail) crumbs.push({ label: <SeriesTitle id={params.id} /> });
+  const crumbs: { label: ReactNode; href?: string }[] = [];
+  // The series, a series and adding one have no bar: the queue is the only page below home with one.
+  if (location === "/downloads") crumbs.push({ label: t.nav.downloads });
+  if (crumbs.length === 0) return null;
 
   return (
     <Breadcrumb aria-label={t.nav.breadcrumb} className="min-w-0">
       <BreadcrumbList className="flex-nowrap">
+        <BreadcrumbSeparator />
         {crumbs.map(({ label, href }, index) => {
           const last = index === crumbs.length - 1;
           return (
@@ -220,7 +79,7 @@ function Crumbs() {
               {index > 0 && <BreadcrumbSeparator />}
               <BreadcrumbItem className="min-w-0">
                 {last || !href ? (
-                  <BreadcrumbPage className="truncate rounded-md bg-sidebar px-2 py-0.5 font-medium">
+                  <BreadcrumbPage className="truncate rounded-full bg-white/70 px-2.5 py-0.5 font-medium">
                     {label}
                   </BreadcrumbPage>
                 ) : (
@@ -235,62 +94,163 @@ function Crumbs() {
   );
 }
 
+/** The way to the queue, with how many downloads are moving right now. */
+function DownloadsLink() {
+  const t = useT();
+  const api = useApi();
+  const [location] = useLocation();
+  const active = useQuery(queries.jobsActive(api)).data?.length ?? 0;
+  const here = location === "/downloads";
+
+  return (
+    <Link
+      href="/downloads"
+      aria-label={t.nav.downloadsActive(active)}
+      aria-current={here ? "page" : undefined}
+      className={cn(
+        buttonVariants({ variant: "ghost", size: "lg" }),
+        BAR_BUTTON,
+        "relative gap-2 px-3",
+        here && "bg-white/80 text-foreground shadow-xs",
+      )}
+    >
+      <HugeiconsIcon icon={Download04Icon} className="size-5" />
+      <span className="hidden sm:inline">{t.nav.downloads}</span>
+      {active > 0 && (
+        <span
+          aria-hidden="true"
+          className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] leading-5 font-semibold text-primary-foreground"
+        >
+          {active > 99 ? "99+" : active}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** Who is signed in, behind their initial; the way out is one click further, never a stray one. */
+function Account() {
+  const t = useT();
+  const me = useMe();
+  const logout = useLogout();
+  const name = me.data?.userName;
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={name ? t.nav.signedInAs(name) : t.nav.account}
+            className={cn(BAR_BUTTON, "p-0")}
+          />
+        }
+      >
+        <span
+          aria-hidden="true"
+          className="flex size-8 items-center justify-center rounded-full bg-linear-to-br from-sky-400 to-primary text-sm font-semibold text-primary-foreground uppercase ring-2 ring-white"
+        >
+          {name?.charAt(0) ?? "?"}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-60">
+        <div className="grid leading-tight">
+          <span className="truncate font-medium">{name ?? "…"}</span>
+          <span className="text-xs text-muted-foreground">{t.nav.account}</span>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={() => logout.mutate()}
+          disabled={logout.isPending}
+          aria-busy={logout.isPending || undefined}
+          className="justify-start gap-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <HugeiconsIcon icon={Logout03Icon} />
+          {t.nav.signOut}
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Soft, blurred colour behind everything: what gives the glass something to frost. */
+function Backdrop() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[#eef2f9]">
+      <div className="absolute -top-40 -left-32 size-[36rem] rounded-full bg-[#06f]/25 blur-3xl" />
+      <div className="absolute top-1/4 -right-40 size-[32rem] rounded-full bg-cyan-300/35 blur-3xl" />
+      <div className="absolute -bottom-48 left-1/3 size-[40rem] rounded-full bg-violet-300/30 blur-3xl" />
+    </div>
+  );
+}
+
 /**
- * The frame every screen of the panel sits in: a grey sidebar that folds into an icon rail
- * (Ctrl/⌘+B, or a sheet on phones) beside a white, rounded panel that scrolls on its own.
+ * The frame every screen of the panel sits in: a floating glass bar on top and the screen below.
+ * Home, the series, adding one and a series have no bar and lay their content straight on the backdrop;
+ * every other screen gets a glass panel of its own.
  */
 export function Shell({ live, children }: { live?: SseStatus; children: ReactNode }) {
   const t = useT();
+  const [location] = useLocation();
+  const home = location === "/";
+  // Screens that stand alone on the backdrop: no bar, no glass panel, centred.
+  const bare = home || location === "/series" || location === "/series/new";
+  // A series lays its own glass panels on the backdrop, as adding one does, across the whole
+  // window and with no bar: its card has the way back.
+  const [seriesRoute] = useRoute("/series/:id");
+  const isSeries = seriesRoute && !bare;
+  const panelled = !bare && !isSeries;
 
   return (
     <TooltipProvider>
-      <SidebarProvider
-        defaultOpen={initiallyOpen()}
-        // A little wider than shadcn's 3rem rail, so the 36px items fit with room on both sides.
-        style={{ "--sidebar-width-icon": "3.5rem" } as CSSProperties}
-      >
-        <Sidebar variant="inset" collapsible="icon">
-          <SidebarHeader className="h-14 justify-center px-4 group-data-[collapsible=icon]:px-2">
-            <div className="relative flex items-center justify-between gap-2 pr-1 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:pr-0">
+      <div className="isolate flex min-h-svh flex-col">
+        <Backdrop />
+        {/* Home, the series and adding one have no bar: just their content, centred on the screen. */}
+        {panelled && (
+          <header className="sticky top-0 z-20 px-3 pt-3 sm:px-6 sm:pt-4">
+            <nav
+              aria-label={t.nav.label}
+              className={cn(
+                "glass mx-auto flex h-14 max-w-6xl items-center gap-2 rounded-full pr-2 pl-5",
+              )}
+            >
               <Link
                 href="/"
-                className="flex items-center rounded-md outline-ring focus-visible:outline-2"
+                aria-current={home ? "page" : undefined}
+                className="flex shrink-0 items-center rounded-md outline-ring focus-visible:outline-2"
               >
-                <img
-                  src={logotype}
-                  alt={t.brand}
-                  className="h-5 w-auto group-data-[collapsible=icon]:hidden"
-                />
-                <img
-                  src="/favicon.svg"
-                  alt=""
-                  className="hidden size-8 rounded-lg ring-1 ring-sidebar-border group-data-[collapsible=icon]:block"
-                />
+                <img src={logotype} alt={t.brand} className="h-5 w-auto" />
               </Link>
               {live && <LiveDot live={live} />}
-            </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <Nav />
-          </SidebarContent>
-          <Account />
-          <SidebarRail />
-        </Sidebar>
-        <SidebarInset className="min-w-0 md:h-[calc(100svh-(--spacing(4)))] md:overflow-hidden">
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4 md:static">
-            <SidebarTrigger aria-label={t.nav.toggle} className="-ml-1 text-muted-foreground" />
-            <Separator
-              orientation="vertical"
-              className="mr-1 data-vertical:h-4 data-vertical:self-center"
-            />
-            <Crumbs />
-            <div className="ml-auto">
-              <NotificationBell />
-            </div>
+              <Crumbs />
+              <div className="ml-auto flex items-center gap-1">
+                <DownloadsLink />
+                <NotificationBell />
+                <Account />
+              </div>
+            </nav>
           </header>
-          <div className="flex-1 p-6 md:overflow-y-auto md:p-8">{children}</div>
-        </SidebarInset>
-      </SidebarProvider>
+        )}
+        <main
+          className={cn(
+            "flex-1",
+            // Centred while it fits; once it is taller than the window it starts at the top instead
+            // of spilling above it.
+            bare
+              ? "flex items-center-safe justify-center p-3 sm:p-6" // the tile grid's gap
+              : isSeries
+                ? "px-3 py-4 sm:px-6 sm:py-6"
+                : "px-3 py-6 sm:px-6 sm:py-10",
+          )}
+        >
+          {panelled ? (
+            <div className="glass mx-auto max-w-6xl rounded-3xl p-5 sm:p-8">{children}</div>
+          ) : (
+            children
+          )}
+        </main>
+      </div>
     </TooltipProvider>
   );
 }

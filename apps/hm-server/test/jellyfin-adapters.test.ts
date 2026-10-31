@@ -271,3 +271,166 @@ describe("JellyfinMediaServer", () => {
     ).rejects.toBeInstanceOf(PermanentError);
   });
 });
+
+describe("JellyfinMediaServer.findShowByTmdbId", () => {
+  const APOTHECARY = {
+    Name: "The Apothecary Diaries",
+    ProductionYear: 2023,
+    ProviderIds: { Tmdb: "220542", Imdb: "tt27977402", Tvdb: "427382" },
+    SearchProviderName: "TheMovieDb",
+    Overview: "  Maomao, a young apothecary, is sold to the palace.  ",
+    ImageUrl: "https://image.tmdb.org/t/p/original/poster.jpg",
+  };
+  /** A Jellyfin whose remote search answers `results`. */
+  const lookup =
+    (results: unknown[]): Route =>
+    (config) =>
+      new URL(config.url ?? "").pathname === "/Items/RemoteSearch/Series"
+        ? { status: 200, data: results }
+        : { status: 404, data: "" };
+
+  it("asks Jellyfin's TMDB provider, disabled or not, and names the show", async () => {
+    const { server, requests } = mediaServer(lookup([APOTHECARY]));
+    expect(await server.findShowByTmdbId("220542")).toEqual({
+      title: "The Apothecary Diaries",
+      year: 2023,
+      imdbId: "tt27977402",
+      overview: "Maomao, a young apothecary, is sold to the palace.",
+      posterUrl: "https://image.tmdb.org/t/p/w342/poster.jpg",
+    });
+    const request = requests.find((r) => parts(r).path === "/Items/RemoteSearch/Series");
+    expect(request?.method).toBe("post");
+    expect(header(request!)).toContain('Token="api-key"');
+    // No language: Jellyfin then uses the server's preferred metadata language and country.
+    expect(JSON.parse(String(request?.data))).toEqual({
+      SearchInfo: { ProviderIds: { Tmdb: "220542" } },
+      SearchProviderName: "TheMovieDb",
+      IncludeDisabledProviders: true,
+    });
+  });
+
+  it("leaves out what TMDB doesn't know", async () => {
+    const { server } = mediaServer(lookup([{ Name: "Untitled", ProviderIds: { Tmdb: "7" } }]));
+    expect(await server.findShowByTmdbId("7")).toEqual({
+      title: "Untitled",
+      year: null,
+      imdbId: null,
+      overview: null,
+      posterUrl: null,
+    });
+  });
+
+  it("keeps only a poster that is a web address", async () => {
+    const show = (ImageUrl: string) => ({ Name: "x", ProviderIds: { Tmdb: "7" }, ImageUrl });
+    for (const url of ["javascript:alert(1)", "not a url", ""]) {
+      const found = await mediaServer(lookup([show(url)])).server.findShowByTmdbId("7");
+      expect(found?.posterUrl).toBeNull();
+    }
+    const other = await mediaServer(
+      lookup([show("https://cdn.example/p.jpg")]),
+    ).server.findShowByTmdbId("7");
+    expect(other?.posterUrl).toBe("https://cdn.example/p.jpg");
+  });
+
+  it("is null when TMDB has no such show", async () => {
+    expect(await mediaServer(lookup([])).server.findShowByTmdbId("1")).toBeNull();
+    const other = { ...APOTHECARY, ProviderIds: { Tmdb: "999" } };
+    expect(await mediaServer(lookup([other])).server.findShowByTmdbId("1")).toBeNull();
+  });
+
+  it("says upstream when Jellyfin can't be asked", async () => {
+    for (const route of [
+      () => "offline" as const,
+      () => ({ status: 503, data: "" }),
+      () => ({ status: 401, data: "" }),
+    ]) {
+      await expect(mediaServer(route).server.findShowByTmdbId("1")).rejects.toMatchObject({
+        name: "AppError",
+        code: "upstream",
+      });
+    }
+  });
+});
+
+describe("JellyfinMediaServer, what the libraries already have", () => {
+  const route =
+    (items: Record<string, unknown[]>): Route =>
+    (config) => {
+      const { path, query } = parts(config);
+      if (path !== "/Items") return { status: 404, data: "" };
+      return { status: 200, data: { Items: items[query.includeItemTypes ?? ""] ?? [] } };
+    };
+
+  it("lists every show with its ids, and its folder as this server sees it", async () => {
+    const { server, requests } = mediaServer(
+      route({
+        Series: [
+          {
+            Id: "a",
+            Name: "Mashle: Magic and Muscles",
+            ProductionYear: 2023,
+            Path: "/data/tv/Mashle (2023)",
+            ProviderIds: { Tmdb: "204832", Imdb: "tt21209804" },
+          },
+          { Id: "b", Name: "Far", Path: "/elsewhere/Far", ProviderIds: { Tmdb: "" } },
+          { Id: "c", Name: "No path" },
+          { Id: "d", Path: "/data/tv/Nameless" },
+        ],
+      }),
+    );
+    expect(await server.listShows()).toEqual([
+      {
+        id: "a",
+        title: "Mashle: Magic and Muscles",
+        year: 2023,
+        tmdbId: "204832",
+        imdbId: "tt21209804",
+        folderName: "Mashle (2023)",
+      },
+      { id: "b", title: "Far", year: null, tmdbId: null, imdbId: null, folderName: null },
+      { id: "c", title: "No path", year: null, tmdbId: null, imdbId: null, folderName: null },
+    ]);
+    expect(parts(requests[0]).query).toMatchObject({
+      recursive: "true",
+      includeItemTypes: "Series",
+      enableImages: "false",
+    });
+    // One `fields` per value.
+    expect(new URL(requests[0]?.url ?? "").searchParams.getAll("fields")).toEqual([
+      "Path",
+      "ProviderIds",
+    ]);
+  });
+
+  it("lists one file per episode, leaving out files of several episodes and episodes without one", async () => {
+    const { server, requests } = mediaServer(
+      route({
+        Episode: [
+          { ParentIndexNumber: 1, IndexNumber: 1, Path: "/data/tv/M/S1/m01.mkv" },
+          { ParentIndexNumber: 1, IndexNumber: 2, IndexNumberEnd: 3, Path: "/data/tv/M/m02.mkv" },
+          { ParentIndexNumber: 1, IndexNumber: 4, Path: "/data/tv/M/m0405.mkv" },
+          { ParentIndexNumber: 1, IndexNumber: 5, Path: "/data/tv/M/m0405.mkv" },
+          { ParentIndexNumber: 1, IndexNumber: 6, LocationType: "Virtual" },
+          { ParentIndexNumber: 1, IndexNumber: 7, Path: "/other/m07.mkv" },
+          { IndexNumber: 8, Path: "/data/tv/M/m08.mkv" },
+        ],
+      }),
+    );
+    expect(await server.listEpisodeFiles("show")).toEqual([
+      { season: 1, episode: 1, path: "/media/tv/M/S1/m01.mkv" },
+    ]);
+    expect(parts(requests[0]).query).toMatchObject({
+      parentId: "show",
+      recursive: "true",
+      includeItemTypes: "Episode",
+    });
+  });
+
+  it("says Jellyfin is the problem when it can't be asked", async () => {
+    const { server } = mediaServer(() => ({ status: 401, data: "" }));
+    await expect(server.listShows()).rejects.toMatchObject({
+      code: "upstream",
+      message: "Jellyfin rejected the API key",
+    });
+  });
+});

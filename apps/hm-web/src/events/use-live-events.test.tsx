@@ -61,6 +61,8 @@ describe("useLiveEvents", () => {
       type: "job.progress",
       seq: 1,
       jobId: "j1",
+      seriesId: "s1",
+      episodeId: "e1",
       progress: 0.4,
       detail: { speed: 5 },
     });
@@ -68,6 +70,28 @@ describe("useLiveEvents", () => {
     expect(
       (queryClient.getQueryData(keys.episodes("s1")) as { progress: number }[])[0]?.progress,
     ).toBe(0.4);
+    expect(requests).toHaveLength(0);
+  });
+
+  it("moves an episode's download on a series screen that never loaded the queue", () => {
+    const { queryClient, requests } = renderApp(<Probe />, { handler: () => jsonResponse({}) });
+    queryClient.setQueryData(keys.episodes("s1"), [
+      { id: "e1", progress: null, progressDetail: null, status: "downloading" },
+    ]);
+    const source = FakeEventSource.instances[0]!;
+    act(() => source.open());
+    send(source, {
+      type: "job.progress",
+      seq: 1,
+      jobId: "j1",
+      seriesId: "s1",
+      episodeId: "e1",
+      progress: null,
+      detail: { bytes: 4_000_000 },
+    });
+    expect(queryClient.getQueryData(keys.episodes("s1"))).toEqual([
+      { id: "e1", progress: null, progressDetail: { bytes: 4_000_000 }, status: "downloading" },
+    ]);
     expect(requests).toHaveLength(0);
   });
 

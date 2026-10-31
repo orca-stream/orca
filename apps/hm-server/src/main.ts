@@ -2,9 +2,11 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname, resolve } from "node:path";
 import { serve } from "@hono/node-server";
+import { Agent, fetch as undiciFetch } from "undici";
 import type { SiteExtractor } from "@orca/extractor-core";
 import { createHtmlExtractor, parseSitesFile } from "@orca/extractor-html";
 import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
+import { createShowApiExtractor, parseShowApiFile } from "@orca/extractor-show-api";
 import { createJellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
 import { GuardedProxy, PlaywrightStreamDetector } from "@orca/stream-detector";
@@ -25,18 +27,24 @@ import { DrizzleNotificationRepository } from "./infrastructure/db/notification-
 import { DrizzleSeriesRepository } from "./infrastructure/db/series-repository.ts";
 import { DrizzleSessionRepository } from "./infrastructure/db/session-repository.ts";
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
-import { FfmpegDownloader } from "./infrastructure/download/ffmpeg-downloader.ts";
+import {
+  FfmpegDownloader,
+  LOCAL_INPUT_OPTIONS,
+  LOCAL_PROTOCOLS,
+} from "./infrastructure/download/ffmpeg-downloader.ts";
+import { HlsCopier } from "./infrastructure/download/hls-copier.ts";
 import { HttpDownloader } from "./infrastructure/download/http-downloader.ts";
 import { AddressGuard, isBlockedAddress } from "./infrastructure/net/address-guard.ts";
 import { GenericPageExtractor } from "./infrastructure/generic-page-extractor.ts";
 import { PlaywrightDetectorAdapter } from "./infrastructure/playwright-detector-adapter.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { StaticExtractorRegistry } from "./infrastructure/extractor-registry.ts";
-import { HostLimiter, hostLimitsFor } from "./infrastructure/host-limiter.ts";
+import { connectionsFor, HostLimiter, hostLimitsFor } from "./infrastructure/host-limiter.ts";
 import { FetchHttpClient } from "./infrastructure/http-client.ts";
 import { FetchImageFetcher } from "./infrastructure/image-fetcher.ts";
 import { JellyfinAuthenticator } from "./infrastructure/jellyfin/authenticator.ts";
 import { JellyfinMediaServer } from "./infrastructure/jellyfin/media-server.ts";
+import { TmdbEpisodeGuide } from "./infrastructure/tmdb/tmdb-episode-guide.ts";
 import { FsLibraryWriter } from "./infrastructure/library/fs-library-writer.ts";
 import { InMemoryPreviewStore } from "./infrastructure/preview-store.ts";
 import { systemClock, systemRandom } from "./infrastructure/system.ts";
@@ -63,8 +71,15 @@ mkdirSync(dirname(resolve(config.dbFile)), { recursive: true });
 mkdirSync(resolve(config.mediaRoot), { recursive: true });
 const mediaRoot = resolve(config.mediaRoot);
 
-/** How long ffprobe may take to read a stream's tracks before the download is tried again later. */
-const PROBE_TIMEOUT_MS = 60_000;
+/** ffprobe on a stream copied to disk: seconds at most; more means something is wrong. */
+const LOCAL_PROBE_TIMEOUT_MS = 60_000;
+/**
+ * How long a direct download may take to open a connection, TLS included. Some players' servers take
+ * 15–30 s to finish a handshake (player-c), past fetch's own 10 s.
+ */
+const DOWNLOAD_CONNECT_TIMEOUT_MS = 60_000;
+/** The panel waits on TMDB while a person picks a season. */
+const TMDB_TIMEOUT_MS = 10_000;
 
 // --- adapters
 const database = openDatabase({
@@ -88,6 +103,12 @@ const limiter = new HostLimiter({
   clock: systemClock,
 });
 const http = new FetchHttpClient({ userAgent: agent, limiter });
+const downloadDispatcher = new Agent({ connect: { timeout: DOWNLOAD_CONNECT_TIMEOUT_MS } });
+const downloadFetch = ((input, init) =>
+  undiciFetch(
+    input as never,
+    { ...(init as object), dispatcher: downloadDispatcher } as never,
+  )) as typeof fetch;
 extractors.push(createInternetArchiveExtractor({ http }));
 // Read once at boot: a typo in a selector or a pattern stops the server here, not on the first job.
 if (config.sitesFile) {
@@ -95,13 +116,18 @@ if (config.sitesFile) {
   for (const site of sites) extractors.push(createHtmlExtractor({ site, http }));
   console.log(`sites file: ${sites.length} site(s) from ${resolve(config.sitesFile)}`);
 }
+if (config.showApiFile) {
+  const { sites } = parseShowApiFile(readFileSync(resolve(config.showApiFile), "utf8"));
+  for (const site of sites) extractors.push(createShowApiExtractor({ site, http }));
+  console.log(`show API file: ${sites.length} site(s) from ${resolve(config.showApiFile)}`);
+}
 // Everything the browser and ffmpeg fetch goes through this proxy, which checks each address it is
 // asked for (redirects, segments and keys included) and connects to the IP it checked.
 const proxy = config.detector ? new GuardedProxy({ isBlockedAddress }) : null;
 await proxy?.start();
 
 // The browser exists only when something needs it (the generic extractor, or the players of the
-// sites in the sites file); the generic extractor only when HM_GENERIC_DETECTOR asks for it.
+// sites in the sites and show API files); the generic extractor only when HM_GENERIC_DETECTOR asks for it.
 const detector =
   config.detector && proxy
     ? new PlaywrightDetectorAdapter(
@@ -151,22 +177,48 @@ const deps: Deps = {
     mediaRoot,
     jellyfinMediaRoot: config.jellyfinMediaRoot,
   }),
+  episodeGuide: config.tmdbApiKey
+    ? new TmdbEpisodeGuide({
+        apiKey: config.tmdbApiKey,
+        userAgent: agent,
+        timeoutMs: TMDB_TIMEOUT_MS,
+      })
+    : null,
   downloaders: [
-    new HttpDownloader({ userAgent: agent, limiter, guard }),
+    new HttpDownloader({
+      userAgent: agent,
+      limiter,
+      guard,
+      connectionsFor: connectionsFor(extractors, config.downloadConnections),
+      fetch: downloadFetch,
+    }),
     new FfmpegDownloader({
       userAgent: agent,
       guard,
       ...(proxy ? { httpProxy: proxy.url } : {}),
       inspector: new FfprobeInspector({
-        timeoutMs: PROBE_TIMEOUT_MS,
+        timeoutMs: config.probeTimeoutMs,
         ...(proxy ? { httpProxy: proxy.url } : {}),
       }),
       externalSubtitles: config.externalSubtitles,
+      copier: new HlsCopier({
+        userAgent: agent,
+        guard,
+        connectionsFor: connectionsFor(extractors, config.downloadConnections),
+        fetch: downloadFetch,
+      }),
+      localInspector: new FfprobeInspector({
+        timeoutMs: LOCAL_PROBE_TIMEOUT_MS,
+        protocolWhitelist: LOCAL_PROTOCOLS,
+        inputOptions: LOCAL_INPUT_OPTIONS,
+      }),
     }),
   ],
   detector,
   guard,
   streamDefaults: config.streamDefaults,
+  sequentialDownloads: config.sequentialDownloads,
+  skipPlayers: config.skipPlayers,
   events,
   // The panel's channel is the only one; ntfy and the like would be added to this list.
   notifications: new NotificationService({
@@ -179,7 +231,7 @@ const deps: Deps = {
   sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
   adminRecheckMs: 60 * 60 * 1000,
   queue: { notify: () => queue.notify() },
-  canceller: { cancel: (id) => queue.cancel(id) },
+  canceller: { cancel: (id) => queue.cancel(id), interrupt: (id) => queue.interrupt(id) },
 };
 
 // --- queue and use cases
@@ -191,6 +243,7 @@ const queue = new JobQueue({
   handler: createJobHandler(deps),
   events: queueEvents,
   limits: config.concurrency,
+  oneEpisodeAtATime: config.sequentialDownloads,
 });
 const useCases = createUseCases(deps);
 
@@ -224,6 +277,7 @@ async function shutdown(signal: string): Promise<void> {
   await scheduler.stop();
   await detector?.dispose();
   await proxy?.close();
+  await downloadDispatcher.destroy();
   database.close();
   process.exit(0);
 }

@@ -1,5 +1,16 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import type { EpisodeDto, ExtractorDto, JobDto, NotificationList, SeriesDto } from "./types";
+import type {
+  EpisodeDto,
+  ExtractorDto,
+  JobDto,
+  LibraryEpisodeDto,
+  LibraryShowDto,
+  NotificationList,
+  SeriesDto,
+  ShowLookupDto,
+  GuideEpisodeDto,
+  GuideSeasonDto,
+} from "./types";
 import type { ApiClient } from "./client";
 import { keys } from "./keys";
 
@@ -79,6 +90,61 @@ export const queries = {
       queryKey: keys.episodes(seriesId),
       queryFn: ({ signal }) =>
         api.get<EpisodeDto[]>(`/series/${id(seriesId)}/episodes`, { signal }),
+    }),
+
+  /** The shows Jellyfin already has, and the series this server has for each. */
+  libraryShows: (api: ApiClient) =>
+    queryOptions({
+      queryKey: keys.libraryShows,
+      queryFn: ({ signal }) => api.get<LibraryShowDto[]>("/library/shows", { signal }),
+      staleTime: 60_000,
+      // Without Jellyfin the panel still adds series; it just can't offer its shows.
+      retry: false,
+    }),
+
+  /** The episodes a Jellyfin show has as files, which adding to it keeps instead of downloading. */
+  libraryEpisodes: (api: ApiClient, showId: string) =>
+    queryOptions({
+      queryKey: keys.libraryEpisodes(showId),
+      queryFn: ({ signal }) =>
+        api.get<LibraryEpisodeDto[]>(`/library/shows/${id(showId)}/episodes`, { signal }),
+      staleTime: 60_000,
+    }),
+
+  /** What TMDB calls a show; a show's name doesn't change while the panel is open. */
+  showLookup: (api: ApiClient, tmdbId: string) =>
+    queryOptions({
+      queryKey: keys.showLookup(tmdbId),
+      queryFn: ({ signal }) => api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}`, { signal }),
+      staleTime: Infinity,
+      // A 404 is the answer, not a hiccup; and nobody waits through retries while typing.
+      retry: false,
+    }),
+
+  /** A show's seasons as TMDB numbers them; a 503 means no TMDB key, and the numbers are typed. */
+  guideSeasons: (api: ApiClient, tmdbId: string, language: string) =>
+    queryOptions({
+      queryKey: keys.guideSeasons(tmdbId, language),
+      queryFn: ({ signal }) =>
+        api.get<GuideSeasonDto[]>(
+          `/lookup/tmdb/${id(tmdbId)}/seasons?language=${encodeURIComponent(language)}`,
+          { signal },
+        ),
+      staleTime: Infinity,
+      retry: false,
+    }),
+
+  /** The episodes of one of those seasons. */
+  guideEpisodes: (api: ApiClient, tmdbId: string, season: number, language: string) =>
+    queryOptions({
+      queryKey: keys.guideEpisodes(tmdbId, season, language),
+      queryFn: ({ signal }) =>
+        api.get<GuideEpisodeDto[]>(
+          `/lookup/tmdb/${id(tmdbId)}/seasons/${season}?language=${encodeURIComponent(language)}`,
+          { signal },
+        ),
+      staleTime: Infinity,
+      retry: false,
     }),
 };
 

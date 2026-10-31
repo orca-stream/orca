@@ -18,11 +18,23 @@ import type {
 import { AbortedError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import type { Source } from "../../domain/series.ts";
 import { createProgressParser, outTimeSeconds } from "./ffmpeg-progress.ts";
+import type { HlsCopier } from "./hls-copier.ts";
 
 type Spawn = typeof nodeSpawn;
 
 const INPUT_PROTOCOLS = "http,https,tcp,tls,crypto";
+/** A copied stream is read from disk only: its playlists name nothing but the files beside them. */
+export const LOCAL_PROTOCOLS = "file,crypto";
+/**
+ * ffmpeg refuses local files whose extension it does not expect (`key0.key`) in case a playlist points
+ * at something it should not read. Every file of a copy was named by us, so all are allowed.
+ */
+export const LOCAL_INPUT_OPTIONS = ["-allowed_extensions", "ALL"] as const;
+/** How much of the bar the copy fills; the rest is ffmpeg joining the files, which is quick. */
+const COPY_SHARE = 0.97;
 type StreamSource = Extract<Source, { kind: "hls" }>;
+/** What ffmpeg reads: the stream's own address, or a copy of it on disk. */
+type Input = { url: string; headers?: Record<string, string> | undefined; local: boolean };
 
 export interface FfmpegDownloaderOptions {
   userAgent: string;
@@ -41,6 +53,14 @@ export interface FfmpegDownloaderOptions {
   httpProxy?: string;
   /** Write text subtitles as files beside the video (`Show S01E01.es.srt`) instead of inside it. */
   externalSubtitles?: boolean;
+  /**
+   * Copies an HLS stream to disk over several connections before ffmpeg reads it (`<dest>.hls/`):
+   * slow players cap each connection, and ffmpeg alone fetches one segment at a time. Absent, or a
+   * stream it cannot copy (live, byte ranges): ffmpeg reads the network as before.
+   */
+  copier?: Pick<HlsCopier, "copy">;
+  /** Inspects the copy on disk: no proxy, and only `LOCAL_PROTOCOLS`. Needed with `copier`. */
+  localInspector?: Pick<StreamInspector, "inspect">;
 }
 
 /** What to copy and into which container, as ffmpeg arguments. */
@@ -102,6 +122,8 @@ export class FfmpegDownloader implements Downloader {
   private readonly spawn: Spawn;
   private readonly inspector: Pick<StreamInspector, "inspect"> | undefined;
   private readonly externalSubtitles: boolean;
+  private readonly copier: Pick<HlsCopier, "copy"> | undefined;
+  private readonly localInspector: Pick<StreamInspector, "inspect"> | undefined;
 
   constructor(options: FfmpegDownloaderOptions) {
     this.userAgent = options.userAgent;
@@ -111,6 +133,8 @@ export class FfmpegDownloader implements Downloader {
     this.spawn = options.spawn ?? nodeSpawn;
     this.inspector = options.inspector;
     this.externalSubtitles = options.externalSubtitles ?? false;
+    this.copier = options.copier;
+    this.localInspector = options.localInspector;
   }
 
   canHandle(source: Source): boolean {
@@ -125,7 +149,20 @@ export class FfmpegDownloader implements Downloader {
     if (source.kind !== "hls") throw new PermanentError(`Not a stream source: ${source.kind}`);
     await this.guard.assertUrl(source.url);
     await mkdir(dirname(destPath), { recursive: true });
-    const plan = await this.plan(source, context);
+    const folder = `${withoutExtension(destPath)}.hls`;
+    const input = await this.input(source, folder, context);
+    // While a copy fills the bar, ffmpeg's own progress only finishes it.
+    const muxing: DownloadContext = input.local
+      ? {
+          ...context,
+          onProgress: ({ bytes, fraction }) =>
+            context.onProgress({
+              bytes,
+              fraction: COPY_SHARE + (1 - COPY_SHARE) * (fraction ?? 0),
+            }),
+        }
+      : context;
+    const plan = await this.plan(input, context);
     // The staged name asks for .mkv; a stream that fits an mp4 gets one, and the caller is told.
     const finalPath = `${withoutExtension(destPath)}${plan.extension}`;
     const part = `${finalPath}.part`;
@@ -133,16 +170,19 @@ export class FfmpegDownloader implements Downloader {
     await rm(part, { force: true });
     const sidecars: Sidecar[] = [];
     try {
-      await this.copy(source, part, plan, context);
+      await this.copy(source, input, part, plan, muxing);
       await rename(part, finalPath);
-      await this.writeSubtitleFiles(source, finalPath, plan, context, sidecars);
+      await this.writeSubtitleFiles(input, finalPath, plan, context, sidecars);
     } catch (error) {
       // ffmpeg can't resume, so a half-done episode (video without all its subtitle files) is no use.
       await rm(part, { force: true });
       await rm(finalPath, { force: true });
       await Promise.all(sidecars.map((sidecar) => rm(sidecar.path, { force: true })));
+      // The segments on disk are what a retry resumes from; a stop for good leaves nothing to resume.
+      if (error instanceof PermanentError) await rm(folder, { recursive: true, force: true });
       throw error;
     }
+    await rm(folder, { recursive: true, force: true });
     return {
       bytes: (await stat(finalPath)).size,
       ...(finalPath === destPath ? {} : { path: finalPath }),
@@ -150,8 +190,25 @@ export class FfmpegDownloader implements Downloader {
     };
   }
 
-  private async plan(source: StreamSource, context: DownloadContext): Promise<Plan> {
-    if (!this.inspector) return DEFAULT_PLAN;
+  /** The copy on disk when one can be made, else the stream's own address. */
+  private async input(
+    source: StreamSource,
+    folder: string,
+    context: DownloadContext,
+  ): Promise<Input> {
+    const network: Input = { url: source.url, headers: source.headers, local: false };
+    if (!this.copier) return network;
+    const entry = await this.copier.copy(source, folder, context);
+    if (entry === null) {
+      await rm(folder, { recursive: true, force: true });
+      return network;
+    }
+    return { url: entry, local: true };
+  }
+
+  private async plan(input: Input, context: DownloadContext): Promise<Plan> {
+    const inspector = input.local ? this.localInspector : this.inspector;
+    if (!inspector) return DEFAULT_PLAN;
     const prefs = context.prefs ?? {};
     const wanted: SelectionPrefs = {
       ...(prefs.maxHeight !== undefined ? { maxHeight: prefs.maxHeight } : {}),
@@ -159,9 +216,9 @@ export class FfmpegDownloader implements Downloader {
       ...(prefs.subtitleLangs !== undefined ? { subtitleLangs: prefs.subtitleLangs } : {}),
     };
     try {
-      const probe = await this.inspector.inspect(source.url, {
+      const probe = await inspector.inspect(input.url, {
         signal: context.signal,
-        ...(source.headers ? { headers: source.headers } : {}),
+        ...(input.headers ? { headers: input.headers } : {}),
       });
       if (!this.externalSubtitles) return planOf(selectStreams(probe, wanted), []);
       // Subtitles go to files: choose the tracks without them, and the files separately.
@@ -175,12 +232,13 @@ export class FfmpegDownloader implements Downloader {
 
   private copy(
     source: StreamSource,
+    input: Input,
     part: string,
     plan: Plan,
     context: DownloadContext,
   ): Promise<void> {
     const args = [
-      ...this.inputArgs(source),
+      ...this.inputArgs(input),
       ...plan.maps,
       "-c",
       "copy",
@@ -190,7 +248,7 @@ export class FfmpegDownloader implements Downloader {
       "-y",
       part,
     ];
-    return this.exec(args, context, (block) => {
+    return this.exec(args, input, context, (block) => {
       const seconds = outTimeSeconds(block);
       const bytes = Number(block.total_size);
       context.onProgress({
@@ -204,7 +262,7 @@ export class FfmpegDownloader implements Downloader {
 
   /** One run per track, so a track ffmpeg cannot convert costs only itself. */
   private async writeSubtitleFiles(
-    source: StreamSource,
+    input: Input,
     videoPath: string,
     plan: Plan,
     context: DownloadContext,
@@ -221,7 +279,7 @@ export class FfmpegDownloader implements Downloader {
       try {
         await this.exec(
           [
-            ...this.inputArgs(source),
+            ...this.inputArgs(input),
             "-map",
             `0:${stream.index}`,
             "-c:s",
@@ -231,6 +289,7 @@ export class FfmpegDownloader implements Downloader {
             "-y",
             path,
           ],
+          input,
           context,
         );
       } catch (error) {
@@ -243,8 +302,23 @@ export class FfmpegDownloader implements Downloader {
     }
   }
 
-  private inputArgs(source: StreamSource): string[] {
-    const headers = Object.entries(source.headers ?? {})
+  private inputArgs(input: Input): string[] {
+    if (input.local) {
+      return [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostats",
+        "-progress",
+        "pipe:1",
+        "-protocol_whitelist",
+        LOCAL_PROTOCOLS,
+        ...LOCAL_INPUT_OPTIONS,
+        "-i",
+        input.url,
+      ];
+    }
+    const headers = Object.entries(input.headers ?? {})
       .map(([name, value]) => `${name}: ${value}\r\n`)
       .join("");
     return [
@@ -262,19 +336,21 @@ export class FfmpegDownloader implements Downloader {
       this.userAgent,
       ...(headers ? ["-headers", headers] : []),
       "-i",
-      source.url,
+      input.url,
     ];
   }
 
   private exec(
     args: string[],
+    input: Input,
     context: DownloadContext,
     onProgress?: (block: Record<string, string>) => void,
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const child = this.spawn(this.ffmpegPath, args, {
         signal: context.signal,
-        ...(this.httpProxy === undefined
+        // A copy on disk needs no proxy: nothing it may read is on the network.
+        ...(this.httpProxy === undefined || input.local
           ? {}
           : // Nothing is exempt from the proxy, whatever the machine's own settings say.
             { env: { ...process.env, http_proxy: this.httpProxy, no_proxy: "", NO_PROXY: "" } }),

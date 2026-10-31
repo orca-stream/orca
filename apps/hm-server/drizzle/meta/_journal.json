@@ -50,6 +50,20 @@
       "when": 1792465271332,
       "tag": "0006_series_source_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793348095445,
+      "tag": "0007_source_closed",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793397476290,
+      "tag": "0008_series_paused",
+      "breakpoints": true
     }
   ]
 }

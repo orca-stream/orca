@@ -92,3 +92,27 @@ export function pickBest(candidates: readonly Candidate[]): Candidate[] {
     .sort((a, b) => rank(a.candidate) - rank(b.candidate) || a.index - b.index)
     .map(({ candidate }) => candidate);
 }
+
+/** A video ad's description (VAST) or its schedule (VMAP); either names the ad's files. */
+const AD_DOCUMENT = /<(?:[\w-]+:)?(?:VAST|VMAP)[\s>]/;
+const MEDIA_FILE =
+  /<MediaFile\b[^>]*>\s*(?:<!\[CDATA\[)?\s*([^<\]]+?)\s*(?:\]\]>)?\s*<\/MediaFile>/g;
+
+/**
+ * The video files a VAST or VMAP document plays as ads: players fetch one before the episode and
+ * then the ad itself, which would otherwise look like the stream. Empty for anything else. Pure.
+ */
+export function adMediaUrls(body: string): string[] {
+  if (!AD_DOCUMENT.test(body)) return [];
+  return [...body.matchAll(MEDIA_FILE)].map((match) =>
+    (match[1] as string).replaceAll("&amp;", "&").trim(),
+  );
+}
+
+/** Responses worth reading for ads: an XML document, by its type or its name. Pure. */
+export function mayDescribeAds(url: string, contentType: string | undefined): boolean {
+  if (contentType !== undefined && /\bxml\b/i.test(contentType)) {
+    return !/dash\+xml/i.test(contentType);
+  }
+  return extensionOf(url) === "xml";
+}

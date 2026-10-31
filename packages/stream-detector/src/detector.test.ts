@@ -595,4 +595,67 @@ describe("PlaywrightStreamDetector: players embedded in another site", () => {
     await detector.detect("https://player.test/e/1", { signal: noSignal() });
     expect(browser.contexts[0]!.page.clicks).toEqual([]);
   });
+
+  it("skips the video ad a VAST document names, through its redirect, and keeps clicking for the episode", async () => {
+    const browser = new FakeBrowser();
+    const AD = "https://ads-t.test/stream/preroll.mp4";
+    browser.onNewContext = (context) => {
+      const page = context.page;
+      page.gotoImpl = () => {
+        const vast = request("https://ads.test/v/zone.xml", {}, "xhr");
+        page.emit(
+          "response",
+          response(
+            vast,
+            "text/xml",
+            `<VAST version="3.0"><MediaFile type="video/mp4"><![CDATA[${AD}]]></MediaFile></VAST>`,
+          ),
+        );
+        // The ad's address redirects to another host before the video plays.
+        const first = request(AD, {}, "media");
+        const hop: RequestLike = {
+          ...request("https://ads21.test/stream/preroll.mp4", {}, "media"),
+          redirectedFrom: () => first,
+        };
+        page.emit("request", hop);
+        page.emit("response", response(hop, "video/mp4", ""));
+        return Promise.resolve(null);
+      };
+      // The episode only starts once the player is clicked past the ad.
+      page.clickable((clicked) => {
+        const { req, res } = manifest();
+        clicked.emit("request", req);
+        clicked.emit("response", res);
+      });
+    };
+    const detector = new PlaywrightStreamDetector({
+      ...options,
+      timeoutMs: 500,
+      settleMs: 5,
+      playClickDelaysMs: [30],
+      launch: () => Promise.resolve(browser),
+    });
+    const streams = await detector.detect("https://player.test/e/1", { signal: noSignal() });
+    expect(streams.map((stream) => stream.url)).toEqual(["https://cdn.test/master.m3u8"]);
+    expect(browser.contexts[0]!.page.clicks).toHaveLength(1);
+  });
+
+  it("fails as before when the page plays only an ad", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.page.gotoImpl = () => {
+        const vast = request("https://ads.test/v.xml", {}, "xhr");
+        context.page.emit(
+          "response",
+          response(vast, "text/xml", "<VAST><MediaFile>https://ads.test/a.mp4</MediaFile></VAST>"),
+        );
+        const ad = request("https://ads.test/a.mp4", {}, "media");
+        context.page.emit("request", ad);
+        return Promise.resolve(null);
+      };
+    };
+    await expect(
+      detectorWith(browser).detect("https://player.test/e/1", { signal: noSignal() }),
+    ).rejects.toMatchObject({ reason: "timeout" });
+  });
 });

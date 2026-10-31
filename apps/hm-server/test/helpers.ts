@@ -37,6 +37,7 @@ export function aSeries(overrides: Partial<Series> = {}): Series {
     folderName: "The Beverly Hillbillies (1962)",
     hasPoster: false,
     follow: false,
+    paused: false,
     checkIntervalHours: 12,
     lastCheckedAt: null,
     maxHeight: null,
@@ -59,6 +60,7 @@ export function aSource(overrides: Partial<SeriesSource> = {}): SeriesSource {
     episodeOffset: 0,
     remoteMarker: null,
     knownRefs: [],
+    closed: false,
     createdAt: 1,
     ...overrides,
   };

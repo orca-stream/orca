@@ -12,7 +12,25 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: lazyPlugins(() => [react(), tailwindcss()]),
     resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
-    server: target ? { proxy: { "/api": { target } } } : {},
+    server: target
+      ? {
+          proxy: {
+            "/api": {
+              target,
+              // When hm-server goes away mid-response (a `node --watch` restart), the proxy keeps
+              // the browser's side open: the event stream would hang silently instead of
+              // reconnecting. Closing it too lets EventSource notice and come back.
+              configure: (proxy) => {
+                proxy.on("proxyRes", (proxyRes, _req, res) => {
+                  proxyRes.on("close", () => {
+                    if (!proxyRes.complete) res.destroy();
+                  });
+                });
+              },
+            },
+          },
+        }
+      : {},
     test: {
       environment: "happy-dom",
       setupFiles: ["./src/test/setup.ts"],

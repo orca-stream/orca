@@ -40,6 +40,8 @@ export function createEnqueueDownloads(deps: Deps) {
     for (const job of await deps.jobs.activeDownloadJobs(unique)) {
       if (job.episodeId && !active.has(job.episodeId)) active.set(job.episodeId, job);
     }
+    // In the order they are watched: one episode at a time takes them as queued.
+    episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
     for (const episode of episodes) {
       if (episode.status === "available") continue;
       const running = active.get(episode.id);

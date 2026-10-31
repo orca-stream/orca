@@ -9,7 +9,7 @@ import type {
   SourceDto,
 } from "@orca/hm-contract";
 import type { Notification } from "../domain/notification.ts";
-import type { Job } from "../domain/job.ts";
+import { HOST_LANE_PREFIX, isHostLane, type Job } from "../domain/job.ts";
 import { episodeCode, type Episode, type Series, type SeriesSource } from "../domain/series.ts";
 import type { SeriesWithCounts } from "./ports.ts";
 
@@ -25,6 +25,15 @@ const WARNING_KIND: Record<ExtractionWarning["code"], PreviewWarning["kind"]> = 
   "multiple-videos": "skipped",
   "no-video": "skipped",
 };
+
+/** The host of an address an extractor gave, or null when it isn't one. */
+function hostOf(address: string): string | null {
+  try {
+    return new URL(address).hostname || null;
+  } catch {
+    return null;
+  }
+}
 
 export function toPreviewDto(
   extraction: Extraction,
@@ -53,6 +62,7 @@ export function toPreviewDto(
       durationSec: episode.media.durationSec ?? null,
       sizeBytes: episode.media.sizeBytes ?? null,
       format: episode.media.format ?? null,
+      source: { kind: episode.media.kind, host: hostOf(episode.media.url) },
     })),
     license: { kind: license.kind, url: license.url ?? null },
     warnings: extraction.warnings.map((warning) => ({
@@ -65,7 +75,10 @@ export function toPreviewDto(
   };
 }
 
-export function toSourceDto(source: SeriesSource): SourceDto {
+/** Where a source's site keeps what comes after it, as its extractor guesses it. */
+export type NextSourceUrl = (source: SeriesSource) => string | null;
+
+export function toSourceDto(source: SeriesSource, nextUrl: NextSourceUrl): SourceDto {
   return {
     id: source.id,
     extractorId: source.extractorId,
@@ -73,12 +86,15 @@ export function toSourceDto(source: SeriesSource): SourceDto {
     sourceUrl: source.sourceUrl,
     season: source.season,
     episodeOffset: source.episodeOffset,
+    closed: source.closed,
+    nextUrl: nextUrl(source),
   };
 }
 
 export function toSeriesDto(
   series: Series | SeriesWithCounts,
   sources: readonly SeriesSource[],
+  nextUrl: NextSourceUrl,
   downloadingCount: number,
   counts?: { episodeCount: number; availableCount: number },
 ): SeriesDto {
@@ -90,8 +106,9 @@ export function toSeriesDto(
     plot: series.plot,
     tmdbId: series.tmdbId,
     imdbId: series.imdbId,
-    sources: sources.map(toSourceDto),
+    sources: sources.map((source) => toSourceDto(source, nextUrl)),
     follow: series.follow,
+    paused: series.paused,
     checkIntervalHours: series.checkIntervalHours,
     lastCheckedAt: series.lastCheckedAt,
     maxHeight: series.maxHeight,
@@ -105,10 +122,12 @@ export function toSeriesDto(
   };
 }
 
-export function toEpisodeDto(episode: Episode, progress: number | null = null): EpisodeDto {
+/** `job` is the episode's live download (queued or running), if it has one. */
+export function toEpisodeDto(episode: Episode, job: Job | null = null): EpisodeDto {
   return {
     id: episode.id,
     seriesId: episode.seriesId,
+    sourceId: episode.sourceId,
     season: episode.season,
     episode: episode.episode,
     title: episode.title,
@@ -119,7 +138,9 @@ export function toEpisodeDto(episode: Episode, progress: number | null = null): 
     sizeBytes: episode.sizeBytes,
     format: episode.format,
     status: episode.status,
-    progress,
+    progress: job?.status === "running" ? job.progress : null,
+    progressDetail: job?.status === "running" ? job.progressDetail : null,
+    player: job && isHostLane(job.resource) ? job.resource.slice(HOST_LANE_PREFIX.length) : null,
   };
 }
 

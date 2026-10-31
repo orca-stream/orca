@@ -8,7 +8,7 @@ import { SeriesDetailScreen } from "./SeriesDetailScreen";
 import { SeriesListScreen } from "./SeriesListScreen";
 
 describe("SeriesListScreen", () => {
-  it("shows a poster grid with availability, the following badge and the downloading chip", async () => {
+  it("shows a card per series with its cover, availability, the following and downloading chips", async () => {
     const handler: Handler = (request) => {
       const { pathname } = new URL(request.url);
       if (pathname === "/api/series")
@@ -26,18 +26,68 @@ describe("SeriesListScreen", () => {
     };
     const { requests } = renderApp(<SeriesListScreen />, { handler, path: "/series" });
 
-    const card = (await screen.findByText("Beverly Hillbillies")).closest("a")!;
-    expect(within(card).getByText(/12\/36 disponibles/)).toBeTruthy();
+    const link = await screen.findByRole("link", { name: "Beverly Hillbillies" });
+    expect(link.getAttribute("href")).toBe("/series/s1");
+    const card = link.closest("li")!;
+    expect(within(card).getByText(/12\/36/)).toBeTruthy();
     expect(within(card).getByText("Siguiendo")).toBeTruthy();
     expect(within(card).getByText("Descargando 2")).toBeTruthy();
     // The count comes with the series: the list doesn't go and fetch the queue to work it out.
     expect(requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
-    expect(card.getAttribute("href")).toBe("/series/s1");
     expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster");
 
-    const other = screen.getByText("Other").closest("a")!;
+    const other = screen.getByRole("link", { name: "Other" }).closest("li")!;
     expect(other.querySelector("img")).toBeNull();
     expect(within(other).queryByText("Siguiendo")).toBeNull();
+  });
+
+  it("flags a followed show that ended and a show airing that isn't followed, as TMDB says", async () => {
+    renderApp(<SeriesListScreen />, {
+      handler: (request) => {
+        const { pathname } = new URL(request.url);
+        if (pathname === "/api/series")
+          return jsonResponse([
+            makeSeries({ id: "s1", title: "Done", follow: true, tmdbId: "1" }),
+            makeSeries({ id: "s2", title: "Live", follow: false, tmdbId: "2" }),
+            makeSeries({ id: "s3", title: "Fine", follow: true, tmdbId: "3" }),
+            makeSeries({ id: "s4", title: "Between", follow: false, tmdbId: "4" }),
+          ]);
+        const status = { "1": "ended", "2": "airing", "3": "airing", "4": "returning" }[
+          pathname.split("/").pop()!
+        ];
+        if (status) return jsonResponse({ tmdbId: pathname.split("/").pop(), status });
+        return jsonResponse({}, 404);
+      },
+      path: "/series",
+    });
+    const card = async (name: string) => (await screen.findByRole("link", { name })).closest("li")!;
+    const done = await card("Done");
+    expect(await within(done).findByText("Siguiendo · Finalizada")).toBeTruthy();
+    expect(within(done).queryByText("Siguiendo")).toBeNull();
+    expect(await within(await card("Live")).findByText("En emisión")).toBeTruthy();
+    const fine = await card("Fine");
+    await waitFor(() => expect(within(fine).getByText("Siguiendo")).toBeTruthy());
+    expect(within(fine).queryByText("En emisión")).toBeNull();
+    // More is expected but nothing is dated: between seasons, so not airing.
+    expect(within(await card("Between")).queryByText("En emisión")).toBeNull();
+  });
+
+  it("borrows the TMDB cover for a series the server has none of", async () => {
+    renderApp(<SeriesListScreen />, {
+      handler: (request) => {
+        const { pathname } = new URL(request.url);
+        if (pathname === "/api/series")
+          return jsonResponse([makeSeries({ hasPoster: false, tmdbId: "105009" })]);
+        if (pathname === "/api/lookup/tmdb/105009")
+          return jsonResponse({ tmdbId: "105009", posterUrl: "https://img/p.jpg" });
+        return jsonResponse({}, 404);
+      },
+      path: "/series",
+    });
+    const card = (await screen.findByRole("link", { name: "Beverly Hillbillies" })).closest("li")!;
+    await waitFor(() =>
+      expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/p.jpg"),
+    );
   });
 
   it("invites to add the first series when there are none", async () => {
@@ -47,12 +97,58 @@ describe("SeriesListScreen", () => {
           ? jsonResponse([])
           : jsonResponse({ items: [], nextCursor: null }),
     });
-    expect(await screen.findByText("Todavía no hay series.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Añadir serie" }).getAttribute("href")).toBe(
+    expect(await screen.findByText(/Todavía no hay series\./)).toBeTruthy();
+    expect(
+      within(screen.getByRole("list"))
+        .getByRole("link", { name: "Añadir serie" })
+        .getAttribute("href"),
+    ).toBe("/series/new");
+  });
+
+  it("turns the dock into a search that narrows the series, clears it and closes", async () => {
+    const user = userEvent.setup();
+    renderApp(<SeriesListScreen />, {
+      handler: (request) =>
+        new URL(request.url).pathname === "/api/series"
+          ? jsonResponse([
+              makeSeries({ id: "s1", title: "Pokémon" }),
+              makeSeries({ id: "s2", title: "Bonanza" }),
+            ])
+          : jsonResponse([]),
+      path: "/series",
+    });
+    await screen.findByRole("link", { name: "Bonanza" });
+    const dock = screen.getByRole("navigation", { name: "Atajos" });
+    expect(within(dock).getByRole("link", { name: "Inicio" }).getAttribute("href")).toBe("/");
+    expect(within(dock).getByRole("link", { name: "Añadir serie" }).getAttribute("href")).toBe(
       "/series/new",
     );
+
+    await user.click(within(dock).getByRole("button", { name: "Buscar series" }));
+    const field = screen.getByRole("searchbox", { name: "Buscar entre las series" });
+    await user.type(field, "pokemon");
+    expect(screen.getByRole("link", { name: "Pokémon" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Bonanza" })).toBeNull();
+
+    await user.type(field, "x");
+    expect(screen.getByText("Ninguna serie coincide con «pokemonx».")).toBeTruthy();
+
+    await user.click(within(dock).getByRole("button", { name: "Limpiar la búsqueda" }));
+    expect((field as HTMLInputElement).value).toBe("");
+    expect(screen.getByRole("link", { name: "Bonanza" })).toBeTruthy();
+
+    await user.click(within(dock).getByRole("button", { name: "Cerrar la búsqueda" }));
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(within(dock).getByRole("button", { name: "Buscar series" })).toBeTruthy();
+    // The field that held focus is gone: once the pointer leaves, nothing keeps the dock up.
+    await user.hover(within(dock).getByRole("button", { name: "Buscar series" }));
+    await user.hover(screen.getByRole("link", { name: "Bonanza" }));
+    await waitFor(() => expect(dock.parentElement!.hasAttribute("data-open")).toBe(false));
   });
 });
+
+/** The page itself, without the dock (portalled after it), which repeats some of its actions. */
+const page = () => within(document.body.firstElementChild as HTMLElement);
 
 const EPISODES = [
   makeEpisode({ id: "e1", season: 1, episode: 1, title: "Uno", status: "available" }),
@@ -100,13 +196,17 @@ function detailSetup() {
 }
 
 describe("SeriesDetailScreen", () => {
-  it("lists the episodes by season with their status and the progress of what downloads", async () => {
+  it("lists the episodes a season at a time with their status and the progress of what downloads", async () => {
+    const user = userEvent.setup();
     detailSetup();
     expect(await screen.findByRole("heading", { name: "Beverly Hillbillies" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Temporada 1" })).toBeTruthy();
+    expect(within(screen.getByText("Tres").closest("article")!).getByText("Fallido")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Temporada 2" })).toBeNull();
+    await user.click(screen.getByRole("combobox", { name: "Temporada que se muestra" }));
+    await user.click(await screen.findByRole("option", { name: /^Temporada 2/ }));
     const season2 = screen.getByRole("region", { name: "Temporada 2" });
     expect(within(season2).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("50");
-    expect(within(screen.getByText("Tres").closest("tr")!).getByText("Fallido")).toBeTruthy();
     expect(
       screen.getByRole("checkbox", { name: "Seleccionar S02E01" }).getAttribute("aria-disabled"),
     ).toBe("true");
@@ -115,24 +215,42 @@ describe("SeriesDetailScreen", () => {
   it("downloads the missing ones, which includes the failed", async () => {
     const user = userEvent.setup();
     const { posted } = detailSetup();
-    await user.click(await screen.findByRole("button", { name: "Descargar los que faltan" }));
+    await user.click(await page().findByRole("button", { name: "Descargar los que faltan" }));
     await waitFor(async () => expect(await posted()).toEqual([{ episodeIds: ["e2", "e3", "e5"] }]));
   });
 
-  it("downloads exactly the selected episodes, by season or one by one", async () => {
+  it("downloads exactly the selected episodes, one by one across seasons or a whole season", async () => {
     const user = userEvent.setup();
     const { posted } = detailSetup();
     await screen.findByRole("heading", { name: "Beverly Hillbillies" });
-    await user.click(screen.getByRole("checkbox", { name: "Seleccionar la temporada 2" }));
+    // Nothing picked, nothing to do with it: the bar only comes with a pick.
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    await user.click(screen.getByRole("combobox", { name: "Temporada que se muestra" }));
+    await user.click(await screen.findByRole("option", { name: /^Temporada 2/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S02E02" }));
+    await user.click(screen.getByRole("combobox", { name: "Temporada que se muestra" }));
+    await user.click(await screen.findByRole("option", { name: /^Temporada 1/ }));
     await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E02" }));
-    await user.click(screen.getByRole("button", { name: "Descargar seleccionados (2)" }));
+    expect(screen.getByRole("toolbar", { name: "2 seleccionados" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Descargar (2)" }));
     await waitFor(async () => expect(await posted()).toEqual([{ episodeIds: ["e2", "e5"] }]));
-    await waitFor(() =>
-      expect(
-        (screen.getByRole("button", { name: /Descargar seleccionados/ }) as HTMLButtonElement)
-          .disabled,
-      ).toBe(true),
+    await waitFor(() => expect(screen.queryByRole("toolbar")).toBeNull());
+
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E03" }));
+    await user.click(screen.getByRole("button", { name: "Seleccionar la temporada 1" }));
+    await user.click(screen.getByRole("button", { name: "Descargar (3)" }));
+    await waitFor(async () =>
+      expect((await posted()).at(-1)).toEqual({ episodeIds: ["e1", "e2", "e3"] }),
     );
+  });
+
+  it("clears the selection without downloading anything", async () => {
+    const user = userEvent.setup();
+    const { posted } = detailSetup();
+    await user.click(await screen.findByRole("checkbox", { name: "Seleccionar S01E02" }));
+    await user.click(screen.getByRole("button", { name: "Quitar selección" }));
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    expect(await posted()).toEqual([]);
   });
 
   it("shows only the button that was pressed as busy while its request is in flight", async () => {
@@ -158,19 +276,24 @@ describe("SeriesDetailScreen", () => {
       },
     );
     await screen.findByRole("heading", { name: "Beverly Hillbillies" });
+    const missing = page().getByRole("button", { name: "Descargar los que faltan" });
     await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E02" }));
-    const selected = screen.getByRole("button", { name: /Descargar seleccionados/ });
-    const missing = screen.getByRole("button", { name: "Descargar los que faltan" });
+    const selected = screen.getByRole("button", { name: "Descargar (1)" });
     await user.click(selected);
     await waitFor(() => expect(selected.getAttribute("aria-busy")).toBe("true"));
     expect(missing.getAttribute("aria-busy")).toBeNull();
+    expect((missing as HTMLButtonElement).disabled).toBe(true);
     release();
-    await waitFor(() => expect(selected.getAttribute("aria-busy")).toBeNull());
+    // Once queued, the pick is done with: its bar goes.
+    await waitFor(() => expect(screen.queryByRole("toolbar")).toBeNull());
 
     hold();
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E01" }));
     await user.click(missing);
     await waitFor(() => expect(missing.getAttribute("aria-busy")).toBe("true"));
-    expect(selected.getAttribute("aria-busy")).toBeNull();
+    const waiting = screen.getByRole("button", { name: "Descargar (1)" }) as HTMLButtonElement;
+    expect(waiting.getAttribute("aria-busy")).toBeNull();
+    expect(waiting.disabled).toBe(true);
     release();
   });
 
@@ -178,29 +301,83 @@ describe("SeriesDetailScreen", () => {
     const user = userEvent.setup();
     const { posted } = detailSetup();
     await user.click(
-      await within((await screen.findByText("Tres")).closest("tr")!).findByRole("button", {
+      await within((await screen.findByText("Tres")).closest("article")!).findByRole("button", {
         name: "Reintentar",
       }),
     );
     await waitFor(async () => expect(await posted()).toEqual([{ episodeIds: ["e3"] }]));
   });
 
-  it("follows the series and changes the check interval through PATCH", async () => {
+  it("pauses the series' downloads at once, and shows a paused series as such", async () => {
+    const user = userEvent.setup();
+    let paused = false;
+    const view = renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        path: "/series/s1",
+        handler: (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/api/series/s1" && request.method === "PATCH") {
+            paused = true;
+            return jsonResponse(makeSeries({ paused: true, downloadingCount: 1 }));
+          }
+          if (url.pathname === "/api/series/s1")
+            return jsonResponse(makeSeries({ paused, downloadingCount: 1 }));
+          if (url.pathname === "/api/series/s1/episodes")
+            return jsonResponse([
+              makeEpisode({ id: "e1", season: 1, episode: 1, title: "Uno", status: "queued" }),
+            ]);
+          return detailHandler(request);
+        },
+      },
+    );
+    expect(await screen.findByText("Descargando 1")).toBeTruthy();
+    // Not a setting: it goes out alone, without waiting for Save.
+    await user.click(screen.getByRole("button", { name: "Pausar" }));
+    await waitFor(() => expect(view.requests.some((r) => r.method === "PATCH")).toBe(true));
+    expect(await view.requests.find((r) => r.method === "PATCH")!.json()).toEqual({ paused: true });
+    expect(await screen.findByText("En pausa · 1 en cola")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reanudar" })).toBeTruthy();
+    expect(within(screen.getByText("Uno").closest("article")!).getByText("En pausa")).toBeTruthy();
+  });
+
+  it("follows the series and changes the check interval in one PATCH, on Save", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
-    await user.click(await screen.findByRole("switch", { name: "Seguir la serie" }));
-    const interval = screen.getByLabelText("Revisar cada (horas)");
+    const save = (await screen.findByRole("button", {
+      name: "Guardar cambios",
+    })) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    await user.click(screen.getByRole("switch", { name: "Seguir la serie" }));
+    const interval = screen.getByLabelText("Buscar episodios nuevos cada (horas)");
     await user.clear(interval);
     await user.type(interval, "6");
-    await user.click(screen.getByRole("button", { name: "Guardar" }));
-    await waitFor(() => {
-      const bodies = requests.filter((r) => r.method === "PATCH");
-      expect(bodies).toHaveLength(2);
+    expect(screen.getByText("2 cambios sin guardar")).toBeTruthy();
+    // Nothing leaves until Save.
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+    await user.click(save);
+    await waitFor(() => expect(requests.filter((r) => r.method === "PATCH")).toHaveLength(1));
+    expect(await requests.find((r) => r.method === "PATCH")!.json()).toEqual({
+      follow: true,
+      checkIntervalHours: 6,
     });
-    const patches = await Promise.all(
-      requests.filter((r) => r.method === "PATCH").map((r) => r.json()),
-    );
-    expect(patches).toEqual([{ follow: true }, { checkIntervalHours: 6 }]);
+  });
+
+  it("puts the series back as it was on Discard", async () => {
+    const user = userEvent.setup();
+    detailSetup();
+    const interval = (await screen.findByLabelText(
+      "Buscar episodios nuevos cada (horas)",
+    )) as HTMLInputElement;
+    await user.clear(interval);
+    await user.type(interval, "6");
+    await user.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(interval.value).toBe("24");
+    expect(
+      (screen.getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("shows the last and the next check of a followed series, and checks now on demand", async () => {
@@ -216,9 +393,9 @@ describe("SeriesDetailScreen", () => {
       </Route>,
       { handler, path: "/series/s1" },
     );
-    expect(await screen.findByText(/Última revisión hace 1 hora/)).toBeTruthy();
-    expect(screen.getByText(/Próxima revisión dentro de 23 horas/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Revisar ahora" }));
+    expect(await screen.findByText(/Última búsqueda de episodios nuevos hace 1 hora/)).toBeTruthy();
+    expect(screen.getByText(/Próxima búsqueda dentro de 23 horas/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Buscar ahora" }));
     await waitFor(() =>
       expect(
         requests.some(
@@ -226,29 +403,72 @@ describe("SeriesDetailScreen", () => {
         ),
       ).toBe(true),
     );
-    expect(await screen.findByText("Revisión en cola.")).toBeTruthy();
+    expect(await screen.findByText("Búsqueda en cola.")).toBeTruthy();
+  });
+
+  it("looks for new episodes from the dock too, beside the ways home and to the series", async () => {
+    const user = userEvent.setup();
+    const { requests } = detailSetup();
+    await screen.findByRole("heading", { name: "Beverly Hillbillies" });
+    const dock = screen.getByRole("navigation", { name: "Atajos" });
+    expect(within(dock).getByRole("link", { name: "Series" }).getAttribute("href")).toBe("/series");
+    await user.click(within(dock).getByRole("button", { name: "Buscar episodios nuevos ahora" }));
+    await waitFor(() =>
+      expect(
+        requests.some(
+          (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series/s1/check",
+        ),
+      ).toBe(true),
+    );
+    // The row in the settings shares its state.
+    expect(await screen.findByText("Búsqueda en cola.")).toBeTruthy();
+  });
+
+  it("offers one more source and the missing episodes from the dock", async () => {
+    const user = userEvent.setup();
+    const { requests } = detailSetup();
+    await screen.findByRole("heading", { name: "Beverly Hillbillies" });
+    const dock = screen.getByRole("navigation", { name: "Atajos" });
+    expect(
+      within(dock).getByRole("link", { name: "Añadir otra fuente" }).getAttribute("href"),
+    ).toBe(page().getByRole("link", { name: "Añadir otra fuente" }).getAttribute("href"));
+    await user.click(within(dock).getByRole("button", { name: "Descargar los que faltan" }));
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === "POST" && new URL(r.url).pathname === "/api/jobs"),
+      ).toBe(true),
+    );
   });
 
   it("does not promise a next check for a series that is not followed", async () => {
     detailSetup();
     await screen.findByRole("heading", { name: "Beverly Hillbillies" });
-    expect(screen.queryByText(/Próxima revisión/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Revisar ahora" })).toBeTruthy();
+    expect(screen.queryByText(/Próxima búsqueda/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Buscar ahora" })).toBeTruthy();
   });
 
   it("saves the series' own quality and tracks, sending only what changed", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
-    const form = await screen.findByRole("form", { name: "Calidad y pistas" });
-    const save = within(form).getByRole("button", { name: "Guardar pistas" }) as HTMLButtonElement;
+    const form = await screen.findByRole("form", { name: "Ajustes de la serie" });
+    const save = within(form).getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
 
-    await user.selectOptions(within(form).getByLabelText("Altura máxima del vídeo"), "720");
-    await user.type(within(form).getByLabelText("Idiomas de audio"), "SPA, eng");
-    await user.click(within(form).getByRole("switch", { name: "Sin subtítulos" }));
-    expect(
-      (within(form).getByLabelText("Idiomas de subtítulos") as HTMLInputElement).disabled,
-    ).toBe(true);
+    await user.click(within(form).getByRole("combobox", { name: "Altura máxima del vídeo" }));
+    await user.click(await screen.findByRole("option", { name: "Hasta 720p" }));
+    const audio = within(form).getByRole("combobox", { name: "Idiomas de audio" });
+    expect(audio.textContent).toBe("Audio: todos los idiomas");
+    await user.click(audio);
+    await user.click(await screen.findByRole("option", { name: /Español/ }));
+    await user.click(screen.getByRole("option", { name: /Inglés/ }));
+    await user.keyboard("{Escape}");
+    // The first picked is the original: the order is the one they were picked in.
+    expect(audio.textContent).toBe("Audio: Español, Inglés");
+    const subtitles = within(form).getByRole("combobox", { name: "Idiomas de subtítulos" });
+    await user.click(subtitles);
+    await user.click(await screen.findByRole("option", { name: /Sin subtítulos/ }));
+    await user.keyboard("{Escape}");
+    expect(subtitles.textContent).toBe("Sin subtítulos");
     await user.click(save);
 
     await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
@@ -263,8 +483,8 @@ describe("SeriesDetailScreen", () => {
   it("saves the TMDB and IMDb ids, refusing one that is not an id", async () => {
     const user = userEvent.setup();
     const { requests } = detailSetup();
-    const form = await screen.findByRole("form", { name: "TMDB e IMDb" });
-    const save = within(form).getByRole("button", { name: "Guardar ids" }) as HTMLButtonElement;
+    const form = await screen.findByRole("form", { name: "Ajustes de la serie" });
+    const save = within(form).getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     await user.type(within(form).getByLabelText("Id de IMDb"), "nope");
     expect(save.disabled).toBe(true);
@@ -275,8 +495,10 @@ describe("SeriesDetailScreen", () => {
     expect(await requests.find((r) => r.method === "PATCH")!.json()).toEqual({ tmdbId: "12345" });
   });
 
-  it("lists every address of the series with how it numbers its episodes", async () => {
-    renderApp(
+  it("folds two or more addresses under a header that counts them, and closes one once unfolded", async () => {
+    const user = userEvent.setup();
+    const base = makeSeries().sources[0]!;
+    const { requests } = renderApp(
       <Route path="/series/:id">
         <SeriesDetailScreen />
       </Route>,
@@ -285,7 +507,6 @@ describe("SeriesDetailScreen", () => {
         handler: (request) => {
           const url = new URL(request.url);
           if (url.pathname === "/api/series/s1") {
-            const base = makeSeries().sources[0]!;
             return jsonResponse(
               makeSeries({
                 sources: [
@@ -297,30 +518,102 @@ describe("SeriesDetailScreen", () => {
                     season: 1,
                     episodeOffset: 12,
                   },
+                  // Closed: the newest open one is still part 2.
+                  { ...base, id: "c", sourceUrl: "https://site.test/extras", closed: true },
                 ],
               }),
             );
           }
+          if (url.pathname === "/api/series/s1/sources/a") return jsonResponse(makeSeries());
           if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
           return jsonResponse({}, 404);
         },
       },
     );
-    expect(await screen.findByText("https://site.test/part-2")).toBeTruthy();
-    expect(screen.getByText("(numeración del sitio)")).toBeTruthy();
-    expect(screen.getByText("(a la temporada 1, episodios +12)")).toBeTruthy();
+    // Folded: a header that counts them, and none of the addresses.
+    expect(await screen.findByText("3 fuentes")).toBeTruthy();
+    expect(screen.getByText("2 se leen al buscar episodios nuevos · 1 cerrada")).toBeTruthy();
+    expect(screen.queryByText("site.test/part-2")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Cerrar/ })).toBeNull();
+    // One more address goes through adding a series, with this one already chosen.
+    expect(page().getByRole("link", { name: "Añadir otra fuente" }).getAttribute("href")).toBe(
+      "/series/new?into=s1",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Ver todas las fuentes" }));
+    expect(await screen.findByText("site.test/part-1")).toBeTruthy();
+    expect(
+      screen.getByText("Sus episodios van a la temporada 1, el 1 del sitio es el episodio 13"),
+    ).toBeTruthy();
+    expect(screen.getAllByText("Episodios con el número que les da el sitio")).toHaveLength(2);
+    expect(screen.getByText("Cerrada")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reabrir: https://site.test/extras" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cerrar: https://site.test/part-2" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Cerrar: https://site.test/part-1" }));
+    await waitFor(() => expect(requests.some((r) => r.method === "PATCH")).toBe(true));
+    const patch = requests.find((r) => r.method === "PATCH")!;
+    expect(new URL(patch.url).pathname).toBe("/api/series/s1/sources/a");
+    expect(await patch.json()).toEqual({ closed: true });
   });
 
-  it("refuses a language that is not a three-letter code before sending anything", async () => {
-    const user = userEvent.setup();
-    const { requests } = detailSetup();
-    const form = await screen.findByRole("form", { name: "Calidad y pistas" });
-    await user.type(within(form).getByLabelText("Idiomas de audio"), "english");
-    expect(within(form).getByRole("alert").textContent).toMatch(/tres letras/);
+  it("sends the address of what comes after the latest source along with one more source", async () => {
+    const base = makeSeries().sources[0]!;
+    const show = "https://site.test/series/x";
+    renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        path: "/series/s1",
+        handler: (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/api/series/s1") {
+            return jsonResponse(
+              makeSeries({
+                sources: [
+                  // Listed by season: the second is the latest, whatever order they came in.
+                  {
+                    ...base,
+                    id: "b",
+                    sourceUrl: `${show}?season=2`,
+                    season: 2,
+                    nextUrl: `${show}?season=3`,
+                  },
+                  {
+                    ...base,
+                    id: "a",
+                    sourceUrl: `${show}?season=1`,
+                    season: 1,
+                    nextUrl: `${show}?season=2`,
+                  },
+                ],
+              }),
+            );
+          }
+          if (url.pathname === "/api/series/s1/episodes") return jsonResponse([]);
+          return jsonResponse({}, 404);
+        },
+      },
+    );
+    const link = await page().findByRole("link", { name: "Añadir otra fuente" });
+    expect(new URLSearchParams(link.getAttribute("href")!.split("?")[1]).get("url")).toBe(
+      `${show}?season=3`,
+    );
+  });
+
+  it("shows the button that closes a lone source without anything to unfold", async () => {
+    detailSetup();
     expect(
-      (within(form).getByRole("button", { name: "Guardar pistas" }) as HTMLButtonElement).disabled,
-    ).toBe(true);
-    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+      await screen.findByRole("button", { name: "Cerrar: https://archive.org/details/bevhill" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /fuentes/ })).toBeNull();
+    expect(screen.getByText("archive.org/details/bevhill")).toBeTruthy();
+    // What it holds, from its episodes: a season at a time.
+    expect(
+      await screen.findByText("Temporada 1, episodios 1 al 3 · Temporada 2, episodios 1 al 2"),
+    ).toBeTruthy();
+    expect(page().getByRole("link", { name: "Añadir otra fuente" })).toBeTruthy();
   });
 
   it("says when the series does not exist", async () => {

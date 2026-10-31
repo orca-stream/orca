@@ -37,6 +37,16 @@ describe("buildFfprobeArgs", () => {
     expect(args).not.toContain("-http_proxy");
   });
 
+  it("puts the input options before the input", () => {
+    const args = buildFfprobeArgs("/copy/master.m3u8", {}, "file,crypto", false, [
+      "-allowed_extensions",
+      "ALL",
+    ]);
+    const at = args.indexOf("-allowed_extensions");
+    expect(args[at + 1]).toBe("ALL");
+    expect(at).toBeLessThan(args.indexOf("/copy/master.m3u8"));
+  });
+
   it("does not add the proxy protocol when there is no proxy", () => {
     const args = buildFfprobeArgs("https://x.test/a", {}, "http,https");
     expect(args).not.toContain("-http_proxy");

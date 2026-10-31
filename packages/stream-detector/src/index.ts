@@ -1,6 +1,8 @@
 export {
+  adMediaUrls,
   classifyPlaylistBody,
   classifyRequest,
+  mayDescribeAds,
   pickBest,
   type Candidate,
   type PlaylistRole,

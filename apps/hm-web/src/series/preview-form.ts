@@ -14,7 +14,10 @@ import {
 
 /** What the person edits in the preview before adding the series. Numbers stay text while typed. */
 export interface PreviewForm {
-  /** "" makes a new series; a series id adds the address to that series (another season, or a part). */
+  /**
+   * "" makes a new series; a series id adds the address to that series (another season, or a part);
+   * `jellyfin:<id>` (see `jellyfinTarget`) adds it to a show Jellyfin has and this server doesn't.
+   */
   addTo: string;
   title: string;
   year: string;
@@ -31,11 +34,21 @@ export interface PreviewForm {
   downloadNow: boolean;
 }
 
+const JELLYFIN_TARGET = "jellyfin:";
+
+/** The `addTo` of a show Jellyfin has and this server doesn't. */
+export const jellyfinTarget = (showId: string) => `${JELLYFIN_TARGET}${showId}`;
+
+/** The Jellyfin show an `addTo` names, or null when it names none. */
+export const jellyfinShowOf = (addTo: string): string | null =>
+  addTo.startsWith(JELLYFIN_TARGET) ? addTo.slice(JELLYFIN_TARGET.length) : null;
+
 export function initialForm(preview: PreviewDto): PreviewForm {
   const only = preview.selectedKey;
   return {
     addTo: "",
-    title: preview.series.title,
+    // Empty on purpose: the TMDB id fills it in with the show's real name, never the site's.
+    title: "",
     year: preview.series.year === null ? "" : String(preview.series.year),
     tmdbId: "",
     imdbId: "",
@@ -43,7 +56,7 @@ export function initialForm(preview: PreviewDto): PreviewForm {
     firstEpisode: "",
     included: only ? [only] : preview.episodes.map((episode) => episode.key),
     follow: false,
-    downloadNow: true,
+    downloadNow: false,
   };
 }
 
@@ -130,6 +143,21 @@ export function numberer(
   return (episode) => mapEpisode(episode, mapping);
 }
 
+/**
+ * The episode after the last one the series has in a season, or null when it has none there — or
+ * when the season, `length` episodes long, has nothing after it: a full season isn't continued.
+ */
+export function nextEpisode(
+  existing: readonly Pick<EpisodeDto, "season" | "episode">[],
+  season: number,
+  length?: number,
+): number | null {
+  const numbers = existing.filter((episode) => episode.season === season).map((e) => e.episode);
+  if (numbers.length === 0) return null;
+  const next = Math.max(...numbers) + 1;
+  return length !== undefined && next > length ? null : next;
+}
+
 /** The codes the chosen episodes would take that the series already has (or that repeat). */
 export function clashingCodes(
   preview: PreviewDto,
@@ -159,6 +187,11 @@ export function toCreateBody(preview: PreviewDto, form: PreviewForm): CreateSeri
     episodeKeys: preview.episodes.map((e) => e.key).filter((key) => chosen.has(key)),
     downloadNow: form.downloadNow,
   };
+  const jellyfinId = jellyfinShowOf(form.addTo);
+  if (jellyfinId !== null) {
+    // The show's title, year and ids come from Jellyfin.
+    return { ...common, jellyfinId, tmdbId: null, imdbId: null, follow: form.follow };
+  }
   if (form.addTo !== "") {
     // The series' own title, year, ids and follow setting stay as they are.
     return { ...common, seriesId: form.addTo, tmdbId: null, imdbId: null, follow: false };
@@ -198,6 +231,9 @@ export function episodeCode(season: number, episode: number): string {
   return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
 }
 
+/** The key a TMDB episode is found by: where an episode of the address lands. */
+export const guideKey = (season: number, episode: number) => `${season}:${episode}`;
+
 /** `S01E01–S01E12, S02E01–S02E03`: what a series has, season by season. */
 export function episodeRanges(episodes: readonly Pick<EpisodeDto, "season" | "episode">[]): string {
   const bySeason = new Map<number, number[]>();
@@ -214,6 +250,11 @@ export function episodeRanges(episodes: readonly Pick<EpisodeDto, "season" | "ep
         : `${episodeCode(season, low)}–${episodeCode(season, high)}`;
     })
     .join(", ");
+}
+
+/** `S01E01–E12, S02E01`: the same as `episodeRanges`, short enough for a corner of the bar. */
+export function shortRanges(episodes: readonly Pick<EpisodeDto, "season" | "episode">[]): string {
+  return episodeRanges(episodes).replace(/–S\d+(E\d+)/g, "–$1");
 }
 
 /** Which extractor reads this address, judging by host only (the server has the last word). */
@@ -237,3 +278,6 @@ export function matchExtractor(
     ) ?? null
   );
 }
+
+/** What a field that only takes a number keeps of what was typed or pasted. */
+export const digitsOf = (text: string) => text.replace(/\D/g, "");

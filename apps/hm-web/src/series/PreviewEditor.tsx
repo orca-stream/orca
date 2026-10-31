@@ -1,5 +1,6 @@
 import type { EpisodeDto, PreviewDto, SeriesDto } from "@orca/hm-contract";
-import { TriangleAlertIcon } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Alert02Icon } from "@hugeicons/core-free-icons";
 import { CheckboxField } from "@/components/checkbox-field";
 import { PendingButton } from "@/components/pending-button";
 import { StatusBadge, type Tone } from "@/components/status-badge";
@@ -8,8 +9,6 @@ import { TextField } from "@/components/text-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -72,7 +71,7 @@ function warningText(
 interface PreviewEditorProps {
   preview: PreviewDto;
   form: PreviewForm;
-  /** The series the address can be added to instead of making a new one. */
+  /** The series the address can be added to; which one is picked under the address bar. */
   seriesOptions: readonly SeriesDto[];
   /** The episodes of the series chosen in `form.addTo`, once they are loaded. */
   targetEpisodes: readonly EpisodeDto[] | undefined;
@@ -112,28 +111,10 @@ export function PreviewEditor({
           className="max-w-36 sm:max-w-none"
         />
         <div className="flex min-w-0 flex-col gap-4">
-          {seriesOptions.length > 0 && (
-            <Field>
-              <FieldLabel htmlFor="add-to">{t.add.addTo}</FieldLabel>
-              <NativeSelect
-                id="add-to"
-                className="w-full"
-                value={form.addTo}
-                onChange={(event) => onChange({ ...form, addTo: event.target.value })}
-              >
-                <NativeSelectOption value="">{t.add.addToNew}</NativeSelectOption>
-                {seriesOptions.map((series) => (
-                  <NativeSelectOption key={series.id} value={series.id}>
-                    {series.year === null ? series.title : `${series.title} (${series.year})`}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              {target && targetEpisodes && (
-                <FieldDescription>
-                  {t.add.existingHas(target.title, episodeRanges(targetEpisodes))}
-                </FieldDescription>
-              )}
-            </Field>
+          {target && targetEpisodes && (
+            <p className="text-sm text-muted-foreground">
+              {t.add.existingHas(target.title, episodeRanges(targetEpisodes))}
+            </p>
           )}
           {!target && (
             <>
@@ -212,7 +193,7 @@ export function PreviewEditor({
           aria-label={t.add.warnings}
           className="border-warning/40 bg-warning/8 px-4 py-3"
         >
-          <TriangleAlertIcon className="text-warning" />
+          <HugeiconsIcon icon={Alert02Icon} className="text-warning" />
           <AlertTitle className="text-warning">{t.add.warnings}</AlertTitle>
           <AlertDescription>
             <ul className="mt-1 flex flex-col gap-1 text-foreground/80">

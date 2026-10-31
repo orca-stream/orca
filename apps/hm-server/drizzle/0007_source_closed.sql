@@ -1,0 +1,1 @@
+ALTER TABLE `series_sources` ADD `closed` integer DEFAULT false NOT NULL;

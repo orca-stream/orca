@@ -54,6 +54,23 @@ export function hostLimitsFor(
   };
 }
 
+/**
+ * How many connections a file from a host is fetched over: what the extractor that owns the host
+ * declares (archive.org asks for one), otherwise the configured number (players, which no extractor
+ * owns, cap each connection's speed).
+ */
+export function connectionsFor(
+  extractors: readonly { hosts: readonly string[]; limits?: ExtractorLimits }[],
+  configured: number,
+): (host: string) => number {
+  return (host) => {
+    const owner = extractors.find((extractor) =>
+      extractor.hosts.some((own) => host === own || host.endsWith(`.${own}`)),
+    );
+    return owner?.limits?.connectionsPerDownload ?? configured;
+  };
+}
+
 export interface HostLimiterOptions {
   limitsFor: (host: string) => HostLimits;
   clock: Clock;

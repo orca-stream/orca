@@ -69,6 +69,7 @@ function ep(
     durationSec: 1500,
     sizeBytes: 100 * 1024 * 1024,
     format: "mp4",
+    source: { kind: "direct", host: "archive.org" },
     ...over,
   };
 }
@@ -77,6 +78,7 @@ export function makeEpisode(over: Partial<EpisodeDto> = {}): EpisodeDto {
   return {
     id: "e1",
     seriesId: "s1",
+    sourceId: "s1",
     season: 1,
     episode: 1,
     title: "Pilot",
@@ -88,6 +90,8 @@ export function makeEpisode(over: Partial<EpisodeDto> = {}): EpisodeDto {
     format: "mp4",
     status: "missing",
     progress: null,
+    progressDetail: null,
+    player: null,
     ...over,
   };
 }
@@ -108,9 +112,12 @@ export function makeSeries(over: Partial<SeriesDto> = {}): SeriesDto {
         sourceUrl: "https://archive.org/details/bevhill",
         season: null,
         episodeOffset: 0,
+        closed: false,
+        nextUrl: null,
       },
     ],
     follow: false,
+    paused: false,
     checkIntervalHours: 24,
     lastCheckedAt: null,
     maxHeight: null,

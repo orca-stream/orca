@@ -7,6 +7,11 @@ import {
   MarkReadBody,
   PreviewRequest,
   SeriesPatch,
+  SourcePatch,
+  ShowLookupParams,
+  GuideEpisodesParams,
+  GuideQuery,
+  GuideSeasonsParams,
   type ApiErrorBody,
   type Me,
 } from "@orca/hm-contract";
@@ -54,7 +59,7 @@ export interface AppDeps {
 type Env = { Variables: { me: Me } };
 
 /** Zod failures become the same 400 body every route uses. */
-function validate<Target extends "json" | "query", Schema extends ZodType>(
+function validate<Target extends "json" | "query" | "param", Schema extends ZodType>(
   target: Target,
   schema: Schema,
 ) {
@@ -163,6 +168,8 @@ export function createApp(deps: AppDeps) {
   for (const path of [
     "/auth/me",
     "/extractors",
+    "/lookup/*",
+    "/library/*",
     "/series",
     "/series/*",
     "/jobs",
@@ -178,6 +185,38 @@ export function createApp(deps: AppDeps) {
 
   // --- extractors and series
   api.get("/extractors", (c) => c.json(useCases.listExtractors()));
+
+  api.get("/lookup/tmdb/:tmdbId", validate("param", ShowLookupParams), async (c) => {
+    const { tmdbId } = c.req.valid("param");
+    return c.json(await useCases.lookupShow(tmdbId, c.req.raw.signal));
+  });
+
+  api.get(
+    "/lookup/tmdb/:tmdbId/seasons",
+    validate("param", GuideSeasonsParams),
+    validate("query", GuideQuery),
+    async (c) => {
+      const { tmdbId } = c.req.valid("param");
+      const { language } = c.req.valid("query");
+      return c.json(await useCases.guideSeasons(tmdbId, language, c.req.raw.signal));
+    },
+  );
+
+  api.get(
+    "/lookup/tmdb/:tmdbId/seasons/:season",
+    validate("param", GuideEpisodesParams),
+    validate("query", GuideQuery),
+    async (c) => {
+      const { tmdbId, season } = c.req.valid("param");
+      const { language } = c.req.valid("query");
+      return c.json(await useCases.guideEpisodes(tmdbId, season, language, c.req.raw.signal));
+    },
+  );
+
+  api.get("/library/shows", async (c) => c.json(await useCases.listLibraryShows(c.req.raw.signal)));
+  api.get("/library/shows/:id/episodes", async (c) =>
+    c.json(await useCases.listLibraryEpisodes(c.req.param("id"), c.req.raw.signal)),
+  );
 
   api.post("/series/preview", validate("json", PreviewRequest), async (c) => {
     const { url, extractorId } = c.req.valid("json");
@@ -201,6 +240,11 @@ export function createApp(deps: AppDeps) {
 
   api.patch("/series/:id", validate("json", SeriesPatch), async (c) => {
     return c.json(await useCases.patchSeries(c.req.param("id"), c.req.valid("json")));
+  });
+
+  api.patch("/series/:id/sources/:sourceId", validate("json", SourcePatch), async (c) => {
+    const { id, sourceId } = c.req.param();
+    return c.json(await useCases.patchSource(id, sourceId, c.req.valid("json")));
   });
 
   api.get("/series/:id/episodes", async (c) =>

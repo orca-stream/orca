@@ -1,0 +1,274 @@
+import { Home01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { Link } from "wouter";
+import { useApi } from "@/api/context";
+import { queries } from "@/api/queries";
+import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ExtractorMark } from "@/extractors/ExtractorMark";
+import { extractorHref } from "@/extractors/href";
+import { useT } from "@/i18n/locale";
+import { cn } from "@/lib/utils";
+
+/** Whether focus landed from the keyboard, not from a click (a click keeps the dock open otherwise). */
+function focusVisible(element: Element) {
+  try {
+    return element.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
+/** How long the pointer may stray before the dock lowers, so a shaky hand does not flicker it. */
+const LEAVE_DELAY_MS = 250;
+
+/**
+ * The glass dock at the bottom centre of a screen, the way Astro's dev toolbar sits: shrunk and half
+ * below the window's edge until the pointer comes near, then it rises to its full size with its
+ * actions. `pinned` keeps it up (while it is a search bar, say). On a touch screen the first tap only
+ * raises it, so nothing fires by accident; a tap elsewhere lowers it again.
+ *
+ * The pointer is watched by a zone that never moves: a strip along the bottom, wider than the dock,
+ * while it is down, and the whole space the risen dock takes (with the gap below it) once it is up.
+ * The dock itself moving under a still pointer would otherwise lower and raise it again and again.
+ *
+ * It is portalled to the body: a glass ancestor's backdrop-filter would otherwise trap its `fixed`.
+ */
+export function Dock({
+  label,
+  pinned = false,
+  children,
+}: {
+  label: string;
+  pinned?: boolean;
+  children: ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const swallow = useRef(false);
+  const leaving = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const self = useRef<HTMLDivElement>(null);
+  const open = pinned || hovered || focused || touched;
+
+  // A tap outside lowers a dock a tap raised.
+  useEffect(() => {
+    if (!touched) return;
+    const away = (event: globalThis.PointerEvent) => {
+      if (!self.current?.contains(event.target as Node)) setTouched(false);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [touched]);
+
+  useEffect(() => () => clearTimeout(leaving.current), []);
+
+  // Unpinned, it holds only what is still focused: an element that held focus and was taken away
+  // (the search field, once the search closes) never fires a blur, and would keep it up for good.
+  useEffect(() => {
+    if (pinned) return;
+    const active = document.activeElement;
+    setFocused(
+      !!active &&
+        active !== document.body &&
+        !!self.current?.contains(active) &&
+        focusVisible(active),
+    );
+  }, [pinned]);
+
+  function onPointerEnter(event: PointerEvent) {
+    if (event.pointerType !== "mouse") return;
+    clearTimeout(leaving.current);
+    setHovered(true);
+  }
+
+  function onPointerLeave(event: PointerEvent) {
+    if (event.pointerType !== "mouse") return;
+    clearTimeout(leaving.current);
+    leaving.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS);
+  }
+
+  function onPointerDown(event: PointerEvent) {
+    if (event.pointerType === "mouse" || open) return;
+    setTouched(true);
+    swallow.current = true;
+  }
+
+  function onClickCapture(event: MouseEvent) {
+    if (!swallow.current) return;
+    swallow.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function onBlur(event: FocusEvent) {
+    if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+  }
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      ref={self}
+      data-open={open || undefined}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onPointerDown={onPointerDown}
+      onClickCapture={onClickCapture}
+      onFocus={(event) => focusVisible(event.target) && setFocused(true)}
+      onBlur={onBlur}
+      className={cn(
+        // Down, only the strip catches the pointer; up, the whole zone does.
+        "fixed bottom-0 left-1/2 z-40 -translate-x-1/2 px-12 pt-6 pb-4 sm:pb-6",
+        open ? "pointer-events-auto" : "pointer-events-none",
+      )}
+    >
+      <span aria-hidden="true" className="pointer-events-auto absolute inset-x-0 bottom-0 h-12" />
+      <nav
+        aria-label={label}
+        className={cn(
+          "glass group/dock pointer-events-auto relative flex h-16 origin-bottom items-center gap-1.5 rounded-full p-2",
+          "transition-[translate,scale,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+          open
+            ? "translate-y-0 scale-100 shadow-[0_24px_60px_-20px_var(--glass-shadow)]"
+            : "translate-y-[calc(50%+1rem)] scale-[0.6] sm:translate-y-[calc(50%+1.5rem)]",
+        )}
+      >
+        {children}
+      </nav>
+    </div>,
+    document.body,
+  );
+}
+
+/** The look every action of the dock shares: one circle, one size. */
+const ITEM =
+  "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/60 text-muted-foreground ring-1 ring-black/5 outline-none transition hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 aria-[current=page]:bg-white aria-[current=page]:text-primary";
+
+/** A dock action with its name in a tooltip above it. */
+function Labelled({ label, render }: { label: string; render: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={render} aria-label={label} />
+      <TooltipContent side="top" sideOffset={10}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A dock action that goes somewhere. */
+export function DockLink({
+  href,
+  label,
+  icon,
+  current = false,
+  children,
+}: {
+  href: string;
+  label: string;
+  icon?: IconSvgElement;
+  current?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Labelled
+      label={label}
+      render={
+        <Link href={href} aria-current={current ? "page" : undefined} className={ITEM}>
+          {icon ? <HugeiconsIcon icon={icon} className="size-5.5" /> : children}
+        </Link>
+      }
+    />
+  );
+}
+
+/** A dock action that does something here; `tone="primary"` is the screen's main one. */
+export function DockButton({
+  label,
+  icon,
+  onClick,
+  pending = false,
+  disabled = false,
+  tone = "plain",
+}: {
+  label: string;
+  icon: IconSvgElement;
+  onClick: () => void;
+  pending?: boolean;
+  disabled?: boolean;
+  tone?: "plain" | "primary";
+}) {
+  return (
+    <Labelled
+      label={label}
+      render={
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={pending || disabled}
+          aria-busy={pending || undefined}
+          className={cn(
+            ITEM,
+            tone === "primary" &&
+              "bg-primary text-primary-foreground ring-0 hover:bg-primary hover:text-primary-foreground hover:brightness-110",
+          )}
+        >
+          {pending ? (
+            <Spinner aria-hidden="true" className="size-5" />
+          ) : (
+            <HugeiconsIcon icon={icon} className="size-5.5" />
+          )}
+        </button>
+      }
+    />
+  );
+}
+
+/** A thin line between groups of actions. */
+export function DockSeparator() {
+  return <span aria-hidden="true" className="mx-1 h-7 w-px shrink-0 bg-foreground/10" />;
+}
+
+/** Home and the series: every screen's way back. */
+export function DockPlaces({ here }: { here?: "home" | "series" }) {
+  const t = useT();
+  return (
+    <>
+      <DockLink href="/" label={t.nav.home} icon={Home01Icon} current={here === "home"} />
+      <DockLink href="/series" label={t.nav.series} icon={Tv01Icon} current={here === "series"} />
+    </>
+  );
+}
+
+/** One shortcut per extractor, each on its own colour, to add a series with it, after a separator. */
+export function DockExtractors() {
+  const api = useApi();
+  const extractors = useQuery(queries.extractors(api));
+  if (!extractors.data?.length) return null;
+  return (
+    <>
+      <DockSeparator />
+      {extractors.data.map((extractor) => (
+        <DockLink key={extractor.id} href={extractorHref(extractor)} label={extractor.name}>
+          <ExtractorMark
+            extractor={extractor}
+            className="size-full rounded-full ring-0 transition hover:brightness-110"
+            iconClassName="size-5.5"
+          />
+        </DockLink>
+      ))}
+    </>
+  );
+}

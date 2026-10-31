@@ -29,6 +29,8 @@ export interface Series {
   folderName: string;
   hasPoster: boolean;
   follow: boolean;
+  /** Its downloads wait in the queue until it is resumed; new episodes are still looked for. */
+  paused: boolean;
   checkIntervalHours: number;
   lastCheckedAt: number | null;
   /** The series' own track choices; null follows the server's defaults. Languages are ISO 639-2. */
@@ -59,6 +61,8 @@ export interface SeriesSource {
    * Null is a source from before the column existed: its first check only learns what is listed.
    */
   knownRefs: string[] | null;
+  /** A source that will bring nothing new (a finished season): checks no longer read it. */
+  closed: boolean;
   createdAt: number;
 }
 

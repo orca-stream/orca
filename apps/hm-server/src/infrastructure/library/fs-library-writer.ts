@@ -12,13 +12,30 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "node:path";
 import { externalSubtitleName } from "@orca/media-probe";
-import type { FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
+import type { EpisodeFile, FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
 import type { Episode, Series } from "../../domain/series.ts";
 import { episodeFileName, seasonFolderName } from "../../domain/naming.ts";
 import { episodeNfo, tvshowNfo } from "./nfo.ts";
 
 const STAGING = ".hm-staging";
 const POSTER_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
+
+const isUnder = (path: string, folder: string) => path.startsWith(`${folder}${sep}`);
+const exists = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
+
+/**
+ * What Jellyfin names after a video and must move with it: `Show 01.es.srt`, `Show 01.nfo`,
+ * `Show 01-thumb.jpg`, the `Show 01.trickplay` folder. Gives the part after the video's base name.
+ */
+function companionSuffix(name: string, base: string): string | null {
+  if (!name.startsWith(base)) return null;
+  const rest = name.slice(base.length);
+  return rest.startsWith(".") || rest.startsWith("-thumb.") ? rest : null;
+}
 
 /**
  * The Jellyfin name of each subtitle file. A language tag that is not a language is dropped (the
@@ -135,6 +152,69 @@ export class FsLibraryWriter implements LibraryWriter {
     return { relativePath: relative(this.root, destination).split(sep).join("/") };
   }
 
+  async renameEpisodes(
+    series: Series,
+    files: readonly EpisodeFile[],
+  ): Promise<{ season: number; episode: number; relativePath: string }[]> {
+    const folder = this.seriesPath(series);
+    const placed: { season: number; episode: number; relativePath: string }[] = [];
+    const left = new Set<string>();
+    for (const file of files) {
+      // Only what is inside the series' own folder is this series' to move.
+      if (!isUnder(file.path, folder)) continue;
+      const extension = extname(file.path);
+      const seasonFolder = join(folder, seasonFolderName(file.season));
+      const target = join(
+        seasonFolder,
+        episodeFileName(series.title, file.season, file.episode, extension),
+      );
+      let path = file.path;
+      if (target !== file.path && !(await exists(target)) && (await exists(file.path))) {
+        await mkdir(seasonFolder, { recursive: true });
+        await this.move(file.path, target);
+        path = target;
+        const from = dirname(file.path);
+        const oldBase = basename(file.path, extension);
+        const newBase = basename(target, extension);
+        for (const name of await readdir(from).catch(() => [])) {
+          const suffix = companionSuffix(name, oldBase);
+          if (suffix === null) continue;
+          const to = join(seasonFolder, newBase + suffix);
+          if (!(await exists(to))) await this.moveCompanion(join(from, name), to);
+        }
+        if (from !== seasonFolder) left.add(from);
+      }
+      placed.push({
+        season: file.season,
+        episode: file.episode,
+        relativePath: relative(this.root, path).split(sep).join("/"),
+      });
+    }
+    // A season folder under another name (`Season 1`, `S1`) goes once nothing is left in it; rmdir,
+    // not rm -r, so one with anything else in it stays.
+    for (const from of left) {
+      if (isUnder(from, folder) && (await readdir(from).catch(() => [null])).length === 0) {
+        await rmdir(from).catch(() => undefined);
+      }
+    }
+    return placed;
+  }
+
+  /**
+   * A companion Jellyfin wrote itself can be beyond this server's reach: a `.trickplay` folder it
+   * created 755 can't change parent, since that rewrites its `..`. Jellyfin makes those again for the
+   * moved video, so one that won't move stays where it is instead of failing the whole rename.
+   */
+  private async moveCompanion(from: string, to: string): Promise<void> {
+    try {
+      await this.move(from, to);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EACCES" && code !== "EPERM") throw error;
+      console.warn(`left ${from} in place: ${code}`);
+    }
+  }
+
   /** Moves a staged file into the library, copying under a hidden name first across file systems. */
   private async place(from: string, to: string): Promise<void> {
     try {
@@ -159,7 +239,10 @@ export class FsLibraryWriter implements LibraryWriter {
     const staging = join(this.root, STAGING);
     // Whatever container the download ended up with, and its subtitle files and parts.
     for (const name of await readdir(staging).catch(() => [])) {
-      if (name.startsWith(`${episode.id}.`)) await rm(join(staging, name), { force: true });
+      // A stream copied segment by segment stages a folder (`<id>.hls`).
+      if (name.startsWith(`${episode.id}.`)) {
+        await rm(join(staging, name), { force: true, recursive: true });
+      }
     }
   }
 

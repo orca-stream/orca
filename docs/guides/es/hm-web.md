@@ -2,11 +2,84 @@
 
 [English](../hm-web.md) · **Español** · [Todas las guías](../../../README.es.md)
 
-El panel (`apps/hm-web`) es la interfaz web del [servidor Orca'H&M](hm-server.md): un tablero con la
-cola de trabajos, la lista de series, agregar una serie desde una dirección (con vista previa de lo que
-se descargará, la temporada, el número del primer episodio, ids de TMDB/IMDb y elección de pistas), las
-fuentes y episodios de cada serie, los extractores disponibles y las notificaciones (en vivo, por
-server-sent events).
+El panel (`apps/hm-web`) es la interfaz web del [servidor Orca'H&M](hm-server.md). El inicio es una
+cuadrícula de tarjetas: primero tus series y después una por cada extractor disponible (con un atajo para
+probar su ejemplo). Desde ahí: la lista de series, agregar una serie desde una dirección (con vista previa
+de lo que se descargará, la temporada, el número del primer episodio, ids de TMDB/IMDb y elección de
+pistas), las fuentes y episodios de cada serie, la página de descargas (cola, errores e historial) y las
+notificaciones (en vivo, por server-sent events).
+
+La lista de series se ve como el inicio, sin barra ni título: una tarjeta para agregar otra y después una
+por serie cuyo fondo entero es su carátula (la de TMDB, por su id, si el servidor no tiene), oscurecida
+hacia abajo bajo su nombre, año y cuántos episodios hay (`24/24`). En la pantalla de una serie, el botón **+** junto a sus direcciones abre
+agregar una serie con esa ya elegida en «Añadir a» (`/series/new?into=<id>`): otra temporada, o la parte
+que a un sitio le falta. Con dos o más direcciones se pliegan bajo una cabecera que las cuenta (y cuántas
+están cerradas); su flecha las despliega todas. Cada dirección dice qué temporada y qué episodios trajo (`Temporada 1, episodios 25 al 37`), y tiene un candado que la cierra o la
+reabre: una fuente cerrada (una temporada terminada) deja de leerse al buscar episodios nuevos.
+
+Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
+dirección. En una serie nueva, al escribir su id de TMDB se rellenan el título, el año y el id de IMDb:
+el servidor se lo pregunta al proveedor TMDB del propio Jellyfin (sin clave de TMDB nuestra), en el
+idioma de metadatos preferido del servidor. Reemplaza lo que sugirió el sitio y rellena lo vacío, pero nunca pisa lo que escribiste a
+mano. El título es el que mostrarán Jellyfin y Orca'JP, porque el `tvshow.nfo` de la serie lo fija. En
+el disco, los caracteres que un nombre de archivo no admite se quitan o se cambian: `Mashle: Magic and
+Muscles` queda en `Mashle - Magic and Muscles (2023)/`.
+
+La última fila de la barra es la numeración: la temporada a la que van los episodios y el número que
+toma allí el primer episodio de la dirección (vacíos, se usa la numeración del sitio; al añadir a una
+serie que ya tiene esa temporada, empieza justo tras su último episodio, p. ej. 25 tras 24), y al final cómo
+quedarán (`S02E13–E24`). Si la serie tiene id de TMDB (el que escribiste para una nueva, o el de la
+serie elegida) y el servidor tiene `TMDB_API_KEY`, las dos son listas: las temporadas de TMDB y luego
+los episodios de la temporada elegida, en el idioma del panel. Sin tocarlas, muestran lo que da la
+numeración del sitio (su temporada, si la dirección tiene una sola, y su primer episodio). Sin clave, o si TMDB no tiene nada, los
+números se escriben.
+
+En cuanto TMDB nombra la serie, la serie ocupa el fondo de la pantalla detrás del cristal: su imagen
+de fondo, difuminada (con `TMDB_API_KEY`), o si no su póster, más difuminado.
+
+Bajo la numeración, dos interruptores: seguir la serie (buscar episodios nuevos en el sitio; solo para
+una serie nueva o una de Jellyfin, porque una serie existente conserva su ajuste) y descargar ahora
+(apagado por defecto: los episodios se añaden pero no se descargan todavía). La barra termina con lo que se añadirá
+y el botón **Añadir serie**.
+
+En cuanto se lee una dirección, la pantalla se parte en dos: la barra a la izquierda y, a la derecha,
+una cuadrícula con una tarjeta por episodio. Cada tarjeta lleva una miniatura (la de TMDB del episodio
+donde quedará, si hay clave; si no, un marcador) y, encima, el código que tendrá (y el del sitio, si la
+numeración lo mueve), el servidor del que sale (un host, o «Espejos» cuando la página del episodio
+ofrece varios reproductores y se elige uno al descargar), qué le pasará («Se descargará», «Sin
+descargar», «Se omite», o «Ya la tienes» si la serie elegida ya tiene ese código, lo que impide añadir)
+y los avisos del sitio (inferido, hueco…). Debajo, el nombre de TMDB, la fecha de emisión, la duración
+y la sinopsis. El botón redondo de su esquina, o la tarjeta entera, incluye u omite el episodio;
+«Todos», en la cabecera de la cuadrícula, los cambia todos.
+
+Una serie nueva con el id de TMDB o IMDb de una que ya tienes se rechaza, y el panel lo avisa mientras
+escribes el id, con un botón para añadir la dirección a esa.
+
+«Añadir a» también lista las series que tu Jellyfin ya tiene y H&M no (marcadas «En Jellyfin»), siempre
+que su carpeta esté dentro de la carpeta de medios de H&M. Añadir a una la convierte en serie de H&M con
+el título, el año y los ids de la serie, y **renombra sus archivos de episodio al formato de H&M**
+(`Season 01/Serie S01E01.ext`), junto con los archivos que llevan su nombre (subtítulos, `.nfo`,
+miniaturas, trickplay). Un archivo con varios episodios, o cuyo nombre nuevo ya existe, se queda como
+está; el `tvshow.nfo` y las imágenes de la serie no se tocan. Los episodios de la dirección que ya
+están en el disco no se vuelven a descargar. Jellyfin puede ver un archivo renombrado como un elemento
+nuevo: revisa que lo visto siga marcado como visto.
+
+La pantalla de una serie se ordena igual, a todo el ancho y sin barra de arriba (la flecha de su
+ficha vuelve a la lista). A la izquierda, un solo panel: su ficha (póster, año, temporadas, sinopsis,
+ids de TMDB e IMDb y cuántos episodios hay) y, debajo en el mismo panel, sus ajustes: sus direcciones y cómo numera
+cada una (como el sitio, o hacia una temporada y desplazada), cuándo se buscaron y se buscarán episodios
+nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre búsquedas, los ids de TMDB e
+IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
+elegir ninguno se guardan todas las pistas; en subtítulos también **Sin subtítulos**; el primer idioma
+de audio elegido es el original). No se envía nada hasta **Guardar cambios**, que manda solo lo que
+cambió (**Descartar** lo deja como estaba). A la derecha, un solo panel con la cabecera y los episodios en cuadrícula de fotogramas una
+temporada a la vez (un botón por temporada cuando hay más de una): cada uno dice si está disponible, en
+cola, descargándose (con su progreso), si falta o si falló (con **Reintentar**). **Descargar los que
+faltan** pone en cola todos los que faltan o fallaron. Al elegir episodios (el botón redondo o la
+tarjeta entera) aparece, al pie del panel, una barra con **Seleccionar todos** (o la temporada), **Quitar selección** y
+**Descargar (n)**. Con
+id de TMDB, su fondo
+llena la pantalla y sus fotogramas y nombres, las tarjetas.
 
 No tiene backend propio: siempre habla con un servidor H&M en el **mismo origen**, bajo `/api`. Se entra
 con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servidor.

@@ -157,4 +157,61 @@ describe("checking a series with several sources", () => {
     await expect(createCheckSeries(h.deps)(first.id)).rejects.toThrow();
     expect(await codes(first.id)).toEqual(["S01E01", "S02E01"]);
   });
+
+  it("leaves a closed source out: not read, so it can neither add nor fail", async () => {
+    site.season("p1", "Show", [1]).season("p2", "Show", [1]);
+    const first = await add("p1", { title: "Show" });
+    await add("p2", { seriesId: first.id, season: 2 });
+    const [old] = await h.series.listSources([first.id]);
+    const closed = await h.useCases.patchSource(first.id, old!.id, { closed: true });
+    expect(closed.sources.map((source) => source.closed)).toEqual([true, false]);
+    // The closed part would add an episode, and then disappears: neither matters any more.
+    site.season("p1", "Show", [1, 2]);
+    site.pages.delete(seasonUrl("p1"));
+    site.season("p2", "Show", [1, 2]);
+
+    await expect(createCheckSeries(h.deps)(first.id)).resolves.toMatchObject({ added: 1 });
+    expect(await codes(first.id)).toEqual(["S01E01", "S02E01", "S02E02"]);
+
+    const reopened = await h.useCases.patchSource(first.id, old!.id, { closed: false });
+    expect(reopened.sources[0]!.closed).toBe(false);
+    await expect(createCheckSeries(h.deps)(first.id)).rejects.toThrow();
+  });
+
+  it("closes the sources whose episodes all come before the ones a new source adds", async () => {
+    site
+      .season("p1", "Show", [1, 2])
+      .season("p2", "Show", [1, 2])
+      .season("p2b", "Show", [1])
+      .season("p3", "Show", [1]);
+    const first = await add("p1", { title: "Show", season: 1 });
+    const second = await add("p2", { seriesId: first.id, season: 2 });
+    expect(second.sources.map((source) => source.closed)).toEqual([true, false]);
+    // The next part of the same season finishes the one before it too.
+    const part = await add("p2b", { seriesId: first.id, season: 2, firstEpisode: 3 });
+    expect(part.sources.map((source) => source.closed)).toEqual([true, true, false]);
+    const third = await add("p3", { seriesId: first.id, season: 3 });
+    expect(third.sources.map((source) => source.closed)).toEqual([true, true, true, false]);
+  });
+
+  it("leaves open a source that reaches past where the new one starts", async () => {
+    // The site skips 3 to 9 and lists 10; another address fills in 5.
+    site.season("p1", "Show", [1, 2, 10]).season("gap", "Show", [1]);
+    const first = await add("p1", { title: "Show", season: 1 });
+    const gap = await add("gap", { seriesId: first.id, season: 1, firstEpisode: 5 });
+    expect(gap.sources.map((source) => source.closed)).toEqual([false, false]);
+  });
+
+  it("refuses to close a source of another series, or one that does not exist", async () => {
+    site.season("p1", "Show", [1]).season("other", "Other", [1]);
+    const first = await add("p1", { title: "Show" });
+    const other = await add("other", { title: "Other" });
+    const [foreign] = await h.series.listSources([other.id]);
+    await expect(h.useCases.patchSource(first.id, foreign!.id, { closed: true })).rejects.toThrow(
+      "No such source",
+    );
+    await expect(h.useCases.patchSource(first.id, "nope", { closed: true })).rejects.toThrow(
+      "No such source",
+    );
+  });
 });

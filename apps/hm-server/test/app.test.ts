@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { AppError } from "../src/domain/errors.ts";
 import { createApp } from "../src/infrastructure/web/app.ts";
 import { LoginRateLimiter } from "../src/infrastructure/web/rate-limit.ts";
 import { addBevhill, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
@@ -126,6 +127,11 @@ describe("auth", () => {
   it("401 on every protected route without a session", async () => {
     for (const [method, path] of [
       ["GET", "/api/extractors"],
+      ["GET", "/api/lookup/tmdb/1"],
+      ["GET", "/api/lookup/tmdb/1/seasons"],
+      ["GET", "/api/lookup/tmdb/1/seasons/1"],
+      ["GET", "/api/library/shows"],
+      ["GET", "/api/library/shows/x/episodes"],
       ["POST", "/api/series/preview"],
       ["POST", "/api/series"],
       ["GET", "/api/series"],
@@ -323,6 +329,24 @@ describe("series routes", () => {
     expect((await get("/api/series/nope")).status).toBe(404);
   });
 
+  it("closes and reopens a source of a series, and checks what it is sent", async () => {
+    const { series } = await addBevhill(h);
+    const sourceId = series.sources[0]!.id;
+    const patch = (path: string, body: unknown) =>
+      app.request(path, authed({ ...json(body), method: "PATCH" }));
+    const res = await patch(`/api/series/${series.id}/sources/${sourceId}`, { closed: true });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ sources: [{ id: sourceId, closed: true }] });
+    expect((await patch(`/api/series/${series.id}/sources/nope`, { closed: true })).status).toBe(
+      404,
+    );
+    expect((await patch(`/api/series/${series.id}/sources/${sourceId}`, {})).status).toBe(400);
+    expect(
+      (await patch(`/api/series/${series.id}/sources/${sourceId}`, { closed: true, season: 2 }))
+        .status,
+    ).toBe(400);
+  });
+
   it("serves a preview's poster from our own route, behind the session", async () => {
     const preview = (await (await post("/api/series/preview", { url: BEVHILL_URL })).json()) as {
       previewId: string;
@@ -351,6 +375,171 @@ describe("series routes", () => {
     await rm(join(h.root, "The Beverly Hillbillies (1962)", "poster.jpg"));
     expect((await get(`/api/series/${series.id}/poster`)).status).toBe(404);
     expect((await get("/api/series/nope/poster")).status).toBe(404);
+  });
+});
+
+describe("Jellyfin's shows", () => {
+  it("lists them with the series this server has for each, 502 when Jellyfin can't be asked", async () => {
+    h.mediaServer.library = [
+      { id: "jf", title: "Mashle", year: 2023, tmdbId: "1", imdbId: null, folderName: "M" },
+    ];
+    const res = await get("/api/library/shows");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([
+      {
+        id: "jf",
+        title: "Mashle",
+        year: 2023,
+        tmdbId: "1",
+        imdbId: null,
+        seriesId: null,
+        adoptable: true,
+      },
+    ]);
+    h.mediaServer.fail = new AppError("upstream", "Could not reach Jellyfin");
+    expect((await get("/api/library/shows")).status).toBe(502);
+  });
+
+  it("lists the episodes a show has as files, in order", async () => {
+    h.mediaServer.episodeFiles.set("jf", [
+      { season: 2, episode: 1, path: "/media/M/Season 2/S02E01.mp4" },
+      { season: 1, episode: 2, path: "/media/M/Season 1/S01E02.mp4" },
+    ]);
+    const res = await get("/api/library/shows/jf/episodes");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([
+      { season: 1, episode: 2 },
+      { season: 2, episode: 1 },
+    ]);
+  });
+});
+
+describe("TMDB lookup", () => {
+  it("names a show by its TMDB id, through Jellyfin", async () => {
+    h.mediaServer.shows.set("30991", {
+      title: "Cowboy Bebop",
+      year: 1998,
+      imdbId: "tt0213338",
+      overview: "Bounty hunters in space.",
+      posterUrl: "https://image.tmdb.org/t/p/w342/bebop.jpg",
+    });
+    const res = await get("/api/lookup/tmdb/30991");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      tmdbId: "30991",
+      title: "Cowboy Bebop",
+      year: 1998,
+      imdbId: "tt0213338",
+      overview: "Bounty hunters in space.",
+      posterUrl: "https://image.tmdb.org/t/p/w342/bebop.jpg",
+      backdropUrl: null,
+      status: null,
+      nextEpisode: null,
+    });
+  });
+
+  it("adds TMDB's backdrop and airing status, and leaves them out when TMDB can't be asked", async () => {
+    h.mediaServer.shows.set("30991", {
+      title: "Cowboy Bebop",
+      year: 1998,
+      imdbId: null,
+      overview: null,
+      posterUrl: null,
+    });
+    h.episodeGuide.showFacts.set("30991", {
+      backdropUrl: "https://image.tmdb.org/t/p/w1280/wide.jpg",
+      status: "ended",
+      nextEpisode: null,
+    });
+    expect(await (await get("/api/lookup/tmdb/30991")).json()).toMatchObject({
+      backdropUrl: "https://image.tmdb.org/t/p/w1280/wide.jpg",
+      status: "ended",
+    });
+    h.episodeGuide.fail = new AppError("upstream", "TMDB answered 500");
+    const res = await get("/api/lookup/tmdb/30991");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      title: "Cowboy Bebop",
+      backdropUrl: null,
+      status: null,
+    });
+  });
+
+  it("drops an IMDb id that isn't one", async () => {
+    h.mediaServer.shows.set("5", {
+      title: "Odd",
+      year: null,
+      imdbId: "nm123",
+      overview: null,
+      posterUrl: null,
+    });
+    expect(await (await get("/api/lookup/tmdb/5")).json()).toMatchObject({ imdbId: null });
+  });
+
+  it("400 for an id that isn't a number, 404 for one TMDB doesn't have", async () => {
+    expect((await get("/api/lookup/tmdb/abc")).status).toBe(400);
+    const res = await get("/api/lookup/tmdb/404404");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: "not_found" });
+  });
+
+  it("502 when Jellyfin can't be asked", async () => {
+    h.mediaServer.fail = new AppError("upstream", "Could not reach Jellyfin");
+    expect((await get("/api/lookup/tmdb/1")).status).toBe(502);
+  });
+});
+
+describe("TMDB episode guide", () => {
+  it("lists a show's seasons and a season's episodes, in the language asked for", async () => {
+    h.episodeGuide.shows.set("135237", [
+      { number: 0, name: "Specials", episodeCount: 1, year: null },
+      { number: 1, name: "Season 1", episodeCount: 6, year: 2021 },
+    ]);
+    h.episodeGuide.seasonEpisodes.set("135237/1", [
+      {
+        number: 1,
+        name: "Episodio 1",
+        airDate: "2021-09-30",
+        overview: null,
+        runtimeMin: 24,
+        stillUrl: "https://image.tmdb.org/t/p/w400/still.jpg",
+      },
+    ]);
+    const seasons = await get("/api/lookup/tmdb/135237/seasons?language=es");
+    expect(seasons.status).toBe(200);
+    expect(await seasons.json()).toEqual([
+      { number: 0, name: "Specials", episodeCount: 1, year: null },
+      { number: 1, name: "Season 1", episodeCount: 6, year: 2021 },
+    ]);
+    const episodes = await get("/api/lookup/tmdb/135237/seasons/1?language=es");
+    expect(await episodes.json()).toEqual([
+      {
+        number: 1,
+        name: "Episodio 1",
+        airDate: "2021-09-30",
+        overview: null,
+        runtimeMin: 24,
+        stillUrl: "https://image.tmdb.org/t/p/w400/still.jpg",
+      },
+    ]);
+    expect(h.episodeGuide.languages).toEqual(["es", "es"]);
+  });
+
+  it("400 for a bad id, season or language; 404 for what TMDB doesn't have", async () => {
+    expect((await get("/api/lookup/tmdb/abc/seasons")).status).toBe(400);
+    expect((await get("/api/lookup/tmdb/1/seasons/x")).status).toBe(400);
+    expect((await get("/api/lookup/tmdb/1/seasons?language=spanish")).status).toBe(400);
+    expect((await get("/api/lookup/tmdb/404/seasons")).status).toBe(404);
+    expect((await get("/api/lookup/tmdb/404/seasons/2")).status).toBe(404);
+  });
+
+  it("503 without a TMDB key, 502 when TMDB can't be asked", async () => {
+    h.episodeGuide.fail = new AppError("upstream", "Could not reach TMDB");
+    expect((await get("/api/lookup/tmdb/1/seasons")).status).toBe(502);
+    h.deps.episodeGuide = null;
+    const res = await get("/api/lookup/tmdb/1/seasons/1");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: "unavailable" });
   });
 });
 

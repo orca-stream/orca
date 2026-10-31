@@ -2,7 +2,14 @@ import type { HmEvent, JobDto, ProgressDetail } from "@orca/hm-contract";
 import { keys } from "@/api/keys";
 
 export type Op =
-  | { type: "progress"; jobId: string; progress: number | null; detail: ProgressDetail | null }
+  | {
+      type: "progress";
+      jobId: string;
+      seriesId: string | null;
+      episodeId: string | null;
+      progress: number | null;
+      detail: ProgressDetail | null;
+    }
   | { type: "place"; job: JobDto }
   | { type: "invalidate"; key: readonly unknown[] };
 
@@ -41,6 +48,8 @@ export function planEvent(event: HmEvent, lastSeq: number | null): Op[] {
       ops.push({
         type: "progress",
         jobId: event.jobId,
+        seriesId: event.seriesId,
+        episodeId: event.episodeId,
         progress: event.progress,
         detail: event.detail,
       });

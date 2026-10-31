@@ -1,7 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { keys } from "./keys";
 import { useApi } from "./context";
-import type { CreateSeriesBody, JobDto, PreviewDto, SeriesDto, SeriesPatch } from "./types";
+import type {
+  CreateSeriesBody,
+  JobDto,
+  PreviewDto,
+  SeriesDto,
+  SeriesPatch,
+  SourcePatch,
+} from "./types";
 
 const id = encodeURIComponent;
 
@@ -25,6 +32,18 @@ export function useMutations() {
     patchSeries: useMutation({
       mutationFn: ({ seriesId, patch }: { seriesId: string; patch: SeriesPatch }) =>
         api.patch<SeriesDto>(`/series/${id(seriesId)}`, patch),
+      onSuccess: refreshSeries,
+    }),
+    patchSource: useMutation({
+      mutationFn: ({
+        seriesId,
+        sourceId,
+        patch,
+      }: {
+        seriesId: string;
+        sourceId: string;
+        patch: SourcePatch;
+      }) => api.patch<SeriesDto>(`/series/${id(seriesId)}/sources/${id(sourceId)}`, patch),
       onSuccess: refreshSeries,
     }),
     enqueue: useMutation({

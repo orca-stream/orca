@@ -108,6 +108,12 @@ export function createJobHandler(deps: Deps): JobHandler {
    */
   const pendingPicks = new Map<string, HostLane>();
 
+  /** A player on a host of SKIP_PLAYERS, or on a subdomain of one. */
+  const skipped = (url: string): boolean => {
+    const host = new URL(url).hostname.toLowerCase();
+    return deps.skipPlayers.some((skip) => host === skip || host.endsWith(`.${skip}`));
+  };
+
   /** Of the players `candidates` (indexes), the one whose host has the least work; the first on a tie. */
   async function pickMirror(
     jobId: string,
@@ -192,13 +198,23 @@ export function createJobHandler(deps: Deps): JobHandler {
       if (signal.aborted) throw new AbortedError({ cause: error });
       throw toJobError(error);
     }
-    const usable = mirrors.filter((mirror) => /^https?:\/\//i.test(mirror.url));
-    if (usable.length === 0) throw new PermanentError("The episode page lists no players");
-    const first = await pickMirror(
-      job.id,
-      usable,
-      usable.map((_, index) => index),
-    );
+    const listed = mirrors.filter((mirror) => /^https?:\/\//i.test(mirror.url));
+    if (listed.length === 0) throw new PermanentError("The episode page lists no players");
+    const usable = listed.filter((mirror) => !skipped(mirror.url));
+    if (usable.length === 0) {
+      const hosts = [...new Set(listed.map((mirror) => new URL(mirror.url).hostname))];
+      throw new PermanentError(
+        `Every player of the episode is on a skipped host (SKIP_PLAYERS): ${hosts.join(", ")}`,
+      );
+    }
+    // One episode at a time: the page's order. Otherwise the least busy host.
+    const first = deps.sequentialDownloads
+      ? 0
+      : await pickMirror(
+          job.id,
+          usable,
+          usable.map((_, index) => index),
+        );
     throw new RerouteError("", {
       resource: hostLane((usable[first] as MirrorPayload["mirrors"][number]).url),
       payload: {
@@ -214,7 +230,8 @@ export function createJobHandler(deps: Deps): JobHandler {
   /**
    * One player of an episode, in its host's lane: the browser finds the stream it plays and it is
    * downloaded right here, so the host serves one download at a time. A player that fails hands the
-   * job to the next one; once every one has failed, the episode starts over from its page, later.
+   * job to the next one; once every one has failed, the episode starts over from its page, later
+   * (or, one episode at a time, fails).
    */
   async function downloadFromMirror(
     job: Job,
@@ -235,7 +252,9 @@ export function createJobHandler(deps: Deps): JobHandler {
       const failures = [...payload.failures, `${host}: ${describe(error)}`];
       const left = payload.mirrors.map((_, index) => index).filter((i) => !tried.includes(i));
       if (left.length > 0) {
-        const next = await pickMirror(job.id, payload.mirrors, left);
+        const next = deps.sequentialDownloads
+          ? (left[0] as number)
+          : await pickMirror(job.id, payload.mirrors, left);
         const nextUrl = (payload.mirrors[next] as MirrorPayload["mirrors"][number]).url;
         throw new RerouteError(
           `The player on ${host} failed (${describe(error)}); trying ${new URL(nextUrl).hostname}`,
@@ -245,7 +264,10 @@ export function createJobHandler(deps: Deps): JobHandler {
           },
         );
       }
-      throw new RerouteError(`Every player failed: ${failures.join("; ")}`, {
+      const message = `Every player failed: ${failures.join("; ")}`;
+      // One at a time, the episode fails here so the next one can start; it is retried by hand.
+      if (deps.sequentialDownloads) throw new PermanentError(message);
+      throw new RerouteError(message, {
         resource: "none",
         payload: { episodeId: episode.id },
         delayMs: backoffMs(job.attempts, deps.random.next()),

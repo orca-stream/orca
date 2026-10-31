@@ -57,6 +57,8 @@ describe("migrating to series with several sources", () => {
         episodeOffset: 0,
         remoteMarker: "m1",
         knownRefs: ["a/e1.mp4", "a/e2.mp4"],
+        // Every source from before the column is open: it was being checked.
+        closed: false,
         createdAt: 5,
       },
     ]);

@@ -22,7 +22,11 @@ describe("extractor identity", () => {
       hosts: ["archive.org"],
     });
     expect(extractor.example).toMatch(/^https:\/\/archive\.org\/details\//);
-    expect(extractor.limits).toEqual({ metadataPerSec: 1, downloadsPerHost: 1 });
+    expect(extractor.limits).toEqual({
+      metadataPerSec: 1,
+      downloadsPerHost: 1,
+      connectionsPerDownload: 1,
+    });
     expect(extractor.canHandle("https://www.archive.org/details/x")).toBe(true);
     expect(extractor.canHandle("https://youtube.com/watch?v=x")).toBe(false);
   });

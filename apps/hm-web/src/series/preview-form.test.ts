@@ -14,22 +14,25 @@ import {
   parseSeason,
   parseTmdbId,
   matchExtractor,
+  nextEpisode,
   parseYear,
   setAllIncluded,
+  shortRanges,
+  jellyfinTarget,
   toCreateBody,
   toggleEpisode,
   warningsByEpisode,
 } from "./preview-form";
 
 describe("initialForm", () => {
-  it("starts from the preview, with every episode included", () => {
+  it("starts from the preview with the title empty, for TMDB to fill in, and every episode included", () => {
     const form = initialForm(makePreview());
     expect(form).toMatchObject({
-      title: "The Beverly Hillbillies",
+      title: "",
       year: "1962",
       included: ["e1", "e2", "e4"],
       follow: false,
-      downloadNow: true,
+      downloadNow: false,
     });
   });
 
@@ -58,8 +61,9 @@ describe("parseYear", () => {
 describe("canConfirm", () => {
   it("lets an unknown license or a recent year through", () => {
     const unknown = makePreview({ license: { kind: "unknown", url: null } });
-    expect(canConfirm({ ...initialForm(unknown), year: "1982" })).toBe(true);
-    expect(canConfirm({ ...initialForm(unknown), year: "" })).toBe(true);
+    const titled = { ...initialForm(unknown), title: "The Beverly Hillbillies" };
+    expect(canConfirm({ ...titled, year: "1982" })).toBe(true);
+    expect(canConfirm({ ...titled, year: "" })).toBe(true);
   });
 
   it("is blocked by an empty title, no episodes, or a year that cannot be read", () => {
@@ -89,7 +93,7 @@ describe("toCreateBody", () => {
       firstEpisode: null,
       episodeKeys: ["e1", "e2", "e4"],
       follow: true,
-      downloadNow: true,
+      downloadNow: false,
     });
   });
 
@@ -97,6 +101,7 @@ describe("toCreateBody", () => {
     const preview = makePreview();
     const body = toCreateBody(preview, {
       ...initialForm(preview),
+      title: "The Beverly Hillbillies",
       tmdbId: " 12345 ",
       imdbId: "tt0123456",
       season: "2",
@@ -123,6 +128,20 @@ describe("toCreateBody", () => {
     expect(parsed).toMatchObject({ seriesId: "s9", season: 1, firstEpisode: 13, tmdbId: null });
     expect(parsed).not.toHaveProperty("title");
     expect(parsed).not.toHaveProperty("year");
+  });
+
+  it("adds to a show in Jellyfin by its id, with the show's own title and ids", () => {
+    const preview = makePreview();
+    const body = toCreateBody(preview, {
+      ...initialForm(preview),
+      addTo: jellyfinTarget("jf1"),
+      tmdbId: "999",
+      follow: true,
+    });
+    const parsed = CreateSeriesBody.parse(body);
+    expect(parsed).toMatchObject({ jellyfinId: "jf1", tmdbId: null, follow: true });
+    expect(parsed).not.toHaveProperty("seriesId");
+    expect(parsed).not.toHaveProperty("title");
   });
 
   it("keeps the episodes in the preview's order", () => {
@@ -256,6 +275,23 @@ describe("numbering", () => {
     expect(clashingCodes(preview, { ...form, included: ["e4"] }, existing)).toEqual([]);
   });
 
+  it("finds the episode after the last one a season has, and none for a season it lacks", () => {
+    const existing = [
+      { season: 1, episode: 24 },
+      { season: 1, episode: 3 },
+      { season: 2, episode: 5 },
+    ];
+    expect(nextEpisode(existing, 1)).toBe(25);
+    expect(nextEpisode(existing, 2)).toBe(6);
+    expect(nextEpisode(existing, 3)).toBeNull();
+  });
+
+  it("doesn't continue a season that has all of its episodes", () => {
+    const existing = [{ season: 5, episode: 22 }];
+    expect(nextEpisode(existing, 5, 22)).toBeNull();
+    expect(nextEpisode(existing, 5, 23)).toBe(23);
+  });
+
   it("sums up what a series has, season by season", () => {
     expect(
       episodeRanges([
@@ -265,5 +301,15 @@ describe("numbering", () => {
       ]),
     ).toBe("S01E01–S01E12, S02E05");
     expect(episodeRanges([])).toBe("");
+  });
+
+  it("says it shorter, without repeating the season inside a range", () => {
+    expect(
+      shortRanges([
+        { season: 1, episode: 1 },
+        { season: 1, episode: 12 },
+        { season: 2, episode: 5 },
+      ]),
+    ).toBe("S01E01–E12, S02E05");
   });
 });

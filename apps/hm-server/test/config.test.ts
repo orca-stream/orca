@@ -23,14 +23,35 @@ describe("loadConfig", () => {
       port: 8787,
       host: "localhost",
       secureCookies: false,
+      sequentialDownloads: false,
       concurrency: { download: 2, ffmpeg: 1, browser: 1, none: 4 },
     });
     // Per-host limits come from the extractors unless the environment overrides them.
     expect(config.hostLimits).toEqual({});
+    // One stream per file unless the environment asks for more.
+    expect(config.downloadConnections).toBe(1);
     expect(config.webRoot).toBeUndefined();
     // No baked-in device id: it is generated once and stored, unless the environment overrides it.
     expect(config.deviceId).toBeUndefined();
     expect(config.contactEmail).toBeUndefined();
+    expect(config.tmdbApiKey).toBeUndefined();
+  });
+
+  it("downloads one episode at a time only when asked", () => {
+    expect(loadConfig({ ...minimal, SEQUENTIAL_DOWNLOADS: "true" }).sequentialDownloads).toBe(true);
+    expect(() => loadConfig({ ...minimal, SEQUENTIAL_DOWNLOADS: "yes" })).toThrow(ConfigError);
+  });
+
+  it("reads the skipped player hosts as a lower-case list, and refuses addresses", () => {
+    expect(loadConfig(minimal).skipPlayers).toEqual([]);
+    expect(
+      loadConfig({ ...minimal, SKIP_PLAYERS: " Player.example, other.example ," }).skipPlayers,
+    ).toEqual(["player.example", "other.example"]);
+    expect(() => loadConfig({ ...minimal, SKIP_PLAYERS: "https://player.example/" })).toThrow(ConfigError);
+  });
+
+  it("takes a TMDB key when there is one", () => {
+    expect(loadConfig({ ...minimal, TMDB_API_KEY: " abc " }).tmdbApiKey).toBe("abc");
   });
 
   it.each([
@@ -81,6 +102,16 @@ describe("loadConfig", () => {
     ).toEqual({ downloadsPerHost: 3, metadataPerSec: 0.5 });
     expect(() => loadConfig({ ...minimal, METADATA_PER_SEC: "0" })).toThrow(/METADATA_PER_SEC/);
     expect(() => loadConfig({ ...minimal, DOWNLOADS_PER_HOST: "0" })).toThrow(/DOWNLOADS_PER_HOST/);
+  });
+
+  it("reads how many connections a direct file is fetched over, within 1 to 16", () => {
+    expect(loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "4" }).downloadConnections).toBe(4);
+    expect(() => loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "0" })).toThrow(
+      /DOWNLOAD_CONNECTIONS/,
+    );
+    expect(() => loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "17" })).toThrow(
+      /DOWNLOAD_CONNECTIONS/,
+    );
   });
 
   it("explains every problem at once", () => {
@@ -205,5 +236,29 @@ describe("the sites file", () => {
     const { parseSitesFile } = await import("@orca/extractor-html");
     const example = await readFile(new URL("../sites.example.json", import.meta.url), "utf8");
     expect(parseSitesFile(example).sites.map((site) => site.id)).toEqual(["site-a"]);
+  });
+});
+
+describe("the show API file", () => {
+  const tuning = {
+    HM_DETECTOR_MAX_CONCURRENT: "2",
+    HM_DETECTOR_TIMEOUT_MS: "45000",
+    HM_DETECTOR_SETTLE_MS: "3000",
+  };
+
+  it("turns the browser on for the sites' players", () => {
+    const config = loadConfig({ ...minimal, ...tuning, HM_SHOW_API_FILE: "./show-api.json" });
+    expect(config).toMatchObject({ showApiFile: "./show-api.json", genericExtractor: false });
+    expect(config.detector).toMatchObject({ maxConcurrent: 2 });
+    expect(() => loadConfig({ ...minimal, HM_SHOW_API_FILE: "./show-api.json" })).toThrow(
+      /HM_DETECTOR_TIMEOUT_MS/,
+    );
+  });
+
+  it("ships an example that is a valid show API file", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const { parseShowApiFile } = await import("@orca/extractor-show-api");
+    const example = await readFile(new URL("../show-api.example.json", import.meta.url), "utf8");
+    expect(parseShowApiFile(example).sites.map((site) => site.id)).toEqual(["site-b"]);
   });
 });

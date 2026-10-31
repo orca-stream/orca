@@ -32,11 +32,20 @@ describe("planEvent", () => {
       type: "job.progress",
       seq: 5,
       jobId: "j1",
+      seriesId: "s1",
+      episodeId: "e1",
       progress: 0.5,
       detail: { bytes: 5, total: 10 },
     };
     expect(planEvent(event, 4)).toEqual([
-      { type: "progress", jobId: "j1", progress: 0.5, detail: { bytes: 5, total: 10 } },
+      {
+        type: "progress",
+        jobId: "j1",
+        seriesId: "s1",
+        episodeId: "e1",
+        progress: 0.5,
+        detail: { bytes: 5, total: 10 },
+      },
     ]);
   });
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,7 +12,8 @@ import type { UrlGuard } from "../src/application/ports.ts";
 import type { HostLimiter } from "../src/infrastructure/host-limiter.ts";
 import { testLimiter } from "./helpers.ts";
 
-const BODY = Buffer.from("0123456789".repeat(1000)); // 10 000 bytes
+// 10 000 bytes that never repeat at a range boundary, so ranges joined out of order would show.
+const BODY = Buffer.from(Array.from({ length: 10_000 }, (_, i) => (i * 7 + (i >> 8)) & 255));
 const MD5 = createHash("md5").update(BODY).digest("hex");
 
 interface Seen {
@@ -33,18 +34,19 @@ let live = 0;
 let peak = 0;
 
 function serveFile(req: IncomingMessage, res: ServerResponse, { ignoreRange = false } = {}) {
-  const match = /^bytes=(\d+)-$/.exec(req.headers.range ?? "");
+  const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range ?? "");
   if (match && !ignoreRange) {
     const start = Number(match[1]);
     if (start >= BODY.length) {
       res.writeHead(416, { "content-range": `bytes */${BODY.length}` }).end();
       return;
     }
+    const end = match[2] ? Math.min(Number(match[2]), BODY.length - 1) : BODY.length - 1;
     res.writeHead(206, {
-      "content-range": `bytes ${start}-${BODY.length - 1}/${BODY.length}`,
-      "content-length": BODY.length - start,
+      "content-range": `bytes ${start}-${end}/${BODY.length}`,
+      "content-length": end - start + 1,
     });
-    res.end(BODY.subarray(start));
+    res.end(BODY.subarray(start, end + 1));
     return;
   }
   res.writeHead(200, { "content-length": BODY.length, "accept-ranges": "bytes" });
@@ -89,8 +91,16 @@ const source = (extra: Partial<Extract<Source, { kind: "direct" }>> = {}): Sourc
 
 /** The tests' server is on 127.0.0.1, which the real guard refuses: this one lets everything by. */
 const allowAll: UrlGuard = { assertUrl: async (url) => new URL(url) };
-const downloader = (options: { limiter?: HostLimiter; guard?: UrlGuard } = {}) =>
+const downloader = (
+  options: {
+    limiter?: HostLimiter;
+    guard?: UrlGuard;
+    connectionsFor?: (host: string) => number;
+  } = {},
+) =>
   new HttpDownloader({
+    minSplitBytes: 1000,
+    rangeRetryDelayMs: 1,
     userAgent: "OrcaHM/test",
     limiter: testLimiter().limiter,
     guard: allowAll,
@@ -239,6 +249,92 @@ describe("HttpDownloader", () => {
     const d = downloader();
     expect(d.canHandle(source())).toBe(true);
     expect(d.canHandle({ kind: "hls", url: "https://x/y.m3u8" })).toBe(false);
+  });
+});
+
+describe("HttpDownloader over several connections", () => {
+  const four = { connectionsFor: () => 4 };
+  const rangesAsked = () => seen.map((s) => s.range).filter((r) => r !== "bytes=0-0");
+
+  it("splits the file in ranges fetched side by side and joins them in order", async () => {
+    const dest = join(dir, "out.mp4");
+    const ctx = context();
+    await downloader(four).download(source(), dest, ctx);
+    expect((await readFile(dest)).equals(BODY)).toBe(true);
+    expect(seen[0]?.range).toBe("bytes=0-0");
+    expect(new Set(rangesAsked())).toEqual(
+      new Set(["bytes=0-2499", "bytes=2500-4999", "bytes=5000-7499", "bytes=7500-9999"]),
+    );
+    expect(await readdir(dir)).toEqual(["out.mp4"]);
+    expect(ctx.progress.at(-1)).toMatchObject({ bytes: BODY.length, total: BODY.length });
+  });
+
+  it("fetches the file whole when the server ignores Range, or it is small", async () => {
+    handler = (req, res) => serveFile(req, res, { ignoreRange: true });
+    const dest = join(dir, "out.mp4");
+    await downloader(four).download(source(), dest, context());
+    expect((await readFile(dest)).equals(BODY)).toBe(true);
+
+    seen = [];
+    handler = (req, res) => serveFile(req, res);
+    const small = BODY.subarray(0, 500);
+    await downloader(four)
+      .download(
+        source({ sizeBytes: 500, md5: createHash("md5").update(small).digest("hex") }),
+        join(dir, "small.mp4"),
+        context(),
+      )
+      .catch(() => undefined);
+    expect(seen.map((s) => s.range)).not.toContain("bytes=0-0");
+  });
+
+  it("asks nothing extra with one connection", async () => {
+    await downloader({ connectionsFor: () => 1 }).download(source(), join(dir, "o.mp4"), context());
+    expect(seen.map((s) => s.range)).toEqual([undefined]);
+  });
+
+  it("retries a range that drops, resuming it from what its file holds", async () => {
+    let dropped = false;
+    handler = (req, res) => {
+      if (!dropped && req.headers.range === "bytes=2500-4999") {
+        dropped = true;
+        res.writeHead(206, {
+          "content-range": `bytes 2500-4999/${BODY.length}`,
+          "content-length": 2500,
+        });
+        res.write(BODY.subarray(2500, 3500));
+        setTimeout(() => res.destroy(), 20);
+        return;
+      }
+      serveFile(req, res);
+    };
+    const dest = join(dir, "out.mp4");
+    await downloader(four).download(source(), dest, context());
+    expect((await readFile(dest)).equals(BODY)).toBe(true);
+    expect(rangesAsked()).toContain("bytes=3500-4999");
+  });
+
+  it("resumes the ranges an earlier attempt left on disk", async () => {
+    const dest = join(dir, "out.mp4");
+    await writeFile(`${dest}.part.0-of-4`, BODY.subarray(0, 2500));
+    await writeFile(`${dest}.part.1-of-4`, BODY.subarray(2500, 3000));
+    await writeFile(`${dest}.part.0-of-2`, BODY.subarray(0, 100));
+    await downloader(four).download(source(), dest, context());
+    expect((await readFile(dest)).equals(BODY)).toBe(true);
+    expect(rangesAsked()).not.toContain("bytes=0-2499");
+    expect(rangesAsked()).toContain("bytes=3000-4999");
+    expect(await readdir(dir)).toEqual(["out.mp4"]);
+  });
+
+  it("gives up on a range that keeps failing, and stops the others", async () => {
+    handler = (req, res) => {
+      if (req.headers.range === "bytes=5000-7499") return void res.destroy();
+      serveFile(req, res);
+    };
+    await expect(
+      downloader(four).download(source(), join(dir, "out.mp4"), context()),
+    ).rejects.toBeInstanceOf(RetryableError);
+    expect(seen.filter((s) => s.range === "bytes=5000-7499")).toHaveLength(4);
   });
 });
 

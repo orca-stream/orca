@@ -57,6 +57,107 @@ describe("DrizzleJobRepository", () => {
     expect((await jobs.claim("download", "w1", 30_000))?.id).toBe(later.job.id);
   });
 
+  it("one episode at a time: holds every other download while one is under way, then takes the first", async () => {
+    const { jobs, series, clock } = testDatabase();
+    await series.create(aSeries(), aSource(), [
+      anEpisode({ episode: 1 }),
+      anEpisode({ episode: 2 }),
+      anEpisode({ episode: 3 }),
+    ]);
+    const one = { oneEpisodeAtATime: true };
+    const forEpisode = (n: number, extra = {}) =>
+      job({ seriesId: "series-1", episodeId: `episode-1-${n}`, ...extra });
+    const e1 = await jobs.enqueue(forEpisode(1, { resource: "browser" }));
+    clock.advance(10);
+    const e2 = await jobs.enqueue(forEpisode(2));
+    clock.advance(10);
+    const e3 = await jobs.enqueue(forEpisode(3));
+    // Other work is never held.
+    const check = await jobs.enqueue(job({ kind: "check_series", resource: "none" }));
+
+    // Only the first download due of all, though another resource is free.
+    expect(await jobs.claim("download", "w", 1000, one)).toBeNull();
+    expect((await jobs.claim("browser", "w", 1000, one))?.id).toBe(e1.job.id);
+    expect((await jobs.claim("none", "w", 1000, one))?.id).toBe(check.job.id);
+
+    // The page handed its stream to a job of its own: episode 1 is still under way once it is done.
+    const handoff = await jobs.enqueue(forEpisode(1, { payload: { resolved: {} } }));
+    await jobs.complete(e1.job.id, "w");
+    expect((await jobs.claim("download", "w", 1000, one))?.id).toBe(handoff.job.id);
+    // A retry waiting out its backoff holds the others too.
+    await jobs.requeue(handoff.job.id, "w", clock.now() + 60_000, "busy");
+    expect(await jobs.claim("download", "w", 1000, one)).toBeNull();
+    clock.advance(60_000);
+    expect((await jobs.claim("download", "w", 1000, one))?.id).toBe(handoff.job.id);
+    await jobs.fail(handoff.job.id, "w", "gone", "permanent");
+
+    // Episode 1 settled: the next in line, then the one after.
+    expect((await jobs.claim("download", "w", 1000, one))?.id).toBe(e2.job.id);
+    expect(await jobs.claim("download", "w", 1000, one)).toBeNull();
+    await jobs.complete(e2.job.id, "w");
+    expect((await jobs.claim("download", "w", 1000, one))?.id).toBe(e3.job.id);
+  });
+
+  it("holds the downloads of a paused series, and only those, until it is resumed", async () => {
+    const { jobs, series, clock } = testDatabase();
+    await series.create(aSeries({ paused: true }), aSource(), [anEpisode({ episode: 1 })]);
+    await series.create(
+      aSeries({ id: "series-2", folderName: "Other (2000)" }),
+      aSource({ id: "source-2", seriesId: "series-2", externalId: "other" }),
+      [
+        anEpisode({
+          id: "episode-2-1",
+          seriesId: "series-2",
+          sourceId: "source-2",
+          sourceRef: "o/1",
+        }),
+      ],
+    );
+    const held = await jobs.enqueue(
+      // Stopped half way by the pause: under way, which would hold the line one at a time.
+      job({ seriesId: "series-1", episodeId: "episode-1-1", payload: { mirrors: [] } }),
+    );
+    clock.advance(10);
+    const other = await jobs.enqueue(job({ seriesId: "series-2", episodeId: "episode-2-1" }));
+    const check = await jobs.enqueue(
+      job({ kind: "check_series", resource: "none", seriesId: "series-1" }),
+    );
+
+    expect((await jobs.claim("download", "w", 1000))?.id).toBe(other.job.id);
+    await jobs.fail(other.job.id, "w", "x", "permanent");
+    expect(await jobs.claim("download", "w", 1000)).toBeNull();
+    // A paused series' check still runs.
+    expect((await jobs.claim("none", "w", 1000))?.id).toBe(check.job.id);
+
+    await series.update("series-1", { paused: false });
+    expect((await jobs.claim("download", "w", 1000))?.id).toBe(held.job.id);
+  });
+
+  it("lets one episode at a time go past a paused series' half-done download", async () => {
+    const { jobs, series, clock } = testDatabase();
+    await series.create(aSeries({ paused: true }), aSource(), [anEpisode({ episode: 1 })]);
+    await series.create(
+      aSeries({ id: "series-2", folderName: "Other (2000)" }),
+      aSource({ id: "source-2", seriesId: "series-2", externalId: "other" }),
+      [
+        anEpisode({
+          id: "episode-2-1",
+          seriesId: "series-2",
+          sourceId: "source-2",
+          sourceRef: "o/1",
+        }),
+      ],
+    );
+    await jobs.enqueue(
+      job({ seriesId: "series-1", episodeId: "episode-1-1", payload: { mirrors: [] } }),
+    );
+    clock.advance(10);
+    const other = await jobs.enqueue(job({ seriesId: "series-2", episodeId: "episode-2-1" }));
+    expect((await jobs.claim("download", "w", 1000, { oneEpisodeAtATime: true }))?.id).toBe(
+      other.job.id,
+    );
+  });
+
   it("marks a claimed job running with a lease and counts the attempt", async () => {
     const { jobs, clock } = testDatabase();
     await jobs.enqueue(job({ payload: { episodeId: "e1" } }));

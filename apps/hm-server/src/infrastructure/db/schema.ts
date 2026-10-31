@@ -13,6 +13,7 @@ export const series = sqliteTable(
     folderName: text("folder_name").notNull(),
     hasPoster: integer("has_poster", { mode: "boolean" }).notNull().default(false),
     follow: integer("follow", { mode: "boolean" }).notNull().default(false),
+    paused: integer("paused", { mode: "boolean" }).notNull().default(false),
     checkIntervalHours: integer("check_interval_hours").notNull().default(12),
     lastCheckedAt: integer("last_checked_at"),
     maxHeight: integer("max_height"),
@@ -37,6 +38,7 @@ export const seriesSources = sqliteTable(
     episodeOffset: integer("episode_offset").notNull().default(0),
     remoteMarker: text("remote_marker"),
     knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
+    closed: integer("closed", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

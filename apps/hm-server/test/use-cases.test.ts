@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AppError, PermanentError, RetryableError } from "../src/domain/errors.ts";
 import { addBevhill, BEVHILL, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
 import { FakeDownloader } from "./fakes/ports.ts";
+import { aSeries, aSource } from "./helpers.ts";
 import { createEnqueueRefresh } from "../src/application/downloads.ts";
 import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registry.ts";
 
@@ -370,6 +371,11 @@ describe("downloading (the end-to-end pipeline)", () => {
     expect(h.events.map((e) => e.type)).toEqual(
       expect.arrayContaining(["job.updated", "job.progress", "series.updated"]),
     );
+    // A progress tick names its episode, so the series screen can move it without the job list.
+    expect(h.events.find((e) => e.type === "job.progress")).toMatchObject({
+      seriesId: expect.any(String),
+      episodeId: expect.any(String),
+    });
   });
 
   it("downloads from the episode's source URL into staging first", async () => {
@@ -458,6 +464,28 @@ describe("downloading (the end-to-end pipeline)", () => {
     expect(cancelled.status).toBe("cancelled");
     expect((await h.useCases.listEpisodes(series.id))[0]?.status).toBe("missing");
     expect(await exists(h.downloader.calls[0]!.destPath)).toBe(false);
+  });
+
+  it("pauses a series: its running download goes back to the queue and resumes with it", async () => {
+    const { series } = await addBevhill(h);
+    const [first] = await h.useCases.listEpisodes(series.id);
+    h.downloader.once(FakeDownloader.hangUntilAborted);
+    const [job] = await h.useCases.enqueue([first!.id]);
+    await h.queue.pump();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await h.jobs.get(job!.id))?.status).toBe("running");
+
+    const paused = await h.useCases.patchSeries(series.id, { paused: true });
+    expect(paused).toMatchObject({ paused: true, downloadingCount: 1 });
+    expect(await h.jobs.get(job!.id)).toMatchObject({ status: "queued", attempts: 0 });
+    expect((await h.useCases.listEpisodes(series.id))[0]?.status).toBe("queued");
+    await h.queue.settle();
+    expect(h.downloader.calls).toHaveLength(1);
+
+    await h.useCases.patchSeries(series.id, { paused: false });
+    await h.queue.settle();
+    expect(h.downloader.calls).toHaveLength(2);
+    expect((await h.useCases.listEpisodes(series.id))[0]?.status).toBe("available");
   });
 
   it("cancels a queued job before it runs", async () => {
@@ -629,5 +657,189 @@ describe("sessions", () => {
     h.authenticator.down = true;
     h.clock.advance(2 * 3600 * 1000);
     expect(await h.useCases.resolveSession(sessionId)).not.toBeNull();
+  });
+});
+
+describe("series that already exist", () => {
+  it("refuses a new series with the TMDB or IMDb id of one it has, and names it", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    const body = (title: string, ids: { tmdbId?: string; imdbId?: string }) => ({
+      previewId: preview.previewId,
+      title,
+      year: 1962,
+      episodeKeys: [preview.episodes[0]!.key],
+      ...ids,
+    });
+    await h.useCases.addSeries(body("The Beverly Hillbillies", { tmdbId: "4219" }));
+    const other = await h.useCases.previewSeries(BEVHILL_URL);
+    h.deps.series.findSourceByExternal = async () => null;
+    for (const ids of [{ tmdbId: "4219" }, { tmdbId: "1", imdbId: "tt0055662" }]) {
+      if (ids.imdbId) await h.series.update((await h.series.list())[0]!.id, { imdbId: ids.imdbId });
+      const error = await fails(
+        h.useCases.addSeries({ ...body("Hillbillies", ids), previewId: other.previewId }),
+      );
+      expect(error).toMatchObject({ code: "conflict" });
+      expect(error?.message).toContain("The Beverly Hillbillies (1962)");
+    }
+    expect(await h.series.list()).toHaveLength(1);
+  });
+});
+
+describe("taking over a show Jellyfin already has", () => {
+  const show = {
+    id: "jf-hill",
+    title: "The Beverly Hillbillies",
+    year: 1962,
+    tmdbId: "4219",
+    imdbId: "tt0055662",
+    folderName: "Hillbillies",
+  };
+  const put = async (relativePath: string, content = relativePath) => {
+    const path = join(h.root, relativePath);
+    await mkdir(join(path, ".."), { recursive: true });
+    await writeFile(path, content);
+    return path;
+  };
+
+  it("lists Jellyfin's shows with the series it has for each, by folder or by id", async () => {
+    await addBevhill(h);
+    const [series] = await h.series.list();
+    await h.series.update(series!.id, { tmdbId: "4219" });
+    h.mediaServer.library = [
+      { ...show, folderName: "The Beverly Hillbillies (1962)", tmdbId: null, imdbId: null },
+      { ...show, id: "jf-copy", folderName: "Copy" },
+      { ...show, id: "jf-new", title: "Another", tmdbId: "9", imdbId: null, folderName: "A" },
+      { ...show, id: "jf-far", title: "Far", tmdbId: null, imdbId: null, folderName: null },
+    ];
+    const shows = await h.useCases.listLibraryShows();
+    expect(shows.map(({ id, seriesId, adoptable }) => ({ id, seriesId, adoptable }))).toEqual([
+      { id: "jf-new", seriesId: null, adoptable: true },
+      { id: "jf-far", seriesId: null, adoptable: false },
+      { id: "jf-hill", seriesId: series!.id, adoptable: true },
+      { id: "jf-copy", seriesId: series!.id, adoptable: true },
+    ]);
+  });
+
+  it("renames the show's files to its own names and only downloads what isn't there", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    const [first] = preview.episodes;
+    const video = await put("Hillbillies/Season 1/hill 01.mp4", "video");
+    await put("Hillbillies/Season 1/hill 01.en.srt");
+    await put("Hillbillies/Season 1/hill 01-thumb.jpg");
+    await put("Hillbillies/Season 1/hill 01.trickplay/320 - 10x10/0.jpg");
+    await put("Hillbillies/Season 1/hill 010.mp4", "another episode");
+    const extra = await put("Hillbillies/extra/hill 40.mkv");
+    await put("Hillbillies/tvshow.nfo", "theirs");
+    await put("Hillbillies/poster.jpg", "their poster");
+    h.mediaServer.library = [show];
+    h.mediaServer.episodeFiles.set(show.id, [
+      { season: first!.season, episode: first!.episode, path: video },
+      { season: 1, episode: 40, path: extra },
+      { season: 1, episode: 41, path: join(h.root, "Elsewhere/hill 41.mkv") },
+    ]);
+
+    const series = await h.useCases.addSeries({
+      previewId: preview.previewId,
+      jellyfinId: show.id,
+      episodeKeys: preview.episodes.map((episode) => episode.key),
+      downloadNow: true,
+    });
+
+    expect(series).toMatchObject({
+      title: "The Beverly Hillbillies",
+      year: 1962,
+      tmdbId: "4219",
+      imdbId: "tt0055662",
+      hasPoster: true,
+      episodeCount: 6,
+      availableCount: 1,
+    });
+    const season = join(h.root, "Hillbillies", "Season 01");
+    const named = `The Beverly Hillbillies S01E${String(first!.episode).padStart(2, "0")}`;
+    expect((await readdir(season)).sort()).toEqual(
+      [
+        `${named}-thumb.jpg`,
+        `${named}.en.srt`,
+        `${named}.mp4`,
+        `${named}.trickplay`,
+        "The Beverly Hillbillies S01E40.mkv",
+      ].sort(),
+    );
+    expect(await readFile(join(season, `${named}.mp4`), "utf8")).toBe("video");
+    // What isn't an episode Jellyfin listed stays where it was, and so does its folder.
+    expect(await readdir(join(h.root, "Hillbillies", "Season 1"))).toEqual(["hill 010.mp4"]);
+    expect(await exists(join(h.root, "Hillbillies", "extra"))).toBe(false);
+    expect(await readFile(join(h.root, "Hillbillies", "tvshow.nfo"), "utf8")).toBe("theirs");
+    expect(h.images.requested).toEqual([]);
+
+    const episodes = await h.useCases.listEpisodes(series.id);
+    expect(episodes.filter((e) => e.status === "available").map((e) => e.episode)).toEqual([
+      first!.episode,
+    ]);
+    expect(series.downloadingCount).toBe(5);
+
+    await h.queue.settle();
+    expect((await h.useCases.getSeries(series.id)).availableCount).toBe(6);
+    expect(await readFile(join(season, `${named}.mp4`), "utf8")).toBe("video");
+    // Jellyfin is asked to look at the renamed files, debounced like after any download.
+    const refresh = await h.jobs.list({ status: ["queued"], limit: 10 });
+    expect(refresh.items.map((job) => job.kind)).toEqual(["refresh_library"]);
+  });
+
+  it("keeps the files a series' folder already has when an address is added to it", async () => {
+    // A series that came from another address: this one is new to it.
+    const series = aSeries();
+    await h.series.create(series, aSource({ externalId: "elsewhere" }), []);
+    const other = await h.useCases.previewSeries(BEVHILL_URL);
+    const [first, second] = other.episodes;
+    const folder = "The Beverly Hillbillies (1962)";
+    const video = await put(`${folder}/Season 1/old ${first!.episode}.mp4`, "theirs");
+    // Not among what is added: left where it is.
+    const stray = await put(`${folder}/Season 1/old 99.mp4`);
+    h.mediaServer.library = [{ ...show, folderName: folder }];
+    h.mediaServer.episodeFiles.set(show.id, [
+      { season: 1, episode: first!.episode, path: video },
+      { season: 1, episode: 99, path: stray },
+    ]);
+
+    const updated = await h.useCases.addSeries({
+      previewId: other.previewId,
+      seriesId: series.id,
+      season: 1,
+      episodeKeys: [first!.key, second!.key],
+      downloadNow: true,
+    });
+
+    expect(updated.availableCount).toBe(1);
+    const named = `The Beverly Hillbillies S01E${String(first!.episode).padStart(2, "0")}.mp4`;
+    expect(await readFile(join(h.root, folder, "Season 01", named), "utf8")).toBe("theirs");
+    expect(await exists(stray)).toBe(true);
+    const added = (await h.useCases.listEpisodes(series.id)).filter((e) => e.season === 1);
+    expect(added.map((e) => [e.episode, e.status])).toEqual([
+      [first!.episode, "available"],
+      [second!.episode, "downloading"],
+    ]);
+    await h.queue.settle();
+    expect(h.downloader.calls).toHaveLength(1);
+  });
+
+  it("refuses a show outside the media folder, one it doesn't know, and one it already has", async () => {
+    const preview = await h.useCases.previewSeries(BEVHILL_URL);
+    const body = (jellyfinId: string) => ({
+      previewId: preview.previewId,
+      jellyfinId,
+      episodeKeys: [preview.episodes[0]!.key],
+    });
+    h.mediaServer.library = [
+      { ...show, id: "far", folderName: null },
+      { ...show, folderName: "The Beverly Hillbillies (1962)" },
+    ];
+    expect(await fails(h.useCases.addSeries(body("far")))).toMatchObject({ code: "bad_request" });
+    expect(await fails(h.useCases.addSeries(body("nope")))).toMatchObject({ code: "not_found" });
+
+    await addBevhill(h);
+    h.deps.series.findSourceByExternal = async () => null;
+    expect(await fails(h.useCases.addSeries(body(show.id)))).toMatchObject({ code: "conflict" });
+    expect(await h.series.list()).toHaveLength(1);
   });
 });

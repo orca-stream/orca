@@ -27,13 +27,15 @@ export interface SeriesRepository {
   addSource(source: SeriesSource, episodes: Episode[]): Promise<void>;
   get(id: string): Promise<Series | null>;
   findByFolder(folderName: string): Promise<Series | null>;
+  /** The series with that TMDB id, else the one with that IMDb id; null ids match nothing. */
+  findByProviderIds(ids: { tmdbId: string | null; imdbId: string | null }): Promise<Series | null>;
   /** The source an address of a site was already added as, in whichever series. */
   findSourceByExternal(extractorId: string, externalId: string): Promise<SeriesSource | null>;
   /** Oldest first. Without ids: the sources of every series. */
   listSources(seriesIds?: string[]): Promise<SeriesSource[]>;
   updateSource(
     id: string,
-    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs">>,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "closed">>,
   ): Promise<void>;
   list(): Promise<SeriesWithCounts[]>;
   update(
@@ -46,6 +48,7 @@ export interface SeriesRepository {
         | "tmdbId"
         | "imdbId"
         | "follow"
+        | "paused"
         | "checkIntervalHours"
         | "hasPoster"
         | "lastCheckedAt"
@@ -84,8 +87,17 @@ export interface ListJobsFilter {
 
 export interface JobRepository {
   enqueue(job: NewJob): Promise<EnqueueResult>;
-  /** Atomically takes the best ready job of a resource and marks it running with a lease. */
-  claim(resource: Job["resource"], leaseOwner: string, leaseMs: number): Promise<Job | null>;
+  /**
+   * Atomically takes the best ready job of a resource and marks it running with a lease. With
+   * `oneEpisodeAtATime`, a download is taken only if it belongs to the episode already under way, or,
+   * when none is, if it is the first download due of all.
+   */
+  claim(
+    resource: Job["resource"],
+    leaseOwner: string,
+    leaseMs: number,
+    options?: { oneEpisodeAtATime?: boolean },
+  ): Promise<Job | null>;
   /** The host lanes that have a queued job due now. */
   readyHostLanes(): Promise<HostLane[]>;
   /** Queued plus running jobs per host lane; lanes with none are absent. */
@@ -238,11 +250,120 @@ export interface LibraryWriter {
   ): Promise<{ relativePath: string }>;
   /** Deletes everything staged for an episode: the file, its `.part` and any subtitle files. */
   discardStaged(episode: Episode): Promise<void>;
+  /**
+   * Gives the episode files of a series this server took over from Jellyfin its own names
+   * (`Season 01/Show S01E01.ext`), together with the files named after each (subtitles, nfo,
+   * thumbnails, trickplay). A file outside the series' folder, or whose new name is taken, keeps its
+   * name. Returns where each file inside the folder is now, under MEDIA_ROOT.
+   */
+  renameEpisodes(
+    series: Series,
+    files: readonly EpisodeFile[],
+  ): Promise<{ season: number; episode: number; relativePath: string }[]>;
+}
+
+/** An episode file Jellyfin already has. */
+export interface EpisodeFile {
+  season: number;
+  episode: number;
+  /** Absolute, as this server sees it. */
+  path: string;
+}
+
+/** A show as TMDB names it. */
+export interface ShowMatch {
+  title: string;
+  year: number | null;
+  imdbId: string | null;
+  overview: string | null;
+  /** An absolute http(s) address of its poster. */
+  posterUrl: string | null;
+}
+
+/** A show in Jellyfin's libraries. */
+export interface LibraryShow {
+  /** Jellyfin's item id. */
+  id: string;
+  title: string;
+  year: number | null;
+  tmdbId: string | null;
+  imdbId: string | null;
+  /** Its folder relative to MEDIA_ROOT; null when it is outside it, where this server can't write. */
+  folderName: string | null;
 }
 
 export interface MediaServer {
   /** Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. */
   libraryUpdated(path: string): Promise<void>;
+  /**
+   * The show with that TMDB id, looked up through Jellyfin's own TMDB provider (and its key); null
+   * when TMDB has none. Throws AppError upstream when Jellyfin can't be asked.
+   */
+  findShowByTmdbId(tmdbId: string, signal?: AbortSignal): Promise<ShowMatch | null>;
+  /** Every show in Jellyfin's libraries. Throws AppError upstream when Jellyfin can't be asked. */
+  listShows(signal?: AbortSignal): Promise<LibraryShow[]>;
+  /**
+   * The files of a show's episodes that are under MEDIA_ROOT, one per file: a file holding several
+   * episodes (`S01E01-E02`) is left out, as are episodes Jellyfin only knows of (no file).
+   */
+  listEpisodeFiles(showId: string, signal?: AbortSignal): Promise<EpisodeFile[]>;
+}
+
+/** A season of a show as TMDB numbers it (0 = specials). */
+export interface GuideSeason {
+  number: number;
+  name: string;
+  episodeCount: number;
+  year: number | null;
+}
+
+export interface GuideEpisode {
+  number: number;
+  name: string;
+  /** `YYYY-MM-DD`, as TMDB gives it. */
+  airDate: string | null;
+  /** TMDB's synopsis of the episode, in the language asked for. */
+  overview: string | null;
+  /** How long it runs, in minutes. */
+  runtimeMin: number | null;
+  /** A frame of the episode (TMDB's "still"), an absolute https address the panel loads as is. */
+  stillUrl: string | null;
+}
+
+/**
+ * Whether a show still airs: `airing` while it has a next episode on the calendar, `returning` when
+ * TMDB expects more of it but has no date (between seasons), `ended` or `canceled` once it won't;
+ * null for a status TMDB doesn't explain.
+ */
+export type AiringStatus = "airing" | "returning" | "ended" | "canceled";
+
+export interface GuideShow {
+  /** A wide still of the show (TMDB's "backdrop"), an absolute https address; null when it has none. */
+  backdropUrl: string | null;
+  status: AiringStatus | null;
+  /** The next episode on TMDB's calendar; `airDate` is `YYYY-MM-DD`. */
+  nextEpisode: { season: number; number: number; airDate: string | null } | null;
+}
+
+/**
+ * A show's seasons and episodes as TMDB lists them, which Jellyfin can't give for a show it doesn't
+ * have. `language` is TMDB's (`es`, `en-US`). Null when TMDB has no such show or season; throws
+ * AppError upstream when TMDB can't be asked.
+ */
+export interface EpisodeGuide {
+  seasons(
+    tmdbId: string,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<GuideSeason[] | null>;
+  episodes(
+    tmdbId: string,
+    season: number,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<GuideEpisode[] | null>;
+  /** The show itself, beyond its seasons; null when TMDB has no such show. */
+  show(tmdbId: string, signal?: AbortSignal): Promise<GuideShow | null>;
 }
 
 export interface Authenticated {
@@ -337,6 +458,8 @@ export interface QueueSignal {
 /** Stops a running job from outside the queue. */
 export interface JobCanceller {
   cancel(id: string): Promise<Job>;
+  /** Stops a running job and puts it back in the queue as it was, without counting an attempt. */
+  interrupt(id: string): Promise<void>;
 }
 
 export type { EpisodeStatus };
