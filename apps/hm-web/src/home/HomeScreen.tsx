@@ -101,6 +101,8 @@ function ExtractorTile({ extractor }: { extractor: ExtractorDto }) {
   const t = useT();
   const palette = paletteOf(extractor.id);
   const sites = extractor.explicit ? [t.extractors.explicitOnly] : extractor.hosts;
+  // The first site and how many more: a long list of mirrors would fill the card.
+  const [first = t.home.anyPage, ...rest] = sites;
 
   return (
     <Tile>
@@ -109,20 +111,16 @@ function ExtractorTile({ extractor }: { extractor: ExtractorDto }) {
         style={palette}
         className="absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-(--wash) to-transparent"
       />
-      {/* The sites, as badges in the top right corner. */}
-      <ul
-        className="absolute inset-x-4 top-4 flex flex-wrap justify-end gap-1.5 sm:inset-x-5 sm:top-5"
-        aria-label={extractor.name}
-      >
-        {(sites.length > 0 ? sites : [t.home.anyPage]).map((site) => (
-          <li
-            key={site}
-            className="max-w-full truncate rounded-full bg-white/70 px-2.5 py-0.5 text-xs text-muted-foreground ring-1 ring-black/5"
-          >
-            {site}
-          </li>
-        ))}
-      </ul>
+      {/* The sites, as one badge in the top right corner: the first and how many more. */}
+      <div className="absolute inset-x-4 top-4 flex justify-end sm:inset-x-5 sm:top-5">
+        <span
+          title={sites.length > 1 ? sites.join("\n") : undefined}
+          className="flex min-w-0 gap-1 rounded-full bg-white/70 px-2.5 py-0.5 text-xs text-muted-foreground ring-1 ring-black/5"
+        >
+          <span className="min-w-0 truncate">{first}</span>
+          {rest.length > 0 && <span className="shrink-0">+{rest.length}</span>}
+        </span>
+      </div>
       {/* Centred and sized like the series tile's icon, so the row reads as one set. */}
       <div className="relative flex flex-1 items-center justify-center p-4 pb-1 sm:p-6 sm:pb-2">
         <ExtractorMark

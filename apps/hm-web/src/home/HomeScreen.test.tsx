@@ -69,7 +69,11 @@ describe("HomeScreen", () => {
     renderApp(<HomeScreen />, { handler: handlerFor({ extractors: [ARCHIVE] }) });
     const card = await tile("Internet Archive");
     expect(within(card).getByText("archive.org")).toBeTruthy();
-    expect(within(card).getByText("www.archive.org")).toBeTruthy();
+    // The rest of the sites are counted, and named on hover.
+    expect(within(card).queryByText("www.archive.org")).toBeNull();
+    const badge = within(card).getByText("+1").parentElement!;
+    expect(badge.textContent).toBe("archive.org+1");
+    expect(badge.getAttribute("title")).toBe("archive.org\nwww.archive.org");
     expect(within(card).getByRole("link", { name: "Probar" }).getAttribute("href")).toBe(
       "/series/new?extractor=internet-archive",
     );
