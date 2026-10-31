@@ -41,9 +41,9 @@ Then open the panel: until the server is set up, every address shows the **setup
 
 1. **Jellyfin.** Its address and an administrator's sign-in. The server makes itself an API key there
    (named `Orca'H&M (<machine>)`, reused if you sign in again), so you never copy one by hand, and lists
-   Jellyfin's show libraries to pick the folder from. If Jellyfin runs on another machine, say so and give
-   the same folder as this machine sees it (a mount such as sshfs).
-2. **Extras.** A TMDB key (optional), a contact email for the sites, and your extractors file.
+   Jellyfin's show libraries to pick the folder from. H&M writes to that same path, so if Jellyfin runs on
+   another machine, mount its folder here at that path first (see [Together](together.md), scenario 3).
+2. **Extras.** A TMDB key (optional) and your extractors file.
 3. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
 
 When you finish, you are signed in with that same administrator account. Everything can be changed

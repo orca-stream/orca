@@ -47,11 +47,13 @@ El usuario que ejecuta H&M necesita escribir en la carpeta de la biblioteca, y J
 
 Útil para trabajar en H&M con recarga en caliente contra la biblioteca real.
 
-1. Monta la biblioteca de series del servidor: `sshfs <usuario>@<servidor>:/srv/media/tv ~/mnt/tv -o reconnect`.
+1. Monta la biblioteca de series del servidor **en la ruta en la que la ve Jellyfin** (p. ej. `/media/tv`
+   dentro de su contenedor): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv` y luego
+   `sshfs <usuario>@<servidor>:/srv/media/tv /media/tv -o reconnect`. Por ahora el panel usa una sola
+   carpeta para los dos, así que H&M escribe donde Jellyfin lee.
 2. `pnpm setup:hm` con un perfil propio (su propia base de datos) y luego `HM_PROFILE=<servidor> pnpm dev:hm`.
 3. En la configuración del panel: `http://<servidor>:8096` y el inicio de sesión de un administrador;
-   elige la biblioteca (la ruta **tal como la ve Jellyfin**, p. ej. `/media/tv` dentro de su contenedor),
-   desactiva «Jellyfin está en este mismo equipo» y escribe el montaje, `/home/<tú>/mnt/tv` (absoluta).
+   elige la biblioteca.
 
 No ejecutes esto y un H&M desplegado por Bifröst contra la misma biblioteca a la vez: cada uno tiene su
 propia base de datos y los dos descargarían los mismos episodios.

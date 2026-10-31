@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Key01Icon } from "@hugeicons/core-free-icons";
 import { useLocation } from "wouter";
 import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
@@ -6,9 +7,9 @@ import type { JellyfinConnection, Settings } from "@/api/types";
 import logotype from "@/assets/logotype.svg";
 import { useLogin } from "@/auth/session";
 import { PendingButton } from "@/components/pending-button";
-import { TextField } from "@/components/text-field";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
+import { cn } from "@/lib/utils";
 import { Backdrop } from "@/shell/Shell";
 import { useFinishSetup } from "./api";
 import {
@@ -26,10 +27,10 @@ import {
   ExtrasSection,
   JellyfinSection,
   LibrarySection,
-  Section,
   ServerIssues,
   TracksSection,
 } from "./sections";
+import { FieldRow, FooterRow, Group, Panel, PRIMARY_BUTTON } from "./rows";
 
 type Step = "code" | "jellyfin" | "extras" | "downloads";
 
@@ -39,7 +40,6 @@ const STEP_OF: Partial<Record<DraftField, Step>> = {
   jellyfinMediaRoot: "jellyfin",
   mediaRoot: "jellyfin",
   tmdbApiKey: "extras",
-  contactEmail: "extras",
 };
 
 /** The code the server printed, asked for only when the panel is opened from another device. */
@@ -61,9 +61,10 @@ function CodeStep({ onValid }: { onValid: (code: string) => void }) {
   }
 
   return (
-    <Section title={t.setup.code.title} description={t.setup.code.description}>
-      <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
-        <TextField
+    <form onSubmit={(event) => void submit(event)}>
+      <Group title={t.setup.code.title} description={t.setup.code.description}>
+        <FieldRow
+          icon={Key01Icon}
           label={t.setup.code.label}
           autoComplete="off"
           autoFocus
@@ -71,16 +72,18 @@ function CodeStep({ onValid }: { onValid: (code: string) => void }) {
           onChange={(event) => setCode(event.target.value)}
           error={state === "wrong" ? t.setup.code.wrong : undefined}
         />
+      </Group>
+      <FooterRow className="justify-end">
         <PendingButton
           type="submit"
-          className="self-start"
+          className={PRIMARY_BUTTON}
           disabled={code.trim() === ""}
           pending={state === "checking"}
         >
           {t.setup.next}
         </PendingButton>
-      </form>
-    </Section>
+      </FooterRow>
+    </form>
   );
 }
 
@@ -163,88 +166,124 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
   const canLeaveJellyfin = draft.apiKey !== "";
 
   return (
-    <main className="isolate mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-6 px-4 py-10 sm:py-16">
+    <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
-      <header className="flex flex-col gap-3">
-        <img src={logotype} alt={t.brand} className="h-6 w-auto self-start" />
-        <h1 className="text-2xl font-semibold tracking-tight">{t.setup.title}</h1>
-        <p className="text-muted-foreground">{t.setup.intro}</p>
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          {t.setup.step(index + 1, steps.length)}
-        </p>
-      </header>
+      <Panel>
+        <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+          <div className="flex flex-col gap-3">
+            <img src={logotype} alt={t.brand} className="h-6 w-auto self-start" />
+            <h1 className="text-2xl font-semibold tracking-tight">{t.setup.title}</h1>
+            <p className="text-muted-foreground">{t.setup.intro}</p>
+          </div>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <p
+              className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums"
+              aria-live="polite"
+            >
+              {t.setup.step(index + 1, steps.length)}
+            </p>
+            <div aria-hidden="true" className="flex gap-1.5">
+              {steps.map((each, at) => (
+                <span
+                  key={each}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    at === index
+                      ? "w-6 bg-primary"
+                      : at < index
+                        ? "w-1.5 bg-primary/60"
+                        : "w-1.5 bg-primary/20",
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+        </header>
 
-      {step === "code" && (
-        <CodeStep
-          onValid={(valid) => {
-            setCode(valid);
-            setStep("jellyfin");
-          }}
-        />
-      )}
-      {step === "jellyfin" && (
-        <>
-          <JellyfinSection
-            draft={draft}
-            set={set}
-            during="setup"
-            {...(code ? { code } : {})}
-            onConnected={(connection, signIn) => {
-              setLibraries(connection.libraries);
-              setCredentials(signIn);
+        {step === "code" && (
+          <CodeStep
+            onValid={(valid) => {
+              setCode(valid);
+              setStep("jellyfin");
             }}
           />
-          {canLeaveJellyfin && (
-            <LibrarySection draft={draft} set={set} errors={errors} libraries={libraries} />
-          )}
-        </>
-      )}
-      {step === "extras" && (
-        <>
-          <ExtrasSection draft={draft} set={set} errors={errors} />
-          <ExtractorsSection text={extractors} onText={setExtractors} />
-        </>
-      )}
-      {step === "downloads" && (
-        <>
-          <DownloadsSection draft={draft} set={set} errors={errors} />
-          <TracksSection draft={draft} set={set} errors={errors} />
-          <BrowserSection draft={draft} set={set} errors={errors} neededBySites={neededBySites} />
-        </>
-      )}
+        )}
+        {step === "jellyfin" && (
+          <>
+            <JellyfinSection
+              draft={draft}
+              set={set}
+              during="setup"
+              {...(code ? { code } : {})}
+              onConnected={(connection, signIn) => {
+                setLibraries(connection.libraries);
+                setCredentials(signIn);
+              }}
+            />
+            {canLeaveJellyfin && (
+              <LibrarySection draft={draft} set={set} errors={errors} libraries={libraries} />
+            )}
+          </>
+        )}
+        {step === "extras" && (
+          <>
+            <ExtrasSection draft={draft} set={set} errors={errors} />
+            <ExtractorsSection text={extractors} onText={setExtractors} />
+          </>
+        )}
+        {step === "downloads" && (
+          <>
+            <DownloadsSection draft={draft} set={set} errors={errors} />
+            <TracksSection draft={draft} set={set} errors={errors} />
+            <BrowserSection draft={draft} set={set} errors={errors} neededBySites={neededBySites} />
+          </>
+        )}
 
-      {(finish.isError || login.isError) && (
-        <div className="flex flex-col gap-1">
-          <p role="alert" className="text-sm text-warning">
-            {t.setup.failed}
-          </p>
-          <ServerIssues error={finish.error instanceof ApiError ? finish.error : null} />
-        </div>
-      )}
-      {step !== "code" && (
-        <nav className="flex items-center justify-between gap-3">
-          {index > 0 && steps[index - 1] !== "code" ? (
-            <Button variant="ghost" onClick={() => setStep(steps[index - 1]!)}>
-              {t.setup.back}
-            </Button>
-          ) : (
-            <span />
-          )}
-          {step === "downloads" ? (
-            <PendingButton onClick={submit} pending={finish.isPending || login.isPending}>
-              {finish.isSuccess
-                ? t.setup.done
-                : finish.isPending
-                  ? t.setup.finishing
-                  : t.setup.finish}
-            </PendingButton>
-          ) : (
-            <Button onClick={goNext} disabled={step === "jellyfin" && !canLeaveJellyfin}>
-              {t.setup.next}
-            </Button>
-          )}
-        </nav>
-      )}
+        {(finish.isError || login.isError) && (
+          <div className="flex flex-col gap-1 border-t border-t-(--glass-edge) px-6 py-4 sm:px-8">
+            <p role="alert" className="text-sm text-warning">
+              {t.setup.failed}
+            </p>
+            <ServerIssues error={finish.error instanceof ApiError ? finish.error : null} />
+          </div>
+        )}
+        {step !== "code" && (
+          <FooterRow className="justify-between pl-[7px]">
+            {index > 0 && steps[index - 1] !== "code" ? (
+              <Button
+                variant="ghost"
+                className={PRIMARY_BUTTON}
+                onClick={() => setStep(steps[index - 1]!)}
+              >
+                {t.setup.back}
+              </Button>
+            ) : (
+              <span />
+            )}
+            {step === "downloads" ? (
+              <PendingButton
+                className={PRIMARY_BUTTON}
+                onClick={submit}
+                pending={finish.isPending || login.isPending}
+              >
+                {finish.isSuccess
+                  ? t.setup.done
+                  : finish.isPending
+                    ? t.setup.finishing
+                    : t.setup.finish}
+              </PendingButton>
+            ) : (
+              <Button
+                className={PRIMARY_BUTTON}
+                onClick={goNext}
+                disabled={step === "jellyfin" && !canLeaveJellyfin}
+              >
+                {t.setup.next}
+              </Button>
+            )}
+          </FooterRow>
+        )}
+      </Panel>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Alert02Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
 import type { JellyfinConnection, SettingsView } from "@/api/types";
 import { Loading } from "@/components/loading";
 import { PendingButton } from "@/components/pending-button";
@@ -22,6 +23,7 @@ import {
   ServerIssues,
   TracksSection,
 } from "./sections";
+import { FooterRow, NoteRow, Panel, PRIMARY_BUTTON } from "./rows";
 
 /** The extractors, saved on their own: a new file restarts the server's extractors right away. */
 function Extractors() {
@@ -40,6 +42,7 @@ function Extractors() {
         action={
           changed && (
             <PendingButton
+              className="rounded-full"
               pending={save.isPending}
               onClick={() => save.mutate(shown, { onSuccess: () => setText(null) })}
             >
@@ -49,11 +52,15 @@ function Extractors() {
         }
       />
       {save.isSuccess && !changed && (
-        <p role="status" className="-mt-3 px-2 text-sm text-muted-foreground">
-          {t.settings.extractors.saved}
-        </p>
+        <NoteRow icon={CheckmarkCircle02Icon}>
+          <p role="status">{t.settings.extractors.saved}</p>
+        </NoteRow>
       )}
-      {save.isError && <ServerIssues error={save.error} />}
+      {save.isError && (
+        <NoteRow icon={Alert02Icon} tone="warning">
+          <ServerIssues error={save.error} />
+        </NoteRow>
+      )}
     </>
   );
 }
@@ -94,22 +101,21 @@ function Form({ view }: { view: SettingsView }) {
       <DownloadsSection draft={draft} set={set} errors={errors} />
       <TracksSection draft={draft} set={set} errors={errors} />
       <BrowserSection draft={draft} set={set} errors={errors} neededBySites={neededBySites} />
-      <div className="sticky bottom-6 z-10 flex flex-col items-end gap-2">
-        {save.isError && (
-          <div className="self-stretch rounded-2xl bg-white/85 p-4 backdrop-blur">
-            <p className="text-sm text-warning">{t.settings.saveFailed}</p>
-            <ServerIssues error={save.error} />
-          </div>
-        )}
-        {save.isSuccess && (
-          <p role="status" className="rounded-full bg-white/85 px-4 py-1.5 text-sm backdrop-blur">
-            {t.settings.saved}
-          </p>
-        )}
-        <PendingButton className="shadow-lg" onClick={submit} pending={save.isPending}>
+      <FooterRow className="sticky bottom-0 z-10 justify-end rounded-b-[35px] bg-(--glass-strong) supports-backdrop-filter:backdrop-blur-[24px]">
+        <div className="mr-auto min-w-0 text-sm">
+          {save.isError ? (
+            <>
+              <p className="text-warning">{t.settings.saveFailed}</p>
+              <ServerIssues error={save.error} />
+            </>
+          ) : (
+            save.isSuccess && <p role="status">{t.settings.saved}</p>
+          )}
+        </div>
+        <PendingButton className={PRIMARY_BUTTON} onClick={submit} pending={save.isPending}>
           {save.isPending ? t.settings.saving : t.settings.save}
         </PendingButton>
-      </div>
+      </FooterRow>
     </>
   );
 }
@@ -122,21 +128,33 @@ export function SettingsScreen() {
   const t = useT();
   const settings = useSettings();
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 pb-10">
-      <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
-      {settings.isError ? (
-        <div className="flex flex-col items-start gap-3">
-          <p role="alert">{t.settings.loadFailed}</p>
-          <Button onClick={() => void settings.refetch()}>{t.common.retry}</Button>
-        </div>
-      ) : settings.isSuccess ? (
-        <>
-          <Form view={settings.data} />
-          <Extractors />
-        </>
-      ) : (
-        <Loading className="size-8 self-center" />
-      )}
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-10">
+      <Panel className="overflow-visible">
+        <header className="px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+          <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
+        </header>
+        {settings.isError ? (
+          <NoteRow
+            icon={Alert02Icon}
+            action={
+              <Button className="rounded-full" onClick={() => void settings.refetch()}>
+                {t.common.retry}
+              </Button>
+            }
+          >
+            <p role="alert">{t.settings.loadFailed}</p>
+          </NoteRow>
+        ) : settings.isSuccess ? (
+          <>
+            <Extractors />
+            <Form view={settings.data} />
+          </>
+        ) : (
+          <div className="flex justify-center border-t border-t-(--glass-edge) py-10">
+            <Loading className="size-8" />
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

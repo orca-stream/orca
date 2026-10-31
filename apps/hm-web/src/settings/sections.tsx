@@ -1,18 +1,43 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import type { IconSvgElement } from "@hugeicons/react";
+import {
+  Alert02Icon,
+  BrowserIcon,
+  CheckmarkCircle02Icon,
+  CodeIcon,
+  ConnectIcon,
+  CpuIcon,
+  DashboardSpeed01Icon,
+  Delete02Icon,
+  Download04Icon,
+  FileAttachmentIcon,
+  Film01Icon,
+  Folder01Icon,
+  FolderLibraryIcon,
+  HourglassIcon,
+  Key01Icon,
+  Layers01Icon,
+  Link01Icon,
+  LockPasswordIcon,
+  PlayListIcon,
+  RepeatIcon,
+  Search01Icon,
+  Shield01Icon,
+  SubtitleIcon,
+  Timer02Icon,
+  UserIcon,
+  Video01Icon,
+  VolumeHighIcon,
+} from "@hugeicons/core-free-icons";
 import { ApiError } from "@/api/client";
 import type { JellyfinConnection } from "@/api/types";
 import { PendingButton } from "@/components/pending-button";
-import { SwitchField } from "@/components/switch-field";
-import { TextField } from "@/components/text-field";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
-import { cn } from "@/lib/utils";
-import { GLASS_PANEL } from "@/series/bar";
 import { useConnectJellyfin } from "./api";
 import { extractorNames, type Draft, type DraftErrors, type DraftField } from "./draft";
+import { AdvancedRows, FieldRow, Group, NoteRow, ROWS, SelectRow, ToggleRow } from "./rows";
 
 export interface SectionProps {
   draft: Draft;
@@ -20,50 +45,16 @@ export interface SectionProps {
   errors: DraftErrors;
 }
 
-/** One glass panel of the form, with its title and what it is for. */
-export function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className={cn(GLASS_PANEL, "flex flex-col gap-5 p-6 sm:p-8")}>
-      <header className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-/** What is folded away unless asked for: the tuning hardly anyone needs. */
-function Advanced({ children }: { children: ReactNode }) {
-  const t = useT();
-  return (
-    <details className="group flex flex-col gap-4">
-      <summary className="cursor-pointer text-sm font-medium text-muted-foreground select-none hover:text-foreground">
-        {t.settings.downloads.advanced}
-      </summary>
-      <div className="mt-4 flex flex-col gap-4">{children}</div>
-    </details>
-  );
-}
-
-/** A text field of the draft, with the field's problem said under it. */
-function DraftText({
+/** A typed setting of the draft, with the field's problem said by its icon. */
+function DraftRow({
   field,
-  label,
   draft,
   set,
   errors,
   ...rest
 }: SectionProps & {
   field: DraftField;
+  icon: IconSvgElement;
   label: string;
   type?: string;
   inputMode?: "numeric" | "decimal" | "email" | "url";
@@ -73,8 +64,7 @@ function DraftText({
   const t = useT();
   const problem = errors[field];
   return (
-    <TextField
-      label={label}
+    <FieldRow
       value={draft[field] as string}
       onChange={(event) => set({ [field]: event.target.value } as Partial<Draft>)}
       error={problem ? t.settings.errors[problem] : undefined}
@@ -143,21 +133,26 @@ export function JellyfinSection({
   }
 
   return (
-    <Section title={t.settings.jellyfin.title} description={t.settings.jellyfin.description}>
+    <Group title={t.settings.jellyfin.title} description={t.settings.jellyfin.description}>
       {!editing ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p role="status" className="text-sm">
+        <NoteRow
+          icon={CheckmarkCircle02Icon}
+          action={
+            <Button variant="outline" className="rounded-full" onClick={() => setEditing(true)}>
+              {t.settings.jellyfin.change}
+            </Button>
+          }
+        >
+          <p role="status">
             {connectedTo
               ? t.settings.jellyfin.connected(connectedTo)
               : t.settings.jellyfin.current(draft.jellyfinUrl)}
           </p>
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            {t.settings.jellyfin.change}
-          </Button>
-        </div>
+        </NoteRow>
       ) : (
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <TextField
+        <form onSubmit={submit} className={ROWS}>
+          <FieldRow
+            icon={Link01Icon}
             label={t.settings.jellyfin.url}
             placeholder={t.settings.jellyfin.urlPlaceholder}
             inputMode="url"
@@ -165,41 +160,51 @@ export function JellyfinSection({
             value={url}
             onChange={(event) => setUrl(event.target.value)}
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <TextField
-              label={t.settings.jellyfin.username}
-              autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
-            <TextField
-              label={t.settings.jellyfin.password}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-          {connect.isError && (
-            <p role="alert" className="text-sm text-warning">
-              {connectError(connect.error, t)}
-            </p>
-          )}
-          <PendingButton
-            type="submit"
-            className="self-start"
-            disabled={url.trim() === "" || username === ""}
-            pending={connect.isPending}
+          <FieldRow
+            icon={UserIcon}
+            label={t.settings.jellyfin.username}
+            autoComplete="username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+          />
+          <FieldRow
+            icon={LockPasswordIcon}
+            label={t.settings.jellyfin.password}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <NoteRow
+            icon={ConnectIcon}
+            tone={connect.isError ? "warning" : undefined}
+            action={
+              <PendingButton
+                type="submit"
+                className="rounded-full"
+                disabled={url.trim() === "" || username === ""}
+                pending={connect.isPending}
+              >
+                {connect.isPending ? t.settings.jellyfin.connecting : t.settings.jellyfin.connect}
+              </PendingButton>
+            }
           >
-            {connect.isPending ? t.settings.jellyfin.connecting : t.settings.jellyfin.connect}
-          </PendingButton>
+            {connect.isError ? (
+              <p role="alert">{connectError(connect.error, t)}</p>
+            ) : (
+              <p className="text-muted-foreground">{t.settings.jellyfin.connectHint}</p>
+            )}
+          </NoteRow>
         </form>
       )}
-    </Section>
+    </Group>
   );
 }
 
-/** Where the episodes go: a folder of one of Jellyfin's show libraries, and how this machine reaches it. */
+/**
+ * Where the episodes go: a folder of one of Jellyfin's show libraries. H&M writes to it as Jellyfin
+ * reads it (the same machine); a different local path, kept from before, is left as it is.
+ */
 export function LibrarySection({
   draft,
   set,
@@ -211,60 +216,47 @@ export function LibrarySection({
     library.locations.map((location) => ({ library: library.name, location })),
   );
   return (
-    <Section title={t.settings.library.title} description={t.settings.library.description}>
+    <Group title={t.settings.library.title} description={t.settings.library.description}>
       {libraries !== null && locations.length === 0 && (
-        <p className="text-sm text-warning">{t.settings.library.noLibraries}</p>
+        <NoteRow icon={Alert02Icon} tone="warning">
+          {t.settings.library.noLibraries}
+        </NoteRow>
       )}
       {locations.length > 1 && (
-        <Field>
-          <FieldLabel htmlFor="library-pick">{t.settings.library.pick}</FieldLabel>
-          <NativeSelect
-            id="library-pick"
-            className="w-full"
-            value={draft.jellyfinMediaRoot}
-            onChange={(event) => set({ jellyfinMediaRoot: event.target.value })}
-          >
-            {locations.map(({ library, location }) => (
-              <NativeSelectOption key={location} value={location}>
-                {`${library} — ${location}`}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </Field>
+        <SelectRow
+          icon={FolderLibraryIcon}
+          label={t.settings.library.pick}
+          value={draft.jellyfinMediaRoot}
+          onChange={(jellyfinMediaRoot) => set({ jellyfinMediaRoot })}
+          options={locations.map(({ library, location }) => ({
+            value: location,
+            label: `${library} — ${location}`,
+          }))}
+        />
       )}
-      <DraftText
+      <DraftRow
         field="jellyfinMediaRoot"
+        icon={Folder01Icon}
         label={t.settings.library.jellyfinPath}
+        placeholder={t.settings.library.jellyfinPathPlaceholder}
         draft={draft}
         set={set}
         errors={errors}
       />
-      <SwitchField
-        label={t.settings.library.sameMachine}
-        checked={draft.sameMachine}
-        onCheckedChange={(sameMachine) => set({ sameMachine })}
-      />
-      {!draft.sameMachine && (
-        <DraftText
-          field="mediaRoot"
-          label={t.settings.library.localPath}
-          draft={draft}
-          set={set}
-          errors={errors}
-        />
-      )}
-    </Section>
+    </Group>
   );
 }
 
-/** TMDB's key and who sites can write to. */
+/** TMDB's key: kept on the server once saved, so the form only takes a new one. */
 export function ExtrasSection({ draft, set, errors }: SectionProps) {
   const t = useT();
   return (
-    <Section title={t.settings.tmdb.title} description={t.settings.tmdb.description}>
-      <DraftText
+    <Group title={t.settings.tmdb.title} description={t.settings.tmdb.description}>
+      <DraftRow
         field="tmdbApiKey"
+        icon={Key01Icon}
         label={t.settings.tmdb.key}
+        placeholder={draft.hasTmdbApiKey ? t.settings.tmdb.keySet : t.settings.tmdb.keyPlaceholder}
         type="password"
         autoComplete="off"
         draft={draft}
@@ -272,25 +264,14 @@ export function ExtrasSection({ draft, set, errors }: SectionProps) {
         errors={errors}
       />
       {draft.hasTmdbApiKey && (
-        <>
-          <p className="-mt-2 text-sm text-muted-foreground">{t.settings.tmdb.keySet}</p>
-          <SwitchField
-            label={t.settings.tmdb.remove}
-            checked={draft.removeTmdb}
-            onCheckedChange={(removeTmdb) => set({ removeTmdb })}
-          />
-        </>
+        <ToggleRow
+          icon={Delete02Icon}
+          label={t.settings.tmdb.remove}
+          checked={draft.removeTmdb}
+          onChange={(removeTmdb) => set({ removeTmdb })}
+        />
       )}
-      <DraftText
-        field="contactEmail"
-        label={t.settings.tmdb.contact}
-        inputMode="email"
-        autoComplete="email"
-        draft={draft}
-        set={set}
-        errors={errors}
-      />
-    </Section>
+    </Group>
   );
 }
 
@@ -334,43 +315,52 @@ export function ExtractorsSection({
     URL.revokeObjectURL(link.href);
   }
 
+  const some = names !== null && names.length > 0;
   return (
-    <Section title={t.settings.extractors.title} description={t.settings.extractors.description}>
-      <p role="status" className="text-sm">
-        {names === null || names.length === 0
-          ? t.settings.extractors.none
-          : t.settings.extractors.sites(names.join(", "))}
-      </p>
-      {invalid && (
-        <p role="alert" className="text-sm text-warning">
-          {t.settings.extractors.invalid}
-        </p>
-      )}
-      <input
-        ref={input}
-        type="file"
-        accept="application/json,.json"
-        className="sr-only"
-        aria-label={t.settings.extractors.upload}
-        onChange={(event) => void upload(event)}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => input.current?.click()}>
-          {t.settings.extractors.upload}
-        </Button>
-        {names !== null && names.length > 0 && (
+    <Group title={t.settings.extractors.title} description={t.settings.extractors.description}>
+      <NoteRow
+        icon={FileAttachmentIcon}
+        action={
           <>
-            <Button variant="outline" onClick={download}>
-              {t.settings.extractors.download}
+            <input
+              ref={input}
+              type="file"
+              accept="application/json,.json"
+              className="sr-only"
+              aria-label={t.settings.extractors.upload}
+              onChange={(event) => void upload(event)}
+            />
+            {some && (
+              <>
+                <Button variant="ghost" className="rounded-full" onClick={() => onText("")}>
+                  {t.settings.extractors.clear}
+                </Button>
+                <Button variant="outline" className="rounded-full" onClick={download}>
+                  {t.settings.extractors.download}
+                </Button>
+              </>
+            )}
+            <Button
+              variant="outline"
+              className="rounded-full"
+              onClick={() => input.current?.click()}
+            >
+              {t.settings.extractors.upload}
             </Button>
-            <Button variant="ghost" onClick={() => onText("")}>
-              {t.settings.extractors.clear}
-            </Button>
+            {action}
           </>
-        )}
-        {action}
-      </div>
-    </Section>
+        }
+      >
+        <p role="status">
+          {some ? t.settings.extractors.sites(names.join(", ")) : t.settings.extractors.none}
+        </p>
+      </NoteRow>
+      {invalid && (
+        <NoteRow icon={Alert02Icon} tone="warning">
+          <p role="alert">{t.settings.extractors.invalid}</p>
+        </NoteRow>
+      )}
+    </Group>
   );
 }
 
@@ -379,65 +369,74 @@ export function DownloadsSection(props: SectionProps) {
   const t = useT();
   const { draft, set } = props;
   return (
-    <Section title={t.settings.downloads.title}>
-      <SwitchField
+    <Group title={t.settings.downloads.title}>
+      <ToggleRow
+        icon={PlayListIcon}
         label={t.settings.downloads.sequential}
         checked={draft.sequential}
-        onCheckedChange={(sequential) => set({ sequential })}
+        onChange={(sequential) => set({ sequential })}
       />
-      <DraftText
+      <DraftRow
         {...props}
         field="connections"
+        icon={ConnectIcon}
         label={t.settings.downloads.connections}
         inputMode="numeric"
       />
-      <DraftText
+      <DraftRow
         {...props}
         field="skipPlayers"
+        icon={Shield01Icon}
         label={t.settings.downloads.skipPlayers}
         placeholder={t.settings.downloads.skipPlaceholder}
       />
-      <Advanced>
-        <div className="grid gap-4 sm:grid-cols-3 sm:items-end">
-          <DraftText
-            {...props}
-            field="concurrency"
-            label={t.settings.downloads.concurrency}
-            inputMode="numeric"
-          />
-          <DraftText
-            {...props}
-            field="ffmpegConcurrency"
-            label={t.settings.downloads.ffmpeg}
-            inputMode="numeric"
-          />
-          <DraftText
-            {...props}
-            field="browserConcurrency"
-            label={t.settings.downloads.browserJobs}
-            inputMode="numeric"
-          />
-        </div>
-        <DraftText
+      <AdvancedRows label={t.settings.downloads.advanced}>
+        <DraftRow
           {...props}
-          field="downloadsPerHost"
-          label={t.settings.downloads.perHost}
+          field="concurrency"
+          icon={Download04Icon}
+          label={t.settings.downloads.concurrency}
           inputMode="numeric"
         />
-        <DraftText
+        <DraftRow
+          {...props}
+          field="ffmpegConcurrency"
+          icon={CpuIcon}
+          label={t.settings.downloads.ffmpeg}
+          inputMode="numeric"
+        />
+        <DraftRow
+          {...props}
+          field="browserConcurrency"
+          icon={BrowserIcon}
+          label={t.settings.downloads.browserJobs}
+          inputMode="numeric"
+        />
+        <DraftRow
+          {...props}
+          field="downloadsPerHost"
+          icon={Layers01Icon}
+          label={t.settings.downloads.perHost}
+          placeholder={t.settings.downloads.byExtractor}
+          inputMode="numeric"
+        />
+        <DraftRow
           {...props}
           field="metadataPerSec"
+          icon={DashboardSpeed01Icon}
           label={t.settings.downloads.metadataPerSec}
+          placeholder={t.settings.downloads.byExtractor}
           inputMode="decimal"
         />
-        <DraftText
+        <DraftRow
           {...props}
           field="probeTimeoutSec"
+          icon={Search01Icon}
           label={t.settings.downloads.probeTimeout}
           inputMode="numeric"
         />
-      </Advanced>
-    </Section>
+      </AdvancedRows>
+    </Group>
   );
 }
 
@@ -446,106 +445,123 @@ export function TracksSection(props: SectionProps) {
   const t = useT();
   const { draft, set } = props;
   return (
-    <Section title={t.settings.tracks.title}>
-      <DraftText
+    <Group title={t.settings.tracks.title}>
+      <DraftRow
         {...props}
         field="maxHeight"
+        icon={Video01Icon}
         label={t.settings.tracks.maxHeight}
+        placeholder={t.settings.tracks.maxHeightPlaceholder}
         inputMode="numeric"
-        placeholder="1080"
       />
-      <DraftText
+      <DraftRow
         {...props}
         field="audioLangs"
+        icon={VolumeHighIcon}
         label={t.settings.tracks.audio}
-        placeholder="spa, eng"
+        placeholder={t.settings.tracks.audioPlaceholder}
       />
-      <Field>
-        <FieldLabel htmlFor="subtitle-mode">{t.settings.tracks.subtitles}</FieldLabel>
-        <NativeSelect
-          id="subtitle-mode"
-          value={draft.subtitleMode}
-          onChange={(event) => set({ subtitleMode: event.target.value as Draft["subtitleMode"] })}
-        >
-          {(["all", "none", "some"] as const).map((mode) => (
-            <NativeSelectOption key={mode} value={mode}>
-              {t.settings.tracks.subtitleModes[mode]}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </Field>
+      <SelectRow
+        icon={SubtitleIcon}
+        label={t.settings.tracks.subtitles}
+        value={draft.subtitleMode}
+        onChange={(mode) => set({ subtitleMode: mode as Draft["subtitleMode"] })}
+        options={(["all", "none", "some"] as const).map((mode) => ({
+          value: mode,
+          label: t.settings.tracks.subtitleModes[mode],
+        }))}
+      />
       {draft.subtitleMode === "some" && (
-        <DraftText
+        <DraftRow
           {...props}
           field="subtitleLangs"
+          icon={SubtitleIcon}
           label={t.settings.tracks.subtitleLangs}
           placeholder="spa, eng"
         />
       )}
-      <SwitchField
+      <ToggleRow
+        icon={Film01Icon}
         label={t.settings.tracks.external}
         checked={draft.externalSubtitles}
-        onCheckedChange={(externalSubtitles) => set({ externalSubtitles })}
+        onChange={(externalSubtitles) => set({ externalSubtitles })}
       />
-    </Section>
+    </Group>
   );
 }
 
 /** The headless browser; switched on for good while the extractors describe sites. */
-export function BrowserSection(props: SectionProps & { neededBySites: boolean }) {
+export function BrowserSection({
+  neededBySites,
+  ...props
+}: SectionProps & { neededBySites: boolean }) {
   const t = useT();
-  const { draft, set, neededBySites } = props;
+  const { draft, set } = props;
   const on = draft.browserOn || neededBySites;
   return (
-    <Section title={t.settings.browser.title} description={t.settings.browser.description}>
-      <Field>
-        <SwitchField
-          label={t.settings.browser.on}
-          checked={on}
-          disabled={neededBySites}
-          onCheckedChange={(browserOn) => set({ browserOn })}
-        />
-        {neededBySites && <FieldDescription>{t.settings.browser.neededBySites}</FieldDescription>}
-      </Field>
+    <Group title={t.settings.browser.title} description={t.settings.browser.description}>
+      <ToggleRow
+        icon={BrowserIcon}
+        label={t.settings.browser.on}
+        {...(neededBySites ? { note: t.settings.browser.neededBySites } : {})}
+        checked={on}
+        disabled={neededBySites}
+        onChange={(browserOn) => set({ browserOn })}
+      />
       {on && (
         <>
-          <SwitchField
+          <ToggleRow
+            icon={RepeatIcon}
             label={t.settings.browser.generic}
             checked={draft.genericDetector}
-            onCheckedChange={(genericDetector) => set({ genericDetector })}
+            onChange={(genericDetector) => set({ genericDetector })}
           />
-          <Advanced>
-            <div className="grid gap-4 sm:grid-cols-3 sm:items-end">
-              <DraftText
-                {...props}
-                field="maxConcurrent"
-                label={t.settings.browser.maxConcurrent}
-                inputMode="numeric"
-              />
-              <DraftText
-                {...props}
-                field="timeoutSec"
-                label={t.settings.browser.timeout}
-                inputMode="numeric"
-              />
-              <DraftText
-                {...props}
-                field="settleSec"
-                label={t.settings.browser.settle}
-                inputMode="decimal"
-              />
-            </div>
-            <DraftText {...props} field="userAgent" label={t.settings.browser.userAgent} />
-            <DraftText {...props} field="chromiumPath" label={t.settings.browser.chromium} />
-            <SwitchField
+          <AdvancedRows label={t.settings.downloads.advanced}>
+            <DraftRow
+              {...props}
+              field="maxConcurrent"
+              icon={Layers01Icon}
+              label={t.settings.browser.maxConcurrent}
+              inputMode="numeric"
+            />
+            <DraftRow
+              {...props}
+              field="timeoutSec"
+              icon={Timer02Icon}
+              label={t.settings.browser.timeout}
+              inputMode="numeric"
+            />
+            <DraftRow
+              {...props}
+              field="settleSec"
+              icon={HourglassIcon}
+              label={t.settings.browser.settle}
+              inputMode="decimal"
+            />
+            <DraftRow
+              {...props}
+              field="userAgent"
+              icon={CodeIcon}
+              label={t.settings.browser.userAgent}
+              placeholder={t.settings.browser.userAgentPlaceholder}
+            />
+            <DraftRow
+              {...props}
+              field="chromiumPath"
+              icon={Folder01Icon}
+              label={t.settings.browser.chromium}
+              placeholder={t.settings.browser.chromiumPlaceholder}
+            />
+            <ToggleRow
+              icon={Shield01Icon}
               label={t.settings.browser.noSandbox}
               checked={draft.noSandbox}
-              onCheckedChange={(noSandbox) => set({ noSandbox })}
+              onChange={(noSandbox) => set({ noSandbox })}
             />
-          </Advanced>
+          </AdvancedRows>
         </>
       )}
-    </Section>
+    </Group>
   );
 }
 

@@ -43,10 +43,10 @@ cualquier dirección muestra la **configuración**:
 
 1. **Jellyfin.** Su dirección y el inicio de sesión de un administrador. El servidor se crea allí una API
    key (con el nombre `Orca'H&M (<equipo>)`, que reutiliza si vuelves a entrar), así que nunca copias una
-   a mano, y lista las bibliotecas de series de Jellyfin para elegir la carpeta. Si Jellyfin corre en otro
-   equipo, indícalo y escribe la misma carpeta vista desde este (un montaje como sshfs).
-2. **Extras.** Una clave de TMDB (opcional), un correo de contacto para los sitios y tu archivo de
-   extractores.
+   a mano, y lista las bibliotecas de series de Jellyfin para elegir la carpeta. H&M escribe en esa misma
+   ruta: si Jellyfin corre en otro equipo, monta antes aquí su carpeta en esa ruta (ver
+   [Usarlas juntas](together.md), escenario 3).
+2. **Extras.** Una clave de TMDB (opcional) y tu archivo de extractores.
 3. **Descargas.** Descargas, pistas por defecto y el navegador, con valores sugeridos ya puestos.
 
 Al terminar entras con esa misma cuenta de administrador. Todo se puede cambiar luego en **Ajustes** del

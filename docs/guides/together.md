@@ -29,7 +29,7 @@ Jellyfin installed on this machine, no Bifröst.
 1. In Jellyfin, create a **TV shows** library on a folder (e.g. `/srv/media/tv`).
 2. `pnpm setup:hm` (it writes the H&M profile and `apps/hm-web/.env`), then `HM_PROFILE=<name> pnpm dev:hm`.
 3. Open the panel and follow the setup: Jellyfin's address (`http://127.0.0.1:8096`) and an
-   administrator's sign-in, then that library's folder ("Jellyfin runs on this same machine"). It signs
+   administrator's sign-in, then that library's folder. It signs
    you in at the end; add a series.
 4. `apps/jp/.env`: `VITE_JELLYFIN_SERVERS=http://127.0.0.1:8096`; `pnpm dev`, sign in and watch.
 
@@ -47,11 +47,12 @@ The user that runs H&M needs write access to the library folder, and Jellyfin re
 
 Useful to work on H&M with hot reload against the real library.
 
-1. Mount the server's TV library: `sshfs <user>@<server>:/srv/media/tv ~/mnt/tv -o reconnect`.
+1. Mount the server's TV library **at the path Jellyfin sees it at** (e.g. `/media/tv` inside its
+   container): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv`, then
+   `sshfs <user>@<server>:/srv/media/tv /media/tv -o reconnect`. The panel takes one folder for both
+   for now, so H&M writes where Jellyfin reads.
 2. `pnpm setup:hm` with a profile of its own (its own database), then `HM_PROFILE=<server> pnpm dev:hm`.
-3. In the panel's setup: `http://<server>:8096` and an administrator's sign-in; pick the library (the
-   path **as Jellyfin sees it**, e.g. `/media/tv` inside its container), turn off "Jellyfin runs on this
-   same machine" and give the mount, `/home/<you>/mnt/tv` (absolute).
+3. In the panel's setup: `http://<server>:8096` and an administrator's sign-in; pick the library.
 
 Don't run this and a Bifröst-deployed H&M against the same library at the same time: each keeps its
 own database and both would download the same episodes.

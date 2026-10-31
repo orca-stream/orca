@@ -59,7 +59,9 @@ describe("SettingsScreen", () => {
     const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
     const connections = await screen.findByLabelText("Conexiones por archivo");
     expect(screen.getByText("Conectado a http://jf.test:8096.")).toBeTruthy();
-    expect(screen.getByText("Hay una clave guardada; escribe otra para cambiarla.")).toBeTruthy();
+    expect(screen.getByLabelText("Clave de TMDB").getAttribute("placeholder")).toBe(
+      "Guardada; escribe otra para cambiarla",
+    );
 
     await user.clear(connections);
     await user.type(connections, "8");
@@ -102,8 +104,9 @@ describe("SettingsScreen", () => {
       new File([sites], "extractors.json", { type: "application/json" }),
     );
     expect(await screen.findByText("Sitios: Mine.")).toBeTruthy();
+    // The extractors come first, with their own save beside the file.
     const saves = screen.getAllByRole("button", { name: "Guardar cambios" });
-    await user.click(saves.at(-1)!);
+    await user.click(saves[0]!);
     await waitFor(() => expect(put(requests, "/api/settings/extractors")).toHaveLength(1));
     expect(await put(requests, "/api/settings/extractors")[0]!.json()).toEqual({ text: sites });
     expect(await screen.findByText("Extractores guardados.")).toBeTruthy();
