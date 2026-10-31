@@ -1,4 +1,9 @@
-import { JellyfinConnectBody, SetupBody, type ApiErrorBody } from "@orca/hm-contract";
+import {
+  JellyfinConnectBody,
+  SetupBody,
+  SetupCodeBody,
+  type ApiErrorBody,
+} from "@orca/hm-contract";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
@@ -70,6 +75,10 @@ export function createRootApp(deps: RootDeps) {
   const checkOrigin = csrf();
   first.use((c, next) => (c.req.header("origin") ? checkOrigin(c, next) : next()));
   first.get("/", (c) => c.json(setup.status(isLocalRequest(c))));
+  first.post("/code", validate("json", SetupCodeBody), (c) => {
+    setup.checkCode(c.req.valid("json").code, isLocalRequest(c));
+    return c.body(null, 204);
+  });
   first.post("/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
     c.json(await setup.setupConnect(c.req.valid("json"), isLocalRequest(c))),
   );

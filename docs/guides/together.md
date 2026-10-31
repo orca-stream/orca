@@ -26,11 +26,11 @@ Each app runs on its own. This is how they connect:
 
 Jellyfin installed on this machine, no Bifröst.
 
-1. In Jellyfin, create a **TV shows** library on a folder (e.g. `/srv/media/tv`) and an **API key**.
-2. Profile for H&M (`apps/hm-server/profiles/local.env`): `JELLYFIN_URL=http://127.0.0.1:8096`, the
-   key, `MEDIA_ROOT` and `JELLYFIN_MEDIA_ROOT` both `/srv/media/tv`, `DB_FILE=./data/local.sqlite`,
-   `HOST=127.0.0.1`, `PORT=8787`. `apps/hm-web/.env`: `HM_SERVER_URL=http://127.0.0.1:8787`.
-3. `HM_PROFILE=local pnpm dev:hm`, open the panel, sign in as a Jellyfin admin, add a series.
+1. In Jellyfin, create a **TV shows** library on a folder (e.g. `/srv/media/tv`).
+2. `pnpm setup:hm` (it writes the H&M profile and `apps/hm-web/.env`), then `HM_PROFILE=<name> pnpm dev:hm`.
+3. Open the panel and follow the setup: Jellyfin's address (`http://127.0.0.1:8096`) and an
+   administrator's sign-in, then that library's folder ("Jellyfin runs on this same machine"). It signs
+   you in at the end; add a series.
 4. `apps/jp/.env`: `VITE_JELLYFIN_SERVERS=http://127.0.0.1:8096`; `pnpm dev`, sign in and watch.
 
 The user that runs H&M needs write access to the library folder, and Jellyfin read access to what it writes.
@@ -48,10 +48,10 @@ The user that runs H&M needs write access to the library folder, and Jellyfin re
 Useful to work on H&M with hot reload against the real library.
 
 1. Mount the server's TV library: `sshfs <user>@<server>:/srv/media/tv ~/mnt/tv -o reconnect`.
-2. Profile `apps/hm-server/profiles/<server>.env`: `JELLYFIN_URL=http://<server>:8096`, an API key of
-   that Jellyfin, `MEDIA_ROOT=/home/<you>/mnt/tv` (absolute), `JELLYFIN_MEDIA_ROOT` = the library path **as
-   Jellyfin sees it** (inside its container, e.g. `/media/tv`), its own `DB_FILE`.
-3. `HM_PROFILE=<server> pnpm dev:hm`.
+2. `pnpm setup:hm` with a profile of its own (its own database), then `HM_PROFILE=<server> pnpm dev:hm`.
+3. In the panel's setup: `http://<server>:8096` and an administrator's sign-in; pick the library (the
+   path **as Jellyfin sees it**, e.g. `/media/tv` inside its container), turn off "Jellyfin runs on this
+   same machine" and give the mount, `/home/<you>/mnt/tv` (absolute).
 
 Don't run this and a Bifröst-deployed H&M against the same library at the same time: each keeps its
 own database and both would download the same episodes.
@@ -60,6 +60,6 @@ own database and both would download the same episodes.
 
 - Orca'JP lists the server as unreachable: open `<jellyfin-url>/System/Info/Public` from the same device.
 - An https page and an `http://` Jellyfin: mixed content (see [the client guide](jp.md#build-and-host-it)).
-- H&M downloads but Jellyfin shows nothing: `JELLYFIN_MEDIA_ROOT` must be the path inside a TV
-  library as Jellyfin sees it; check file permissions.
+- H&M downloads but Jellyfin shows nothing: the folder "as Jellyfin sees it" (Settings › Shows folder)
+  must be inside a TV library; check file permissions.
 - The panel says the account is not allowed: only Jellyfin administrators can sign in.

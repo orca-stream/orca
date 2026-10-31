@@ -26,4 +26,9 @@ export type {
   SeriesPatch,
   ShowLookupDto,
   SourcePatch,
+  JellyfinConnection,
+  Settings,
+  SettingsUpdate,
+  SettingsView,
+  SetupStatus,
 } from "@orca/hm-contract";

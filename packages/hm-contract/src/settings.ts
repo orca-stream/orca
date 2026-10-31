@@ -132,6 +132,10 @@ export const SetupStatus = z.object({
 });
 export type SetupStatus = z.infer<typeof SetupStatus>;
 
+/** `POST /api/setup/code`: checks the code before the rest of the setup asks for it again. */
+export const SetupCodeBody = z.object({ code: z.string().max(64) });
+export type SetupCodeBody = z.infer<typeof SetupCodeBody>;
+
 /** `POST /api/setup`: the first settings, with the code when one is needed. */
 export const SetupBody = z.object({
   code: z.string().max(64).optional(),

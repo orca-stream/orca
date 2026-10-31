@@ -253,6 +253,12 @@ describe("the front door", () => {
     });
   });
 
+  it("checks the code on its own", async () => {
+    const check = (code: string) => app().request("/api/setup/code", postJson({ code }), lan);
+    expect((await check("NOPE")).status).toBe(403);
+    expect((await check(shownCode())).status).toBe(204);
+  });
+
   it("sets the server up, then hands every request to what the settings started", async () => {
     const away = await app().request("/api/setup", postJson({ settings }), lan);
     expect(away.status).toBe(403);

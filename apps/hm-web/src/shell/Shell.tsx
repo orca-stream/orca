@@ -1,4 +1,4 @@
-import { Download04Icon, Logout03Icon } from "@hugeicons/core-free-icons";
+import { Download04Icon, Logout03Icon, Settings01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode } from "react";
@@ -64,8 +64,10 @@ function Crumbs() {
   const [location] = useLocation();
 
   const crumbs: { label: ReactNode; href?: string }[] = [];
-  // The series, a series and adding one have no bar: the queue is the only page below home with one.
+  // The series, a series and adding one have no bar: the queue and the settings are the pages below
+  // home with one.
   if (location === "/downloads") crumbs.push({ label: t.nav.downloads });
+  if (location === "/settings") crumbs.push({ label: t.settings.title });
   if (crumbs.length === 0) return null;
 
   return (
@@ -159,6 +161,16 @@ function Account() {
           <span className="truncate font-medium">{name ?? "…"}</span>
           <span className="text-xs text-muted-foreground">{t.nav.account}</span>
         </div>
+        <Link
+          href="/settings"
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "justify-start gap-2 text-muted-foreground",
+          )}
+        >
+          <HugeiconsIcon icon={Settings01Icon} />
+          {t.settings.open}
+        </Link>
         <Button
           variant="ghost"
           onClick={() => logout.mutate()}
@@ -175,7 +187,7 @@ function Account() {
 }
 
 /** Soft, blurred colour behind everything: what gives the glass something to frost. */
-function Backdrop() {
+export function Backdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 bg-[#eef2f9]">
       <div className="absolute -top-40 -left-32 size-[36rem] rounded-full bg-[#06f]/25 blur-3xl" />
@@ -201,6 +213,8 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
   const [seriesRoute] = useRoute("/series/:id");
   const isSeries = seriesRoute && !bare;
   const panelled = !bare && !isSeries;
+  // Settings keeps the bar but lays its own glass panels, one per section.
+  const ownPanels = location === "/settings";
 
   return (
     <TooltipProvider>
@@ -244,7 +258,7 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
                 : "px-3 py-6 sm:px-6 sm:py-10",
           )}
         >
-          {panelled ? (
+          {panelled && !ownPanels ? (
             <div className="glass mx-auto max-w-6xl rounded-3xl p-5 sm:p-8">{children}</div>
           ) : (
             children

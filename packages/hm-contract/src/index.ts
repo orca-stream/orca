@@ -57,6 +57,7 @@ export {
   JellyfinConnection,
   JellyfinSettings,
   SetupBody,
+  SetupCodeBody,
   SetupStatus,
   Settings,
   SettingsUpdate,

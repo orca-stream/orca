@@ -29,13 +29,13 @@ The last row of the bar is the numbering: the season the episodes go to and the 
 first episode gets there (empty keeps the site's own numbers; adding to a series that already has
 that season, it starts right after the last episode there, e.g. 25 after 24), with where they will land at its end
 (`S02E13–E24`). When the show has a TMDB id (typed for a new series, or the one the chosen series has)
-and the server has a `TMDB_API_KEY`, both are lists to pick from: TMDB's seasons, then the episodes of
+and the server has a TMDB key (Settings › TMDB), both are lists to pick from: TMDB's seasons, then the episodes of
 the season picked, in the panel's language. Left alone, they show what the site's numbering
 amounts to (its season, when the address has only one, and its first episode). Without a key, or while TMDB has nothing for it, you type
 the numbers.
 
 Once TMDB has named the show, it fills the screen's background behind the glass: its backdrop,
-blurred (with a `TMDB_API_KEY`), or else its poster, blurred further.
+blurred (with a TMDB key), or else its poster, blurred further.
 
 Below the numbering, two switches: follow the series (look for new episodes on the site; only for a new
 series or a Jellyfin show, since an existing series keeps its own setting) and download now (off by default:
@@ -86,13 +86,14 @@ Sign in with a **Jellyfin administrator** account of the Jellyfin that server us
 The Vite dev server proxies `/api` to the H&M server, so the browser sees one origin and the session
 cookie works.
 
-```bash
-cp apps/hm-web/.env.example apps/hm-web/.env
-```
+`pnpm setup:hm` writes `apps/hm-web/.env` for you; by hand, copy `apps/hm-web/.env.example`:
 
 | Variable        | Meaning                                                                                        |
 | --------------- | ---------------------------------------------------------------------------------------------- |
 | `HM_SERVER_URL` | Where the H&M server listens, e.g. `http://127.0.0.1:8787` (match the profile's `HOST`/`PORT`) |
+
+While the server is not set up, the panel shows its **setup** at every address; once it is, the server's
+settings are in **Settings** (see [the server guide](hm-server.md#first-run)).
 
 ```bash
 HM_PROFILE=home pnpm dev:hm               # server + panel together

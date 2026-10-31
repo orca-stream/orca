@@ -6,6 +6,12 @@ import { DownloadsScreen } from "./dashboard/DownloadsScreen";
 import { useLiveEvents } from "./events/use-live-events";
 import { HomeScreen } from "./home/HomeScreen";
 import { Providers } from "./providers";
+import { Loading } from "./components/loading";
+import { Button } from "./components/ui/button";
+import { useT } from "./i18n/locale";
+import { useSetupStatus } from "./settings/api";
+import { SettingsScreen } from "./settings/SettingsScreen";
+import { SetupScreen } from "./settings/SetupScreen";
 import { AddSeriesScreen } from "./series/AddSeriesScreen";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
 import { SeriesListScreen } from "./series/SeriesListScreen";
@@ -24,6 +30,7 @@ function Panel() {
         <Switch>
           <Route path="/" component={HomeScreen} />
           <Route path="/downloads" component={DownloadsScreen} />
+          <Route path="/settings" component={SettingsScreen} />
           {/* "new" before ":id", or the add screen would be read as a series called new. */}
           <Route path="/series/new" component={AddSeriesScreen} />
           <Route path="/series/:id" component={SeriesDetailScreen} />
@@ -37,14 +44,39 @@ function Panel() {
   );
 }
 
+/** Until the server is set up, every address shows the setup; afterwards, the panel. */
+function SetupGate({ children }: { children: ReactNode }) {
+  const t = useT();
+  const status = useSetupStatus();
+  if (status.isError) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
+        <p role="alert">{t.errors.network}</p>
+        <Button onClick={() => void status.refetch()}>{t.common.retry}</Button>
+      </main>
+    );
+  }
+  if (!status.isSuccess) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center">
+        <Loading className="size-8" />
+      </main>
+    );
+  }
+  if (!status.data.configured) return <SetupScreen needsCode={status.data.needsCode} />;
+  return children;
+}
+
 export default function App() {
   return (
     <Providers>
       <Router>
-        <Switch>
-          <Route path="/login" component={LoginScreen} />
-          <Route component={Panel} />
-        </Switch>
+        <SetupGate>
+          <Switch>
+            <Route path="/login" component={LoginScreen} />
+            <Route component={Panel} />
+          </Switch>
+        </SetupGate>
       </Router>
     </Providers>
   );

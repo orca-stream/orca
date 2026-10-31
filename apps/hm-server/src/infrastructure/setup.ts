@@ -102,6 +102,11 @@ export class ServerSetup implements SettingsRoutes {
     return { configured: this.configured, needsCode: !this.configured && !local };
   }
 
+  /** Checks the code alone, so the panel can ask for it before anything else. */
+  checkCode(code: string | undefined, local: boolean): void {
+    this.assertSetupAllowed(code, local);
+  }
+
   async setupConnect(body: JellyfinConnectBody, local: boolean): Promise<JellyfinConnection> {
     this.assertSetupAllowed(body.code, local);
     return this.options.connect(body.url, body.username, body.password);

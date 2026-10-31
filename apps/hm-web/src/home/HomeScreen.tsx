@@ -1,5 +1,10 @@
 import type { ExtractorDto, SeriesDto } from "@orca/hm-contract";
-import { Add01Icon, ArrowUpRight01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  ArrowUpRight01Icon,
+  Settings01Icon,
+  Tv01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import type { CSSProperties } from "react";
@@ -173,6 +178,7 @@ export function HomeScreen() {
       )}
       <Dock label={t.dock.label}>
         <DockLink href="/series" label={t.nav.series} icon={Tv01Icon} />
+        <DockLink href="/settings" label={t.settings.open} icon={Settings01Icon} />
         <DockExtractors />
       </Dock>
     </div>

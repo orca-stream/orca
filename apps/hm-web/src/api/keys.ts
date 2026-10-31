@@ -2,6 +2,9 @@
 export const keys = {
   me: ["auth", "me"] as const,
   extractors: ["extractors"] as const,
+  setup: ["setup"] as const,
+  settings: ["settings"] as const,
+  extractorsFile: ["settings", "extractors"] as const,
   jobs: ["jobs"] as const,
   jobsActive: ["jobs", "active"] as const,
   jobsFailed: ["jobs", "failed"] as const,

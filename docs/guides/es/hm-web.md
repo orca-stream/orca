@@ -29,13 +29,13 @@ La última fila de la barra es la numeración: la temporada a la que van los epi
 toma allí el primer episodio de la dirección (vacíos, se usa la numeración del sitio; al añadir a una
 serie que ya tiene esa temporada, empieza justo tras su último episodio, p. ej. 25 tras 24), y al final cómo
 quedarán (`S02E13–E24`). Si la serie tiene id de TMDB (el que escribiste para una nueva, o el de la
-serie elegida) y el servidor tiene `TMDB_API_KEY`, las dos son listas: las temporadas de TMDB y luego
+serie elegida) y el servidor tiene una clave de TMDB (Ajustes › TMDB), las dos son listas: las temporadas de TMDB y luego
 los episodios de la temporada elegida, en el idioma del panel. Sin tocarlas, muestran lo que da la
 numeración del sitio (su temporada, si la dirección tiene una sola, y su primer episodio). Sin clave, o si TMDB no tiene nada, los
 números se escriben.
 
 En cuanto TMDB nombra la serie, la serie ocupa el fondo de la pantalla detrás del cristal: su imagen
-de fondo, difuminada (con `TMDB_API_KEY`), o si no su póster, más difuminado.
+de fondo, difuminada (con una clave de TMDB), o si no su póster, más difuminado.
 
 Bajo la numeración, dos interruptores: seguir la serie (buscar episodios nuevos en el sitio; solo para
 una serie nueva o una de Jellyfin, porque una serie existente conserva su ajuste) y descargar ahora
@@ -89,13 +89,14 @@ con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servido
 El servidor de desarrollo de Vite hace de proxy de `/api` hacia el servidor H&M, así el navegador ve un
 solo origen y la cookie de sesión funciona.
 
-```bash
-cp apps/hm-web/.env.example apps/hm-web/.env
-```
+`pnpm setup:hm` escribe `apps/hm-web/.env` por ti; a mano, copia `apps/hm-web/.env.example`:
 
 | Variable        | Significado                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | `HM_SERVER_URL` | Dónde escucha el servidor H&M, p. ej. `http://127.0.0.1:8787` (igual que `HOST`/`PORT` del perfil) |
+
+Mientras el servidor no esté configurado, el panel muestra su **configuración** en cualquier dirección;
+después, los ajustes del servidor están en **Ajustes** (ver [la guía del servidor](hm-server.md#primera-vez)).
 
 ```bash
 HM_PROFILE=casa pnpm dev:hm               # servidor + panel juntos

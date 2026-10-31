@@ -1,0 +1,111 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vite-plus/test";
+import type { SettingsView } from "@/api/types";
+import { jsonResponse, renderApp, type Handler } from "@/test/render";
+import { SettingsScreen } from "./SettingsScreen";
+
+const VIEW: SettingsView = {
+  jellyfin: { url: "http://jf.test:8096", mediaRoot: "/media/tv", jellyfinMediaRoot: "/media/tv" },
+  hasTmdbApiKey: true,
+  downloads: {
+    concurrency: 2,
+    ffmpegConcurrency: 1,
+    browserConcurrency: 1,
+    sequential: true,
+    skipPlayers: [],
+    connections: 4,
+    probeTimeoutMs: 180_000,
+  },
+  tracks: { externalSubtitles: false },
+};
+
+function server(options: { refuse?: boolean } = {}): Handler {
+  let extractors: unknown = {};
+  return async (request) => {
+    const { pathname } = new URL(request.url);
+    if (pathname === "/api/settings" && request.method === "GET") return jsonResponse(VIEW);
+    if (pathname === "/api/settings" && request.method === "PUT") {
+      if (options.refuse) {
+        return jsonResponse(
+          {
+            error: "bad_request",
+            message: "The request is not valid",
+            issues: [{ path: "downloads.connections", message: "Too big: expected at most 16" }],
+          },
+          400,
+        );
+      }
+      const body = (await request.json()) as SettingsView;
+      return jsonResponse({ ...VIEW, downloads: body.downloads });
+    }
+    if (pathname === "/api/settings/extractors" && request.method === "GET") {
+      return jsonResponse(extractors);
+    }
+    if (pathname === "/api/settings/extractors" && request.method === "PUT") {
+      extractors = JSON.parse(((await request.json()) as { text: string }).text);
+      return new Response(null, { status: 204 });
+    }
+    return jsonResponse({ error: "not_found" }, 404);
+  };
+}
+
+const put = (requests: Request[], path: string) =>
+  requests.filter((r) => r.method === "PUT" && new URL(r.url).pathname === path);
+
+describe("SettingsScreen", () => {
+  it("saves a change, keeping the keys it never shows", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    const connections = await screen.findByLabelText("Conexiones por archivo");
+    expect(screen.getByText("Conectado a http://jf.test:8096.")).toBeTruthy();
+    expect(screen.getByText("Hay una clave guardada; escribe otra para cambiarla.")).toBeTruthy();
+
+    await user.clear(connections);
+    await user.type(connections, "8");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+
+    expect(
+      await screen.findByText("Guardado. El servidor ya trabaja con los cambios."),
+    ).toBeTruthy();
+    const body = (await put(requests, "/api/settings")[0]!.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ downloads: { connections: 8 } });
+    expect(body).not.toHaveProperty("tmdbApiKey");
+    expect(body["jellyfin"]).not.toHaveProperty("apiKey");
+    expect(body).not.toHaveProperty("browser");
+  });
+
+  it("does not send a form with a mistake, and shows what the server refused", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, {
+      handler: server({ refuse: true }),
+      path: "/settings",
+    });
+    const connections = await screen.findByLabelText("Conexiones por archivo");
+    await user.clear(connections);
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(screen.getByText("Hace falta.")).toBeTruthy();
+    expect(put(requests, "/api/settings")).toHaveLength(0);
+
+    await user.type(connections, "99");
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await screen.findByText(/Too big: expected at most 16/)).toBeTruthy();
+  });
+
+  it("takes a new extractors file and saves it on its own", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    expect(await screen.findByText("Ningún sitio: solo Internet Archive.")).toBeTruthy();
+    const sites = JSON.stringify({ mine: { reads: "api", name: "Mine" } });
+    await user.upload(
+      screen.getByLabelText("Subir extractors.json"),
+      new File([sites], "extractors.json", { type: "application/json" }),
+    );
+    expect(await screen.findByText("Sitios: Mine.")).toBeTruthy();
+    const saves = screen.getAllByRole("button", { name: "Guardar cambios" });
+    await user.click(saves.at(-1)!);
+    await waitFor(() => expect(put(requests, "/api/settings/extractors")).toHaveLength(1));
+    expect(await put(requests, "/api/settings/extractors")[0]!.json()).toEqual({ text: sites });
+    expect(await screen.findByText("Extractores guardados.")).toBeTruthy();
+  });
+});

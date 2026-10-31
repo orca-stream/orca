@@ -34,9 +34,8 @@ cp apps/jp/.env.example apps/jp/.env      # optional: list your Jellyfin servers
 pnpm dev                                  # http://localhost:5173
 
 # Orca'H&M (server + panel) against a Jellyfin you already have
-cp apps/hm-server/profiles/.env.example apps/hm-server/profiles/home.env   # fill it in
-cp apps/hm-web/.env.example apps/hm-web/.env
-HM_PROFILE=home pnpm dev:hm
+pnpm setup:hm                 # asks where it listens, writes the profile
+HM_PROFILE=<name> pnpm dev:hm # then open the panel: it walks you through the rest
 ```
 
 ## Scripts (from the repository root)
@@ -45,6 +44,7 @@ HM_PROFILE=home pnpm dev:hm
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `pnpm dev`                                             | Orca'JP dev server with HMR                                              |
 | `pnpm preview`                                         | Serves Orca'JP's production build                                        |
+| `pnpm setup:hm`                                        | Asks for an Orca'H&M profile in the terminal and writes it               |
 | `HM_PROFILE=<name> pnpm dev:hm`                        | Orca'H&M server and panel together, in watch mode                        |
 | `pnpm bifrost <command>`                               | Bifröst CLI with `apps/bifrost/bifrost.yaml` (`-c` picks another)        |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Android icons, sync, debug APK ([guide](docs/guides/android.md))         |

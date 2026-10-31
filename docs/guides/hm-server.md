@@ -11,7 +11,7 @@ refresh. It can follow a series and fetch new episodes as they appear. It expose
 Sources it understands:
 
 - **Internet Archive** (`archive.org`), built in: public-domain items and collections.
-- **Sites you describe** in one JSON file (`HM_EXTRACTORS_FILE`), each read either through its pages
+- **Sites you describe** in one JSON file of yours (the extractors file), each read either through its pages
   with CSS selectors or through its JSON API, where one show address holds every season (each season
   is then its own source); see below. No site is named in the code.
 - Optionally, a **generic page detector** that opens an address in a headless browser and finds the
@@ -23,71 +23,57 @@ Only download what you have the right to download.
 
 - Node.js 24 and the repo set up (`pnpm install`).
 - **ffmpeg** and **ffprobe** on the `PATH`.
-- A **Jellyfin** server with a **TV shows** library, and an **API key** (Jellyfin › Dashboard › API Keys).
+- A **Jellyfin** server with a **TV shows** library, and the sign-in of one of its administrators.
 - Write access to that library's folder from where the server runs.
-- For an extractors file or the generic detector: Chromium (see [Browser](#browser-extractors-file-and-generic-detector)).
+- For the sites of an extractors file or the generic detector: Chromium (see
+  [Browser](#browser-extractors-file-and-generic-detector)).
+
+## First run
+
+```bash
+pnpm setup:hm                 # asks where the server listens and keeps its database
+HM_PROFILE=<name> pnpm dev:hm # starts the server and the panel
+```
+
+`pnpm setup:hm` asks three things in the terminal (each with a suggestion that Enter takes) and writes
+`apps/hm-server/profiles/<name>.env`, plus `apps/hm-web/.env` so the panel's dev server reaches it.
+Then open the panel: until the server is set up, every address shows the **setup**:
+
+1. **Jellyfin.** Its address and an administrator's sign-in. The server makes itself an API key there
+   (named `Orca'H&M (<machine>)`, reused if you sign in again), so you never copy one by hand, and lists
+   Jellyfin's show libraries to pick the folder from. If Jellyfin runs on another machine, say so and give
+   the same folder as this machine sees it (a mount such as sshfs).
+2. **Extras.** A TMDB key (optional), a contact email for the sites, and your extractors file.
+3. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
+
+When you finish, you are signed in with that same administrator account. Everything can be changed
+later in the panel's **Settings** (the gear in the home dock, or the account menu); saving restarts the
+queue, the scheduler and the extractors with the new settings, and keeps the old ones when the new ones
+cannot run (a Chromium path that is not there, say).
+
+**From another device.** Opening the panel from a phone or another computer before the server is set up
+asks for a one-time **code** the server prints in its console, so nobody on the LAN can set it up first.
+From the server's own machine no code is asked.
 
 ## Profiles
 
-Settings come only from the environment; nothing has a default. To keep one set per target, the server
-reads **profiles**: `HM_PROFILE=<name>` loads `apps/hm-server/profiles/<name>.env`. Variables already
-in the environment win over the file, so you can override one for a single run. Without `HM_PROFILE`
-the environment is used as is (that is how a container is configured).
+A profile only holds what the server needs before it can open its database; everything else lives in
+that database. `HM_PROFILE=<name>` loads `apps/hm-server/profiles/<name>.env`; variables already in the
+environment win over the file. Without `HM_PROFILE` the environment is used as is (a container).
+`profiles/*.env` are gitignored; `profiles/.env.example` is the template. Give each profile its own
+`DB_FILE`: what it records points at that target's library.
 
-```bash
-cp apps/hm-server/profiles/.env.example apps/hm-server/profiles/home.env
-```
+| Variable         | Meaning                                                                   |
+| ---------------- | ------------------------------------------------------------------------- |
+| `DB_FILE`        | SQLite database, e.g. `./data/home.sqlite` (relative to `apps/hm-server`) |
+| `HOST`, `PORT`   | Where the API listens, e.g. `127.0.0.1` and `8787`                        |
+| `WEB_ROOT`       | Optional: absolute path of the built panel, served on the same origin     |
+| `SECURE_COOKIES` | Optional: `true` only behind HTTPS                                        |
+| `DEVICE_ID`      | Optional: overrides the device id generated once and kept in the database |
 
-`profiles/*.env` are gitignored; only `profiles/.env.example` is versioned, with every value commented
-out as a suggestion. Give each profile its own `DB_FILE`: what it records points at that target's library.
-
-### Required
-
-| Variable              | Meaning                                                                          |
-| --------------------- | -------------------------------------------------------------------------------- |
-| `JELLYFIN_URL`        | Jellyfin's address, e.g. `http://<jellyfin-host>:8096`                           |
-| `JELLYFIN_API_KEY`    | The API key created in Jellyfin                                                  |
-| `MEDIA_ROOT`          | The TV library folder **as this server sees it**                                 |
-| `JELLYFIN_MEDIA_ROOT` | The same folder **as Jellyfin sees it** (same value when both see the same path) |
-| `DB_FILE`             | SQLite database, e.g. `./data/home.sqlite` (relative to `apps/hm-server`)        |
-| `HOST`, `PORT`        | Where the API listens, e.g. `127.0.0.1` and `8787`                               |
-
-### Optional
-
-| Variable                                                                      | Meaning                                                                                                                                                                                                             |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CONTACT_EMAIL`                                                               | Goes in the User-Agent so sites such as archive.org can reach you                                                                                                                                                   |
-| `TMDB_API_KEY`                                                                | A TMDB v3 key or v4 read token (themoviedb.org > Settings > API): the panel lists a show's seasons and episodes to number an address, and lays its backdrop behind the add screen. Free only for non-commercial use |
-| `WEB_ROOT`                                                                    | Absolute path of the built panel; the server then serves it on the same origin                                                                                                                                      |
-| `SECURE_COOKIES`                                                              | `true` only behind HTTPS                                                                                                                                                                                            |
-| `DEVICE_ID`                                                                   | Overrides the device id generated once and kept in the database                                                                                                                                                     |
-| `DOWNLOAD_CONCURRENCY`, `FFMPEG_CONCURRENCY`, `BROWSER_CONCURRENCY`           | Work in parallel (2, 1, 1 when unset)                                                                                                                                                                               |
-| `SEQUENTIAL_DOWNLOADS`                                                        | `true` downloads one episode at a time, its players in the page's order; when they all fail the episode is marked failed and the next one starts                                                                    |
-| `SKIP_PLAYERS`                                                                | Hosts whose players are never tried, comma separated (a host covers its subdomains), such as `player.example,site-a.uns.bio`: those that never give a readable stream. An episode with only those fails at once          |
-| `DOWNLOADS_PER_HOST`, `METADATA_PER_SEC`                                      | Override each source's politeness limits                                                                                                                                                                            |
-| `DOWNLOAD_CONNECTIONS`                                                        | Connections one direct file, or the segments of an HLS stream, are fetched over at once (players cap each connection: 4 is ~5× faster on player-c). Default 1; archive.org always uses 1                           |
-| `PROBE_TIMEOUT_MS`                                                            | How long ffprobe may read a stream over the network (one that cannot be copied first, such as a live one). Default 180000                                                                                           |
-| `DEFAULT_MAX_HEIGHT`, `DEFAULT_AUDIO_LANGS`, `DEFAULT_SUBTITLE_LANGS`         | Default tracks for streams (ISO 639-2: `eng`, `spa`, `jpn`); each series can override them                                                                                                                          |
-| `SUBTITLES_EXTERNAL`                                                          | `true` writes subtitles as `.srt` files beside the video instead of inside the mkv                                                                                                                                  |
-| `HM_EXTRACTORS_FILE`, `HM_GENERIC_DETECTOR`, `HM_DETECTOR_*`, `HM_CHROMIUM_*` | Browser-based sources, below                                                                                                                                                                                        |
-
-The server checks everything at boot and lists every missing or invalid value at once.
-
-## Two ways to run it
-
-**Local** — Jellyfin runs on this same machine. The server writes straight into the library folder, so
-`MEDIA_ROOT` and `JELLYFIN_MEDIA_ROOT` are the same path. Bifröst is not involved.
-
-**Against a server over SSH** — Jellyfin runs on another machine. Either:
-
-- let [Bifröst](bifrost.md) deploy the H&M server next to Jellyfin (`bifrost hm up`; it writes its own
-  environment and no profile is used), or
-- run it here and write into that library through a mount such as sshfs: `MEDIA_ROOT` is the mount
-  here, `JELLYFIN_MEDIA_ROOT` the path on the server.
-
-```bash
-sshfs <user>@<server>:/path/to/library/tv ~/mnt/tv -o reconnect,ServerAliveInterval=15
-```
+**Moving from the old variables.** A server whose environment still has `JELLYFIN_URL` and the rest
+(the way it was set up before) copies them into its database on the first boot with an empty one, its
+`HM_EXTRACTORS_FILE` included, and then reports them as ignored: remove them from the profile.
 
 ## Run it
 
@@ -117,27 +103,28 @@ docker build -f apps/hm-server/Dockerfile -t orca-hm .
 docker build -f apps/hm-server/Dockerfile --build-arg WITH_CHROMIUM=1 -t orca-hm .
 ```
 
-The image fixes its own layout (`DB_FILE=/data/hm.sqlite`, `MEDIA_ROOT=/media/tv`, `HOST=0.0.0.0`,
-`PORT=8787`, `WEB_ROOT=/app/public`); pass the rest:
+The image fixes its own layout (`DB_FILE=/data/hm.sqlite`, `HOST=0.0.0.0`, `PORT=8787`,
+`WEB_ROOT=/app/public`); mount the library and set the server up from the panel (the library folder,
+as the container sees it, is where you mounted it):
 
 ```bash
 docker run -d --name orca-hm -p 8787:8787 \
   -v orca-hm-data:/data -v /path/to/library/tv:/media/tv \
-  -e JELLYFIN_URL=http://<jellyfin-host>:8096 -e JELLYFIN_API_KEY=<key> \
-  -e JELLYFIN_MEDIA_ROOT=/path/as/jellyfin/sees/it \
   orca-hm
 ```
 
-Bifröst's `hm up` builds and runs this same image for you on a server.
+Bifröst's `hm up` builds and runs this same image for you on a server, passing the old variables,
+which the container carries into its database on its first boot.
 
 ## Browser: extractors file and generic detector
 
 Both need Chromium, driven by Playwright (pinned to 1.64.1).
 
-- **Extractors file.** Copy `apps/hm-server/extractors.example.json` to `extractors.json`
-  (gitignored) and set `HM_EXTRACTORS_FILE=./extractors.json`. It holds one entry per site, under the
-  name you give it (series remember their site by that name, so keep it once you add one; `name`
-  sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
+- **Extractors file.** The sites H&M reads, in a JSON file of yours that never goes in the repository:
+  upload it in the setup or in **Settings › Extractors**, and download it from there to take it to
+  another machine. `apps/hm-server/extractors.example.json` shows the shape. It holds one entry per
+  site, under the name you give it (series remember their site by that name, so keep it once you add
+  one; `name` sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
   - `"page"`: its pages, by CSS selectors. Give its hosts, the path of a season address, the listing
     and episode selectors, the episode-number pattern and the selector of the players.
   - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
@@ -146,13 +133,14 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
-- **Generic detector.** `HM_GENERIC_DETECTOR=1` lets you pick "Generic page" when adding a series.
-- With any of them on, `HM_DETECTOR_MAX_CONCURRENT`, `HM_DETECTOR_TIMEOUT_MS` and `HM_DETECTOR_SETTLE_MS` are
-  required (suggested values in the template).
+- **Generic detector.** Turn on "Offer Generic page" in **Settings › Browser** to pick "Generic page"
+  when adding a series.
+- The sites' players need the browser, so it stays on while the extractors describe any site. Its
+  tuning (pages at once, timeout, wait after loading) is filled in with suggested values.
 - Locally, install Playwright's Chromium with
-  `pnpm --filter @orca/hm-server exec playwright install chromium`, or point `HM_CHROMIUM_PATH` at
-  another Chromium. In the Docker image built with `WITH_CHROMIUM=1`, use
-  `HM_CHROMIUM_PATH=/usr/bin/chromium` and `HM_CHROMIUM_NO_SANDBOX=true`.
+  `pnpm --filter @orca/hm-server exec playwright install chromium`, or give another Chromium's path in
+  **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`
+  and turn on "No sandbox".
 
 The browser and ffmpeg go through a guarded local proxy that refuses private and local addresses; see
 [What the generic detector can reach](../hm-server-design.md#what-the-generic-detector-can-reach).
