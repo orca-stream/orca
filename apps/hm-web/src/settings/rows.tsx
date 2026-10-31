@@ -1,6 +1,8 @@
 import { useId, type ComponentProps, type ReactNode } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { ArrowDown01Icon, Settings02Icon } from "@hugeicons/core-free-icons";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ErrorHint, GLASS_PANEL } from "@/series/bar";
@@ -256,3 +258,27 @@ export function FooterRow({ children, className }: { children: ReactNode; classN
 
 /** The bar's big round button, for what a panel ends with. */
 export const PRIMARY_BUTTON = "h-14 rounded-full px-6 text-base";
+
+/**
+ * The panel's big round button. While it waits, a spinner takes the label's place, centred, as the
+ * new series bar's Preview does; the label stays underneath, unseen, so the button keeps its width.
+ */
+export function PanelButton({
+  pending = false,
+  disabled,
+  className,
+  children,
+  ...rest
+}: ComponentProps<typeof Button> & { pending?: boolean }) {
+  return (
+    <Button
+      disabled={disabled || pending}
+      aria-busy={pending || undefined}
+      className={cn(PRIMARY_BUTTON, "relative", className)}
+      {...rest}
+    >
+      <span className={cn(pending && "invisible")}>{children}</span>
+      {pending && <Spinner aria-hidden="true" className="absolute size-6" />}
+    </Button>
+  );
+}

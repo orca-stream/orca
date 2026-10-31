@@ -6,7 +6,6 @@ import { useApi } from "@/api/context";
 import type { JellyfinConnection, Settings } from "@/api/types";
 import logotype from "@/assets/logotype.svg";
 import { useLogin } from "@/auth/session";
-import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
@@ -30,7 +29,7 @@ import {
   ServerIssues,
   TracksSection,
 } from "./sections";
-import { FieldRow, FooterRow, Group, Panel, PRIMARY_BUTTON } from "./rows";
+import { FieldRow, FooterRow, Group, Panel, PanelButton, PRIMARY_BUTTON } from "./rows";
 
 type Step = "code" | "jellyfin" | "extras" | "downloads";
 
@@ -77,14 +76,9 @@ function CodeStep({ onValid }: { onValid: (code: string) => void }) {
         />
       </Group>
       <FooterRow className="justify-end">
-        <PendingButton
-          type="submit"
-          className={PRIMARY_BUTTON}
-          disabled={code.trim() === ""}
-          pending={state === "checking"}
-        >
+        <PanelButton type="submit" disabled={code.trim() === ""} pending={state === "checking"}>
           {t.setup.next}
-        </PendingButton>
+        </PanelButton>
       </FooterRow>
     </form>
   );
@@ -273,29 +267,18 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
               <span />
             )}
             {step === "downloads" ? (
-              <PendingButton
-                className={PRIMARY_BUTTON}
-                onClick={submit}
-                pending={finish.isPending || login.isPending}
-              >
-                {finish.isSuccess
-                  ? t.setup.done
-                  : finish.isPending
-                    ? t.setup.finishing
-                    : t.setup.finish}
-              </PendingButton>
+              <PanelButton onClick={submit} pending={finish.isPending || login.isPending}>
+                {t.setup.finish}
+              </PanelButton>
             ) : connecting ? (
-              <PendingButton
+              <PanelButton
                 type="submit"
                 form={JELLYFIN_FORM}
-                className={PRIMARY_BUTTON}
                 disabled={!jellyfinForm.ready}
                 pending={jellyfinForm.pending}
               >
-                {jellyfinForm.pending
-                  ? t.settings.jellyfin.connecting
-                  : t.settings.jellyfin.connectAndGo}
-              </PendingButton>
+                {t.settings.jellyfin.connectAndGo}
+              </PanelButton>
             ) : (
               <Button
                 className={PRIMARY_BUTTON}

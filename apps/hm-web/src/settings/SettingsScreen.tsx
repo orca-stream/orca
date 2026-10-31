@@ -23,7 +23,7 @@ import {
   ServerIssues,
   TracksSection,
 } from "./sections";
-import { FooterRow, NoteRow, Panel, PRIMARY_BUTTON } from "./rows";
+import { FooterRow, NoteRow, Panel, PanelButton } from "./rows";
 
 /** The extractors, saved on their own: a new file restarts the server's extractors right away. */
 function Extractors() {
@@ -112,9 +112,9 @@ function Form({ view }: { view: SettingsView }) {
             save.isSuccess && <p role="status">{t.settings.saved}</p>
           )}
         </div>
-        <PendingButton className={PRIMARY_BUTTON} onClick={submit} pending={save.isPending}>
-          {save.isPending ? t.settings.saving : t.settings.save}
-        </PendingButton>
+        <PanelButton onClick={submit} pending={save.isPending}>
+          {t.settings.save}
+        </PanelButton>
       </FooterRow>
     </>
   );
