@@ -5,6 +5,7 @@ import { createApp } from "../src/infrastructure/web/app.ts";
 import { LoginRateLimiter } from "../src/infrastructure/web/rate-limit.ts";
 import { addBevhill, createHarness, type Harness } from "./harness.ts";
 import { FakeExtractor, FAKE_URL, fakeEpisode, networkError } from "./fakes/extractor.ts";
+import { FakeSettingsRoutes } from "./fakes/ports.ts";
 
 let h: Harness;
 let site: FakeExtractor;
@@ -162,6 +163,7 @@ describe("the API", () => {
     app = createApp({
       useCases: h.useCases,
       events: h.bus,
+      settings: new FakeSettingsRoutes(),
       secureCookies: false,
       sessionTtlMs: 1000 * 3600,
       loginLimiter: new LoginRateLimiter({ now: () => h.clock.now() }),

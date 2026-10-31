@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createHarness, type Harness } from "./harness.ts";
 import { FakeExtractor, FAKE_URL } from "./fakes/extractor.ts";
-import { loadConfig } from "../src/infrastructure/config.ts";
+import { configFrom, settingsFromEnv } from "../src/infrastructure/config.ts";
 
 const minimal = {
   JELLYFIN_URL: "http://localhost:8096",
@@ -142,6 +142,10 @@ describe("what a stream download receives", () => {
     ]);
   });
 });
+
+/** The track choices an environment of old sets up. */
+const loadConfig = (env: Record<string, string | undefined>) =>
+  configFrom(settingsFromEnv(env)!.settings, false);
 
 describe("the server's default track choices", () => {
   it("are none unless the environment sets them", () => {

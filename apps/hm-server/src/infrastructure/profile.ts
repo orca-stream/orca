@@ -62,3 +62,49 @@ export function loadProfile(
   fs.load(file);
   return name;
 }
+
+/** What `pnpm setup:hm` asks for: the only things the server needs before its panel takes over. */
+export interface ProfileValues {
+  dbFile: string;
+  host: string;
+  port: number;
+}
+
+/** Whether a name can be a profile's (it becomes `profiles/<name>.env`). */
+export function isProfileName(name: string): boolean {
+  return NAME.test(name);
+}
+
+/** Where a profile's file goes. */
+export function profilePath(appRoot: string, name: string): string {
+  return join(appRoot, PROFILES_DIR, `${name}${SUFFIX}`);
+}
+
+/** The text of a profile's file, laid out as `profiles/.env.example` is. */
+export function profileText(name: string, values: ProfileValues): string {
+  return [
+    `# Orca'H&M profile "${name}", written by \`pnpm setup:hm\`. Everything else is set from the panel.`,
+    "",
+    "# --- required",
+    `DB_FILE=${values.dbFile}`,
+    `HOST=${values.host}`,
+    `PORT=${values.port}`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * The panel's development server proxies `/api` to HM_SERVER_URL in `apps/hm-web/.env`: the same
+ * file with that line set to `url`, every other line kept.
+ */
+export function withServerUrl(webEnv: string | null, url: string): string {
+  const line = `HM_SERVER_URL=${url}`;
+  if (webEnv === null || webEnv.trim() === "") {
+    return `# Orca'H&M panel, development only: where hm-server listens (written by \`pnpm setup:hm\`).\n${line}\n`;
+  }
+  const lines = webEnv.split("\n");
+  const at = lines.findIndex((text) => /^\s*HM_SERVER_URL\s*=/.test(text));
+  if (at === -1) return `${webEnv.replace(/\n*$/, "\n")}${line}\n`;
+  lines[at] = line;
+  return lines.join("\n");
+}

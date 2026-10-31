@@ -6,8 +6,11 @@ import { AppError } from "../src/domain/errors.ts";
 import { createApp } from "../src/infrastructure/web/app.ts";
 import { LoginRateLimiter } from "../src/infrastructure/web/rate-limit.ts";
 import { addBevhill, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
+import { FakeSettingsRoutes } from "./fakes/ports.ts";
+import type { SettingsView } from "@orca/hm-contract";
 
 let h: Harness;
+let settings: FakeSettingsRoutes;
 let app: ReturnType<typeof createApp>;
 let cookie: string;
 
@@ -15,6 +18,7 @@ function build(webRoot?: string) {
   return createApp({
     useCases: h.useCases,
     events: h.bus,
+    settings,
     secureCookies: false,
     sessionTtlMs: 7 * 24 * 3600 * 1000,
     loginLimiter: new LoginRateLimiter({ now: () => h.clock.now() }),
@@ -24,6 +28,7 @@ function build(webRoot?: string) {
 
 beforeEach(async () => {
   h = await createHarness();
+  settings = new FakeSettingsRoutes();
   app = build();
   const login = await app.request(
     "/api/auth/login",
@@ -81,6 +86,7 @@ describe("auth", () => {
     const secure = createApp({
       useCases: h.useCases,
       events: h.bus,
+      settings: new FakeSettingsRoutes(),
       secureCookies: true,
       sessionTtlMs: 1000,
     });
@@ -142,10 +148,15 @@ describe("auth", () => {
       ["POST", "/api/jobs/x/cancel"],
       ["GET", "/api/events"],
       ["GET", "/api/auth/me"],
+      ["GET", "/api/settings"],
+      ["PUT", "/api/settings"],
+      ["POST", "/api/settings/jellyfin"],
+      ["GET", "/api/settings/extractors"],
+      ["PUT", "/api/settings/extractors"],
     ] as const) {
       const res = await app.request(path, {
         method,
-        ...(method === "POST"
+        ...(method === "POST" || method === "PUT"
           ? { headers: { "content-type": "application/json" }, body: "{}" }
           : {}),
       });
@@ -228,6 +239,48 @@ describe("request hygiene", () => {
       authed({ method: "POST", headers: { "content-type": "application/json" }, body: "{nope" }),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe("settings routes", () => {
+  const put = (path: string, body: unknown) =>
+    app.request(path, authed({ ...json(body), method: "PUT" }));
+
+  it("shows the settings without their keys, and checks a change before passing it on", async () => {
+    const view = (await (await get("/api/settings")).json()) as SettingsView;
+    expect(view).toMatchObject({ jellyfin: { url: "http://jellyfin.test" }, hasTmdbApiKey: false });
+    expect(view.jellyfin).not.toHaveProperty("apiKey");
+
+    const bad = await put("/api/settings", {
+      ...view,
+      downloads: { ...view.downloads, connections: 0 },
+    });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ issues: [{ path: "downloads.connections" }] });
+    expect(settings.updates).toEqual([]);
+
+    const { hasTmdbApiKey: _, ...input } = view;
+    expect((await put("/api/settings", { ...input, tmdbApiKey: null })).status).toBe(200);
+    expect(settings.updates).toMatchObject([
+      { tmdbApiKey: null, jellyfin: { url: "http://jellyfin.test" } },
+    ]);
+  });
+
+  it("downloads the extractors file and saves a new one", async () => {
+    const download = await get("/api/settings/extractors");
+    expect(download.headers.get("content-disposition")).toMatch(/extractors\.json/);
+    expect(await download.text()).toBe("{}\n");
+    expect((await put("/api/settings/extractors", { text: '{"a":1}' })).status).toBe(204);
+    expect(settings.extractorsText).toBe('{"a":1}');
+  });
+
+  it("connects to a Jellyfin server for a new key", async () => {
+    const res = await post("/api/settings/jellyfin", {
+      url: "http://other.test:8096",
+      username: "admin",
+      password: "pw",
+    });
+    expect(await res.json()).toMatchObject({ apiKey: "made-key", url: "http://other.test:8096" });
   });
 });
 

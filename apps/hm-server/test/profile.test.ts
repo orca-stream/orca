@@ -1,7 +1,16 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { ConfigError } from "../src/infrastructure/config.ts";
-import { listProfiles, loadProfile, type ProfileFs } from "../src/infrastructure/profile.ts";
+import { loadBootConfig } from "../src/infrastructure/config.ts";
+import {
+  isProfileName,
+  listProfiles,
+  loadProfile,
+  profilePath,
+  profileText,
+  withServerUrl,
+  type ProfileFs,
+} from "../src/infrastructure/profile.ts";
 
 const root = "/app";
 const dir = join(root, "profiles");
@@ -60,5 +69,40 @@ describe("listProfiles", () => {
   it("lists real profiles only, sorted", () => {
     const fs = fakeFs(["vps.env", ".env.example", "README.md", "laptop.env", ".env"]);
     expect(listProfiles(root, fs)).toEqual(["laptop", "vps"]);
+  });
+});
+
+describe("what pnpm setup:hm writes", () => {
+  it("a profile the server boots with, and nothing else", () => {
+    const text = profileText("laptop", {
+      dbFile: "./data/laptop.sqlite",
+      host: "127.0.0.1",
+      port: 8787,
+    });
+    const env = Object.fromEntries(
+      text
+        .split("\n")
+        .filter((line) => line !== "" && !line.startsWith("#"))
+        .map((line) => line.split("=") as [string, string]),
+    );
+    expect(env).toEqual({ DB_FILE: "./data/laptop.sqlite", HOST: "127.0.0.1", PORT: "8787" });
+    expect(loadBootConfig(env)).toMatchObject({ port: 8787, host: "127.0.0.1" });
+    expect(profilePath("/app", "laptop")).toBe(join("/app", "profiles", "laptop.env"));
+  });
+
+  it("only names a profile can have", () => {
+    expect(isProfileName("my-laptop_2")).toBe(true);
+    expect(isProfileName("../etc")).toBe(false);
+    expect(isProfileName("")).toBe(false);
+  });
+
+  it("points the panel's dev server at the server, keeping the rest of its file", () => {
+    expect(withServerUrl(null, "http://127.0.0.1:8787")).toMatch(
+      /^#.*\nHM_SERVER_URL=http:\/\/127\.0\.0\.1:8787\n$/,
+    );
+    expect(withServerUrl("# mine\nHM_SERVER_URL=http://old:1\nOTHER=1\n", "http://new:2")).toBe(
+      "# mine\nHM_SERVER_URL=http://new:2\nOTHER=1\n",
+    );
+    expect(withServerUrl("OTHER=1", "http://new:2")).toBe("OTHER=1\nHM_SERVER_URL=http://new:2\n");
   });
 });

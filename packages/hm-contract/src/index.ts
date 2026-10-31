@@ -49,3 +49,17 @@ export {
   NotificationKind,
   NotificationList,
 } from "./notifications.ts";
+export {
+  BrowserSettings,
+  DownloadSettings,
+  ExtractorsBody,
+  JellyfinConnectBody,
+  JellyfinConnection,
+  JellyfinSettings,
+  SetupBody,
+  SetupStatus,
+  Settings,
+  SettingsUpdate,
+  SettingsView,
+  TrackSettings,
+} from "./settings.ts";

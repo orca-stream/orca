@@ -2,6 +2,9 @@ import { zValidator } from "@hono/zod-validator";
 import {
   CreateSeriesBody,
   EnqueueBody,
+  ExtractorsBody,
+  JellyfinConnectBody,
+  SettingsUpdate,
   ListJobsQuery,
   LoginBody,
   MarkReadBody,
@@ -13,7 +16,9 @@ import {
   GuideQuery,
   GuideSeasonsParams,
   type ApiErrorBody,
+  type JellyfinConnection,
   type Me,
+  type SettingsView,
 } from "@orca/hm-contract";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
@@ -44,9 +49,22 @@ const POSTER_TYPES: Record<string, string> = {
   ".gif": "image/gif",
 };
 
+/** The server's own settings, which only a signed-in administrator reads and changes. */
+export interface SettingsRoutes {
+  view(): Promise<SettingsView>;
+  /** Saves them and restarts what they drive; refused, keeping the old ones, when they cannot run. */
+  update(input: SettingsUpdate): Promise<SettingsView>;
+  /** Signs in to a Jellyfin server as an administrator and makes this server a key there. */
+  connectJellyfin(body: JellyfinConnectBody): Promise<JellyfinConnection>;
+  /** The extractors file's text, as it was saved. */
+  extractors(): Promise<string>;
+  saveExtractors(text: string): Promise<void>;
+}
+
 export interface AppDeps {
   useCases: UseCases;
   events: EventBus;
+  settings: SettingsRoutes;
   /** `Secure` on the session cookie: only behind HTTPS (the LAN is plain http for now). */
   secureCookies: boolean;
   sessionTtlMs: number;
@@ -59,7 +77,7 @@ export interface AppDeps {
 type Env = { Variables: { me: Me } };
 
 /** Zod failures become the same 400 body every route uses. */
-function validate<Target extends "json" | "query" | "param", Schema extends ZodType>(
+export function validate<Target extends "json" | "query" | "param", Schema extends ZodType>(
   target: Target,
   schema: Schema,
 ) {
@@ -78,7 +96,7 @@ function validate<Target extends "json" | "query" | "param", Schema extends ZodT
 }
 
 /** The peer address; behind a reverse proxy this is the proxy's, which is the best we can trust. */
-function clientAddress(c: Context): string {
+export function clientAddress(c: Context): string {
   try {
     return getConnInfo(c).remote.address ?? "unknown";
   } catch {
@@ -177,6 +195,8 @@ export function createApp(deps: AppDeps) {
     "/notifications",
     "/notifications/*",
     "/events",
+    "/settings",
+    "/settings/*",
   ]) {
     api.use(path, requireSession);
   }
@@ -314,6 +334,25 @@ export function createApp(deps: AppDeps) {
       );
     }
     return c.json(await useCases.markNotificationsRead(parsed.data.ids));
+  });
+
+  // --- settings
+  api.get("/settings", async (c) => c.json(await deps.settings.view()));
+  api.put("/settings", validate("json", SettingsUpdate), async (c) =>
+    c.json(await deps.settings.update(c.req.valid("json"))),
+  );
+  api.post("/settings/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
+    c.json(await deps.settings.connectJellyfin(c.req.valid("json"))),
+  );
+  api.get("/settings/extractors", async (c) =>
+    c.body(await deps.settings.extractors(), 200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": 'attachment; filename="extractors.json"',
+    }),
+  );
+  api.put("/settings/extractors", validate("json", ExtractorsBody), async (c) => {
+    await deps.settings.saveExtractors(c.req.valid("json").text);
+    return c.body(null, 204);
   });
 
   // --- server-sent events

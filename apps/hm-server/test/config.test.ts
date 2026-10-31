@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   ConfigError,
+  configFrom,
   deprecatedEnvWarnings,
-  loadConfig,
+  loadBootConfig,
+  settingsFromEnv,
   userAgent,
 } from "../src/infrastructure/config.ts";
 import { ExtractorsFileError, parseExtractorsFile } from "../src/infrastructure/extractors-file.ts";
@@ -17,9 +19,21 @@ const minimal = {
   PORT: "8787",
 };
 
-describe("loadConfig", () => {
+/** What a server set up in the environment of old ends up with: where it boots plus what it runs. */
+function load(env: Record<string, string | undefined>) {
+  const boot = loadBootConfig(env);
+  const legacy = settingsFromEnv(env);
+  if (!legacy) throw new Error("no setup in this environment");
+  return {
+    ...boot,
+    ...configFrom(legacy.settings, legacy.extractorsFile !== undefined),
+    extractorsFile: legacy.extractorsFile,
+  };
+}
+
+describe("the environment of old", () => {
   it("reads the required values and fills in only tuning knobs", () => {
-    const config = loadConfig(minimal);
+    const config = load(minimal);
     expect(config).toMatchObject({
       dbFile: "./data/hm.sqlite",
       mediaRoot: "./media/tv",
@@ -44,38 +58,38 @@ describe("loadConfig", () => {
   });
 
   it("downloads one episode at a time only when asked", () => {
-    expect(loadConfig({ ...minimal, SEQUENTIAL_DOWNLOADS: "true" }).sequentialDownloads).toBe(true);
-    expect(() => loadConfig({ ...minimal, SEQUENTIAL_DOWNLOADS: "yes" })).toThrow(ConfigError);
+    expect(load({ ...minimal, SEQUENTIAL_DOWNLOADS: "true" }).sequentialDownloads).toBe(true);
+    expect(() => load({ ...minimal, SEQUENTIAL_DOWNLOADS: "yes" })).toThrow(ConfigError);
   });
 
   it("reads the skipped player hosts as a lower-case list, and refuses addresses", () => {
-    expect(loadConfig(minimal).skipPlayers).toEqual([]);
-    expect(
-      loadConfig({ ...minimal, SKIP_PLAYERS: " Player.example, other.example ," }).skipPlayers,
-    ).toEqual(["player.example", "other.example"]);
-    expect(() => loadConfig({ ...minimal, SKIP_PLAYERS: "https://player.example/" })).toThrow(ConfigError);
+    expect(load(minimal).skipPlayers).toEqual([]);
+    expect(load({ ...minimal, SKIP_PLAYERS: " Player.example, other.example ," }).skipPlayers).toEqual([
+      "player.example",
+      "other.example",
+    ]);
+    expect(() => load({ ...minimal, SKIP_PLAYERS: "https://player.example/" })).toThrow(ConfigError);
   });
 
   it("takes a TMDB key when there is one", () => {
-    expect(loadConfig({ ...minimal, TMDB_API_KEY: " abc " }).tmdbApiKey).toBe("abc");
+    expect(load({ ...minimal, TMDB_API_KEY: " abc " }).tmdbApiKey).toBe("abc");
   });
 
-  it.each([
-    "HOST",
-    "PORT",
-    "DB_FILE",
-    "MEDIA_ROOT",
-    "JELLYFIN_MEDIA_ROOT",
-    "JELLYFIN_URL",
-    "JELLYFIN_API_KEY",
-  ])("refuses to start without %s, and says so", (name) => {
-    const env: Record<string, string | undefined> = { ...minimal };
-    delete env[name];
-    expect(() => loadConfig(env)).toThrow(new RegExp(name));
+  it("is no setup at all without JELLYFIN_URL", () => {
+    expect(settingsFromEnv({ ...minimal, JELLYFIN_URL: undefined })).toBeNull();
   });
+
+  it.each(["HOST", "PORT", "DB_FILE", "MEDIA_ROOT", "JELLYFIN_MEDIA_ROOT", "JELLYFIN_API_KEY"])(
+    "refuses to start without %s, and says so",
+    (name) => {
+      const env: Record<string, string | undefined> = { ...minimal };
+      delete env[name];
+      expect(() => load(env)).toThrow(new RegExp(name));
+    },
+  );
 
   it("reads everything from the environment", () => {
-    const config = loadConfig({
+    const config = load({
       ...minimal,
       DB_FILE: "/data/hm.sqlite",
       MEDIA_ROOT: "/media/tv",
@@ -104,39 +118,38 @@ describe("loadConfig", () => {
 
   it("overrides the extractors' per-host limits only when asked to", () => {
     expect(
-      loadConfig({ ...minimal, DOWNLOADS_PER_HOST: "3", METADATA_PER_SEC: "0.5" }).hostLimits,
+      load({ ...minimal, DOWNLOADS_PER_HOST: "3", METADATA_PER_SEC: "0.5" }).hostLimits,
     ).toEqual({ downloadsPerHost: 3, metadataPerSec: 0.5 });
-    expect(() => loadConfig({ ...minimal, METADATA_PER_SEC: "0" })).toThrow(/METADATA_PER_SEC/);
-    expect(() => loadConfig({ ...minimal, DOWNLOADS_PER_HOST: "0" })).toThrow(/DOWNLOADS_PER_HOST/);
+    expect(() => load({ ...minimal, METADATA_PER_SEC: "0" })).toThrow(/METADATA_PER_SEC/);
+    expect(() => load({ ...minimal, DOWNLOADS_PER_HOST: "0" })).toThrow(/DOWNLOADS_PER_HOST/);
   });
 
   it("reads how many connections a direct file is fetched over, within 1 to 16", () => {
-    expect(loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "4" }).downloadConnections).toBe(4);
-    expect(() => loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "0" })).toThrow(
-      /DOWNLOAD_CONNECTIONS/,
-    );
-    expect(() => loadConfig({ ...minimal, DOWNLOAD_CONNECTIONS: "17" })).toThrow(
-      /DOWNLOAD_CONNECTIONS/,
-    );
+    expect(load({ ...minimal, DOWNLOAD_CONNECTIONS: "4" }).downloadConnections).toBe(4);
+    expect(() => load({ ...minimal, DOWNLOAD_CONNECTIONS: "0" })).toThrow(/DOWNLOAD_CONNECTIONS/);
+    expect(() => load({ ...minimal, DOWNLOAD_CONNECTIONS: "17" })).toThrow(/DOWNLOAD_CONNECTIONS/);
   });
 
   it("explains every problem at once", () => {
-    const error = (() => {
+    const messageOf = (run: () => unknown) => {
       try {
-        loadConfig({ PORT: "nope", JELLYFIN_URL: "not a url" });
+        run();
       } catch (e) {
-        return e as ConfigError;
+        expect(e).toBeInstanceOf(ConfigError);
+        return (e as ConfigError).message;
       }
-      throw new Error("expected loadConfig to throw");
-    })();
-    expect(error).toBeInstanceOf(ConfigError);
-    expect(error.message).toContain("JELLYFIN_URL");
-    expect(error.message).toContain("JELLYFIN_API_KEY");
-    expect(error.message).toContain("PORT");
+      throw new Error("expected it to throw");
+    };
+    const boot = messageOf(() => loadBootConfig({ PORT: "nope" }));
+    expect(boot).toContain("PORT");
+    expect(boot).toContain("DB_FILE");
+    const legacy = messageOf(() => settingsFromEnv({ JELLYFIN_URL: "not a url" }));
+    expect(legacy).toContain("JELLYFIN_URL");
+    expect(legacy).toContain("JELLYFIN_API_KEY");
   });
 
   it("strips the trailing slash from the Jellyfin url", () => {
-    expect(loadConfig({ ...minimal, JELLYFIN_URL: "http://jellyfin:8096/" }).jellyfinUrl).toBe(
+    expect(load({ ...minimal, JELLYFIN_URL: "http://jellyfin:8096/" }).jellyfinUrl).toBe(
       "http://jellyfin:8096",
     );
   });
@@ -149,13 +162,7 @@ describe("userAgent", () => {
   });
 
   it("rejects a contact that is not an email", () => {
-    expect(() =>
-      loadConfig({
-        JELLYFIN_URL: "http://localhost:8096",
-        JELLYFIN_API_KEY: "k",
-        CONTACT_EMAIL: "nope",
-      }),
-    ).toThrow(/CONTACT_EMAIL/);
+    expect(() => load({ ...minimal, CONTACT_EMAIL: "nope" })).toThrow(/CONTACT_EMAIL/);
   });
 });
 
@@ -169,13 +176,13 @@ describe("the generic detector", () => {
   };
 
   it("is off unless HM_GENERIC_DETECTOR enables it, and then asks for nothing else", () => {
-    expect(loadConfig(minimal).detector).toBeNull();
-    expect(loadConfig({ ...minimal, HM_GENERIC_DETECTOR: "0" }).detector).toBeNull();
-    expect(loadConfig({ ...minimal, HM_GENERIC_DETECTOR: "false" }).detector).toBeNull();
+    expect(load(minimal).detector).toBeNull();
+    expect(load({ ...minimal, HM_GENERIC_DETECTOR: "0" }).detector).toBeNull();
+    expect(load({ ...minimal, HM_GENERIC_DETECTOR: "false" }).detector).toBeNull();
   });
 
   it("reads its tuning from the environment when it is on", () => {
-    expect(loadConfig(on).detector).toEqual({
+    expect(load(on).detector).toEqual({
       maxConcurrent: 2,
       timeoutMs: 45_000,
       settleMs: 3000,
@@ -184,7 +191,7 @@ describe("the generic detector", () => {
       noSandbox: false,
     });
     expect(
-      loadConfig({
+      load({
         ...on,
         HM_DETECTOR_USER_AGENT: "Mozilla/5.0 Test",
         HM_CHROMIUM_PATH: "/usr/bin/chromium",
@@ -202,18 +209,64 @@ describe("the generic detector", () => {
     (name) => {
       const env: Record<string, string | undefined> = { ...on };
       delete env[name];
-      expect(() => loadConfig(env)).toThrow(new RegExp(name));
+      expect(() => load(env)).toThrow(new RegExp(name));
     },
   );
 
   it("rejects nonsense values", () => {
-    expect(() => loadConfig({ ...on, HM_DETECTOR_MAX_CONCURRENT: "0" })).toThrow(/MAX_CONCURRENT/);
-    expect(() => loadConfig({ ...on, HM_DETECTOR_TIMEOUT_MS: "-1" })).toThrow(/TIMEOUT_MS/);
-    expect(() => loadConfig({ ...on, HM_DETECTOR_SETTLE_MS: "x" })).toThrow(/SETTLE_MS/);
+    expect(() => load({ ...on, HM_DETECTOR_MAX_CONCURRENT: "0" })).toThrow(/MAX_CONCURRENT/);
+    expect(() => load({ ...on, HM_DETECTOR_TIMEOUT_MS: "-1" })).toThrow(/TIMEOUT_MS/);
+    expect(() => load({ ...on, HM_DETECTOR_SETTLE_MS: "x" })).toThrow(/SETTLE_MS/);
   });
 
   it("ignores the tuning when the detector is off", () => {
-    expect(loadConfig({ ...minimal, HM_DETECTOR_TIMEOUT_MS: "oops" }).detector).toBeNull();
+    expect(load({ ...minimal, HM_DETECTOR_TIMEOUT_MS: "oops" }).detector).toBeNull();
+  });
+});
+
+describe("the settings", () => {
+  it("carry an environment's setup over, extractors file included", () => {
+    const legacy = settingsFromEnv({
+      ...minimal,
+      TMDB_API_KEY: "t",
+      SKIP_PLAYERS: "player.example",
+      HM_EXTRACTORS_FILE: "./extractors.json",
+      HM_DETECTOR_MAX_CONCURRENT: "1",
+      HM_DETECTOR_TIMEOUT_MS: "45000",
+      HM_DETECTOR_SETTLE_MS: "3000",
+    });
+    expect(legacy).toMatchObject({
+      extractorsFile: "./extractors.json",
+      settings: {
+        jellyfin: { url: "http://localhost:8096", apiKey: "key", mediaRoot: "./media/tv" },
+        tmdbApiKey: "t",
+        downloads: { skipPlayers: ["player.example"], connections: 1 },
+        browser: { genericDetector: false, maxConcurrent: 1 },
+      },
+    });
+    expect(settingsFromEnv(minimal)?.settings.browser).toBeUndefined();
+  });
+
+  it("start the browser only when something needs it", () => {
+    const { settings } = settingsFromEnv({
+      ...minimal,
+      HM_EXTRACTORS_FILE: "./extractors.json",
+      HM_DETECTOR_MAX_CONCURRENT: "1",
+      HM_DETECTOR_TIMEOUT_MS: "45000",
+      HM_DETECTOR_SETTLE_MS: "3000",
+    })!;
+    expect(configFrom(settings, true).detector).toMatchObject({ maxConcurrent: 1 });
+    expect(configFrom(settings, false).detector).toBeNull();
+    const generic = { ...settings, browser: { ...settings.browser!, genericDetector: true } };
+    expect(configFrom(generic, false)).toMatchObject({ genericExtractor: true });
+  });
+
+  it("warn about every variable the panel now rules, except on the boot that carried them", () => {
+    expect(deprecatedEnvWarnings(minimal)).toEqual([
+      expect.stringMatching(/JELLYFIN_URL.*JELLYFIN_API_KEY/),
+    ]);
+    expect(deprecatedEnvWarnings(minimal, true)).toEqual([]);
+    expect(deprecatedEnvWarnings({ HOST: "x", PORT: "1", DB_FILE: "d" })).toEqual([]);
   });
 });
 
@@ -225,17 +278,17 @@ describe("the extractors file", () => {
   };
 
   it("turns the browser on for the sites' players, without the generic extractor", () => {
-    const config = loadConfig({ ...minimal, ...tuning, HM_EXTRACTORS_FILE: "./extractors.json" });
+    const config = load({ ...minimal, ...tuning, HM_EXTRACTORS_FILE: "./extractors.json" });
     expect(config).toMatchObject({ extractorsFile: "./extractors.json", genericExtractor: false });
     expect(config.detector).toMatchObject({ maxConcurrent: 2 });
-    expect(loadConfig(minimal)).toMatchObject({
+    expect(load(minimal)).toMatchObject({
       extractorsFile: undefined,
       genericExtractor: false,
     });
   });
 
   it("asks for the browser's tuning, which has no default", () => {
-    expect(() => loadConfig({ ...minimal, HM_EXTRACTORS_FILE: "./extractors.json" })).toThrow(
+    expect(() => load({ ...minimal, HM_EXTRACTORS_FILE: "./extractors.json" })).toThrow(
       /HM_DETECTOR_TIMEOUT_MS/,
     );
   });

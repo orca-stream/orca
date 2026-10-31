@@ -55,7 +55,7 @@ describe("deprecatedEnvWarnings", () => {
     const warnings = deprecatedEnvWarnings({ IA_HOST_CONCURRENCY: "2" });
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("IA_HOST_CONCURRENCY");
-    expect(warnings[0]).toContain("DOWNLOADS_PER_HOST");
+    expect(warnings[0]).toContain("download settings");
   });
 
   it("says nothing when none is set", () => {

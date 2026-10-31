@@ -1,6 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
+  JellyfinConnectBody,
+  JellyfinConnection,
+  SettingsUpdate,
+  SettingsView,
+} from "@orca/hm-contract";
+import type { SettingsRoutes } from "../../src/infrastructure/web/app.ts";
+import type {
   EpisodeFile,
   LibraryShow,
   Authenticated,
@@ -205,5 +212,45 @@ export class RecordingNotifier implements Notifier {
   async notify(notification: Notification): Promise<void> {
     if (this.fail) throw new Error("channel down");
     this.sent.push(notification);
+  }
+}
+
+/** The settings routes of an app under test: what they were asked, with canned answers. */
+export class FakeSettingsRoutes implements SettingsRoutes {
+  readonly updates: SettingsUpdate[] = [];
+  extractorsText = "{}\n";
+
+  async view(): Promise<SettingsView> {
+    return {
+      jellyfin: { url: "http://jellyfin.test", mediaRoot: "/tv", jellyfinMediaRoot: "/tv" },
+      hasTmdbApiKey: false,
+      downloads: {
+        concurrency: 2,
+        ffmpegConcurrency: 1,
+        browserConcurrency: 1,
+        sequential: false,
+        skipPlayers: [],
+        connections: 1,
+        probeTimeoutMs: 180_000,
+      },
+      tracks: { externalSubtitles: false },
+    };
+  }
+
+  async update(input: SettingsUpdate): Promise<SettingsView> {
+    this.updates.push(input);
+    return this.view();
+  }
+
+  async connectJellyfin(body: JellyfinConnectBody): Promise<JellyfinConnection> {
+    return { url: body.url, serverName: "Test", apiKey: "made-key", libraries: [] };
+  }
+
+  async extractors(): Promise<string> {
+    return this.extractorsText;
+  }
+
+  async saveExtractors(text: string): Promise<void> {
+    this.extractorsText = text;
   }
 }
