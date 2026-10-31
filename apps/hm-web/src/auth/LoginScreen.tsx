@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from "react";
+import { Login01Icon, SquareLockPasswordIcon, UserIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useLocation, useSearchParams } from "wouter";
 import { ApiError } from "@/api/client";
 import logotype from "@/assets/logotype.svg";
-import { PendingButton } from "@/components/pending-button";
-import { TextField } from "@/components/text-field";
 import { formatDuration } from "@/i18n/format";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
+import { FieldRow, FooterRow, Panel, PanelButton, ROWS } from "@/settings/rows";
+import { Backdrop } from "@/shell/Shell";
 import { safeNext } from "./next";
 import { useLogin } from "./session";
 
@@ -45,42 +47,59 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="grid min-h-dvh">
-      <section className="relative flex items-center justify-center px-4 py-24">
-        <h1 className="absolute top-6 left-6 md:top-8 md:left-8">
-          <img src={logotype} alt={t.brand} className="h-6 w-auto" />
-        </h1>
-        <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-5">
-          <TextField
-            label={t.login.username}
-            name="username"
-            autoComplete="username"
-            autoFocus
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-          <TextField
-            label={t.login.password}
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          {login.isError && (
-            <p role="alert" className="text-sm text-warning">
-              {loginErrorMessage(login.error, t)}
-            </p>
-          )}
-          <PendingButton
-            type="submit"
-            className="mt-1 w-full"
-            disabled={!canSubmit}
-            pending={login.isPending}
-          >
-            {login.isPending ? t.login.submitting : t.login.submit}
-          </PendingButton>
-        </form>
+    <main className="isolate grid min-h-dvh">
+      <Backdrop />
+      {/* The same glass panel as the first run's and the new series bar: rows, icons, one button. */}
+      <section className="flex items-center justify-center px-4 py-10 sm:py-16">
+        <Panel className="w-full max-w-lg">
+          <form onSubmit={submit}>
+            <header className="p-6">
+              {/* "Sign in to" and the logotype as one title, read as "Sign in to ORCA'H&M". */}
+              <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+                {t.login.title}
+                <img src={logotype} alt={t.brand} className="h-7 w-auto" />
+              </h1>
+            </header>
+            <div className={ROWS}>
+              <FieldRow
+                icon={UserIcon}
+                label={t.login.username}
+                bare
+                name="username"
+                autoComplete="username"
+                autoFocus
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+              />
+              <FieldRow
+                icon={SquareLockPasswordIcon}
+                label={t.login.password}
+                bare
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            <FooterRow>
+              {login.isError && (
+                <p role="alert" className="min-w-0 flex-1 text-sm text-warning">
+                  {loginErrorMessage(login.error, t)}
+                </p>
+              )}
+              <PanelButton
+                type="submit"
+                className="ml-auto"
+                disabled={!canSubmit}
+                pending={login.isPending}
+              >
+                {login.isPending ? t.login.submitting : t.login.submit}
+                <HugeiconsIcon icon={Login01Icon} className="size-5" />
+              </PanelButton>
+            </FooterRow>
+          </form>
+        </Panel>
       </section>
     </main>
   );

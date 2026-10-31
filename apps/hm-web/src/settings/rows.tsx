@@ -141,6 +141,7 @@ export function FieldRow({
   label,
   error,
   hint,
+  bare = false,
   className,
   ...input
 }: Omit<ComponentProps<"input">, "aria-label" | "aria-invalid"> & {
@@ -149,8 +150,31 @@ export function FieldRow({
   error?: string | undefined;
   /** What the setting does, shown on the icon's hover. */
   hint?: string | undefined;
+  /** No name beside it: the name is its placeholder and the value starts where a name would. */
+  bare?: boolean;
 }) {
   const id = useId();
+  if (bare) {
+    return (
+      <div className={cn(ROW, "has-focus-visible:bg-white/45", className)}>
+        <IconCell icon={icon} error={error} hint={hint} />
+        <input
+          id={id}
+          aria-label={label}
+          placeholder={label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className="h-14 min-w-0 flex-1 bg-transparent pl-1.5 text-base outline-none placeholder:text-muted-foreground"
+          {...input}
+        />
+        {error && (
+          <span id={`${id}-error`} className="sr-only">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
   return (
     // Narrow, the value goes under its name, where the name's text starts; wide, at the row's end.
     <div className={cn(ROW, "flex-wrap has-focus-visible:bg-white/45 sm:flex-nowrap", className)}>

@@ -47,6 +47,7 @@ const es = {
     cancelled: "Cancelado",
   },
   login: {
+    title: "Entrar a",
     username: "Usuario",
     password: "Contraseña",
     submit: "Entrar",
@@ -653,6 +654,7 @@ const en: typeof es = {
     cancelled: "Cancelled",
   },
   login: {
+    title: "Sign in to",
     username: "Username",
     password: "Password",
     submit: "Sign in",
