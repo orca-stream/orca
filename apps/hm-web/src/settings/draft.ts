@@ -3,6 +3,8 @@ import type { SettingsUpdate, SettingsView } from "@/api/types";
 
 /** Which subtitles a series without its own choice keeps. */
 export type SubtitleMode = "all" | "none" | "some";
+/** Which audio tracks it keeps: every one, or those of some languages. */
+export type AudioMode = "all" | "some";
 
 /**
  * The settings as the form holds them: text for what is typed (numbers included, so a half-typed one
@@ -34,7 +36,8 @@ export interface Draft {
   metadataPerSec: string;
   probeTimeoutSec: string;
   maxHeight: string;
-  /** ISO 639-2 codes, comma separated; empty keeps every audio track. */
+  audioMode: AudioMode;
+  /** ISO 639-2 codes, comma separated, while `audioMode` is "some". */
   audioLangs: string;
   subtitleMode: SubtitleMode;
   subtitleLangs: string;
@@ -75,6 +78,7 @@ export function suggestedDraft(): Draft {
     metadataPerSec: "",
     probeTimeoutSec: "180",
     maxHeight: "",
+    audioMode: "all",
     audioLangs: "",
     subtitleMode: "all",
     subtitleLangs: "",
@@ -116,6 +120,7 @@ export function draftFromView(view: SettingsView): Draft {
     metadataPerSec: text(downloads.metadataPerSec),
     probeTimeoutSec: text(downloads.probeTimeoutMs, 1000),
     maxHeight: text(tracks.maxHeight),
+    audioMode: tracks.audioLangs && tracks.audioLangs.length > 0 ? "some" : "all",
     audioLangs: (tracks.audioLangs ?? []).join(", "),
     subtitleMode:
       tracks.subtitleLangs === undefined
@@ -192,7 +197,8 @@ export function settingsFromDraft(
   if (maxHeight !== undefined && (maxHeight < MIN_MAX_HEIGHT || maxHeight > MAX_MAX_HEIGHT)) {
     errors.maxHeight = "number";
   }
-  const audioLangs = languages("audioLangs");
+  const audioLangs = draft.audioMode === "some" ? languages("audioLangs") : [];
+  if (draft.audioMode === "some" && audioLangs.length === 0) errors.audioLangs = "required";
   const subtitleLangs = draft.subtitleMode === "some" ? languages("subtitleLangs") : [];
   if (draft.subtitleMode === "some" && subtitleLangs.length === 0)
     errors.subtitleLangs = "required";

@@ -470,7 +470,6 @@ const es = {
       password: "Contraseña",
       connect: "Conectar",
       connecting: "Conectando…",
-      connectAndGo: "¡Vamos!",
       connected: (name: string) => `Conectado a ${name}. H&M ya tiene su clave.`,
       current: (url: string) => `Conectado a ${url}.`,
       change: "Cambiar de servidor",
@@ -521,10 +520,9 @@ const es = {
       maxHeight: "Altura máxima del vídeo",
       maxHeightPlaceholder: "La mejor",
       audio: "Idiomas de audio",
-      audioPlaceholder: "Todos",
+      audioModes: { all: "Todos", some: "Solo estos idiomas" },
       subtitles: "Subtítulos",
       subtitleModes: { all: "Todos", none: "Ninguno", some: "Solo estos idiomas" },
-      subtitleLangs: "Idiomas de subtítulos",
       external: "Subtítulos como archivos aparte (.srt)",
     },
     browser: {
@@ -555,9 +553,10 @@ const es = {
         "Servidores de vídeo que nunca se prueban, como uno que siempre falla. Un host incluye sus subdominios.",
       maxHeight:
         "La calidad más alta que se guarda. «La mejor» guarda la mayor que ofrezca el reproductor. Solo afecta a los vídeos por streaming (HLS).",
-      audio: "Las pistas de audio que se guardan, por idioma. «Todos» las guarda todas.",
-      subtitles: "Qué subtítulos de texto se guardan: todos, ninguno o los de ciertos idiomas.",
-      subtitleLangs: "Los idiomas de subtítulos que se guardan.",
+      audio:
+        "Las pistas de audio que se guardan: todas, o solo las de los idiomas que elijas debajo.",
+      subtitles:
+        "Qué subtítulos de texto se guardan: todos, ninguno o solo los de los idiomas que elijas debajo.",
       external: "Guarda los subtítulos como archivos .srt junto al vídeo, en vez de dentro de él.",
       browser:
         "Un Chromium sin ventana abre los reproductores de los sitios para encontrar el vídeo. Los extractores lo necesitan.",
@@ -574,7 +573,7 @@ const es = {
       more: "Más",
       add: (value: string) => `Añadir «${value}»`,
       remove: (value: string) => `Quitar ${value}`,
-      subtitlesPlaceholder: "spa, eng…",
+      languagesPlaceholder: "Escribe o elige: spa, eng…",
     },
     errors: {
       required: "Hace falta.",
@@ -1076,7 +1075,6 @@ const en: typeof es = {
       password: "Password",
       connect: "Connect",
       connecting: "Connecting…",
-      connectAndGo: "Go!",
       connected: (name: string) => `Connected to ${name}. H&M has its key.`,
       current: (url: string) => `Connected to ${url}.`,
       change: "Change server",
@@ -1127,10 +1125,9 @@ const en: typeof es = {
       maxHeight: "Tallest video",
       maxHeightPlaceholder: "The best",
       audio: "Audio languages",
-      audioPlaceholder: "All",
+      audioModes: { all: "All", some: "Only these languages" },
       subtitles: "Subtitles",
       subtitleModes: { all: "All", none: "None", some: "Only these languages" },
-      subtitleLangs: "Subtitle languages",
       external: "Subtitles as separate files (.srt)",
     },
     browser: {
@@ -1161,9 +1158,9 @@ const en: typeof es = {
         "Video servers never tried, such as one that always fails. A host covers its subdomains.",
       maxHeight:
         'The highest quality kept. "The best" keeps the highest the player offers. Only affects streamed videos (HLS).',
-      audio: 'The audio tracks kept, by language. "All" keeps every one.',
-      subtitles: "Which text subtitles are kept: all, none or those of some languages.",
-      subtitleLangs: "The subtitle languages kept.",
+      audio: "The audio tracks kept: all of them, or only those of the languages you pick below.",
+      subtitles:
+        "Which text subtitles are kept: all, none or only those of the languages you pick below.",
       external: "Keeps subtitles as .srt files beside the video instead of inside it.",
       browser:
         "A windowless Chromium opens the sites' players to find the video. The extractors need it.",
@@ -1180,7 +1177,7 @@ const en: typeof es = {
       more: "More",
       add: (value: string) => `Add "${value}"`,
       remove: (value: string) => `Remove ${value}`,
-      subtitlesPlaceholder: "spa, eng…",
+      languagesPlaceholder: "Type or pick: spa, eng…",
     },
     errors: {
       required: "Needed.",

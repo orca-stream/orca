@@ -56,7 +56,7 @@ export function Group({
 }) {
   return (
     <section className="border-t border-t-(--glass-edge)">
-      <header className="flex flex-col gap-1 px-6 pt-6 pb-4 sm:px-8">
+      <header className="flex flex-col gap-1 px-6 pt-6 pb-4">
         <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           {title}
         </h2>
@@ -85,7 +85,8 @@ function IconCell({
   return (
     <span
       className={cn(
-        "flex w-[63px] shrink-0 items-center justify-center self-stretch pl-[7px] transition-colors",
+        // The icon 24px from the panel's edge, as the titles and the buttons are; the text at 69px.
+        "flex w-[63px] shrink-0 items-center self-stretch pl-[18px] transition-colors",
         active === false && "text-muted-foreground",
         active === true && "text-primary",
       )}
@@ -107,7 +108,9 @@ function IconCell({
           </HoverCardContent>
         </HoverCard>
       ) : (
-        <HugeiconsIcon icon={icon} className="size-5" />
+        <span className="flex size-8 items-center justify-center">
+          <HugeiconsIcon icon={icon} className="size-5" />
+        </span>
       )}
     </span>
   );
@@ -126,7 +129,8 @@ function RowLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string
   );
 }
 
-const ROW = "flex min-h-14 items-center pr-[19px] transition-colors";
+/** Every row ends 24px from the panel's edge, as its titles and buttons do. */
+const ROW = "flex min-h-14 items-center pr-6 transition-colors";
 
 /**
  * A typed setting: its name on the left and the value at the row's end. What an empty one means is
@@ -176,6 +180,7 @@ export function SelectRow({
   onChange,
   options,
   hint,
+  error,
 }: {
   icon: IconSvgElement;
   label: string;
@@ -183,6 +188,7 @@ export function SelectRow({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   hint?: string | undefined;
+  error?: string | undefined;
 }) {
   return (
     <Select items={options} value={value} onValueChange={(next) => onChange(next ?? value)}>
@@ -194,7 +200,7 @@ export function SelectRow({
           "h-auto w-full min-w-0 gap-0 rounded-none border-0 bg-transparent py-0 pl-0 text-base data-[size=default]:h-auto hover:bg-white/30 focus-visible:border-(--glass-edge) focus-visible:bg-white/45 focus-visible:ring-0 data-popup-open:bg-white/45 data-placeholder:text-foreground [&>svg:last-child]:ml-2",
         )}
       >
-        <IconCell icon={icon} hint={hint} />
+        <IconCell icon={icon} hint={hint} error={error} />
         <span className="min-w-0 flex-1 py-3.5 pr-4 pl-1.5 text-left leading-snug sm:flex-none">
           {label}
         </span>
@@ -271,7 +277,8 @@ export function NumberRow({
       step={step}
       smallStep={step}
       format={{ useGrouping: false, maximumFractionDigits: 3 }}
-      className={cn(ROW, "pr-[11px] has-focus-visible:bg-white/45")}
+      // The + is a round button: its sign, not its round, ends where the other rows' values do.
+      className={cn(ROW, "pr-[14px] has-focus-visible:bg-white/45")}
     >
       <IconCell icon={icon} error={error} hint={hint} />
       <RowLabel htmlFor={id}>{label}</RowLabel>
@@ -314,11 +321,17 @@ export function ChipsRow({
   placeholder,
   error,
   hint,
+  head,
+  inputLabel,
   add,
   remove,
 }: {
   icon: IconSvgElement;
   label: string;
+  /** A row of its own on top in place of the icon and name (a Select whose choice opens the chips). */
+  head?: ReactNode;
+  /** With `head`, what the chips' input is called, apart from the head's own name. */
+  inputLabel?: string;
   values: readonly string[];
   onChange: (values: string[]) => void;
   /** The value a typed text stands for, or null while it is not one yet. */
@@ -370,23 +383,25 @@ export function ChipsRow({
       itemToStringLabel={labelOf}
       autoHighlight
     >
-      <div className="pb-3">
-        <div className={ROW}>
-          <IconCell icon={icon} error={error} hint={hint} />
-          <RowLabel htmlFor={id}>{label}</RowLabel>
-          {suggestions.length > 0 && (
-            // A pointer's way to the list; the keyboard opens it from the input itself.
-            <ComboboxTrigger
-              aria-hidden="true"
-              tabIndex={-1}
-              className="ml-auto flex h-14 items-center"
-            />
-          )}
-        </div>
-        {/* Under the name, where its text starts, as wide as the row lets it be. */}
+      <div className="pb-3 has-[[data-slot=combobox-chip-input]:focus-visible]:bg-white/45">
+        {head ?? (
+          <div className={ROW}>
+            <IconCell icon={icon} error={error} hint={hint} />
+            <RowLabel htmlFor={id}>{label}</RowLabel>
+            {suggestions.length > 0 && (
+              // A pointer's way to the list; the keyboard opens it from the input itself.
+              <ComboboxTrigger
+                aria-hidden="true"
+                tabIndex={-1}
+                className="ml-auto flex h-14 items-center"
+              />
+            )}
+          </div>
+        )}
+        {/* Under the name, where its text starts, to the row's end, on the row's own glass. */}
         <ComboboxChips
           ref={anchor}
-          className="mr-[19px] ml-[69px] min-h-11 gap-1.5 rounded-2xl border-(--glass-edge) bg-white/40 px-1.5 py-1.5 shadow-none focus-within:border-(--glass-edge) focus-within:bg-white/60 focus-within:ring-0 has-data-[slot=combobox-chip]:px-1.5 dark:bg-transparent"
+          className="mr-6 ml-[69px] min-h-8 gap-1.5 rounded-none border-0 bg-transparent p-0 shadow-none focus-within:ring-0 has-data-[slot=combobox-chip]:px-0 dark:bg-transparent"
         >
           <ComboboxValue>
             {(picked: string[]) =>
@@ -404,10 +419,11 @@ export function ChipsRow({
           </ComboboxValue>
           <ComboboxChipsInput
             id={id}
+            {...(head ? { "aria-label": inputLabel ?? label } : {})}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-error` : undefined}
             placeholder={values.length === 0 ? placeholder : undefined}
-            className="h-7 min-w-24 flex-1 bg-transparent px-1.5 text-base placeholder:text-muted-foreground"
+            className="h-7 min-w-24 flex-1 bg-transparent text-base placeholder:text-muted-foreground"
             onKeyDown={(event) => {
               if (event.key !== ",") return;
               event.preventDefault();
@@ -494,14 +510,7 @@ export function NoteRow({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        ROW,
-        "flex-wrap gap-y-2 pr-[11px]",
-        tone === "warning" && "text-warning",
-        className,
-      )}
-    >
+    <div className={cn(ROW, "flex-wrap gap-y-2", tone === "warning" && "text-warning", className)}>
       <IconCell icon={icon} hint={hint} />
       <div className="min-w-0 flex-1 py-3.5 pr-4 pl-1.5 text-base leading-snug">{children}</div>
       {action && <div className="ml-auto flex flex-wrap gap-2 py-2">{action}</div>}
@@ -537,7 +546,7 @@ export function FooterRow({ children, className }: { children: ReactNode; classN
   return (
     <div
       className={cn(
-        "flex min-h-[calc(--spacing(18)+1px)] flex-wrap items-center gap-3 border-t border-t-(--glass-edge) py-2 pr-[7px] pl-6",
+        "flex flex-wrap items-center gap-3 border-t border-t-(--glass-edge) p-6",
         className,
       )}
     >
@@ -567,7 +576,9 @@ export function PanelButton({
       className={cn(PRIMARY_BUTTON, "relative", className)}
       {...rest}
     >
-      <span className={cn(pending && "invisible")}>{children}</span>
+      <span className={cn("inline-flex items-center gap-2", pending && "invisible")}>
+        {children}
+      </span>
       {pending && <Spinner aria-hidden="true" className="absolute size-6" />}
     </Button>
   );

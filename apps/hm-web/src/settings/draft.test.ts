@@ -92,6 +92,7 @@ describe("settingsFromDraft", () => {
         jellyfinMediaRoot: " ",
         sameMachine: false,
         connections: "four",
+        audioMode: "some",
         audioLangs: "spanish",
         skipPlayers: "https://player.example/",
         contactEmail: "nope",

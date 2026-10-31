@@ -107,7 +107,10 @@ describe("SettingsScreen", () => {
     expect(screen.getByText("player.example")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Quitar other.example" }));
 
-    await user.type(screen.getByLabelText("Idiomas de audio"), "jap");
+    // "All" is a choice of its own; only these languages opens the chips under it.
+    await user.click(screen.getByRole("combobox", { name: "Idiomas de audio" }));
+    await user.click(await screen.findByRole("option", { name: "Solo estos idiomas" }));
+    await user.type(screen.getByLabelText("Idiomas de audio: Solo estos idiomas"), "jap");
     await user.click(await screen.findByRole("option", { name: /Japonés/ }));
     await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
 

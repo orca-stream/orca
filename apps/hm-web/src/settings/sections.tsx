@@ -147,27 +147,49 @@ const languageOf = (text: string): string | null => {
   return LANGUAGE_CODE_PATTERN.test(code) ? code : null;
 };
 
-/** Languages as chips, the usual ones offered as they are typed, named in the panel's language. */
-function LanguagesRow({
+/**
+ * A track's languages: a list says "all" (or "none") or "only these", and only these opens the chips
+ * right under it, in the same row, the usual languages offered as they are typed.
+ */
+function LanguagesRow<Mode extends string>({
   field,
   draft,
   set,
   errors,
   icon,
   label,
-  placeholder,
   hint,
+  mode,
+  modes,
+  onMode,
 }: SectionProps & {
   field: "audioLangs" | "subtitleLangs";
   icon: IconSvgElement;
   label: string;
-  placeholder: string;
   hint: string;
+  mode: Mode;
+  /** Each choice and its name; "some" is the one that opens the chips. */
+  modes: { value: Mode; label: string }[];
+  onMode: (mode: Mode) => void;
 }) {
   const t = useT();
   const problem = errors[field];
+  const select = (
+    <SelectRow
+      icon={icon}
+      label={label}
+      hint={hint}
+      error={problem ? t.settings.errors[problem] : undefined}
+      value={mode}
+      onChange={(next) => onMode(next as Mode)}
+      options={modes}
+    />
+  );
+  if (mode !== "some") return select;
   return (
     <ChipsRow
+      head={select}
+      inputLabel={`${label}: ${modes.find((each) => each.value === mode)?.label ?? ""}`}
       icon={icon}
       label={label}
       values={valuesOf(draft[field])}
@@ -177,17 +199,18 @@ function LanguagesRow({
       normalize={languageOf}
       suggestions={COMMON_LANGUAGES}
       labelOf={(code) => t.series.detail.languages[code] ?? code}
-      placeholder={placeholder}
-      hint={hint}
-      error={problem ? t.settings.errors[problem] : undefined}
+      placeholder={t.settings.fields.languagesPlaceholder}
       add={t.settings.fields.add}
       remove={t.settings.fields.remove}
     />
   );
 }
 
-/** The bar's inputs drop to a smaller size on wide screens; the sign-in keeps the rows' size. */
-const SAME_TEXT = "md:[&_input]:text-base";
+/**
+ * The bar's inputs drop to a smaller size on wide screens, and its icons sit a pixel further in; the
+ * sign-in keeps the rows' text size and their icons' 24px from the edge.
+ */
+const SAME_TEXT = "md:[&_input]:text-base [&>[data-slot=input-group-addon]]:pl-[5px]";
 
 function connectError(error: unknown, t: Messages): string {
   if (error instanceof ApiError) {
@@ -265,7 +288,6 @@ export function JellyfinSection({
       {!editing ? (
         <NoteRow
           icon={CheckmarkCircle02Icon}
-          className="pr-[7px]"
           action={
             <Button variant="outline" className={PRIMARY_BUTTON} onClick={() => setEditing(true)}>
               {t.settings.jellyfin.change}
@@ -471,11 +493,9 @@ export function ExtractorsSection({
   const some = names !== null && names.length > 0;
   return (
     <Group title={t.settings.extractors.title}>
-      {/* Its big buttons line up with the panel's own, below. */}
       <NoteRow
         icon={FileAttachmentIcon}
         hint={t.settings.hints.extractors}
-        className="pr-[7px]"
         action={
           <>
             <input
@@ -609,29 +629,26 @@ export function TracksSection(props: SectionProps) {
         icon={VolumeHighIcon}
         label={t.settings.tracks.audio}
         hint={t.settings.hints.audio}
-        placeholder={t.settings.tracks.audioPlaceholder}
+        mode={draft.audioMode}
+        modes={(["all", "some"] as const).map((mode) => ({
+          value: mode,
+          label: t.settings.tracks.audioModes[mode],
+        }))}
+        onMode={(audioMode) => set({ audioMode })}
       />
-      <SelectRow
+      <LanguagesRow
+        {...props}
+        field="subtitleLangs"
         icon={SubtitleIcon}
         label={t.settings.tracks.subtitles}
         hint={t.settings.hints.subtitles}
-        value={draft.subtitleMode}
-        onChange={(mode) => set({ subtitleMode: mode as Draft["subtitleMode"] })}
-        options={(["all", "none", "some"] as const).map((mode) => ({
+        mode={draft.subtitleMode}
+        modes={(["all", "none", "some"] as const).map((mode) => ({
           value: mode,
           label: t.settings.tracks.subtitleModes[mode],
         }))}
+        onMode={(subtitleMode) => set({ subtitleMode })}
       />
-      {draft.subtitleMode === "some" && (
-        <LanguagesRow
-          {...props}
-          field="subtitleLangs"
-          icon={SubtitleIcon}
-          label={t.settings.tracks.subtitleLangs}
-          hint={t.settings.hints.subtitleLangs}
-          placeholder={t.settings.fields.subtitlesPlaceholder}
-        />
-      )}
       {draft.subtitleMode !== "none" && (
         <ToggleRow
           icon={Film01Icon}

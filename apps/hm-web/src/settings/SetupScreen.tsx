@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Key01Icon } from "@hugeicons/core-free-icons";
+import { ArrowRight01Icon, ConnectIcon, Key01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useLocation } from "wouter";
 import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
@@ -77,6 +78,7 @@ function CodeStep({ onValid }: { onValid: (code: string) => void }) {
       <FooterRow className="justify-end">
         <PanelButton type="submit" disabled={code.trim() === ""} pending={state === "checking"}>
           {t.setup.next}
+          <HugeiconsIcon icon={ArrowRight01Icon} className="size-5" />
         </PanelButton>
       </FooterRow>
     </form>
@@ -168,7 +170,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
     <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
       <Panel>
-        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-6">
           {/* "Set up" and the logotype as one title, read as "Set up ORCA'H&M". */}
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
             {t.setup.title}
@@ -202,10 +204,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
               onConnected={(connection, signIn) => {
                 setLibraries(connection.libraries);
                 setCredentials(signIn);
-                // With a single folder there is nothing to pick: straight on. With several, or none,
-                // the folder is shown to pick or type.
-                const folders = connection.libraries.flatMap((library) => library.locations);
-                if (folders.length === 1) setStep(steps[index + 1]!);
+                // The folder shows up under it, so it is seen before going on.
               }}
             />
             {canLeaveJellyfin && (
@@ -228,7 +227,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
         )}
 
         {(finish.isError || login.isError) && (
-          <div className="flex flex-col gap-1 border-t border-t-(--glass-edge) px-6 py-4 sm:px-8">
+          <div className="flex flex-col gap-1 border-t border-t-(--glass-edge) px-6 py-4">
             <p role="alert" className="text-sm text-warning">
               {t.setup.failed}
             </p>
@@ -236,7 +235,8 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
           </div>
         )}
         {step !== "code" && (
-          <FooterRow className="justify-between pl-[7px]">
+          // Back's text, not its round, starts 24px in, as everything else does.
+          <FooterRow className="justify-between pl-0">
             {index > 0 && steps[index - 1] !== "code" ? (
               <Button
                 variant="ghost"
@@ -251,6 +251,7 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
             {step === "downloads" ? (
               <PanelButton onClick={submit} pending={finish.isPending || login.isPending}>
                 {t.setup.finish}
+                <HugeiconsIcon icon={Tick02Icon} className="size-5" />
               </PanelButton>
             ) : connecting ? (
               <PanelButton
@@ -259,16 +260,14 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
                 disabled={!jellyfinForm.ready}
                 pending={jellyfinForm.pending}
               >
-                {t.settings.jellyfin.connectAndGo}
+                <HugeiconsIcon icon={ConnectIcon} className="size-5" />
+                {t.settings.jellyfin.connect}
               </PanelButton>
             ) : (
-              <Button
-                className={PRIMARY_BUTTON}
-                onClick={goNext}
-                disabled={step === "jellyfin" && !canLeaveJellyfin}
-              >
+              <PanelButton onClick={goNext} disabled={step === "jellyfin" && !canLeaveJellyfin}>
                 {t.setup.next}
-              </Button>
+                <HugeiconsIcon icon={ArrowRight01Icon} className="size-5" />
+              </PanelButton>
             )}
           </FooterRow>
         )}

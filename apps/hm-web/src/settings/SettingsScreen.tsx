@@ -129,7 +129,7 @@ export function SettingsScreen() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-10">
       <Panel className="overflow-visible">
-        <header className="px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+        <header className="p-6">
           <h1 className="text-2xl font-semibold tracking-tight">{t.settings.title}</h1>
         </header>
         {settings.isError ? (
