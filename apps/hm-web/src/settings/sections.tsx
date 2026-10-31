@@ -42,6 +42,7 @@ import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
+import { cn } from "@/lib/utils";
 import { BarField } from "@/series/bar";
 import { useConnectJellyfin } from "./api";
 import { extractorNames, type Draft, type DraftErrors, type DraftField } from "./draft";
@@ -80,6 +81,9 @@ function DraftRow({
     />
   );
 }
+
+/** The bar's inputs drop to a smaller size on wide screens; the sign-in keeps the address's. */
+const SAME_TEXT = "md:[&_input]:text-base";
 
 function connectError(error: unknown, t: Messages): string {
   if (error instanceof ApiError) {
@@ -184,6 +188,7 @@ export function JellyfinSection({
           <div className="grid sm:grid-cols-2">
             <BarField
               icon={UserIcon}
+              className={SAME_TEXT}
               label={t.settings.jellyfin.username}
               placeholder={t.settings.jellyfin.username}
               autoComplete="username"
@@ -198,7 +203,10 @@ export function JellyfinSection({
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="border-t border-t-(--glass-edge) sm:border-t-0 sm:border-l sm:border-l-(--glass-edge)"
+              className={cn(
+                SAME_TEXT,
+                "border-t border-t-(--glass-edge) sm:border-t-0 sm:border-l sm:border-l-(--glass-edge)",
+              )}
             />
           </div>
           {/* An error, or the section's own button; the setup's button is the panel's. */}
