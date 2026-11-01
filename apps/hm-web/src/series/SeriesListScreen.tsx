@@ -1,4 +1,4 @@
-import type { SeriesDto } from "@orca/hm-contract";
+import type { ExtractorDto, SeriesDto } from "@orca/hm-contract";
 import { useQuery } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -6,6 +6,7 @@ import {
   ArrowUpRight01Icon,
   Cancel01Icon,
   Home01Icon,
+  Link01Icon,
   Search01Icon,
   Tv01Icon,
 } from "@hugeicons/core-free-icons";
@@ -14,6 +15,7 @@ import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
 import { Dock, DockButton, DockExtractors, DockLink, DockSeparator } from "@/components/dock";
 import { Loading } from "@/components/loading";
+import { ExtractorMark } from "@/extractors/ExtractorMark";
 import {
   CENTRED_TILE_GRID,
   FILL_TILE_GRID,
@@ -28,8 +30,8 @@ import { cn } from "@/lib/utils";
 import { AiringChip } from "./AiringChip";
 import { airingHint } from "./airing";
 
-/** The chips in a tile's top right corner, the way an extractor's sites sit on home. */
-const CHIP = "rounded-full px-2.5 py-0.5 text-xs font-medium ring-1";
+/** The chips along a tile's top edge, all 24px tall: the open sources' pill sets it with its marks. */
+const CHIP = "flex h-6 items-center rounded-full px-2.5 text-xs font-medium ring-1";
 
 /**
  * What TMDB tells of a series for its card (the same cached lookup its page asks for): the cover,
@@ -45,6 +47,61 @@ function useShow(series: SeriesDto) {
     hint: airingHint(series.follow, show?.status ?? null),
     nextEpisode: show?.nextEpisode ?? null,
   };
+}
+
+/**
+ * The sources a series is still read from (the closed ones left out), as a chip in the card's top
+ * left corner: each site's mark once, overlapping, and how many there are. Which, on hover.
+ */
+function OpenSources({ series }: { series: SeriesDto }) {
+  const t = useT();
+  const api = useApi();
+  const extractors = useQuery(queries.extractors(api));
+  const open = series.sources.filter((source) => !source.closed);
+  if (open.length === 0) return null;
+
+  const sites = new Map<string, { extractor: ExtractorDto | null; count: number }>();
+  for (const source of open) {
+    const site = sites.get(source.extractorId);
+    if (site) site.count += 1;
+    else {
+      const extractor = extractors.data?.find((one) => one.id === source.extractorId) ?? null;
+      sites.set(source.extractorId, { extractor, count: 1 });
+    }
+  }
+  const label = t.series.openSources(open.length);
+  const lines = [...sites.entries()].map(
+    ([id, { extractor, count }]) => `${extractor?.name ?? id} · ${count}`,
+  );
+
+  return (
+    <span
+      title={[label, ...lines].join("\n")}
+      className="flex h-6 shrink-0 items-center gap-1.5 rounded-full bg-white/80 pr-2.5 pl-0.5 text-xs font-medium text-foreground/80 tabular-nums ring-1 ring-black/5"
+    >
+      <span className="sr-only">{label}</span>
+      <span aria-hidden="true" className="flex -space-x-1.5">
+        {[...sites.entries()].map(([id, { extractor }]) =>
+          extractor ? (
+            <ExtractorMark
+              key={id}
+              extractor={extractor}
+              className="size-5 rounded-full ring-white"
+              iconClassName="size-3"
+            />
+          ) : (
+            <span
+              key={id}
+              className="flex size-5 items-center justify-center rounded-full bg-black/10 ring-1 ring-white"
+            >
+              <HugeiconsIcon icon={Link01Icon} className="size-3" />
+            </span>
+          ),
+        )}
+      </span>
+      <span aria-hidden="true">{open.length}</span>
+    </span>
+  );
 }
 
 /**
@@ -72,24 +129,27 @@ function SeriesTile({ series }: { series: SeriesDto }) {
           />
         </>
       )}
-      {(series.follow || hint || downloading > 0) && (
-        <p className="absolute inset-x-4 top-4 z-10 flex flex-wrap justify-end gap-1.5 sm:inset-x-5 sm:top-5">
-          {hint ? (
-            <AiringChip hint={hint} nextEpisode={nextEpisode} className="py-0.5 pl-2 pr-2.5" />
-          ) : (
-            series.follow && (
-              <span className={cn(CHIP, "bg-white/80 text-foreground/80 ring-black/5")}>
-                {t.series.following}
+      <div className="absolute inset-x-4 top-4 z-10 flex items-start gap-1.5 sm:inset-x-5 sm:top-5">
+        <OpenSources series={series} />
+        {(series.follow || hint || downloading > 0) && (
+          <p className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
+            {hint ? (
+              <AiringChip hint={hint} nextEpisode={nextEpisode} className="h-6 py-0 pl-2 pr-2.5" />
+            ) : (
+              series.follow && (
+                <span className={cn(CHIP, "bg-white/80 text-foreground/80 ring-black/5")}>
+                  {t.series.following}
+                </span>
+              )
+            )}
+            {downloading > 0 && (
+              <span className={cn(CHIP, "bg-primary text-primary-foreground ring-primary/20")}>
+                {t.series.downloading(downloading)}
               </span>
-            )
-          )}
-          {downloading > 0 && (
-            <span className={cn(CHIP, "bg-primary text-primary-foreground ring-primary/20")}>
-              {t.series.downloading(downloading)}
-            </span>
-          )}
-        </p>
-      )}
+            )}
+          </p>
+        )}
+      </div>
       <div className="relative flex flex-1 items-center justify-center">
         {!cover && (
           <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
