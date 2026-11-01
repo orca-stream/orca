@@ -1,6 +1,6 @@
 import type { GuideEpisodeDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
-import { agrees, localToday, matchTmdb, numberRanges } from "./tmdb-match";
+import { absentSeasons, agrees, localToday, matchTmdb, numberRanges } from "./tmdb-match";
 
 const tmdb = (number: number, airDate: string | null = "2011-07-11"): GuideEpisodeDto => ({
   number,
@@ -23,7 +23,15 @@ describe("matchTmdb", () => {
       new Set(),
       "2026-10-31",
     );
-    expect(match).toEqual({ season: 3, site: 26, tmdb: 26, extra: [], missing: [], upcoming: [] });
+    expect(match).toEqual({
+      season: 3,
+      site: 26,
+      tmdb: 26,
+      extra: [],
+      missing: [],
+      upcoming: [],
+      covered: [],
+    });
     expect(agrees(match!)).toBe(true);
   });
 
@@ -46,6 +54,8 @@ describe("matchTmdb", () => {
       "2026-10-31",
     );
     expect(match?.missing).toEqual([]);
+    // Said apart, so "14 on the site, 26 on TMDB" still reads as agreeing.
+    expect(match?.covered).toEqual(range(1, 13));
   });
 
   it("keeps what hasn't aired apart from what is missing", () => {
@@ -67,7 +77,7 @@ describe("matchTmdb", () => {
       "2026-10-31",
     );
     expect(matches).toEqual([
-      { season: 11, site: 2, tmdb: 0, extra: [1, 2], missing: [], upcoming: [] },
+      { season: 11, site: 2, tmdb: 0, extra: [1, 2], missing: [], upcoming: [], covered: [] },
     ]);
   });
 });
@@ -82,5 +92,19 @@ describe("numberRanges", () => {
   it("joins runs of numbers into ranges", () => {
     expect(numberRanges([9, 5, 6, 7, 12, 13])).toBe("E05–E07, E09, E12–E13");
     expect(numberRanges([])).toBe("");
+  });
+});
+
+describe("absentSeasons", () => {
+  const season = (number: number, year: number | null = 2005, episodeCount = 10) => ({
+    number,
+    name: `Season ${number}`,
+    episodeCount,
+    year,
+  });
+
+  it("gives the aired seasons the series has nothing of, specials and empty ones aside", () => {
+    const guide = [season(0), season(1), season(2), season(3), season(4, null), season(5, 2026, 0)];
+    expect(absentSeasons(guide, new Set([1])).map((s) => s.number)).toEqual([2, 3]);
   });
 });

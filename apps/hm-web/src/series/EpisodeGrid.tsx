@@ -249,6 +249,11 @@ function TmdbMatch({ matches }: { matches: SeasonMatch[] }) {
                   {t.add.tmdbUpcoming(numberRanges(match.upcoming))}
                 </span>
               )}
+              {match.covered.length > 0 && (
+                <span className="block pl-5.5 text-muted-foreground">
+                  {t.add.tmdbCovered(numberRanges(match.covered))}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -488,21 +493,25 @@ function EpisodeCard({
 
 /**
  * An episode TMDB lists that the address doesn't bring, in the place it would land: its frame
- * faded behind a dashed rim, with nothing to pick.
+ * faded behind a dashed rim, with nothing to pick. A series' grid says it of all its sources, with
+ * its own words for an aired one.
  */
-function GapCard({
+export function GapCard({
   code,
   aired,
   tmdb,
+  missing,
 }: {
   code: string;
   aired: boolean;
   tmdb: GuideEpisodeDto | null;
+  /** The chip and the hint of an aired one, when not the address's. */
+  missing?: { label: string; hint: string };
 }) {
   const t = useT();
   const locale = useLocale();
   const { src: still, onError: onStillError } = useRetryingImage(tmdb?.stillUrl);
-  const hint = aired ? t.add.notOnSiteHint(code) : t.add.notAiredHint(code);
+  const hint = aired ? (missing?.hint ?? t.add.notOnSiteHint(code)) : t.add.notAiredHint(code);
   const details = [
     tmdb?.airDate ? formatDate(tmdb.airDate, locale) : null,
     tmdb?.runtimeMin ? t.add.minutes(tmdb.runtimeMin) : null,
@@ -534,7 +543,7 @@ function GapCard({
             className={cn(CHIP, aired ? "bg-warning/90 text-white" : "bg-white/90 text-foreground")}
           >
             <HugeiconsIcon icon={aired ? Alert02Icon : Clock01Icon} className="size-3.5" />
-            {aired ? t.add.notOnSite : t.add.notAired}
+            {aired ? (missing?.label ?? t.add.notOnSite) : t.add.notAired}
           </span>
         </div>
       </div>

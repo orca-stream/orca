@@ -1,4 +1,4 @@
-import type { EpisodeDto, GuideEpisodeDto } from "@orca/hm-contract";
+import type { EpisodeDto, GuideEpisodeDto, GuideSeasonDto } from "@orca/hm-contract";
 import { useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Spinner } from "@/components/ui/spinner";
 import { formatBytes, formatDate, formatDuration } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
@@ -26,8 +27,10 @@ import { useRetryingImage } from "@/lib/retrying-image";
 import { cn } from "@/lib/utils";
 import { BAR_POPUP, GLASS_PANEL, ISLAND, PILL_BUTTON, PRIMARY, SECONDARY } from "./bar";
 import { downloadFraction, downloadLine } from "./download-line";
+import { GapCard } from "./EpisodeGrid";
 import { episodeCode, guideKey } from "./preview-form";
 import { isSelectable, seasonState, type SeasonGroup } from "./selection";
+import { localToday, matchTmdb, numberRanges, type SeasonMatch } from "./tmdb-match";
 
 /** The glass every chip over a frame is made of: dark, so it reads on any picture. */
 const CHIP =
@@ -76,6 +79,10 @@ interface SeriesEpisodesProps {
   selection: ReadonlySet<string>;
   /** TMDB's episodes by `guideKey`, where they are known: the frame, the name, the synopsis. */
   guide: ReadonlyMap<string, GuideEpisodeDto>;
+  /** TMDB's whole list of each season the series has, where known: what no source brings. */
+  guideSeasons?: ReadonlyMap<number, readonly GuideEpisodeDto[]>;
+  /** The seasons TMDB has as aired that no source brings anything of. */
+  absentSeasons?: readonly GuideSeasonDto[];
   missingCount: number;
   busy: "selected" | "missing" | null;
   failed: boolean;
@@ -99,6 +106,8 @@ export function SeriesEpisodes({
   paused = false,
   selection,
   guide,
+  guideSeasons = new Map(),
+  absentSeasons = [],
   missingCount,
   busy,
   failed,
@@ -115,6 +124,26 @@ export function SeriesEpisodes({
   const group = groups.find((g) => g.season === chosen) ?? groups[0];
   const titleOf = (season: number) => (season === 0 ? t.series.specials : t.series.season(season));
   const seasonPicked = group ? seasonState(selection, episodes, group.season) : "none";
+  // What TMDB lists for the seasons the series has and no source brought: aired, or still to air.
+  const matches = matchTmdb(episodes, guideSeasons, new Set(), localToday());
+  const gapsOf = (season: number) => matches.find((match) => match.season === season);
+  const absent = matches.filter((match) => match.missing.length > 0);
+  // The season's episodes and its gaps together, in number order.
+  const shown = group ? gapsOf(group.season) : undefined;
+  const cells: Cell[] = group
+    ? [
+        ...group.episodes.map((episode) => ({
+          kind: "episode" as const,
+          episode,
+          number: episode.episode,
+        })),
+        ...[...(shown?.missing ?? []), ...(shown?.upcoming ?? [])].map((number) => ({
+          kind: "gap" as const,
+          number,
+          aired: shown?.missing.includes(number) ?? false,
+        })),
+      ].sort((a, b) => a.number - b.number)
+    : [];
 
   return (
     // One panel, as adding a series shows its episodes: the header and the selection's bar float
@@ -158,6 +187,9 @@ export function SeriesEpisodes({
             </SelectContent>
           </Select>
         )}
+        {(absent.length > 0 || absentSeasons.length > 0) && (
+          <Gaps matches={absent} seasons={absentSeasons} onPick={(season) => setChosen(season)} />
+        )}
         <button
           type="button"
           disabled={missingCount === 0 || busy !== null}
@@ -183,19 +215,35 @@ export function SeriesEpisodes({
         // No gap: the grid's 8px plus each card's own 8px make the panel's 16px, to its edge and between frames.
         <section aria-label={titleOf(group.season)} className="px-2 pt-2 pb-2">
           <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))]">
-            {group.episodes.map((episode) => (
-              <li key={episode.id}>
-                <EpisodeCard
-                  episode={episode}
-                  picked={selection.has(episode.id)}
-                  paused={paused}
-                  tmdb={guide.get(guideKey(episode.season, episode.episode)) ?? null}
-                  onToggle={() => onToggle(episode.id)}
-                  onRetry={() => onRetry(episode.id)}
-                  retrying={retryingId === episode.id}
-                />
-              </li>
-            ))}
+            {cells.map((cell) => {
+              if (cell.kind === "gap") {
+                const code = episodeCode(group.season, cell.number);
+                return (
+                  <li key={`gap:${code}`}>
+                    <GapCard
+                      code={code}
+                      aired={cell.aired}
+                      tmdb={guide.get(guideKey(group.season, cell.number)) ?? null}
+                      missing={{ label: t.series.gapLabel, hint: t.series.gapHint(code) }}
+                    />
+                  </li>
+                );
+              }
+              const { episode } = cell;
+              return (
+                <li key={episode.id}>
+                  <EpisodeCard
+                    episode={episode}
+                    picked={selection.has(episode.id)}
+                    paused={paused}
+                    tmdb={guide.get(guideKey(episode.season, episode.episode)) ?? null}
+                    onToggle={() => onToggle(episode.id)}
+                    onRetry={() => onRetry(episode.id)}
+                    retrying={retryingId === episode.id}
+                  />
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -239,6 +287,79 @@ export function SeriesEpisodes({
         </div>
       )}
     </section>
+  );
+}
+
+/** A cell of a season's grid: one of its episodes, or one TMDB lists that no source brings. */
+type Cell =
+  | { kind: "episode"; episode: EpisodeDto; number: number }
+  | { kind: "gap"; number: number; aired: boolean };
+
+/**
+ * What TMDB lists as aired and no source brings, as an amber sign in the header: the episodes of
+ * each season on hover, and a season's row shows that season.
+ */
+function Gaps({
+  matches,
+  seasons,
+  onPick,
+}: {
+  matches: SeasonMatch[];
+  /** Whole seasons no source brings, after the episodes missing from the ones it does. */
+  seasons: readonly GuideSeasonDto[];
+  onPick: (season: number) => void;
+}) {
+  const t = useT();
+  const count =
+    matches.reduce((sum, match) => sum + match.missing.length, 0) +
+    seasons.reduce((sum, season) => sum + season.episodeCount, 0);
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        delay={0}
+        closeDelay={100}
+        render={<span />}
+        className="flex h-8 cursor-help items-center gap-1.5 rounded-full bg-warning/12 px-2.5 text-xs font-medium text-warning"
+      >
+        <HugeiconsIcon icon={Alert02Icon} className="size-4" />
+        {t.series.gaps(count)}
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="bottom"
+        sideOffset={8}
+        className="w-80 rounded-2xl border border-(--glass-edge) bg-(--glass-strong) p-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]"
+      >
+        <p className="px-2 pt-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {t.series.gapsTitle}
+        </p>
+        <ul className="flex flex-col">
+          {matches.map((match) => (
+            <li key={match.season}>
+              <button
+                type="button"
+                onClick={() => onPick(match.season)}
+                className="w-full rounded-xl px-2 py-1.5 text-left tabular-nums transition-colors hover:bg-white/60 focus-visible:bg-white/60 focus-visible:outline-none"
+              >
+                {t.series.gapsSeason(match.season, numberRanges(match.missing))}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {seasons.length > 0 && (
+          <p className="px-2 pt-1.5 pb-2">
+            <span className="block tabular-nums">
+              {t.series.gapsSeasons(
+                numberRanges(
+                  seasons.map((season) => season.number),
+                  (n) => String(n),
+                ),
+              )}
+            </span>
+            <span className="block text-xs text-muted-foreground">{t.series.gapsSeasonsHint}</span>
+          </p>
+        )}
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

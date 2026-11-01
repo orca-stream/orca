@@ -14,7 +14,7 @@ series whose whole background is its cover (TMDB's, by its id, when the server h
 towards the bottom under its name, year and how many episodes are here (`24/24`). On a series' own screen, the **+** button by its addresses opens
 adding a series with that one already chosen as "Add to" (`/series/new?into=<id>`): another season,
 or the part a site is missing. With two or more addresses they fold under a header that counts them
-(and how many are closed); its arrow unfolds them all. Each address says which season and which episodes it brought (`Season 1, episodes 25 to 37`), and has a padlock that closes or
+(and how many are closed); its arrow unfolds them all, in a list that scrolls on its own past four and a half rows. Each address says which season and which episodes it brought (`Season 1, episodes 25 to 37`), and the numbers it skips in between (`Season 3, episodes 1 to 25, without E23` — often TMDB's own numbering, where a double episode takes two numbers), and has a padlock that closes or
 reopens it: a closed source (a finished season) is no longer read when the series looks for new
 episodes.
 
@@ -70,13 +70,21 @@ and will next be searched for new episodes, with **Search now**, following and t
 searches, the TMDB and IMDb ids, the maximum video height, and the audio and subtitle languages picked
 from a list (none picked keeps every track; subtitles can also be **No subtitles**; the first audio
 language picked is the original). Changes save themselves as they are made; only a
-failure shows, with **Retry**. On the right, one panel holds the header, the episodes as a grid of frames one season at a time (a
+failure shows, with **Retry**. A followed series also finds the seasons its site adds: each search
+asks the site which seasons the show has (sites that read a show through its API) and adds each one after
+the last its sources read as a source of its own — whichever order the site uploads them in, and with a
+TMDB key only seasons TMDB has — queues its episodes and closes the source before. Only where the site
+numbers seasons as the series does. On the right, one panel holds the header, the episodes as a grid of frames one season at a time (a
 button per season when there is more than one): each says whether it is available, queued, downloading
 (with its progress), missing or failed (with **Retry**). **Download the missing ones** queues every
 missing or failed episode. Picking episodes (the round button or the whole card) brings up, at the
 panel's foot, a bar with
 **Select all** (or the season), **Clear selection** and **Download (n)**. With a TMDB
-id, TMDB's backdrop fills the background and its frames and names fill the cards.
+id, TMDB's backdrop fills the background and its frames and names fill the cards. An episode TMDB lists
+for a season the series has and no source brings shows as a faded card with a dashed rim in its place
+(**In no source** when it has aired, **Not aired** when not), and the header shows an amber **n missing**
+that lists them by season on hover; a season's row there shows that season. Whole seasons TMDB has as
+aired and no source brings are listed there too, and counted in it.
 
 It has no backend of its own: it always talks to an H&M server on the **same origin**, under `/api`.
 Sign in with a **Jellyfin administrator** account of the Jellyfin that server uses.

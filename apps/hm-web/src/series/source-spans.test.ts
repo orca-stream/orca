@@ -12,10 +12,17 @@ describe("sourceSpans", () => {
       makeEpisode({ sourceId: "b", season: 1, episode: 30 }),
     ];
     expect(sourceSpans(episodes, "b")).toEqual([
-      { season: 1, from: 25, to: 37 },
-      { season: 2, from: 3, to: 3 },
+      { season: 1, from: 25, to: 37, gaps: [26, 27, 28, 29, 31, 32, 33, 34, 35, 36] },
+      { season: 2, from: 3, to: 3, gaps: [] },
     ]);
-    expect(sourceSpans(episodes, "a")).toEqual([{ season: 1, from: 1, to: 1 }]);
+    expect(sourceSpans(episodes, "a")).toEqual([{ season: 1, from: 1, to: 1, gaps: [] }]);
+  });
+
+  it("names the numbers a season skips, as TMDB does when it merges a double episode", () => {
+    const episodes = [21, 22, 24, 25].map((episode) =>
+      makeEpisode({ sourceId: "a", season: 3, episode }),
+    );
+    expect(sourceSpans(episodes, "a")).toEqual([{ season: 3, from: 21, to: 25, gaps: [23] }]);
   });
 
   it("is empty for a source with no episodes of its own", () => {

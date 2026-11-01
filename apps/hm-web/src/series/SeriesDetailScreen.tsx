@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { GLASS_PANEL } from "./bar";
 import { PosterImage } from "./Poster";
 import { guideKey } from "./preview-form";
+import { absentSeasons } from "./tmdb-match";
 import { AiringChip } from "./AiringChip";
 import { airingHint } from "./airing";
 import { SeriesEpisodes } from "./SeriesEpisodes";
@@ -226,6 +227,13 @@ export function SeriesDetailScreen() {
   const guideEpisodes = useQueries({
     queries: seasons.map((season) => queries.guideEpisodes(api, tmdbId, season, locale)),
   });
+  // Each season's whole list as TMDB has it, once known: what no source brings shows as a gap.
+  const guideBySeason = new Map(
+    seasons.flatMap((season, index) => {
+      const listed = guideEpisodes[index]?.data;
+      return listed ? [[season, listed] as const] : [];
+    }),
+  );
   const stills = new Map(
     seasons.flatMap((season, index) =>
       (guideEpisodes[index]?.data ?? []).map(
@@ -309,6 +317,11 @@ export function SeriesDetailScreen() {
         paused={data.paused}
         selection={selection}
         guide={stills}
+        guideSeasons={guideBySeason}
+        absentSeasons={absentSeasons(
+          guide.data ?? [],
+          new Set(episodes.map((episode) => episode.season)),
+        )}
         missingCount={missing.length}
         busy={bulk}
         failed={enqueue.isError}

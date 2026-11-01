@@ -1,4 +1,4 @@
-import type { GuideEpisodeDto } from "@orca/hm-contract";
+import type { GuideEpisodeDto, GuideSeasonDto } from "@orca/hm-contract";
 import { episodeCode } from "./preview-form";
 
 /** How the episodes an address lands in a season compare with what TMDB lists for it. */
@@ -14,6 +14,8 @@ export interface SeasonMatch {
   missing: number[];
   /** Numbers TMDB lists without having aired yet (or with no date), and nothing covers. */
   upcoming: number[];
+  /** Numbers TMDB lists that the address lacks but the series already has. */
+  covered: number[];
 }
 
 /**
@@ -50,8 +52,31 @@ export function matchTmdb(
       extra: [...numbers].filter((number) => !known.has(number)).sort((a, b) => a - b),
       missing: uncovered.filter(aired).map((episode) => episode.number),
       upcoming: uncovered.filter((episode) => !aired(episode)).map((episode) => episode.number),
+      covered: listed
+        .filter(
+          (episode) =>
+            !numbers.has(episode.number) && covered.has(episodeCode(season, episode.number)),
+        )
+        .map((episode) => episode.number),
     };
   });
+}
+
+/**
+ * The seasons TMDB has as aired (with a year and episodes, specials aside) that the series has
+ * nothing of: no source brings them.
+ */
+export function absentSeasons(
+  guide: readonly GuideSeasonDto[],
+  have: ReadonlySet<number>,
+): GuideSeasonDto[] {
+  return guide.filter(
+    (season) =>
+      season.number > 0 &&
+      season.year !== null &&
+      season.episodeCount > 0 &&
+      !have.has(season.number),
+  );
 }
 
 /** Whether a season's address and TMDB agree: nothing extra and nothing aired left out. */
@@ -64,10 +89,12 @@ export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-/** Episode numbers as short ranges: `E05–E07, E09`. */
-export function numberRanges(numbers: readonly number[]): string {
+/** Episode numbers as short ranges: `E05–E07, E09`; or with another way to write each. */
+export function numberRanges(
+  numbers: readonly number[],
+  code = (n: number) => `E${String(n).padStart(2, "0")}`,
+): string {
   const sorted = [...new Set(numbers)].sort((a, b) => a - b);
-  const code = (n: number) => `E${String(n).padStart(2, "0")}`;
   const parts: string[] = [];
   for (let i = 0; i < sorted.length; i++) {
     const from = sorted[i]!;

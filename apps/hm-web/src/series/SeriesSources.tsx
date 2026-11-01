@@ -20,6 +20,7 @@ import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { addSourceHref } from "./add-source";
 import { sortBySpan, sourceSpans, type SourceSpan } from "./source-spans";
+import { numberRanges } from "./tmdb-match";
 
 type Source = SeriesDto["sources"][number];
 
@@ -129,7 +130,11 @@ function SourceRow({
   // Which season and which episodes it holds; until those are known, how it numbers them.
   const holds =
     spans.length > 0
-      ? spans.map((span) => t.series.detail.sourceSpan(span.season, span.from, span.to)).join(" · ")
+      ? spans
+          .map((span) =>
+            t.series.detail.sourceSpan(span.season, span.from, span.to, numberRanges(span.gaps)),
+          )
+          .join(" · ")
       : t.series.sourceNumbering(source.season, source.episodeOffset);
   return (
     <div
@@ -247,21 +252,22 @@ export function SeriesSources({ series }: { series: SeriesDto }) {
         </Collapsible.Trigger>
       </div>
 
-      <Collapsible.Panel
-        className={cn(
-          "h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none",
-          ROWS,
-        )}
-      >
-        {sorted.map((source) => (
-          <SourceRow
-            key={source.id}
-            seriesId={series.id}
-            source={source}
-            extractor={extractorOf(source)}
-            spans={spansOf(source)}
-          />
-        ))}
+      <Collapsible.Panel className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none">
+        {/* Four rows and a half at most, the half saying there is more: a long series scrolls here
+            rather than pushing the settings down. */}
+        <div
+          className={cn("max-h-82 overflow-y-auto overscroll-contain [scrollbar-width:thin]", ROWS)}
+        >
+          {sorted.map((source) => (
+            <SourceRow
+              key={source.id}
+              seriesId={series.id}
+              source={source}
+              extractor={extractorOf(source)}
+              spans={spansOf(source)}
+            />
+          ))}
+        </div>
       </Collapsible.Panel>
     </Collapsible.Root>
   );

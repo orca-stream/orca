@@ -14,7 +14,7 @@ por serie cuyo fondo entero es su carátula (la de TMDB, por su id, si el servid
 hacia abajo bajo su nombre, año y cuántos episodios hay (`24/24`). En la pantalla de una serie, el botón **+** junto a sus direcciones abre
 agregar una serie con esa ya elegida en «Añadir a» (`/series/new?into=<id>`): otra temporada, o la parte
 que a un sitio le falta. Con dos o más direcciones se pliegan bajo una cabecera que las cuenta (y cuántas
-están cerradas); su flecha las despliega todas. Cada dirección dice qué temporada y qué episodios trajo (`Temporada 1, episodios 25 al 37`), y tiene un candado que la cierra o la
+están cerradas); su flecha las despliega todas, en una lista con scroll propio a partir de cuatro filas y media. Cada dirección dice qué temporada y qué episodios trajo (`Temporada 1, episodios 25 al 37`) y los números que se salta entre medias (`Temporada 3, episodios 1 al 25, sin E23` — a menudo es la numeración de TMDB, que da dos números a un episodio doble), y tiene un candado que la cierra o la
 reabre: una fuente cerrada (una temporada terminada) deja de leerse al buscar episodios nuevos.
 
 Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
@@ -72,14 +72,22 @@ nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre bús
 IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
 elegir ninguno se guardan todas las pistas; en subtítulos también **Sin subtítulos**; el primer idioma
 de audio elegido es el original). Los cambios se guardan solos al hacerlos; solo
-un fallo se muestra, con **Reintentar**. A la derecha, un solo panel con la cabecera y los episodios en cuadrícula de fotogramas una
+un fallo se muestra, con **Reintentar**. Una serie que se sigue también encuentra las temporadas que
+su sitio añade: en cada búsqueda pregunta al sitio qué temporadas tiene la serie (los sitios que la leen
+por su API) y añade cada una posterior a la última que leen sus fuentes como fuente propia —en el orden
+en que el sitio las suba y, con clave de TMDB, solo temporadas que TMDB tiene—, pone en cola sus
+episodios y cierra la fuente anterior. Solo si el sitio numera las temporadas igual que la serie. A la derecha, un solo panel con la cabecera y los episodios en cuadrícula de fotogramas una
 temporada a la vez (un botón por temporada cuando hay más de una): cada uno dice si está disponible, en
 cola, descargándose (con su progreso), si falta o si falló (con **Reintentar**). **Descargar los que
 faltan** pone en cola todos los que faltan o fallaron. Al elegir episodios (el botón redondo o la
 tarjeta entera) aparece, al pie del panel, una barra con **Seleccionar todos** (o la temporada), **Quitar selección** y
 **Descargar (n)**. Con
 id de TMDB, su fondo
-llena la pantalla y sus fotogramas y nombres, las tarjetas.
+llena la pantalla y sus fotogramas y nombres, las tarjetas. Un episodio que TMDB lista para una temporada de la serie
+y que ninguna fuente trae aparece como tarjeta apagada con borde discontinuo en su lugar (**En ninguna
+fuente** si ya se emitió, **Sin emitir** si no), y la cabecera muestra un **Faltan n** ámbar que al pasar
+el ratón los lista por temporada; la fila de una temporada muestra esa temporada. También salen ahí, y cuentan, las temporadas
+enteras que TMDB da por emitidas y ninguna fuente trae.
 
 No tiene backend propio: siempre habla con un servidor H&M en el **mismo origen**, bajo `/api`. Se entra
 con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servidor.

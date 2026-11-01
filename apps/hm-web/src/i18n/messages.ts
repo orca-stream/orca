@@ -109,6 +109,16 @@ const es = {
     empty: "Todavía no hay series.",
     emptyHint: "Pega la dirección de una serie para añadirla.",
     available: (have: number, total: number) => `${have}/${total} disponibles`,
+    gaps: (count: number) => (count === 1 ? "Falta 1" : `Faltan ${count}`),
+    gapsTitle: "En TMDB y en ninguna fuente",
+    gapsSeason: (season: number, codes: string) =>
+      `${season === 0 ? "Especiales" : `Temporada ${season}`}: ${codes}`,
+    gapsSeasons: (seasons: string) => `Temporadas ${seasons}: ninguna fuente las trae`,
+    gapsSeasonsHint:
+      "Si el sitio las sube, «Seguir la serie» las añade sola; si no, añade otra fuente.",
+    gapLabel: "En ninguna fuente",
+    gapHint: (code: string) =>
+      `TMDB lista ${code} como emitido, pero ninguna fuente de la serie lo trae.`,
     following: "Siguiendo",
     airing: {
       ended: "Siguiendo · Finalizada",
@@ -190,8 +200,8 @@ const es = {
       addSource: "Añadir otra fuente",
       addSourceHint: "Otra temporada o lo que falta, desde otra dirección",
       sources: (n: number) => (n === 1 ? "1 fuente" : `${n} fuentes`),
-      sourceSpan: (season: number, from: number, to: number) =>
-        `${season === 0 ? "Especiales" : `Temporada ${season}`}, ${from === to ? `episodio ${from}` : `episodios ${from} al ${to}`}`,
+      sourceSpan: (season: number, from: number, to: number, skips: string) =>
+        `${season === 0 ? "Especiales" : `Temporada ${season}`}, ${from === to ? `episodio ${from}` : `episodios ${from} al ${to}`}${skips ? `, sin ${skips}` : ""}`,
       sourcesSummary: (open: number, closed: number) =>
         [
           open === 0
@@ -437,6 +447,7 @@ const es = {
     tmdbExtra: (codes: string) => `De más frente a TMDB: ${codes}`,
     tmdbMissing: (codes: string) => `Faltan en el sitio: ${codes}`,
     tmdbUpcoming: (codes: string) => `Aún sin emitir: ${codes}`,
+    tmdbCovered: (codes: string) => `Ya en la serie: ${codes}`,
     notInTmdb: "No está en TMDB",
     notInTmdbHint: (code: string) =>
       `TMDB no lista ${code}: puede ser un extra del sitio o una numeración distinta.`,
@@ -710,6 +721,15 @@ const en: typeof es = {
     empty: "No series yet.",
     emptyHint: "Paste a series address to add it.",
     available: (have: number, total: number) => `${have}/${total} available`,
+    gaps: (count: number) => `${count} missing`,
+    gapsTitle: "In TMDB, in no source",
+    gapsSeason: (season: number, codes: string) =>
+      `${season === 0 ? "Specials" : `Season ${season}`}: ${codes}`,
+    gapsSeasons: (seasons: string) => `Seasons ${seasons}: no source has them`,
+    gapsSeasonsHint:
+      "If the site uploads them, Follow the series adds them on its own; if not, add another source.",
+    gapLabel: "In no source",
+    gapHint: (code: string) => `TMDB lists ${code} as aired, but no source of the series has it.`,
     following: "Following",
     airing: {
       ended: "Following · Ended",
@@ -791,8 +811,8 @@ const en: typeof es = {
       addSource: "Add another source",
       addSourceHint: "Another season or what is missing, from another address",
       sources: (n: number) => (n === 1 ? "1 source" : `${n} sources`),
-      sourceSpan: (season: number, from: number, to: number) =>
-        `${season === 0 ? "Specials" : `Season ${season}`}, ${from === to ? `episode ${from}` : `episodes ${from} to ${to}`}`,
+      sourceSpan: (season: number, from: number, to: number, skips: string) =>
+        `${season === 0 ? "Specials" : `Season ${season}`}, ${from === to ? `episode ${from}` : `episodes ${from} to ${to}`}${skips ? `, without ${skips}` : ""}`,
       sourcesSummary: (open: number, closed: number) =>
         [
           open === 0
@@ -1037,6 +1057,7 @@ const en: typeof es = {
     tmdbExtra: (codes: string) => `More than TMDB lists: ${codes}`,
     tmdbMissing: (codes: string) => `Missing from the site: ${codes}`,
     tmdbUpcoming: (codes: string) => `Not aired yet: ${codes}`,
+    tmdbCovered: (codes: string) => `Already in the series: ${codes}`,
     notInTmdb: "Not on TMDB",
     notInTmdbHint: (code: string) =>
       `TMDB doesn't list ${code}: it may be an extra of the site's, or numbered differently.`,

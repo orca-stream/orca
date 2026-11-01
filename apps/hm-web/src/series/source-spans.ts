@@ -5,26 +5,31 @@ export interface SourceSpan {
   season: number;
   from: number;
   to: number;
+  /** The numbers between the first and the last that it doesn't bring, lowest first. */
+  gaps: number[];
 }
 
-/** What a source holds, a season at a time in order: the lowest and highest episode in each. */
+/**
+ * What a source holds, a season at a time in order: the lowest and highest episode in each, and the
+ * numbers it skips in between.
+ */
 export function sourceSpans(episodes: readonly EpisodeDto[], sourceId: string): SourceSpan[] {
-  const bySeason = new Map<number, SourceSpan>();
+  const bySeason = new Map<number, Set<number>>();
   for (const episode of episodes) {
     if (episode.sourceId !== sourceId) continue;
-    const span = bySeason.get(episode.season);
-    if (!span) {
-      bySeason.set(episode.season, {
-        season: episode.season,
-        from: episode.episode,
-        to: episode.episode,
-      });
-    } else {
-      span.from = Math.min(span.from, episode.episode);
-      span.to = Math.max(span.to, episode.episode);
-    }
+    const numbers = bySeason.get(episode.season) ?? new Set<number>();
+    numbers.add(episode.episode);
+    bySeason.set(episode.season, numbers);
   }
-  return [...bySeason.values()].sort((a, b) => a.season - b.season);
+  return [...bySeason]
+    .map(([season, numbers]) => {
+      const from = Math.min(...numbers);
+      const to = Math.max(...numbers);
+      const gaps: number[] = [];
+      for (let n = from + 1; n < to; n++) if (!numbers.has(n)) gaps.push(n);
+      return { season, from, to, gaps };
+    })
+    .sort((a, b) => a.season - b.season);
 }
 
 /**
