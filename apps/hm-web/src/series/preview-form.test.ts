@@ -15,7 +15,9 @@ import {
   parseTmdbId,
   matchExtractor,
   nextEpisode,
+  nextSpecial,
   parseYear,
+  setAdjustment,
   setAllIncluded,
   shortRanges,
   jellyfinTarget,
@@ -91,6 +93,7 @@ describe("toCreateBody", () => {
       imdbId: null,
       season: null,
       firstEpisode: null,
+      adjustments: [],
       episodeKeys: ["e1", "e2", "e4"],
       follow: true,
       downloadNow: false,
@@ -223,6 +226,62 @@ describe("matchExtractor", () => {
     expect(matchExtractor("https://example.com", extractors)).toBeNull();
     expect(matchExtractor("not a url", extractors)).toBeNull();
     expect(matchExtractor("", extractors)).toBeNull();
+  });
+});
+
+describe("episodes numbered by hand", () => {
+  const withZero = () => {
+    const base = makePreview();
+    return makePreview({
+      episodes: [{ ...base.episodes[0]!, key: "e0", episode: 0 }, ...base.episodes],
+    });
+  };
+  const codes = (preview: ReturnType<typeof makePreview>, form: ReturnType<typeof initialForm>) =>
+    preview.episodes.map((episode) => {
+      const mapped = numberer(preview, form)(episode);
+      return episodeCode(mapped.season, mapped.episode);
+    });
+
+  it("starts a site's episode 0 among the specials, left out, and episode 1 stays 1", () => {
+    const preview = withZero();
+    const form = initialForm(preview);
+    expect(form.adjustments).toEqual([{ season: 1, episode: 0, kind: "special", number: 1 }]);
+    expect(form.included).toEqual(["e1", "e2", "e4"]);
+    expect(codes(preview, form)).toEqual(["S00E01", "S01E01", "S01E02", "S01E04"]);
+    expect(codes(preview, { ...form, season: "4", firstEpisode: "1" })).toEqual([
+      "S00E01",
+      "S04E01",
+      "S04E02",
+      "S04E04",
+    ]);
+    // Counted again, it moves the rest as before.
+    expect(
+      codes(
+        preview,
+        setAdjustment({ ...form, firstEpisode: "1" }, { season: 1, episode: 0 }, null),
+      ),
+    ).toEqual(["S01E01", "S01E02", "S01E03", "S01E05"]);
+  });
+
+  it("carries on from an episode renumbered by hand, and sends it to the server", () => {
+    const preview = makePreview();
+    const form = setAdjustment(
+      initialForm(preview),
+      { season: 1, episode: 2 },
+      {
+        kind: "renumber",
+        number: 7,
+      },
+    );
+    expect(codes(preview, form)).toEqual(["S01E01", "S01E07", "S01E09"]);
+    expect(toCreateBody(preview, { ...form, title: "B" }).adjustments).toEqual([
+      { season: 1, episode: 2, kind: "renumber", number: 7 },
+    ]);
+  });
+
+  it("picks the first special number neither the series nor the form has", () => {
+    const form = initialForm(withZero());
+    expect(nextSpecial(form, new Set(["S00E02"]))).toBe(3);
   });
 });
 

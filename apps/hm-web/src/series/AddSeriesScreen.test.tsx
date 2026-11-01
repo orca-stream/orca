@@ -644,6 +644,7 @@ describe("AddSeriesScreen", () => {
       imdbId: null,
       season: null,
       firstEpisode: null,
+      adjustments: [],
       episodeKeys: ["e1", "e2"],
       follow: true,
       downloadNow: false,

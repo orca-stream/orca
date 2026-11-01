@@ -64,6 +64,13 @@
       "when": 1793397476290,
       "tag": "0008_series_paused",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793517057173,
+      "tag": "0009_source_adjustments",
+      "breakpoints": true
     }
   ]
 }

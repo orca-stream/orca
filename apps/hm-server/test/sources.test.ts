@@ -129,6 +129,50 @@ describe("a season in parts", () => {
   });
 });
 
+describe("episodes numbered by hand", () => {
+  it("sends the site's episode 0 to the specials, and episode 1 stays 1", async () => {
+    site.season("with-zero", "Show", range(0, 3));
+    const series = await add("with-zero", {
+      title: "Show",
+      season: 4,
+      firstEpisode: 1,
+      adjustments: [{ season: 1, episode: 0, kind: "special", number: 5 }],
+    });
+    expect(await codes(series.id)).toEqual(["S00E05", "S04E01", "S04E02", "S04E03"]);
+    expect(series.sources[0]).toMatchObject({
+      episodeOffset: 1,
+      adjustments: [{ season: 1, episode: 0, kind: "special", number: 5 }],
+    });
+  });
+
+  it("numbers what a check finds later around the same adjustments", async () => {
+    site.season("recap", "Show", range(1, 4));
+    const series = await add("recap", {
+      title: "Show",
+      season: 1,
+      firstEpisode: 1,
+      adjustments: [
+        { season: 1, episode: 2, kind: "special", number: 1 },
+        { season: 1, episode: 4, kind: "renumber", number: 10 },
+      ],
+    });
+    expect(await codes(series.id)).toEqual(["S00E01", "S01E01", "S01E02", "S01E10"]);
+    site.season("recap", "Show", range(1, 5));
+    await createCheckSeries(h.deps)(series.id);
+    expect((await codes(series.id)).at(-1)).toBe("S01E11");
+  });
+
+  it("ignores an adjustment of an episode the address doesn't list", async () => {
+    site.season("plain-two", "Plain", [1, 2]);
+    const series = await add("plain-two", {
+      title: "Plain",
+      adjustments: [{ season: 1, episode: 9, kind: "special", number: 1 }],
+    });
+    expect(series.sources[0]!.adjustments).toEqual([]);
+    expect(await codes(series.id)).toEqual(["S01E01", "S01E02"]);
+  });
+});
+
 describe("checking a series with several sources", () => {
   it("reads each source and numbers what is new by that source's own offset", async () => {
     site.season("p1", "Show", range(1, 2)).season("p2", "Show", range(1, 2));

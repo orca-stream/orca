@@ -22,6 +22,7 @@ export {
   PreviewRequest,
   PreviewWarning,
   SeriesDto,
+  EpisodeAdjustment as EpisodeAdjustmentSchema,
   SeriesPatch,
   ShowLookupDto,
   ShowLookupParams,
@@ -37,10 +38,13 @@ export {
   IMDB_ID_PATTERN,
   isHmEvent,
   LANGUAGE_CODE_PATTERN,
+  keepsSiteNumbers,
   mapEpisode,
   MAX_MAX_HEIGHT,
   MIN_MAX_HEIGHT,
   TMDB_ID_PATTERN,
+  SPECIALS_SEASON,
+  type EpisodeAdjustment,
   type EpisodeMapping,
 } from "./rules.ts";
 export {

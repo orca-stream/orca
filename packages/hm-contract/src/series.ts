@@ -174,6 +174,14 @@ export const LibraryEpisodeDto = z.object({
 export type LibraryEpisodeDto = z.infer<typeof LibraryEpisodeDto>;
 
 const Title = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
+
+/** One episode of an address numbered by hand (see `EpisodeAdjustment` in the rules). */
+export const EpisodeAdjustment = z.object({
+  season: z.number().int().min(0).max(999),
+  episode: z.number().int().min(0).max(9999),
+  kind: z.enum(["special", "renumber"]),
+  number: z.number().int().min(0).max(9999),
+});
 const Year = z.number().int().min(1800).max(2200).nullable();
 
 export const CreateSeriesBody = z
@@ -199,6 +207,11 @@ export const CreateSeriesBody = z
     season: z.number().int().min(0).max(999).nullable().default(null),
     /** The number the lowest episode of this address gets in that season; null keeps the site's. */
     firstEpisode: z.number().int().min(0).max(9999).nullable().default(null),
+    /**
+     * Episodes numbered by hand, by the site's season and number: an extra sent to the specials, or
+     * one from which the numbers move. The offset of `firstEpisode` is measured around them.
+     */
+    adjustments: z.array(EpisodeAdjustment).max(500).default([]),
     episodeKeys: z.array(z.string()).min(1),
     follow: z.boolean().default(false),
     downloadNow: z.boolean().default(false),
@@ -266,6 +279,8 @@ export const SourceDto = z.object({
   season: z.number().int().nullable(),
   /** Added to the site's episode numbers. */
   episodeOffset: z.number().int(),
+  /** Its episodes numbered by hand; what it finds later is numbered around them too. */
+  adjustments: z.array(EpisodeAdjustment),
   /** Marked as bringing nothing new: checks skip it. */
   closed: z.boolean(),
   /** Where its site most likely keeps what comes next (the next season); null when unknown. */

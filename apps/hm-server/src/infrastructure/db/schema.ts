@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { EpisodeAdjustment } from "@orca/hm-contract";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const series = sqliteTable(
@@ -36,6 +37,10 @@ export const seriesSources = sqliteTable(
     sourceUrl: text("source_url").notNull(),
     season: integer("season"),
     episodeOffset: integer("episode_offset").notNull().default(0),
+    adjustments: text("adjustments", { mode: "json" })
+      .$type<EpisodeAdjustment[]>()
+      .notNull()
+      .default(sql`'[]'`),
     remoteMarker: text("remote_marker"),
     knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
     closed: integer("closed", { mode: "boolean" }).notNull().default(false),

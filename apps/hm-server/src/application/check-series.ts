@@ -1,4 +1,10 @@
 import { ExtractorError, type Extraction } from "@orca/extractor-core";
+import {
+  episodeOffset,
+  keepsSiteNumbers,
+  SPECIALS_SEASON,
+  type EpisodeAdjustment,
+} from "@orca/hm-contract";
 import { PermanentError, RetryableError } from "../domain/errors.ts";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, Series, SeriesSource } from "../domain/series.ts";
@@ -95,7 +101,16 @@ export function createCheckSeries(deps: Deps) {
       })
       .sort((a, b) => reach(b) - reach(a));
     // A source that moves the site's numbers is a part of a season: what follows can't be guessed.
-    if (!last || last.episodeOffset !== 0) return [];
+    if (
+      !last ||
+      !keepsSiteNumbers({
+        season: last.season,
+        offset: last.episodeOffset,
+        adjustments: last.adjustments,
+      })
+    ) {
+      return [];
+    }
     const extractor = deps.extractors.get(last.extractorId)!;
     let listed;
     try {
@@ -131,6 +146,9 @@ export function createCheckSeries(deps: Deps) {
         continue;
       }
       const now = deps.clock.now();
+      // A site's episode 0 is an extra TMDB keeps among the specials (a recap, a prologue): it takes
+      // the next free special number and isn't added, so episode 1 stays 1.
+      const adjustments = leadingExtras(extraction.episodes, taken);
       const source: SeriesSource = {
         id: uuidv7(now),
         seriesId: series.id,
@@ -138,21 +156,29 @@ export function createCheckSeries(deps: Deps) {
         externalId: extraction.series.externalId,
         sourceUrl: extraction.series.sourceUrl,
         season: last.season === null ? null : entry.season,
-        episodeOffset: 0,
+        episodeOffset: episodeOffset(null, extraction.episodes, adjustments),
+        adjustments,
         remoteMarker: extraction.series.remoteMarker ?? null,
         knownRefs: [],
         closed: false,
         createdAt: now,
       };
       const fresh: Episode[] = [];
+      const extras = new Set(
+        extraction.episodes
+          .filter((found) => numberOf(source, found).season === SPECIALS_SEASON)
+          .map((found) => found.sourceRef),
+      );
       for (const found of extraction.episodes) {
+        if (extras.has(found.sourceRef)) continue;
         const { season, episode } = numberOf(source, found);
         if (taken.has(`${season}:${episode}`)) continue;
         taken.add(`${season}:${episode}`);
         fresh.push(newEpisode(source, found, now));
       }
       // As a check leaves them: one whose number is taken is not known, so it comes once it is free.
-      const kept = new Set(fresh.map((episode) => episode.sourceRef));
+      // The extras left out are known too, so a check doesn't add them later.
+      const kept = new Set([...fresh.map((episode) => episode.sourceRef), ...extras]);
       source.knownRefs = extraction.episodes
         .map((found) => found.sourceRef)
         .filter((ref) => kept.has(ref));
@@ -290,4 +316,29 @@ export function createCheckSeries(deps: Deps) {
       newEpisodes: [...result.newEpisodes, ...added],
     };
   };
+}
+
+/**
+ * The episodes 0 of a season the site numbers on from 1, as specials with the next free numbers of
+ * season 0 (`taken` holds `season:episode`, and is not changed).
+ */
+export function leadingExtras(
+  episodes: readonly { season: number; episode: number }[],
+  taken: ReadonlySet<string>,
+): EpisodeAdjustment[] {
+  const used = new Set(
+    [...taken]
+      .filter((key) => key.startsWith(`${SPECIALS_SEASON}:`))
+      .map((key) => Number(key.split(":")[1])),
+  );
+  const adjustments: EpisodeAdjustment[] = [];
+  for (const found of episodes) {
+    if (found.episode !== 0) continue;
+    if (!episodes.some((other) => other.season === found.season && other.episode > 0)) continue;
+    let number = 1;
+    while (used.has(number)) number++;
+    used.add(number);
+    adjustments.push({ season: found.season, episode: 0, kind: "special", number });
+  }
+  return adjustments;
 }

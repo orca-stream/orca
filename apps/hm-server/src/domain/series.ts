@@ -1,4 +1,4 @@
-import type { EpisodeStatus } from "@orca/hm-contract";
+import type { EpisodeAdjustment, EpisodeStatus } from "@orca/hm-contract";
 
 /** Where the bytes of an episode come from. `page` needs the StreamDetector to find a stream first. */
 export type Source =
@@ -54,6 +54,8 @@ export interface SeriesSource {
   season: number | null;
   /** Added to the site's episode numbers. */
   episodeOffset: number;
+  /** Its episodes numbered by hand, by the site's season and number (see `mapEpisode`). */
+  adjustments: EpisodeAdjustment[];
   remoteMarker: string | null;
   /**
    * Every episode key the site listed when the address was last read, chosen or not. A check adds only

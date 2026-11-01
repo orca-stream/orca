@@ -34,6 +34,15 @@ los episodios de la temporada elegida, en el idioma del panel. Sin tocarlas, mue
 numeración del sitio (su temporada, si la dirección tiene una sola, y su primer episodio). Sin clave, o si TMDB no tiene nada, los
 números se escriben.
 
+Un solo desplazamiento no lo coloca todo: un sitio puede contar un extra que TMDB no (un recap, un
+episodio 0) o numerar un episodio donde TMDB tiene otro. El código de la miniatura de cada episodio
+(`S04E01 · S01E01`: dónde queda y luego dónde lo tiene el sitio) abre su numeración: **el siguiente
+en orden** (lo normal), **un especial** (va a la temporada 0 con el número que elijas y no ocupa
+número, así que los siguientes suben uno) u **otro número** (los siguientes siguen desde él). Lo que
+una búsqueda encuentre más tarde en esa dirección se numera igual. El episodio 0 de un sitio empieza
+como especial y fuera de la selección, así su episodio 1 sigue siendo el 1. En los especiales solo se
+compara con TMDB lo que cae ahí.
+
 En cuanto TMDB nombra la serie, la serie ocupa el fondo de la pantalla detrás del cristal: su imagen
 de fondo, difuminada (con una clave de TMDB), o si no su póster, más difuminado.
 

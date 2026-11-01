@@ -86,6 +86,7 @@ export function toSourceDto(source: SeriesSource, nextUrl: NextSourceUrl): Sourc
     sourceUrl: source.sourceUrl,
     season: source.season,
     episodeOffset: source.episodeOffset,
+    adjustments: source.adjustments,
     closed: source.closed,
     nextUrl: nextUrl(source),
   };

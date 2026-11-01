@@ -1,0 +1,1 @@
+ALTER TABLE `series_sources` ADD `adjustments` text DEFAULT '[]' NOT NULL;

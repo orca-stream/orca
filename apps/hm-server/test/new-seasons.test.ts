@@ -116,6 +116,29 @@ describe("a followed series finds the seasons its site adds", () => {
     ]);
   });
 
+  it("goes on past a season whose episode 0 went to the specials, and leaves out the next one's", async () => {
+    site.seasons.set(1, [0, 1, 2]);
+    const series = await addSeason(1, {
+      adjustments: [{ season: 1, episode: 0, kind: "special", number: 1 }],
+    });
+    site.seasons.set(2, [0, 1, 2]);
+
+    expect(await check(series.id)).toMatchObject({ added: 2 });
+    expect(await codes(series.id)).toEqual([
+      [0, 1, "missing"],
+      [1, 1, "missing"],
+      [1, 2, "missing"],
+      [2, 1, "queued"],
+      [2, 2, "queued"],
+    ]);
+    // Its episode 0 is known, sent to the next free special: no later check adds it.
+    const [, second] = await h.series.listSources([series.id]);
+    expect(second!.adjustments).toEqual([{ season: 2, episode: 0, kind: "special", number: 2 }]);
+    site.seasons.set(2, [0, 1, 2, 3]);
+    expect(await check(series.id)).toMatchObject({ added: 1 });
+    expect((await codes(series.id)).at(-1)).toEqual([2, 3, "queued"]);
+  });
+
   it("finds a later season the site uploaded first, without waiting for the one in between", async () => {
     const series = await addSeason(1);
     site.seasons.set(5, [1, 2]);

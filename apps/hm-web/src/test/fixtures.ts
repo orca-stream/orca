@@ -112,6 +112,7 @@ export function makeSeries(over: Partial<SeriesDto> = {}): SeriesDto {
         sourceUrl: "https://archive.org/details/bevhill",
         season: null,
         episodeOffset: 0,
+        adjustments: [],
         closed: false,
         nextUrl: null,
       },

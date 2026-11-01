@@ -34,6 +34,15 @@ the season picked, in the panel's language. Left alone, they show what the site'
 amounts to (its season, when the address has only one, and its first episode). Without a key, or while TMDB has nothing for it, you type
 the numbers.
 
+One offset can't place everything: a site may count an extra TMDB doesn't (a recap, an episode 0)
+or number one episode where TMDB has another. The code on each episode's frame (`S04E01 · S01E01`:
+where it lands, then where the site has it) opens its numbering: **the next in order** (the
+default), **a special** (it goes to season 0 with the number you pick and takes no number of its
+own, so the ones after it move up one) or **another number** (the ones after it carry on from it).
+What a later search finds on that address is numbered the same way. A site's episode 0 starts as a
+special, left out, so its episode 1 stays 1. Among the specials only what lands there is compared
+with TMDB.
+
 Once TMDB has named the show, it fills the screen's background behind the glass: its backdrop,
 blurred (with a TMDB key), or else its poster, blurred further.
 

@@ -1,4 +1,5 @@
 import type { GuideEpisodeDto, GuideSeasonDto } from "@orca/hm-contract";
+import { SPECIALS_SEASON } from "@orca/hm-contract/rules";
 import { episodeCode } from "./preview-form";
 
 /** How the episodes an address lands in a season compare with what TMDB lists for it. */
@@ -39,10 +40,14 @@ export function matchTmdb(
     const numbers = new Set(
       landed.filter((episode) => episode.season === season).map((episode) => episode.episode),
     );
-    const uncovered = listed.filter(
-      (episode) =>
-        !numbers.has(episode.number) && !covered.has(episodeCode(season, episode.number)),
-    );
+    // No site is expected to bring every special: only what lands there is compared.
+    const uncovered =
+      season === SPECIALS_SEASON
+        ? []
+        : listed.filter(
+            (episode) =>
+              !numbers.has(episode.number) && !covered.has(episodeCode(season, episode.number)),
+          );
     const aired = (episode: GuideEpisodeDto) =>
       episode.airDate !== null && episode.airDate <= today;
     return {
@@ -52,7 +57,7 @@ export function matchTmdb(
       extra: [...numbers].filter((number) => !known.has(number)).sort((a, b) => a - b),
       missing: uncovered.filter(aired).map((episode) => episode.number),
       upcoming: uncovered.filter((episode) => !aired(episode)).map((episode) => episode.number),
-      covered: listed
+      covered: (season === SPECIALS_SEASON ? [] : listed)
         .filter(
           (episode) =>
             !numbers.has(episode.number) && covered.has(episodeCode(season, episode.number)),

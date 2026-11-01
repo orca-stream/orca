@@ -1,5 +1,6 @@
 import type {
   CreateSeriesBody,
+  EpisodeAdjustment,
   EpisodeDto,
   ExtractorDto,
   PreviewDto,
@@ -9,6 +10,7 @@ import {
   episodeOffset,
   IMDB_ID_PATTERN,
   mapEpisode,
+  SPECIALS_SEASON,
   TMDB_ID_PATTERN,
 } from "@orca/hm-contract/rules";
 
@@ -28,6 +30,8 @@ export interface PreviewForm {
   season: string;
   /** The number the lowest episode of this address gets in that season; "" keeps the site's. */
   firstEpisode: string;
+  /** Episodes numbered by hand, by the site's season and number. */
+  adjustments: EpisodeAdjustment[];
   /** Keys of the episodes to add. */
   included: string[];
   follow: boolean;
@@ -43,8 +47,35 @@ export const jellyfinTarget = (showId: string) => `${JELLYFIN_TARGET}${showId}`;
 export const jellyfinShowOf = (addTo: string): string | null =>
   addTo.startsWith(JELLYFIN_TARGET) ? addTo.slice(JELLYFIN_TARGET.length) : null;
 
+/**
+ * The episodes 0 of a site season numbered on from 1: an extra TMDB keeps among the specials (a
+ * recap, a prologue), so they start there — numbered 1 on, and left out until someone picks them.
+ */
+function leadingExtras(preview: PreviewDto): EpisodeAdjustment[] {
+  return preview.episodes
+    .filter(
+      (found) =>
+        found.episode === 0 &&
+        preview.episodes.some((other) => other.season === found.season && other.episode > 0),
+    )
+    .map((found, index) => ({
+      season: found.season,
+      episode: 0,
+      kind: "special",
+      number: index + 1,
+    }));
+}
+
 export function initialForm(preview: PreviewDto): PreviewForm {
   const only = preview.selectedKey;
+  const adjustments = leadingExtras(preview);
+  const extras = new Set(
+    preview.episodes
+      .filter((found) =>
+        adjustments.some((a) => a.season === found.season && a.episode === found.episode),
+      )
+      .map((found) => found.key),
+  );
   return {
     addTo: "",
     // Empty on purpose: the TMDB id fills it in with the show's real name, never the site's.
@@ -54,7 +85,10 @@ export function initialForm(preview: PreviewDto): PreviewForm {
     imdbId: "",
     season: "",
     firstEpisode: "",
-    included: only ? [only] : preview.episodes.map((episode) => episode.key),
+    adjustments,
+    included: only
+      ? [only]
+      : preview.episodes.map((episode) => episode.key).filter((key) => !extras.has(key)),
     follow: false,
     downloadNow: false,
   };
@@ -126,8 +160,8 @@ export function canConfirm(form: PreviewForm, clashes: readonly string[] = []): 
 const valueOr = <T>(value: T | "invalid"): T | null => (value === "invalid" ? null : value);
 
 /**
- * Where an episode of the preview ends up with the form's season and first episode, exactly as the
- * server will number it (the offset is measured on every episode the address lists).
+ * Where an episode of the preview ends up with the form's season, first episode and adjustments,
+ * exactly as the server will number it (the offset is measured on every episode the address lists).
  */
 export function numberer(
   preview: PreviewDto,
@@ -137,10 +171,45 @@ export function numberer(
     season: valueOr(parseSeason(form.season)),
     offset: episodeOffset(
       valueOr(parseFirstEpisode(form.firstEpisode)),
-      preview.episodes.map((episode) => episode.episode),
+      preview.episodes,
+      form.adjustments,
     ),
+    adjustments: form.adjustments,
   };
   return (episode) => mapEpisode(episode, mapping);
+}
+
+/** How the site's episode is numbered by hand, or null when it simply counts. */
+export function adjustmentOf(
+  form: PreviewForm,
+  found: { season: number; episode: number },
+): EpisodeAdjustment | null {
+  return (
+    form.adjustments.find((a) => a.season === found.season && a.episode === found.episode) ?? null
+  );
+}
+
+/** Numbers the site's episode by hand, or lets it count again with null. */
+export function setAdjustment(
+  form: PreviewForm,
+  found: { season: number; episode: number },
+  next: Pick<EpisodeAdjustment, "kind" | "number"> | null,
+): PreviewForm {
+  const rest = form.adjustments.filter(
+    (a) => a.season !== found.season || a.episode !== found.episode,
+  );
+  return {
+    ...form,
+    adjustments: next ? [...rest, { season: found.season, episode: found.episode, ...next }] : rest,
+  };
+}
+
+/** The first special number neither the series (`taken` codes) nor another of the form's has. */
+export function nextSpecial(form: PreviewForm, taken: ReadonlySet<string>): number {
+  const used = new Set(form.adjustments.filter((a) => a.kind === "special").map((a) => a.number));
+  let number = 1;
+  while (used.has(number) || taken.has(episodeCode(SPECIALS_SEASON, number))) number++;
+  return number;
 }
 
 /**
@@ -184,6 +253,7 @@ export function toCreateBody(preview: PreviewDto, form: PreviewForm): CreateSeri
     previewId: preview.previewId,
     season: valueOr(parseSeason(form.season)),
     firstEpisode: valueOr(parseFirstEpisode(form.firstEpisode)),
+    adjustments: form.adjustments,
     episodeKeys: preview.episodes.map((e) => e.key).filter((key) => chosen.has(key)),
     downloadNow: form.downloadNow,
   };

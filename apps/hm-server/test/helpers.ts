@@ -58,6 +58,7 @@ export function aSource(overrides: Partial<SeriesSource> = {}): SeriesSource {
     sourceUrl: "https://archive.org/details/bevhill",
     season: null,
     episodeOffset: 0,
+    adjustments: [],
     remoteMarker: null,
     knownRefs: [],
     closed: false,

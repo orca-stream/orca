@@ -3,6 +3,8 @@ import {
   ApiErrorBody,
   CreateSeriesBody,
   episodeOffset,
+  keepsSiteNumbers,
+  type EpisodeAdjustment,
   ImdbId,
   mapEpisode,
   TmdbId,
@@ -281,12 +283,68 @@ describe("track preferences", () => {
   });
 });
 
+describe("episodes numbered by hand", () => {
+  const site = (...numbers: number[]) => numbers.map((episode) => ({ season: 1, episode }));
+  const numbers = (
+    episodes: { season: number; episode: number }[],
+    firstEpisode: number | null,
+    adjustments: EpisodeAdjustment[],
+  ) => {
+    const mapping = {
+      season: 4,
+      offset: episodeOffset(firstEpisode, episodes, adjustments),
+      adjustments,
+    };
+    return episodes.map((found) => {
+      const at = mapEpisode(found, mapping);
+      return `${at.season}:${at.episode}`;
+    });
+  };
+
+  it("sends a site's episode 0 to the specials and leaves 1 as 1", () => {
+    const special: EpisodeAdjustment = { season: 1, episode: 0, kind: "special", number: 5 };
+    expect(numbers(site(0, 1, 2, 23), 1, [special])).toEqual(["0:5", "4:1", "4:2", "4:23"]);
+    // With no first episode the site's numbers are kept, which is the same here.
+    expect(numbers(site(0, 1, 2, 23), null, [special])).toEqual(["0:5", "4:1", "4:2", "4:23"]);
+    expect(keepsSiteNumbers({ season: 4, offset: 1, adjustments: [special] })).toBe(true);
+  });
+
+  it("takes a recap in the middle out of the count: the ones after it move up", () => {
+    const recap: EpisodeAdjustment = { season: 1, episode: 12, kind: "special", number: 1 };
+    expect(numbers(site(11, 12, 13, 14), 11, [recap])).toEqual(["4:11", "0:1", "4:12", "4:13"]);
+    // An episode found later moves the same: only the source's adjustments are needed.
+    expect(
+      mapEpisode({ season: 1, episode: 20 }, { season: 4, offset: 0, adjustments: [recap] }),
+    ).toEqual({
+      season: 4,
+      episode: 19,
+    });
+  });
+
+  it("carries on from an episode renumbered by hand", () => {
+    const merged: EpisodeAdjustment = { season: 1, episode: 23, kind: "renumber", number: 22 };
+    expect(numbers(site(21, 23, 24), 21, [merged])).toEqual(["4:21", "4:22", "4:23"]);
+    expect(keepsSiteNumbers({ season: 4, offset: 0, adjustments: [merged] })).toBe(false);
+  });
+
+  it("only moves episodes of the same site season", () => {
+    const special: EpisodeAdjustment = { season: 1, episode: 0, kind: "special", number: 1 };
+    expect(
+      mapEpisode({ season: 2, episode: 3 }, { season: null, offset: 0, adjustments: [special] }),
+    ).toEqual({
+      season: 2,
+      episode: 3,
+    });
+  });
+});
+
 describe("seasons in parts", () => {
   it("moves the lowest episode of an address to the first episode given, whatever the site counts from", () => {
-    expect(episodeOffset(13, [1, 2, 3])).toBe(12);
-    expect(episodeOffset(13, [13, 14])).toBe(0);
-    expect(episodeOffset(1, [25, 26])).toBe(-24);
-    expect(episodeOffset(null, [5])).toBe(0);
+    const site = (...numbers: number[]) => numbers.map((episode) => ({ season: 1, episode }));
+    expect(episodeOffset(13, site(1, 2, 3))).toBe(12);
+    expect(episodeOffset(13, site(13, 14))).toBe(0);
+    expect(episodeOffset(1, site(25, 26))).toBe(-24);
+    expect(episodeOffset(null, site(5))).toBe(0);
     expect(episodeOffset(7, [])).toBe(0);
     expect(mapEpisode({ season: 1, episode: 2 }, { season: 3, offset: 12 })).toEqual({
       season: 3,

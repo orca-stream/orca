@@ -1,4 +1,9 @@
-import type { GuideEpisodeDto, PreviewDto, PreviewEpisode } from "@orca/hm-contract";
+import type {
+  EpisodeAdjustment,
+  GuideEpisodeDto,
+  PreviewDto,
+  PreviewEpisode,
+} from "@orca/hm-contract";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
@@ -6,27 +11,35 @@ import {
   Clock01Icon,
   Download04Icon,
   Globe02Icon,
+  HashtagIcon,
+  LeftToRightListNumberIcon,
+  PencilEdit02Icon,
   ServerStack02Icon,
   Tick02Icon,
   Video01Icon,
 } from "@hugeicons/core-free-icons";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { formatBytes, formatDate, formatDuration } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
 import { useRetryingImage } from "@/lib/retrying-image";
 import { cn } from "@/lib/utils";
+import { NumberRow, ROWS, SelectRow } from "@/settings/rows";
 import {
+  adjustmentOf,
   episodeCode,
   guideKey,
+  nextSpecial,
   numberer,
+  setAdjustment,
   setAllIncluded,
   toggleEpisode,
   warningsByEpisode,
   type PreviewForm,
 } from "./preview-form";
-import { GLASS_PANEL, ISLAND } from "./bar";
+import { BAR_POPUP, GLASS_PANEL, ISLAND } from "./bar";
 import { agrees, localToday, matchTmdb, numberRanges, type SeasonMatch } from "./tmdb-match";
 
 /** What happens to an episode when the series is added, which its card says on its frame. */
@@ -169,6 +182,13 @@ export function EpisodeGrid({
                 flags={[...new Set((warnings.get(episode.key) ?? []).map((w) => w.kind))]}
                 notInTmdb={extra.has(code)}
                 onToggle={() => onChange(toggleEpisode(form, episode.key))}
+                numbering={{
+                  adjustment: adjustmentOf(form, episode),
+                  // Where it would land counted in order: the number "another number" starts from.
+                  counted: numberer(preview, setAdjustment(form, episode, null))(episode).episode,
+                  nextSpecial: nextSpecial(form, taken),
+                  onChange: (next) => onChange(setAdjustment(form, episode, next)),
+                }}
               />
             </li>
           );
@@ -330,6 +350,7 @@ interface EpisodeCardProps {
   /** It lands on a number TMDB doesn't list for its season. */
   notInTmdb: boolean;
   onToggle: () => void;
+  numbering: Numbering;
 }
 
 function EpisodeCard({
@@ -342,6 +363,7 @@ function EpisodeCard({
   flags,
   notInTmdb,
   onToggle,
+  numbering,
 }: EpisodeCardProps) {
   const t = useT();
   const locale = useLocale();
@@ -412,13 +434,7 @@ function EpisodeCard({
 
         {/* Where it lands and where it comes from; the box to its right. */}
         <div className="absolute top-2 right-13 left-2 flex items-start gap-1.5">
-          <span
-            title={siteCode === code ? undefined : t.add.siteCode(siteCode)}
-            className={cn(CHIP, "bg-black/45 font-mono text-white")}
-          >
-            {code}
-            {siteCode !== code && <span className="text-white/60">· {siteCode}</span>}
-          </span>
+          <NumberingChip code={code} siteCode={siteCode} numbering={numbering} />
           <span title={server.hint} className={cn(CHIP, "min-w-0 shrink bg-black/45 text-white")}>
             <HugeiconsIcon icon={server.icon} className="size-3.5 shrink-0" />
             <span className="truncate">{server.label}</span>
@@ -488,6 +504,107 @@ function EpisodeCard({
         )}
       </div>
     </article>
+  );
+}
+
+/** How a card's episode is numbered, and how to change it. */
+interface Numbering {
+  adjustment: EpisodeAdjustment | null;
+  /** The number it gets counted in order, with the rest as they are. */
+  counted: number;
+  /** The first special number free. */
+  nextSpecial: number;
+  onChange: (next: Pick<EpisodeAdjustment, "kind" | "number"> | null) => void;
+}
+
+const MAX_EPISODE = 9999;
+
+/**
+ * Where the episode lands and where the site has it, as a chip that opens its numbering: counted in
+ * order, sent to the specials, or another number that the ones after it carry on from.
+ */
+function NumberingChip({
+  code,
+  siteCode,
+  numbering,
+}: {
+  code: string;
+  siteCode: string;
+  numbering: Numbering;
+}) {
+  const t = useT();
+  const { adjustment, counted, onChange } = numbering;
+  const kind = adjustment?.kind ?? "counts";
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={t.add.episodeNumbering.open(code)}
+        title={siteCode === code ? undefined : t.add.siteCode(siteCode)}
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          CHIP,
+          "cursor-pointer font-mono text-white transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
+          adjustment ? "bg-primary/85 hover:bg-primary" : "bg-black/45 hover:bg-black/65",
+        )}
+      >
+        {code}
+        {siteCode !== code && (
+          <span className={adjustment ? "text-white/75" : "text-white/60"}>· {siteCode}</span>
+        )}
+        {adjustment && <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5 opacity-80" />}
+      </PopoverTrigger>
+      {/* Clicks inside reach the card through the portal: they mustn't pick the episode. */}
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        onClick={(event) => event.stopPropagation()}
+        className={cn(BAR_POPUP, "w-[min(24rem,var(--available-width))] gap-0 p-0")}
+      >
+        <p className="p-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {t.add.episodeNumbering.title(siteCode)}
+        </p>
+        <div className={ROWS}>
+          <SelectRow
+            icon={LeftToRightListNumberIcon}
+            label={t.add.episodeNumbering.kind}
+            hint={t.add.episodeNumbering.kindHint}
+            value={kind}
+            options={[
+              { value: "counts", label: t.add.episodeNumbering.counts },
+              { value: "special", label: t.add.episodeNumbering.special },
+              { value: "renumber", label: t.add.episodeNumbering.renumber },
+            ]}
+            onChange={(next) =>
+              onChange(
+                next === "special"
+                  ? { kind: "special", number: numbering.nextSpecial }
+                  : next === "renumber"
+                    ? { kind: "renumber", number: counted }
+                    : null,
+              )
+            }
+          />
+          {adjustment && (
+            <NumberRow
+              icon={HashtagIcon}
+              label={
+                adjustment.kind === "special"
+                  ? t.add.episodeNumbering.specialNumber
+                  : t.add.episodeNumbering.episodeNumber
+              }
+              value={String(adjustment.number)}
+              min={adjustment.kind === "special" ? 1 : 0}
+              max={MAX_EPISODE}
+              decrease={t.add.episodeNumbering.decrease}
+              increase={t.add.episodeNumbering.increase}
+              onChange={(text) => {
+                if (text !== "") onChange({ kind: adjustment.kind, number: Number(text) });
+              }}
+            />
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

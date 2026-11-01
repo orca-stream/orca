@@ -16,6 +16,17 @@ const landed = (season: number, numbers: number[]) =>
   numbers.map((episode) => ({ season, episode }));
 
 describe("matchTmdb", () => {
+  it("only compares what lands among the specials: no site is expected to bring them all", () => {
+    const [match] = matchTmdb(
+      landed(0, [1]),
+      new Map([[0, range(1, 30).map((n) => tmdb(n))]]),
+      new Set(["S00E02"]),
+      "2026-10-31",
+    );
+    expect(match).toMatchObject({ extra: [], missing: [], upcoming: [], covered: [] });
+    expect(agrees(match!)).toBe(true);
+  });
+
   it("agrees when the address lands on exactly TMDB's episodes", () => {
     const [match] = matchTmdb(
       landed(3, range(1, 26)),

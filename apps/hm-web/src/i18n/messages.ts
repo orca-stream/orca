@@ -345,6 +345,20 @@ const es = {
     guideEpisodesLoading: "Buscando los episodios en TMDB…",
     countInvalid: "Escribe un número entero.",
     siteCode: (code: string) => `en el sitio ${code}`,
+    episodeNumbering: {
+      open: (code: string) => `Numeración de ${code}`,
+      title: (siteCode: string) => `En el sitio, ${siteCode}`,
+      kind: "Cuenta como",
+      counts: "El siguiente en orden",
+      special: "Un especial (temporada 0)",
+      renumber: "Otro número",
+      specialNumber: "Número de especial",
+      episodeNumber: "Número de episodio",
+      kindHint:
+        "Un especial va a la temporada 0 y no ocupa número: los siguientes suben uno. Con otro número, los siguientes siguen desde él.",
+      decrease: "Uno menos",
+      increase: "Uno más",
+    },
     clashes: (codes: string) =>
       `La serie ya tiene ${codes}: cambia la temporada o el primer episodio.`,
     createFailed: "No se pudo añadir la serie.",
@@ -955,6 +969,20 @@ const en: typeof es = {
     guideEpisodesLoading: "Looking the episodes up on TMDB…",
     countInvalid: "Enter a whole number.",
     siteCode: (code: string) => `on the site ${code}`,
+    episodeNumbering: {
+      open: (code: string) => `Numbering of ${code}`,
+      title: (siteCode: string) => `On the site, ${siteCode}`,
+      kind: "Counts as",
+      counts: "The next in order",
+      special: "A special (season 0)",
+      renumber: "Another number",
+      specialNumber: "Special number",
+      episodeNumber: "Episode number",
+      kindHint:
+        "A special goes to season 0 and takes no number: the ones after it move up one. With another number, the ones after it carry on from it.",
+      decrease: "One less",
+      increase: "One more",
+    },
     clashes: (codes: string) =>
       `The series already has ${codes}: change the season or the first episode.`,
     createFailed: "The series could not be added.",

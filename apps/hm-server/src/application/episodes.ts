@@ -20,17 +20,24 @@ export function sourceOf(episode: ExtractedEpisode): Source {
   };
 }
 
-/** Where a source puts an episode the site found: its season, and its number moved by the offset. */
+/**
+ * Where a source puts an episode the site found: its season, and its number moved by the offset and
+ * by the episodes numbered by hand before it (a special goes to season 0).
+ */
 export function numberOf(
-  source: Pick<SeriesSource, "season" | "episodeOffset">,
+  source: Pick<SeriesSource, "season" | "episodeOffset" | "adjustments">,
   extracted: Pick<ExtractedEpisode, "season" | "episode">,
 ): { season: number; episode: number } {
-  return mapEpisode(extracted, { season: source.season, offset: source.episodeOffset });
+  return mapEpisode(extracted, {
+    season: source.season,
+    offset: source.episodeOffset,
+    adjustments: source.adjustments,
+  });
 }
 
 /** A new, not yet downloaded episode row for something an extractor found on a source. */
 export function newEpisode(
-  source: Pick<SeriesSource, "id" | "seriesId" | "season" | "episodeOffset">,
+  source: Pick<SeriesSource, "id" | "seriesId" | "season" | "episodeOffset" | "adjustments">,
   extracted: ExtractedEpisode,
   now: number,
 ): Episode {

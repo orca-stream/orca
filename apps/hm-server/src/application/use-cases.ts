@@ -208,14 +208,21 @@ export function createUseCases(deps: Deps) {
         );
       }
 
+      // Only adjustments of episodes the address lists; one of the same episode twice keeps the last.
+      const listed = new Set(extraction.episodes.map((e) => `${e.season}:${e.episode}`));
+      const adjustments = [
+        ...new Map(
+          (body.adjustments ?? [])
+            .filter((a) => listed.has(`${a.season}:${a.episode}`))
+            .map((a) => [`${a.season}:${a.episode}`, a] as const),
+        ).values(),
+      ];
       // Measured on everything the address lists, not only what was chosen: a check later on finds
       // the same lowest number, so the episodes it adds move by the same amount.
       const mapping = {
         season: body.season ?? null,
-        episodeOffset: episodeOffset(
-          body.firstEpisode ?? null,
-          extraction.episodes.map((episode) => episode.episode),
-        ),
+        episodeOffset: episodeOffset(body.firstEpisode ?? null, extraction.episodes, adjustments),
+        adjustments,
       };
       assertDistinctNumbers(chosen.map((episode) => numberOf(mapping, episode)));
 
@@ -228,6 +235,7 @@ export function createUseCases(deps: Deps) {
         sourceUrl: extraction.series.sourceUrl,
         season: mapping.season,
         episodeOffset: mapping.episodeOffset,
+        adjustments: mapping.adjustments,
         remoteMarker: extraction.series.remoteMarker ?? null,
         knownRefs: extraction.episodes.map((episode) => episode.sourceRef),
         closed: false,
