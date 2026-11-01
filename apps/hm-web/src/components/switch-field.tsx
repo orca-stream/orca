@@ -16,6 +16,7 @@ export function SwitchField({ checked, onCheckedChange, label, disabled }: Switc
     <Field orientation="horizontal" data-disabled={disabled || undefined}>
       <Switch
         id={id}
+        size="lg"
         checked={checked}
         onCheckedChange={(next) => onCheckedChange(next)}
         {...(disabled === undefined ? {} : { disabled })}

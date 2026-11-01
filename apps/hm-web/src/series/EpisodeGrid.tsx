@@ -432,7 +432,7 @@ function EpisodeCard({
             onToggle();
           }}
           className={cn(
-            "absolute top-2 right-2 flex size-9 items-center justify-center rounded-full shadow-md ring-1 ring-black/10 backdrop-blur-md transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
+            "absolute top-2 right-2 flex size-10 items-center justify-center rounded-full shadow-md ring-1 ring-black/10 backdrop-blur-md transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
             fate === "left-out" ? "bg-black/30 ring-white/60 hover:bg-black/45" : FATE_STYLE[fate],
           )}
         >

@@ -28,7 +28,21 @@ export const GLASS_PANEL =
  * 16px, the grid's 8px plus a card's 8px, so their edges line up with the frames'.
  */
 export const ISLAND =
-  "sticky z-10 flex min-h-18 flex-wrap items-center gap-4 rounded-[28px] border border-(--glass-edge) bg-(--glass-strong) px-4 py-3 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
+  "sticky z-10 flex min-h-20 flex-wrap items-center gap-4 rounded-[40px] border border-(--glass-edge) bg-(--glass-strong) p-4 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
+
+/*
+ * A button comes in three sizes, never a fourth: 56px for what a panel ends with or a settings row
+ * offers (`PRIMARY_BUTTON`), 48px for what floats (the dock and these islands), and 40px for what
+ * sits inside a row, a header or on a cover (shadcn's `Button`, switches and a number's steppers
+ * too); a row holding one is 72px, 16px above and below it. Only a chip's ✕ is smaller, being part
+ * of the chip.
+ */
+
+/** The island's buttons: round, the primary filled and the rest as quiet glass. */
+export const PILL_BUTTON =
+  "flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
+export const PRIMARY = "bg-primary text-primary-foreground shadow-xs hover:bg-primary/85";
+export const SECONDARY = "bg-white/70 ring-1 ring-black/5 hover:bg-white";
 
 /*
  * The one spacing of every panel: 16px from its edges to whatever is in it (icons, circles, buttons,
@@ -317,7 +331,7 @@ export function BarToggle({
     <label
       title={hint}
       className={cn(
-        "flex h-14 min-w-0 cursor-pointer items-center pr-4 transition-colors hover:bg-white/30 has-focus-visible:bg-white/45",
+        "flex h-18 min-w-0 cursor-pointer items-center pr-4 transition-colors hover:bg-white/30 has-focus-visible:bg-white/45",
         className,
       )}
     >

@@ -31,7 +31,7 @@ export function TileLink({ href, children }: { href: string; children: ReactNode
 
 /** The round action in a tile's corner: every tile's "add" or "open" looks alike. */
 export const ROUND_ACTION =
-  "flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 sm:size-11";
+  "flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** The grid the tiles sit in, centred, as many 15.5rem columns as fit (two on a phone). */
 export const TILE_GRID =

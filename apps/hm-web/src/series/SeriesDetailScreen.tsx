@@ -88,7 +88,7 @@ function SeriesHero({
         href="/series"
         aria-label={t.series.back}
         title={t.series.back}
-        className="absolute top-4 right-4 flex size-9 items-center justify-center rounded-full bg-white/70 text-muted-foreground ring-1 ring-black/5 transition-colors hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+        className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-white/70 text-muted-foreground ring-1 ring-black/5 transition-colors hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
       >
         <HugeiconsIcon icon={ArrowLeft01Icon} className="size-5" />
       </Link>
@@ -182,7 +182,7 @@ function SeriesHero({
             onClick={() =>
               patchSeries.mutate({ seriesId: series.id, patch: { paused: !series.paused } })
             }
-            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/70 ring-1 ring-black/5 transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-60"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/70 ring-1 ring-black/5 transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-60"
           >
             {patchSeries.isPending ? (
               <Spinner aria-hidden="true" className="size-5" />

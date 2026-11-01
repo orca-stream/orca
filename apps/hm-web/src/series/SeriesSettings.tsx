@@ -157,7 +157,7 @@ export function SeriesSettings({
           checked={form.follow}
           onChange={(follow) => update({ follow })}
         />
-        <div className={cn(SECOND, "flex min-w-0 items-center pr-4")}>
+        <div className={cn(SECOND, "flex min-h-18 min-w-0 items-center pr-4")}>
           <BarField
             icon={Clock01Icon}
             label={t.series.checkEvery}

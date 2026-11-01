@@ -62,7 +62,6 @@ export function NotificationBell() {
           <PopoverTitle className="mr-auto">{t.notifications.title}</PopoverTitle>
           <PendingButton
             variant="ghost"
-            size="sm"
             disabled={unread === 0}
             pending={markNotificationsRead.isPending}
             onClick={() => markNotificationsRead.mutate(undefined)}

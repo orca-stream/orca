@@ -24,7 +24,7 @@ import { useLocale, useT } from "@/i18n/locale";
 import { toPercent } from "@/lib/percent";
 import { useRetryingImage } from "@/lib/retrying-image";
 import { cn } from "@/lib/utils";
-import { BAR_POPUP, GLASS_PANEL, ISLAND } from "./bar";
+import { BAR_POPUP, GLASS_PANEL, ISLAND, PILL_BUTTON, PRIMARY, SECONDARY } from "./bar";
 import { downloadFraction, downloadLine } from "./download-line";
 import { episodeCode, guideKey } from "./preview-form";
 import { isSelectable, seasonState, type SeasonGroup } from "./selection";
@@ -66,10 +66,6 @@ const BOX_ICON: Record<Exclude<EpisodeDto["status"], "downloading"> | "held", Ic
 };
 
 /** The pill buttons of the header and of the selection's bar. */
-const PILL_BUTTON =
-  "flex h-11 shrink-0 items-center gap-2 rounded-full px-5 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
-const PRIMARY = "bg-primary text-primary-foreground shadow-xs hover:bg-primary/85";
-const SECONDARY = "bg-white/70 ring-1 ring-black/5 hover:bg-white";
 
 interface SeriesEpisodesProps {
   groups: SeasonGroup[];
@@ -139,7 +135,7 @@ export function SeriesEpisodes({
           >
             <SelectTrigger
               aria-label={t.series.seasonPicker}
-              className="h-9 gap-2 rounded-full border-0 bg-white/55 px-3.5 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-9 data-popup-open:bg-white sm:ml-3"
+              className="h-12 gap-2 rounded-full border-0 bg-white/55 px-5 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white sm:ml-3"
             >
               <SelectValue>
                 {() => <SeasonLabel group={group} title={titleOf(group.season)} />}
@@ -364,7 +360,7 @@ function EpisodeCard({
             if (selectable) onToggle();
           }}
           className={cn(
-            "absolute top-2 right-2 flex size-9 items-center justify-center rounded-full shadow-md ring-1 backdrop-blur-md transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
+            "absolute top-2 right-2 flex size-10 items-center justify-center rounded-full shadow-md ring-1 backdrop-blur-md transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
             picked
               ? "bg-primary text-primary-foreground ring-black/10"
               : cn(BOX_STYLE[boxState], selectable ? "hover:brightness-95" : "cursor-not-allowed"),

@@ -154,27 +154,27 @@ function ExtractorIndicator({
     return (
       <span
         aria-hidden="true"
-        className="flex size-10 items-center justify-center rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5"
+        className="flex size-14 items-center justify-center rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5"
       >
-        <HugeiconsIcon icon={Link01Icon} className="size-5" />
+        <HugeiconsIcon icon={Link01Icon} className="size-6" />
       </span>
     );
   }
   // The icon alone keeps the address wide; the name slides out over it on hover.
   return (
-    <span role="status" className="group/reader relative block size-10">
+    <span role="status" className="group/reader relative block size-14">
       <span
         className={cn(
           // Always on its white rim, so the gap to the edge of the address reads the same all round.
-          "absolute top-0 left-0 z-10 flex h-10 items-center rounded-full bg-white/90 p-1 shadow-xs ring-1 ring-black/5 transition-all duration-300 ease-out",
+          "absolute top-0 left-0 z-10 flex h-14 items-center rounded-full bg-white/90 p-1 shadow-xs ring-1 ring-black/5 transition-all duration-300 ease-out",
           "group-hover/reader:pr-3 group-hover/reader:shadow-md",
           faded && "opacity-60 group-hover/reader:opacity-100",
         )}
       >
         <ExtractorMark
           extractor={extractor}
-          className="size-8 rounded-full"
-          iconClassName="size-4"
+          className="size-12 rounded-full"
+          iconClassName="size-6"
         />
         <span
           aria-hidden="true"
@@ -668,11 +668,11 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
             {t.add.url}
           </FieldLabel>
           {/* The rim and the shadow are the whole bar's: the address alone, or with where it goes. */}
-          <div className={cn(GLASS_PANEL, urlError && "border-destructive/40")}>
+          <div className={cn(GLASS_PANEL, "rounded-[44px]", urlError && "border-destructive/40")}>
             <div ref={head}>
               <InputGroup
                 className={cn(
-                  "h-18 rounded-[35px] border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/30",
+                  "h-22 rounded-[43px] border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/30",
                   attached &&
                     "rounded-b-none has-[[data-slot=input-group-control]:focus-visible]:bg-white/45 has-[[data-slot=input-group-control]:focus-visible]:ring-0",
                 )}
@@ -698,7 +698,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                   {urlError ? (
                     <ErrorHint
                       error={urlError}
-                      className="size-10 bg-white/90 shadow-xs ring-1 ring-destructive/20 hover:bg-white [&_svg]:size-5"
+                      className="size-14 bg-white/90 shadow-xs ring-1 ring-destructive/20 hover:bg-white [&_svg]:size-6"
                     />
                   ) : (
                     <ExtractorIndicator extractor={reader} faded={!urlFilled} />
@@ -712,7 +712,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                 <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
                   {/* A circle that keeps the address wide; into an existing series it is that
                       series' cover, and its name slides out leftwards on hover, like the reader's. */}
-                  <span className="group/preview relative block size-10">
+                  <span className="group/preview relative block size-14">
                     <InputGroupButton
                       type="submit"
                       variant="default"
@@ -724,7 +724,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                             : t.add.preview
                       }
                       className={cn(
-                        "absolute top-0 right-0 z-10 h-10 w-auto gap-0 rounded-full p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
+                        "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full border-0 p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
                         goesInto && "p-1 group-hover/preview:pl-3",
                       )}
                       disabled={!urlFilled || previewMutation.isPending}
@@ -741,7 +741,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                       <span
                         className={cn(
                           "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
-                          goesInto ? "size-8 bg-white/20" : "size-10",
+                          goesInto ? "size-12 bg-white/20" : "size-14",
                         )}
                       >
                         {previewMutation.isPending ? (
@@ -857,7 +857,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
               )}
             </div>
             {attached && (
-              <div className="overflow-hidden rounded-b-[35px] [&>*]:border-t [&>*]:border-t-(--glass-edge)">
+              <div className="overflow-hidden rounded-b-[43px] [&>*]:border-t [&>*]:border-t-(--glass-edge)">
                 {asksNew && (
                   <>
                     <div className="flex">
