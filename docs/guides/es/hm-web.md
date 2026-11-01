@@ -71,8 +71,8 @@ cada una (como el sitio, o hacia una temporada y desplazada), cuándo se buscaro
 nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre búsquedas, los ids de TMDB e
 IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
 elegir ninguno se guardan todas las pistas; en subtítulos también **Sin subtítulos**; el primer idioma
-de audio elegido es el original). No se envía nada hasta **Guardar cambios**, que manda solo lo que
-cambió (**Descartar** lo deja como estaba). A la derecha, un solo panel con la cabecera y los episodios en cuadrícula de fotogramas una
+de audio elegido es el original). Los cambios se guardan solos al hacerlos; solo
+un fallo se muestra, con **Reintentar**. A la derecha, un solo panel con la cabecera y los episodios en cuadrícula de fotogramas una
 temporada a la vez (un botón por temporada cuando hay más de una): cada uno dice si está disponible, en
 cola, descargándose (con su progreso), si falta o si falló (con **Reintentar**). **Descargar los que
 faltan** pone en cola todos los que faltan o fallaron. Al elegir episodios (el botón redondo o la

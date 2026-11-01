@@ -69,8 +69,8 @@ how each numbers its episodes (as the site does, or into a season and shifted), 
 and will next be searched for new episodes, with **Search now**, following and the hours between
 searches, the TMDB and IMDb ids, the maximum video height, and the audio and subtitle languages picked
 from a list (none picked keeps every track; subtitles can also be **No subtitles**; the first audio
-language picked is the original). Nothing is sent until **Save changes**, which sends only what changed
-(**Discard** puts it back). On the right, one panel holds the header, the episodes as a grid of frames one season at a time (a
+language picked is the original). Changes save themselves as they are made; only a
+failure shows, with **Retry**. On the right, one panel holds the header, the episodes as a grid of frames one season at a time (a
 button per season when there is more than one): each says whether it is available, queued, downloading
 (with its progress), missing or failed (with **Retry**). **Download the missing ones** queues every
 missing or failed episode. Picking episodes (the round button or the whole card) brings up, at the
