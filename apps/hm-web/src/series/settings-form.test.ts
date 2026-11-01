@@ -13,6 +13,8 @@ import {
 describe("settingsOf", () => {
   it("shows the series as it is, ids empty when it has none", () => {
     expect(settingsOf(makeSeries({ follow: true, tmdbId: "105009" }))).toEqual({
+      title: "Beverly Hillbillies",
+      year: "1962",
       follow: true,
       interval: "24",
       tmdbId: "105009",
@@ -54,6 +56,9 @@ describe("toSettingsPatch", () => {
 
   it("refuses the whole patch while a field can't be sent, and names that field", () => {
     for (const [field, value] of [
+      ["title", "   "],
+      ["title", "x".repeat(151)],
+      ["year", "62"],
       ["interval", "0"],
       ["interval", "721"],
       ["interval", "1.5"],
@@ -66,6 +71,11 @@ describe("toSettingsPatch", () => {
       expect(toSettingsPatch(form, series)).toBe("invalid");
       expect([...invalidSettings(form)]).toEqual([field]);
     }
+  });
+
+  it("sends a new title trimmed, and a year cleared as null", () => {
+    const form = { ...settingsOf(series), title: "  Hillbillies ", year: "" };
+    expect(toSettingsPatch(form, series)).toEqual({ title: "Hillbillies", year: null });
   });
 
   it("ignores what is typed as subtitles once there are to be none", () => {

@@ -1,5 +1,12 @@
 import type { SeriesDto, SeriesPatch } from "@/api/types";
-import { isInvalidImdbId, isInvalidTmdbId, parseImdbId, parseTmdbId } from "./preview-form";
+import { MAX_TITLE_LENGTH } from "@orca/hm-contract/rules";
+import {
+  isInvalidImdbId,
+  isInvalidTmdbId,
+  parseImdbId,
+  parseTmdbId,
+  parseYear,
+} from "./preview-form";
 import { formState, parseLangs, toTrackPatch, type TrackForm } from "./track-prefs";
 
 /** The longest a followed series may wait between checks: a month. */
@@ -7,16 +14,27 @@ export const MAX_CHECK_HOURS = 24 * 30;
 
 /** Everything the series' bar edits, as text while it is typed; one Save sends what changed. */
 export interface SettingsForm extends TrackForm {
+  title: string;
+  year: string;
   follow: boolean;
   interval: string;
   tmdbId: string;
   imdbId: string;
 }
 
-export type SettingsField = "interval" | "tmdbId" | "imdbId" | "audio" | "subtitles";
+export type SettingsField =
+  | "title"
+  | "year"
+  | "interval"
+  | "tmdbId"
+  | "imdbId"
+  | "audio"
+  | "subtitles";
 
 export function settingsOf(series: SeriesDto): SettingsForm {
   return {
+    title: series.title,
+    year: series.year === null ? "" : String(series.year),
     follow: series.follow,
     interval: String(series.checkIntervalHours),
     tmdbId: series.tmdbId ?? "",
@@ -35,6 +53,9 @@ function parseInterval(text: string): number | "invalid" {
 /** The fields that can't be sent as they are; the bar marks each one. */
 export function invalidSettings(form: SettingsForm): Set<SettingsField> {
   const invalid = new Set<SettingsField>();
+  const title = form.title.trim();
+  if (title === "" || title.length > MAX_TITLE_LENGTH) invalid.add("title");
+  if (parseYear(form.year) === "invalid") invalid.add("year");
   if (parseInterval(form.interval) === "invalid") invalid.add("interval");
   if (isInvalidTmdbId(form.tmdbId)) invalid.add("tmdbId");
   if (isInvalidImdbId(form.imdbId)) invalid.add("imdbId");
@@ -51,7 +72,11 @@ export function toSettingsPatch(form: SettingsForm, series: SeriesDto): SeriesPa
     return "invalid";
   const tmdbId = parseTmdbId(form.tmdbId);
   const imdbId = parseImdbId(form.imdbId);
+  const title = form.title.trim();
+  const year = parseYear(form.year);
   return {
+    ...(title !== series.title ? { title } : {}),
+    ...(year !== "invalid" && year !== series.year ? { year } : {}),
     ...(form.follow !== series.follow ? { follow: form.follow } : {}),
     ...(interval !== series.checkIntervalHours ? { checkIntervalHours: interval } : {}),
     ...(tmdbId !== series.tmdbId ? { tmdbId } : {}),

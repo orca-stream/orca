@@ -93,6 +93,8 @@ export class FakeDownloader implements Downloader {
 
 export class FakeMediaServer implements MediaServer {
   readonly updated: string[] = [];
+  /** The paths refreshed with `replaceMetadata`. */
+  readonly replaced: string[] = [];
   fail: Error | null = null;
 
   /** What TMDB knows, by TMDB id. */
@@ -102,9 +104,10 @@ export class FakeMediaServer implements MediaServer {
   /** Their episode files, by show id. */
   readonly episodeFiles = new Map<string, EpisodeFile[]>();
 
-  async libraryUpdated(path: string): Promise<void> {
+  async libraryUpdated(path: string, options?: { replaceMetadata?: boolean }): Promise<void> {
     if (this.fail) throw this.fail;
     this.updated.push(path);
+    if (options?.replaceMetadata) this.replaced.push(path);
   }
 
   async findShowByTmdbId(tmdbId: string): Promise<ShowMatch | null> {

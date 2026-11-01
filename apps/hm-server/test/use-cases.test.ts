@@ -295,6 +295,23 @@ describe("addSeries", () => {
     expect(nfo).toContain("<title>Hillbillies</title>");
     expect(nfo).not.toContain("<year>");
   });
+
+  it("a new title makes Jellyfin reread the series from scratch, once", async () => {
+    const { series } = await addBevhill(h);
+    await h.useCases.patchSeries(series.id, { title: "Hillbillies" });
+    await h.useCases.patchSeries(series.id, { title: "The Hillbillies" });
+    h.clock.advance(60_000);
+    await h.queue.settle();
+    expect(h.mediaServer.replaced).toEqual([join(h.root, "The Beverly Hillbillies (1962)")]);
+  });
+
+  it("other changes, or the same title again, leave Jellyfin alone", async () => {
+    const { series } = await addBevhill(h);
+    await h.useCases.patchSeries(series.id, { title: series.title, follow: true });
+    h.clock.advance(60_000);
+    await h.queue.settle();
+    expect(h.mediaServer.updated).toEqual([]);
+  });
 });
 
 describe("downloadingCount", () => {

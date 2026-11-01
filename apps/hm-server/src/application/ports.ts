@@ -293,8 +293,11 @@ export interface LibraryShow {
 }
 
 export interface MediaServer {
-  /** Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. */
-  libraryUpdated(path: string): Promise<void>;
+  /**
+   * Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. With
+   * `replaceMetadata` it rereads the series from scratch (its nfo first), not only what is new.
+   */
+  libraryUpdated(path: string, options?: { replaceMetadata?: boolean | undefined }): Promise<void>;
   /**
    * The show with that TMDB id, looked up through Jellyfin's own TMDB provider (and its key); null
    * when TMDB has none. Throws AppError upstream when Jellyfin can't be asked.

@@ -76,10 +76,12 @@ arrow on its card goes back to the list). On the left, one panel: its card (post
 and IMDb ids, and how many episodes are here) and, below it in the same panel, its settings: its addresses and
 how each numbers its episodes (as the site does, or into a season and shifted), when the site was last
 and will next be searched for new episodes, with **Search now**, following and the hours between
-searches, the TMDB and IMDb ids, the maximum video height, and the audio and subtitle languages picked
+searches, its title and year, the TMDB and IMDb ids, the maximum video height, and the audio and subtitle languages picked
 from a list (none picked keeps every track; subtitles can also be **No subtitles**; the first audio
 language picked is the original). Changes save themselves as they are made; only a
-failure shows, with **Retry**. A followed series also finds the seasons its site adds: each search
+failure shows, with **Retry**. A new title, year or id makes Jellyfin reread the series about a
+minute later; the folder keeps its name and episodes are still matched by the ids, so a wrong title only
+changes the name shown until you fix it. A followed series also finds the seasons its site adds: each search
 asks the site which seasons the show has (sites that read a show through its API) and adds each one after
 the last its sources read as a source of its own — whichever order the site uploads them in, and with a
 TMDB key only seasons TMDB has — queues its episodes and closes the source before. Only where the site

@@ -231,6 +231,30 @@ describe("JellyfinMediaServer", () => {
     expect(requests.some((r) => parts(r).path === "/Library/Media/Updated")).toBe(false);
   });
 
+  it("replaces the series' metadata when asked, so a new nfo title wins", async () => {
+    const { server, requests } = mediaServer(jellyfinWith());
+    await server.libraryUpdated("/media/tv/The Beverly Hillbillies (1962)", {
+      replaceMetadata: true,
+    });
+    expect(parts(refreshOf(requests))).toEqual({
+      path: "/Items/show-hillbillies/Refresh",
+      query: {
+        metadataRefreshMode: "FullRefresh",
+        imageRefreshMode: "Default",
+        replaceAllMetadata: "true",
+      },
+    });
+  });
+
+  it("never replaces a whole library's metadata", async () => {
+    const { server, requests } = mediaServer(jellyfinWith());
+    await server.libraryUpdated("/media/tv/Brand New (2026)", { replaceMetadata: true });
+    expect(parts(refreshOf(requests)).query).toEqual({
+      metadataRefreshMode: "Default",
+      imageRefreshMode: "Default",
+    });
+  });
+
   it("refreshes the library when Jellyfin doesn't know the series yet", async () => {
     const { server, requests } = mediaServer(jellyfinWith());
     await server.libraryUpdated("/media/tv/Brand New (2026)");

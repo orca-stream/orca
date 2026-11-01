@@ -5,12 +5,12 @@ import {
   IMDB_ID_PATTERN,
   LANGUAGE_CODE_PATTERN,
   MAX_MAX_HEIGHT,
+  MAX_TITLE_LENGTH,
   MIN_MAX_HEIGHT,
   TMDB_ID_PATTERN,
 } from "./rules.ts";
 
-/** Titles become folder names; this keeps them well under file-name limits. */
-export const MAX_TITLE_LENGTH = 150;
+export { MAX_TITLE_LENGTH };
 
 export const EpisodeStatus = z.enum(["missing", "queued", "downloading", "available", "failed"]);
 export type EpisodeStatus = z.infer<typeof EpisodeStatus>;

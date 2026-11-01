@@ -77,11 +77,13 @@ La pantalla de una serie se ordena igual, a todo el ancho y sin barra de arriba 
 ficha vuelve a la lista). A la izquierda, un solo panel: su ficha (póster, año, temporadas, sinopsis,
 ids de TMDB e IMDb y cuántos episodios hay) y, debajo en el mismo panel, sus ajustes: sus direcciones y cómo numera
 cada una (como el sitio, o hacia una temporada y desplazada), cuándo se buscaron y se buscarán episodios
-nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre búsquedas, los ids de TMDB e
-IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
+nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre búsquedas, su título y año,
+los ids de TMDB e IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
 elegir ninguno se guardan todas las pistas; en subtítulos también **Sin subtítulos**; el primer idioma
 de audio elegido es el original). Los cambios se guardan solos al hacerlos; solo
-un fallo se muestra, con **Reintentar**. Una serie que se sigue también encuentra las temporadas que
+un fallo se muestra, con **Reintentar**. Un título, año o id nuevo hace que Jellyfin vuelva a leer la serie
+cerca de un minuto después; la carpeta conserva su nombre y los episodios se siguen emparejando por los
+ids, así que un título mal escrito solo cambia el nombre que se ve hasta que lo corrijas. Una serie que se sigue también encuentra las temporadas que
 su sitio añade: en cada búsqueda pregunta al sitio qué temporadas tiene la serie (los sitios que la leen
 por su API) y añade cada una posterior a la última que leen sus fuentes como fuente propia —en el orden
 en que el sitio las suba y, con clave de TMDB, solo temporadas que TMDB tiene—, pone en cola sus

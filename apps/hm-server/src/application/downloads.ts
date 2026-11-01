@@ -75,21 +75,29 @@ export function createEnqueueDownloads(deps: Deps) {
 
 /**
  * Asks for a library refresh of a series, a little later: every episode that lands in the next
- * `refreshDebounceMs` pushes the refresh back, so twenty episodes cost one scan.
+ * `refreshDebounceMs` pushes the refresh back, so twenty episodes cost one scan. With
+ * `replaceMetadata` (the series was renamed or got other ids) Jellyfin rereads it from scratch: a
+ * plain refresh keeps the name it already has, whatever the nfo says now. It is a job of its own, so
+ * a pending plain refresh can't swallow it.
  */
 export function createEnqueueRefresh(deps: Deps) {
-  return async function enqueueRefresh(seriesId: string): Promise<void> {
+  return async function enqueueRefresh(
+    seriesId: string,
+    options: { replaceMetadata?: boolean } = {},
+  ): Promise<void> {
     const runAfter = deps.clock.now() + deps.refreshDebounceMs;
+    const replace = options.replaceMetadata === true;
     const request = {
       kind: "refresh_library" as const,
-      payload: { seriesId },
+      payload: replace ? { seriesId, replaceMetadata: true } : { seriesId },
       seriesId,
       resource: "none" as const,
       runAfter,
     };
+    const prefix = replace ? "rename" : "refresh";
     const { job, created } = await deps.jobs.enqueue({
       ...request,
-      dedupeKey: `refresh:${seriesId}`,
+      dedupeKey: `${prefix}:${seriesId}`,
     });
     if (created) return;
     if (job.status === "queued") {
@@ -97,7 +105,7 @@ export function createEnqueueRefresh(deps: Deps) {
       return;
     }
     // The running refresh may have scanned before this episode landed: one follow-up covers them all.
-    const next = await deps.jobs.enqueue({ ...request, dedupeKey: `refresh-next:${seriesId}` });
+    const next = await deps.jobs.enqueue({ ...request, dedupeKey: `${prefix}-next:${seriesId}` });
     if (!next.created) await deps.jobs.postpone(next.job.id, runAfter);
   };
 }

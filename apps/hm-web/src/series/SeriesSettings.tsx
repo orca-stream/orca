@@ -1,13 +1,16 @@
 import type { SeriesDto } from "@orca/hm-contract";
+import { MAX_TITLE_LENGTH } from "@orca/hm-contract/rules";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  Calendar03Icon,
   Clock01Icon,
   Film01Icon,
   HdIcon,
   RefreshIcon,
   RssIcon,
   SubtitleIcon,
+  TextFontIcon,
   Tv01Icon,
   VolumeHighIcon,
 } from "@hugeicons/core-free-icons";
@@ -208,6 +211,33 @@ export function SeriesSettings({
             {checkStatus.join(". ")}
           </p>
         </div>
+      </div>
+
+      {/* The name it goes by in Jellyfin: a new one makes Jellyfin reread the series. */}
+      <div className="flex">
+        <BarField
+          icon={TextFontIcon}
+          label={t.add.fieldTitle}
+          placeholder={t.add.titlePlaceholder}
+          title={t.series.detail.titleHint}
+          maxLength={MAX_TITLE_LENGTH}
+          error={invalid.has("title") ? t.series.detail.titleInvalid : undefined}
+          value={form.title}
+          onChange={(event) => update({ title: event.target.value }, true)}
+          onBlur={() => save(form)}
+        />
+        <BarField
+          icon={Calendar03Icon}
+          label={t.add.fieldYear}
+          placeholder={t.add.yearPlaceholder}
+          inputMode="numeric"
+          maxLength={4}
+          error={invalid.has("year") ? t.add.yearInvalid : undefined}
+          value={form.year}
+          onChange={(event) => update({ year: digitsOf(event.target.value) }, true)}
+          onBlur={() => save(form)}
+          className="w-48 shrink-0 border-l border-l-(--glass-edge)"
+        />
       </div>
 
       <div className={PAIR}>

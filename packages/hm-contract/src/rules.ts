@@ -6,6 +6,9 @@ import type { HmEvent } from "./events.ts";
  * Keep this file free of imports other than types.
  */
 
+/** Titles become folder names; this keeps them well under file-name limits. */
+export const MAX_TITLE_LENGTH = 150;
+
 /** Smallest and tallest video a height limit can name (144p to 8K). */
 export const MIN_MAX_HEIGHT = 144;
 export const MAX_MAX_HEIGHT = 4320;

@@ -80,7 +80,10 @@ export class JellyfinMediaServer implements MediaServer {
    * library that holds it. Not `POST /Library/Media/Updated`: Jellyfin answers it 204 and may drop it
    * silently (a path under one it ignores while writing trickplay or images there).
    */
-  async libraryUpdated(path: string): Promise<void> {
+  async libraryUpdated(
+    path: string,
+    options: { replaceMetadata?: boolean | undefined } = {},
+  ): Promise<void> {
     const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
     const root = trimSlashes(mediaRoot);
@@ -90,13 +93,22 @@ export class JellyfinMediaServer implements MediaServer {
     const jellyfinPath = trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length));
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
     try {
-      const itemId = await this.findItem(api, jellyfinPath);
-      // Default: only what is new or changed, not a full metadata refresh.
-      await getLibraryApi(api).refreshItem({
-        itemId,
-        metadataRefreshMode: MetadataRefreshMode.Default,
-        imageRefreshMode: MetadataRefreshMode.Default,
-      });
+      const { itemId, isSeries } = await this.findItem(api, jellyfinPath);
+      // Default: only what is new or changed. Replacing is for the series alone, never its library.
+      await getLibraryApi(api).refreshItem(
+        options.replaceMetadata && isSeries
+          ? {
+              itemId,
+              metadataRefreshMode: MetadataRefreshMode.FullRefresh,
+              imageRefreshMode: MetadataRefreshMode.Default,
+              replaceAllMetadata: true,
+            }
+          : {
+              itemId,
+              metadataRefreshMode: MetadataRefreshMode.Default,
+              imageRefreshMode: MetadataRefreshMode.Default,
+            },
+      );
     } catch (error) {
       if (!isAxiosError(error)) throw error;
       const status = error.response?.status;
@@ -231,7 +243,7 @@ export class JellyfinMediaServer implements MediaServer {
   }
 
   /** The series whose folder is `path`, else the library whose folder holds it. */
-  private async findItem(api: Api, path: string): Promise<string> {
+  private async findItem(api: Api, path: string): Promise<{ itemId: string; isSeries: boolean }> {
     const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
     const library = libraries.find(
       (folder) =>
@@ -249,6 +261,8 @@ export class JellyfinMediaServer implements MediaServer {
       enableTotalRecordCount: false,
     });
     const series = (data.Items ?? []).find((item) => item.Path && trimSlashes(item.Path) === path);
-    return series?.Id ?? library.ItemId;
+    return series?.Id
+      ? { itemId: series.Id, isSeries: true }
+      : { itemId: library.ItemId, isSeries: false };
   }
 }

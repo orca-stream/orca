@@ -579,8 +579,13 @@ export function createUseCases(deps: Deps) {
           patch.tmdbId !== undefined ||
           patch.imdbId !== undefined)
       ) {
-        // The folder keeps its name; Jellyfin reads the new title from the nfo.
+        // The folder keeps its name; Jellyfin reads the new title from the nfo, but only when told
+        // to replace what it has.
         await deps.library.writeSeries(updated);
+        const renamed = (["title", "year", "tmdbId", "imdbId"] as const).some(
+          (field) => updated[field] !== current[field],
+        );
+        if (renamed) await enqueueRefresh(id, { replaceMetadata: true });
       }
       deps.events.publish({ type: "series.updated", seriesId: id });
       return this.getSeries(id);
