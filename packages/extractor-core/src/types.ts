@@ -144,6 +144,12 @@ export interface ExtractorInfo {
   example: string;
 }
 
+/** A season a site lists for a show, and the address it is read at. */
+export interface SeasonSource {
+  season: number;
+  url: string;
+}
+
 /** One player of an episode, on whichever host serves it. */
 export interface Mirror {
   /** The player's page: the browser opens it and records the stream it plays. */
@@ -172,6 +178,12 @@ export interface SiteExtractor extends ExtractorInfo {
    * adding another source can start from it. Null or absent: nothing to suggest.
    */
   nextSourceUrl?(url: string): string | null;
+  /**
+   * Every season the site lists for the show this address is part of, lowest first, each under the
+   * address `extract` keeps it at (its `sourceUrl`). A followed series reads it to find the seasons
+   * the site has that none of its sources reads yet. Absent: the site can't say.
+   */
+  seasonSources?(url: string, options?: { signal?: AbortSignal }): Promise<SeasonSource[]>;
   /**
    * The players an episode page of kind `mirrors` offers, in the site's order. Read when the episode
    * is downloaded, not when it is listed: the addresses may expire. Required for `mirrors` media.

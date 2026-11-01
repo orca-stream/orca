@@ -1,9 +1,10 @@
 import { ExtractorError, type Extraction } from "@orca/extractor-core";
 import { PermanentError, RetryableError } from "../domain/errors.ts";
-import type { Episode, SeriesSource } from "../domain/series.ts";
+import { uuidv7 } from "../domain/ids.ts";
+import type { Episode, Series, SeriesSource } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createEnqueueDownloads } from "./downloads.ts";
-import { newEpisode, numberOf, sourceOf } from "./episodes.ts";
+import { closeFinishedSources, newEpisode, numberOf, sourceOf } from "./episodes.ts";
 
 export interface CheckResult {
   /** Some source was read again (its marker moved, or its extractor has none). */
@@ -71,7 +72,100 @@ export function createCheckSeries(deps: Deps) {
     }
   }
 
-  return async function checkSeries(seriesId: string, signal?: AbortSignal): Promise<CheckResult> {
+  /**
+   * The seasons the site lists for a followed series after the last one its sources read, each added
+   * as a source of its own with the site's season number: what a new season of a show on the air needs
+   * to be found, whichever order the site uploads them in. With a TMDB key, only seasons TMDB has.
+   * Returns the episodes stored, not queued yet.
+   */
+  async function addNewSeasons(series: Series, signal?: AbortSignal): Promise<Episode[]> {
+    const options = signal ? { signal } : undefined;
+    const sources = await deps.series.listSources([series.id]);
+    const existing = await deps.series.listEpisodes(series.id);
+    // Where a source reaches: its last episode's season, or the season it is set to.
+    const reach = (source: SeriesSource) =>
+      Math.max(
+        source.season ?? -1,
+        ...existing.filter((e) => e.sourceId === source.id).map((e) => e.season),
+      );
+    const [last] = sources
+      .filter((source) => {
+        const extractor = deps.extractors.get(source.extractorId);
+        return extractor != null && "seasonSources" in extractor;
+      })
+      .sort((a, b) => reach(b) - reach(a));
+    // A source that moves the site's numbers is a part of a season: what follows can't be guessed.
+    if (!last || last.episodeOffset !== 0) return [];
+    const extractor = deps.extractors.get(last.extractorId)!;
+    let listed;
+    try {
+      listed = await extractor.seasonSources!(last.sourceUrl, options);
+    } catch (error) {
+      throw toJobError(error);
+    }
+    const at = listed.find((entry) => entry.url === last.sourceUrl);
+    // Only where the site numbers seasons as the series does: one whose seasons 1–3 are TMDB's 1
+    // says nothing of where its 4 goes.
+    if (!at || (last.season !== null && last.season !== at.season)) return [];
+    const tmdbSeasons =
+      deps.episodeGuide && series.tmdbId
+        ? await deps.episodeGuide
+            .seasons(series.tmdbId, undefined, signal)
+            .then((seasons) => (seasons ? new Set(seasons.map((season) => season.number)) : null))
+            .catch(() => null)
+        : null;
+    const addresses = new Set(sources.map((source) => source.sourceUrl));
+    const taken = new Set(existing.map((episode) => `${episode.season}:${episode.episode}`));
+    const episodes = [...existing];
+    const added: Episode[] = [];
+    for (const entry of listed) {
+      if (entry.season <= at.season || addresses.has(entry.url)) continue;
+      if (tmdbSeasons && !tmdbSeasons.has(entry.season)) continue;
+      let extraction: Extraction;
+      try {
+        extraction = await extractor.extract(entry.url, options);
+      } catch (error) {
+        throw toJobError(error);
+      }
+      if (await deps.series.findSourceByExternal(extractor.id, extraction.series.externalId)) {
+        continue;
+      }
+      const now = deps.clock.now();
+      const source: SeriesSource = {
+        id: uuidv7(now),
+        seriesId: series.id,
+        extractorId: extractor.id,
+        externalId: extraction.series.externalId,
+        sourceUrl: extraction.series.sourceUrl,
+        season: last.season === null ? null : entry.season,
+        episodeOffset: 0,
+        remoteMarker: extraction.series.remoteMarker ?? null,
+        knownRefs: [],
+        closed: false,
+        createdAt: now,
+      };
+      const fresh: Episode[] = [];
+      for (const found of extraction.episodes) {
+        const { season, episode } = numberOf(source, found);
+        if (taken.has(`${season}:${episode}`)) continue;
+        taken.add(`${season}:${episode}`);
+        fresh.push(newEpisode(source, found, now));
+      }
+      // As a check leaves them: one whose number is taken is not known, so it comes once it is free.
+      const kept = new Set(fresh.map((episode) => episode.sourceRef));
+      source.knownRefs = extraction.episodes
+        .map((found) => found.sourceRef)
+        .filter((ref) => kept.has(ref));
+      await deps.series.addSource(source, fresh);
+      await closeFinishedSources(deps.series, series.id, source.id, fresh, episodes);
+      addresses.add(source.sourceUrl);
+      episodes.push(...fresh);
+      added.push(...fresh);
+    }
+    return added;
+  }
+
+  async function checkSources(seriesId: string, signal?: AbortSignal): Promise<CheckResult> {
     const series = await deps.series.get(seriesId);
     if (!series) return UNCHANGED;
 
@@ -176,5 +270,24 @@ export function createCheckSeries(deps: Deps) {
         .catch((error: unknown) => console.error("notification failed:", error));
     }
     return { changed: true, added: add.length, newEpisodes: add, skipped, skippedRefs };
+  }
+
+  return async function checkSeries(seriesId: string, signal?: AbortSignal): Promise<CheckResult> {
+    const result = await checkSources(seriesId, signal);
+    const series = await deps.series.get(seriesId);
+    if (!series?.follow) return result;
+    const added = await addNewSeasons(series, signal);
+    if (added.length === 0) return result;
+    await enqueueDownloads(added.map((episode) => episode.id));
+    deps.events.publish({ type: "series.updated", seriesId: series.id });
+    await deps.notifications
+      .newEpisodes({ id: series.id, title: series.title }, added)
+      .catch((error: unknown) => console.error("notification failed:", error));
+    return {
+      ...result,
+      changed: true,
+      added: result.added + added.length,
+      newEpisodes: [...result.newEpisodes, ...added],
+    };
   };
 }

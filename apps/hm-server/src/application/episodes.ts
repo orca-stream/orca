@@ -2,6 +2,7 @@ import type { Extraction } from "@orca/extractor-core";
 import { mapEpisode } from "@orca/hm-contract";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, SeriesSource, Source } from "../domain/series.ts";
+import type { SeriesRepository } from "./ports.ts";
 
 export type ExtractedEpisode = Extraction["episodes"][number];
 
@@ -53,4 +54,46 @@ export function newEpisode(
     filePath: null,
     createdAt: now,
   };
+}
+
+/** Which of two episodes comes first in the series: by season, then by number. */
+export function comparePlace(
+  a: { season: number; episode: number },
+  b: { season: number; episode: number },
+): number {
+  return a.season - b.season || a.episode - b.episode;
+}
+
+/**
+ * A source that starts after everything another one lists means that one is finished — a new
+ * season, or the next part of the same season the site lists under another address. Its source
+ * would bring nothing new, so it is closed as the user would by hand. One that reaches as far as
+ * the new one starts stays open. `existing` are the series' episodes before `added`.
+ */
+export async function closeFinishedSources(
+  series: SeriesRepository,
+  seriesId: string,
+  sourceId: string,
+  added: readonly Episode[],
+  existing: readonly Episode[],
+): Promise<void> {
+  if (added.length === 0) return;
+  const from = added.reduce((first, episode) =>
+    comparePlace(episode, first) < 0 ? episode : first,
+  );
+  const lastOf = new Map<string, Episode>();
+  for (const episode of existing) {
+    if (!episode.sourceId) continue;
+    const last = lastOf.get(episode.sourceId);
+    if (!last || comparePlace(episode, last) > 0) lastOf.set(episode.sourceId, episode);
+  }
+  for (const other of await series.listSources([seriesId])) {
+    if (other.id === sourceId || other.closed) continue;
+    const last = lastOf.get(other.id);
+    // With no episodes of its own, only its season tells: an earlier one is finished.
+    const finished = last
+      ? comparePlace(last, from) < 0
+      : other.season !== null && other.season < from.season;
+    if (finished) await series.updateSource(other.id, { closed: true });
+  }
 }

@@ -14,5 +14,6 @@ export {
   type ExtractorLimits,
   type HttpClient,
   type Mirror,
+  type SeasonSource,
   type SiteExtractor,
 } from "./types.ts";

@@ -30,7 +30,7 @@ import { trustedPosterUrl } from "./poster-url.ts";
 import type { FetchedImage, LibraryShow } from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
-import { newEpisode, numberOf } from "./episodes.ts";
+import { closeFinishedSources, newEpisode, numberOf } from "./episodes.ts";
 import { createEnqueueCheck } from "./checks.ts";
 import {
   toEpisodeDto,
@@ -76,14 +76,6 @@ function alreadyHave(series: Series): AppError {
 }
 
 /** Two chosen episodes must not land on the same season and number. */
-/** Which of two episodes comes first in the series: by season, then by number. */
-function comparePlace(
-  a: { season: number; episode: number },
-  b: { season: number; episode: number },
-): number {
-  return a.season - b.season || a.episode - b.episode;
-}
-
 function assertDistinctNumbers(numbers: { season: number; episode: number }[]): void {
   const seen = new Set<string>();
   const twice = new Set<string>();
@@ -241,36 +233,6 @@ export function createUseCases(deps: Deps) {
         closed: false,
         createdAt: now,
       });
-      // A source that starts after everything another one lists means that one is finished — a new
-      // season, or the next part of the same season the site lists under another address. Its source
-      // would bring nothing new, so it is closed as the user would by hand. One that reaches as far
-      // as the new one starts stays open.
-      const closeEarlierSources = async (
-        seriesId: string,
-        sourceId: string,
-        added: Episode[],
-        existing: Episode[],
-      ) => {
-        if (added.length === 0) return;
-        const from = added.reduce((first, episode) =>
-          comparePlace(episode, first) < 0 ? episode : first,
-        );
-        const lastOf = new Map<string, Episode>();
-        for (const episode of existing) {
-          if (!episode.sourceId) continue;
-          const last = lastOf.get(episode.sourceId);
-          if (!last || comparePlace(episode, last) > 0) lastOf.set(episode.sourceId, episode);
-        }
-        for (const other of await deps.series.listSources([seriesId])) {
-          if (other.id === sourceId || other.closed) continue;
-          const last = lastOf.get(other.id);
-          // With no episodes of its own, only its season tells: an earlier one is finished.
-          const finished = last
-            ? comparePlace(last, from) < 0
-            : other.season !== null && other.season < from.season;
-          if (finished) await deps.series.updateSource(other.id, { closed: true });
-        }
-      };
       const assertNewAddress = async () => {
         const taken = await deps.series.findSourceByExternal(
           extractorId,
@@ -324,7 +286,7 @@ export function createUseCases(deps: Deps) {
             return filePath ? { ...episode, status: "available", filePath } : episode;
           });
           await deps.series.addSource(source, placed);
-          await closeEarlierSources(series.id, source.id, placed, existing);
+          await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
           return { series, episodes: placed };
         });
         const found = episodes.filter((episode) => episode.status === "available");

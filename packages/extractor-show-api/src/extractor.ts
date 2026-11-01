@@ -262,6 +262,15 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
       return address?.season == null ? null : seasonUrl(address.show, address.season + 1);
     },
 
+    async seasonSources(input: string, options?: { signal?: AbortSignal }) {
+      const address = owned(input);
+      const { _id } = await show(address.slug, options?.signal);
+      return (await seasonNumbers(_id, options?.signal)).map((season) => ({
+        season,
+        url: seasonUrl(address.show, season),
+      }));
+    },
+
     async remoteMarker(input: string, options?: { signal?: AbortSignal }): Promise<string> {
       const address = owned(input);
       const signal = options?.signal;

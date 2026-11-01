@@ -103,6 +103,15 @@ describe("show API extractor: one season per address", () => {
     expect(extractor.nextSourceUrl!("https://other.test/series/the-show-2026?season=1")).toBeNull();
   });
 
+  it("lists every season the show has, in number order, at the address each is read at", async () => {
+    const { http } = fakeApi(answers());
+    const extractor = createShowApiExtractor({ site, http });
+    expect(await extractor.seasonSources!(`${SHOW}?season=2`)).toEqual([
+      { season: 2, url: `${SHOW}?season=2` },
+      { season: 10, url: `${SHOW}?season=10` },
+    ]);
+  });
+
   it("reads the season the address names, as its own source", async () => {
     const { http, requests } = fakeApi(answers());
     const extraction = await createShowApiExtractor({ site, http }).extract(`${SHOW}/?season=10`);
