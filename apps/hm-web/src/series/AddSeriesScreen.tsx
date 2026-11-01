@@ -79,7 +79,7 @@ import {
   type PreviewForm,
 } from "./preview-form";
 import { ShowBackdrop } from "./ShowBackdrop";
-import { ShowCard, ShowHoverCard, type ShowCardData } from "./ShowCard";
+import { ShowCard, type ShowCardData } from "./ShowCard";
 
 /** How long the TMDB id has to stay put before it is looked up. */
 const LOOKUP_DELAY_MS = 500;
@@ -804,36 +804,34 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                   isItemEqualToValue={(item, value) => item.value === value.value}
                   onOpenChange={setListOpen}
                 >
-                  <ShowHoverCard show={targetCard} quiet={listOpen}>
-                    <ComboboxInput
-                      id="add-to"
-                      aria-label={t.add.addTo}
-                      placeholder={t.add.addToSearch}
-                      showClear={form.addTo !== ""}
-                      className={cn(
-                        BAR_ROW,
-                        "w-full rounded-none border-t border-t-(--glass-edge) pr-4 [&_input]:text-base",
-                      )}
-                    >
-                      {/* In the indicator's column above, so both texts start at the same place. */}
-                      <InputGroupAddon align="inline-start" className="w-[46px] justify-start pl-4">
-                        <HugeiconsIcon
-                          icon={form.addTo === "" ? FolderAddIcon : Folder01Icon}
-                          className="size-5"
-                        />
+                  <ComboboxInput
+                    id="add-to"
+                    aria-label={t.add.addTo}
+                    placeholder={t.add.addToSearch}
+                    showClear={form.addTo !== ""}
+                    className={cn(
+                      BAR_ROW,
+                      "w-full rounded-none border-t border-t-(--glass-edge) pr-4 [&_input]:text-base",
+                    )}
+                  >
+                    {/* In the indicator's column above, so both texts start at the same place. */}
+                    <InputGroupAddon align="inline-start" className="w-[46px] justify-start pl-4">
+                      <HugeiconsIcon
+                        icon={form.addTo === "" ? FolderAddIcon : Folder01Icon}
+                        className="size-5"
+                      />
+                    </InputGroupAddon>
+                    {/* Dimmed beside the title, the way the lists below give their details. */}
+                    {chosenTarget && chosenTarget.year !== null && !listOpen && (
+                      <InputGroupAddon
+                        align="inline-end"
+                        aria-hidden="true"
+                        className="order-[9998] pr-1 text-sm text-muted-foreground tabular-nums"
+                      >
+                        {chosenTarget.year}
                       </InputGroupAddon>
-                      {/* Dimmed beside the title, the way the lists below give their details. */}
-                      {chosenTarget && chosenTarget.year !== null && !listOpen && (
-                        <InputGroupAddon
-                          align="inline-end"
-                          aria-hidden="true"
-                          className="order-[9998] pr-1 text-sm text-muted-foreground tabular-nums"
-                        >
-                          {chosenTarget.year}
-                        </InputGroupAddon>
-                      )}
-                    </ComboboxInput>
-                  </ShowHoverCard>
+                    )}
+                  </ComboboxInput>
                   <ComboboxContent anchor={head} sideOffset={8} className={BAR_POPUP}>
                     <ComboboxEmpty>{t.add.addToNone}</ComboboxEmpty>
                     <ComboboxList>
@@ -889,22 +887,20 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                       />
                     </div>
                     <div className="grid grid-cols-2">
-                      <ShowHoverCard show={tmdbCard} className="min-w-0">
-                        <BarField
-                          icon={Film01Icon}
-                          label={t.add.tmdbId}
-                          placeholder={t.add.tmdbPlaceholder}
-                          inputMode="numeric"
-                          error={tmdbError}
-                          busy={lookup.isFetching ? t.add.tmdbLooking : undefined}
-                          value={form.tmdbId}
-                          onChange={(event) => {
-                            // Whatever the id settles on is applied again, even an answer seen before.
-                            setAppliedShow(null);
-                            setForm({ ...form, tmdbId: digitsOf(event.target.value) });
-                          }}
-                        />
-                      </ShowHoverCard>
+                      <BarField
+                        icon={Film01Icon}
+                        label={t.add.tmdbId}
+                        placeholder={t.add.tmdbPlaceholder}
+                        inputMode="numeric"
+                        error={tmdbError}
+                        busy={lookup.isFetching ? t.add.tmdbLooking : undefined}
+                        value={form.tmdbId}
+                        onChange={(event) => {
+                          // Whatever the id settles on is applied again, even an answer seen before.
+                          setAppliedShow(null);
+                          setForm({ ...form, tmdbId: digitsOf(event.target.value) });
+                        }}
+                      />
                       <BarField
                         icon={Tv01Icon}
                         label={t.add.imdbId}
@@ -1035,11 +1031,10 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
               </div>
             )}
             {attached && sideCard && (
-              // Wide screens only, as the bar's last part: there it fills the column; narrower, the
-              // hover cards do.
+              // The bar's last part, at every width: the one place the show's card is given.
               <section
                 aria-label={sideCard.caption}
-                className="hidden border-t border-t-(--glass-edge) p-4 text-sm xl:block"
+                className="border-t border-t-(--glass-edge) p-4 text-sm"
               >
                 <p className="mb-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   {sideCard.caption}

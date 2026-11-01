@@ -220,7 +220,7 @@ describe("AddSeriesScreen", () => {
     ]);
   });
 
-  it("shows the chosen series' title with its year dimmed beside it, and its card on hover", async () => {
+  it("shows the chosen series' title with its year dimmed beside it, and its card beside the episodes", async () => {
     const user = userEvent.setup();
     setup({
       series: [makeSeries({ id: "s1", title: "Otra", plot: "Una familia encuentra petróleo." })],
@@ -233,18 +233,13 @@ describe("AddSeriesScreen", () => {
     expect(
       screen.getByLabelText("Añadir a").closest('[data-slot="input-group"]')!.textContent,
     ).toContain("1962");
-    // Beside the episodes already; on hover, once more.
-    expect(screen.getByRole("region", { name: "Se añade a" }).textContent).toContain(
-      "Una familia encuentra petróleo.",
-    );
-    await user.hover(screen.getByLabelText("Añadir a"));
-    await waitFor(() =>
-      expect(screen.getAllByText("Una familia encuentra petróleo.")).toHaveLength(2),
-    );
-    expect(screen.getAllByText("12 de 36 episodios en la biblioteca")).toHaveLength(2);
+    // Only beside the episodes: no card on hover repeats it over the row.
+    const side = screen.getByRole("region", { name: "Se añade a" });
+    expect(side.textContent).toContain("Una familia encuentra petróleo.");
+    expect(side.textContent).toContain("12 de 36 episodios en la biblioteca");
   });
 
-  it("shows TMDB's card of the show the TMDB id names, on hover", async () => {
+  it("shows TMDB's card of the show the TMDB id names beside the episodes", async () => {
     const user = userEvent.setup();
     setup({
       shows: {
@@ -265,10 +260,6 @@ describe("AddSeriesScreen", () => {
     const side = screen.getByRole("region", { name: "Según TMDB" });
     expect(side.textContent).toContain("Cazarrecompensas en el espacio.");
     expect(side.textContent).toContain("TMDB 30991");
-    await user.hover(screen.getByLabelText("Id de TMDB"));
-    await waitFor(() =>
-      expect(screen.getAllByText("Cazarrecompensas en el espacio.")).toHaveLength(2),
-    );
   });
 
   it("lays the show's backdrop behind the screen once the TMDB id names it, else its poster", async () => {

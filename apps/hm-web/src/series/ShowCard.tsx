@@ -1,5 +1,3 @@
-import { useState, type ReactElement, type ReactNode } from "react";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { PosterImage } from "./Poster";
@@ -68,48 +66,5 @@ export function ShowCard({ show, large = false }: { show: ShowCardData; large?: 
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * The show's card on hover over `children` (a row of the bar), in the bar's glass. Never on focus:
- * the row is typed into, and a card over what is being typed only gets in the way. Nothing opens
- * without a `show`, or while `quiet` (its own list is open).
- */
-export function ShowHoverCard({
-  show,
-  quiet = false,
-  className,
-  children,
-}: {
-  show: ShowCardData | null;
-  quiet?: boolean;
-  className?: string;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const trigger: ReactElement = <div />;
-  return (
-    <HoverCard
-      open={open && show !== null && !quiet}
-      onOpenChange={(next, details) => {
-        if (next && details.reason === "trigger-focus") return;
-        setOpen(next);
-      }}
-    >
-      <HoverCardTrigger delay={400} closeDelay={150} render={trigger} className={cn(className)}>
-        {children}
-      </HoverCardTrigger>
-      {show && (
-        <HoverCardContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          className="w-96 max-w-(--available-width) rounded-2xl border border-(--glass-edge) bg-(--glass-strong) p-3 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]"
-        >
-          <ShowCard show={show} />
-        </HoverCardContent>
-      )}
-    </HoverCard>
   );
 }
