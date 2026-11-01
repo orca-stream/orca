@@ -33,9 +33,21 @@ const ROWS = "[&>*+*]:border-t [&>*+*]:border-t-(--glass-edge)";
 /** A row of the bar: its mark, its two lines, and its buttons at the end, 8px apart as siblings. */
 const ROW = "flex min-h-18 min-w-0 items-center gap-2 pr-4";
 
-/** The mark at the start of a row, in the bar's own column: its left edge on the panel's margin. */
+/**
+ * The mark at the start of a row: a 40px circle, the size of the row's own buttons, 16px from the
+ * panel's edge and 16px from the text (less the 6px the text brings).
+ */
 function RowMark({ children }: { children: React.ReactNode }) {
-  return <span className="flex w-[46px] shrink-0 pl-4">{children}</span>;
+  return <span className="flex shrink-0 pr-2.5 pl-4">{children}</span>;
+}
+
+/** The mark of a row whose reader is unknown, or of the header that counts them: a plain link. */
+function LinkMark() {
+  return (
+    <span className="flex size-10 items-center justify-center rounded-full bg-black/5 text-muted-foreground">
+      <HugeiconsIcon icon={Link01Icon} className="size-5" aria-hidden="true" />
+    </span>
+  );
 }
 
 /** Close or reopen one source, right where it is listed: a padlock, always the last button. */
@@ -137,11 +149,11 @@ function SourceRow({
           {extractor ? (
             <ExtractorMark
               extractor={extractor}
-              className={cn("size-5 rounded-full", source.closed && "opacity-45 grayscale")}
-              iconClassName="size-3"
+              className={cn("size-10 rounded-full", source.closed && "opacity-45 grayscale")}
+              iconClassName="size-5"
             />
           ) : (
-            <HugeiconsIcon icon={Link01Icon} className="size-5 text-muted-foreground" />
+            <LinkMark />
           )}
         </RowMark>
         <span className="flex min-w-0 flex-1 flex-col pl-1.5 leading-snug">
@@ -210,11 +222,7 @@ export function SeriesSources({ series }: { series: SeriesDto }) {
       <div className={ROW}>
         <Collapsible.Trigger className="group/head flex min-w-0 flex-1 items-center self-stretch py-3 pr-2 text-left focus-visible:outline-none">
           <RowMark>
-            <HugeiconsIcon
-              icon={Link01Icon}
-              className="size-5 text-muted-foreground"
-              aria-hidden="true"
-            />
+            <LinkMark />
           </RowMark>
           <span className="flex min-w-0 flex-1 flex-col pl-1.5 leading-snug">
             <span className="truncate text-lg group-hover/head:underline underline-offset-3">
