@@ -67,7 +67,6 @@ function Crumbs() {
   // The series, a series and adding one have no bar: the queue and the settings are the pages below
   // home with one.
   if (location === "/downloads") crumbs.push({ label: t.nav.downloads });
-  if (location === "/settings") crumbs.push({ label: t.settings.title });
   if (crumbs.length === 0) return null;
 
   return (
@@ -212,9 +211,8 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
   // window and with no bar: its card has the way back.
   const [seriesRoute] = useRoute("/series/:id");
   const isSeries = seriesRoute && !bare;
-  const panelled = !bare && !isSeries;
-  // Settings keeps the bar but lays its own glass panels, one per section.
-  const ownPanels = location === "/settings";
+  // Settings, too: no bar (the dock is its way back) and its own glass panel.
+  const panelled = !bare && !isSeries && location !== "/settings";
 
   return (
     <TooltipProvider>
@@ -257,7 +255,7 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
                 cn("p-4", bare && "flex items-center-safe justify-center"),
           )}
         >
-          {panelled && !ownPanels ? (
+          {panelled ? (
             <div className="glass mx-auto max-w-6xl rounded-3xl p-4">{children}</div>
           ) : (
             children

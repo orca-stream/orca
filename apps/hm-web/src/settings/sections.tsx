@@ -13,7 +13,6 @@ import {
   CheckmarkCircle02Icon,
   CodeIcon,
   ConnectIcon,
-  Delete02Icon,
   Download04Icon,
   FileAttachmentIcon,
   Film01Icon,
@@ -33,7 +32,6 @@ import {
 import { LANGUAGE_CODE_PATTERN, SETTING_LIMITS } from "@orca/hm-contract/rules";
 import { ApiError } from "@/api/client";
 import type { JellyfinConnection } from "@/api/types";
-import { PendingButton } from "@/components/pending-button";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
@@ -46,10 +44,12 @@ import { extractorNames, type Draft, type DraftErrors, type DraftField } from ".
 import {
   AdvancedRows,
   ChipsRow,
+  ConfirmTrash,
   FieldRow,
   Group,
   NoteRow,
   NumberRow,
+  PanelButton,
   PRIMARY_BUTTON,
   ROWS,
   SelectRow,
@@ -78,6 +78,7 @@ function DraftRow({
   placeholder?: string;
   autoComplete?: string;
   hint?: string;
+  action?: ReactNode;
 }) {
   const t = useT();
   const problem = errors[field];
@@ -251,6 +252,16 @@ export function JellyfinSection({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [editing, setEditing] = useState(draft.jellyfinUrl === "");
+  // Changing a server that works can be called off; the first one cannot.
+  const cancellable = draft.jellyfinUrl !== "";
+
+  function cancel() {
+    setUrl(draft.jellyfinUrl);
+    setUsername("");
+    setPassword("");
+    connect.reset();
+    setEditing(false);
+  }
   const [connectedTo, setConnectedTo] = useState<string | null>(null);
   const ready = url.trim() !== "" && username !== "";
   useEffect(() => {
@@ -342,16 +353,21 @@ export function JellyfinSection({
               tone={connect.isError ? "warning" : undefined}
               action={
                 !formId && (
-                  <PendingButton
-                    type="submit"
-                    className="rounded-full"
-                    disabled={!ready}
-                    pending={connect.isPending}
-                  >
-                    {connect.isPending
-                      ? t.settings.jellyfin.connecting
-                      : t.settings.jellyfin.connect}
-                  </PendingButton>
+                  <>
+                    {cancellable && (
+                      <Button
+                        variant="outline"
+                        className={PRIMARY_BUTTON}
+                        disabled={connect.isPending}
+                        onClick={cancel}
+                      >
+                        {t.common.cancel}
+                      </Button>
+                    )}
+                    <PanelButton type="submit" disabled={!ready} pending={connect.isPending}>
+                      {t.settings.jellyfin.connect}
+                    </PanelButton>
+                  </>
                 )
               }
             >
@@ -412,8 +428,17 @@ export function LibrarySection({
   );
 }
 
-/** TMDB's key: kept on the server once saved, so the form only takes a new one. */
-export function ExtrasSection({ draft, set, errors }: SectionProps) {
+/**
+ * TMDB's key: kept on the server once saved, so the form only takes a new one. The saved one is
+ * removed from the row's trash (in the settings), at once, once asked twice.
+ */
+export function ExtrasSection({
+  draft,
+  set,
+  errors,
+  onRemoveKey,
+  removing = false,
+}: SectionProps & { onRemoveKey?: () => void; removing?: boolean }) {
   const t = useT();
   return (
     <Group title={t.settings.tmdb.title} description={t.settings.tmdb.description}>
@@ -428,35 +453,33 @@ export function ExtrasSection({ draft, set, errors }: SectionProps) {
         draft={draft}
         set={set}
         errors={errors}
+        action={
+          draft.hasTmdbApiKey &&
+          onRemoveKey && (
+            <ConfirmTrash
+              label={t.settings.tmdb.remove}
+              confirm={t.settings.tmdb.removeConfirm}
+              cancel={t.common.cancel}
+              pending={removing}
+              onConfirm={onRemoveKey}
+            />
+          )
+        }
       />
-      {draft.hasTmdbApiKey && (
-        <ToggleRow
-          icon={Delete02Icon}
-          label={t.settings.tmdb.remove}
-          hint={t.settings.hints.tmdbRemove}
-          checked={draft.removeTmdb}
-          onChange={(removeTmdb) => set({ removeTmdb })}
-        />
-      )}
     </Group>
   );
 }
 
 /**
  * The extractors file: picked from disk and checked against the server's own schema before it is
- * taken, so a wrong file says why at once. In the settings it can also be downloaded or removed.
+ * taken, so a wrong file says why at once.
  */
 export function ExtractorsSection({
   text,
   onText,
-  during,
-  action,
 }: {
   text: string;
   onText: (text: string) => void;
-  during: "setup" | "settings";
-  /** The settings screen's own save button. */
-  action?: ReactNode;
 }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
@@ -479,14 +502,6 @@ export function ExtractorsSection({
     onText(content);
   }
 
-  function download() {
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
-    link.download = "extractors.json";
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
   const some = names !== null && names.length > 0;
   return (
     <Group title={t.settings.extractors.title}>
@@ -503,16 +518,6 @@ export function ExtractorsSection({
               aria-label={t.settings.extractors.upload}
               onChange={(event) => void upload(event)}
             />
-            {some && during === "settings" && (
-              <>
-                <Button variant="ghost" className={PRIMARY_BUTTON} onClick={() => onText("")}>
-                  {t.settings.extractors.clear}
-                </Button>
-                <Button variant="outline" className={PRIMARY_BUTTON} onClick={download}>
-                  {t.settings.extractors.download}
-                </Button>
-              </>
-            )}
             <Button
               variant="outline"
               className={PRIMARY_BUTTON}
@@ -520,7 +525,6 @@ export function ExtractorsSection({
             >
               {some ? t.settings.extractors.another : t.settings.extractors.upload}
             </Button>
-            {action}
           </>
         }
       >

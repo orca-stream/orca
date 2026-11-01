@@ -47,7 +47,7 @@ Then open the panel: until the server is set up, every address shows the **setup
 3. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
 
 When you finish, you are signed in with that same administrator account. Everything can be changed
-later in the panel's **Settings** (the gear in the home dock, or the account menu); saving restarts the
+later in the panel's **Settings** (the gear in the home dock, or the account menu); the bar at the bottom appears with **Save changes** once something changes (the TMDB key is removed from its trash, at once), and saving restarts the
 queue, the scheduler and the extractors with the new settings, and keeps the old ones when the new ones
 cannot run (a Chromium path that is not there, say).
 
@@ -122,7 +122,7 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
 
 - **Extractors file.** The sites H&M reads, in a JSON file of yours that never goes in the repository:
   upload it in the setup or in **Settings › Extractors** (it is checked as it is picked, and a wrong
-  file says where it is wrong), and download it from **Settings** to take it to another machine. `apps/hm-server/extractors.example.json` shows the shape. It holds one entry per
+  file says where it is wrong; in the settings, picking it is saving it). `apps/hm-server/extractors.example.json` shows the shape. It holds one entry per
   site, under the name you give it (series remember their site by that name, so keep it once you add
   one; `name` sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
   - `"page"`: its pages, by CSS selectors. Give its hosts, the path of a season address, the listing

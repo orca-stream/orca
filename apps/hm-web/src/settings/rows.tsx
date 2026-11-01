@@ -1,8 +1,9 @@
-import { useId, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { NumberField } from "@base-ui/react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
+  Delete02Icon,
   MinusSignIcon,
   PlusSignIcon,
   Settings02Icon,
@@ -143,6 +144,7 @@ export function FieldRow({
   error,
   hint,
   bare = false,
+  action,
   className,
   ...input
 }: Omit<ComponentProps<"input">, "aria-label" | "aria-invalid"> & {
@@ -153,6 +155,8 @@ export function FieldRow({
   hint?: string | undefined;
   /** No name beside it: the name is its placeholder and the value starts where a name would. */
   bare?: boolean;
+  /** A button after the value, 16px from it. */
+  action?: ReactNode;
 }) {
   const id = useId();
   if (bare) {
@@ -188,6 +192,7 @@ export function FieldRow({
         className="-mt-2 h-11 min-w-0 basis-full bg-transparent pb-2 pl-[52px] text-base outline-none placeholder:text-muted-foreground sm:mt-0 sm:h-14 sm:flex-1 sm:basis-0 sm:pb-0 sm:pl-0 sm:text-right"
         {...input}
       />
+      {action && <div className="ml-auto flex py-2 pl-4">{action}</div>}
       {error && (
         <span id={`${id}-error`} className="sr-only">
           {error}
@@ -255,7 +260,7 @@ export function SelectRow({
 
 /** The round − and + on either side of a number. */
 const STEP_BUTTON =
-  "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/60 hover:text-foreground focus-visible:bg-white/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40";
+  "flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/60 hover:text-foreground focus-visible:bg-white/60 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40";
 
 /**
  * A number: typed, stepped with the arrow keys, or with the − and + beside it, kept between `min`
@@ -302,7 +307,7 @@ export function NumberRow({
       step={step}
       smallStep={step}
       format={{ useGrouping: false, maximumFractionDigits: 3 }}
-      className={cn(ROW, "has-focus-visible:bg-white/45")}
+      className={cn(ROW, "min-h-18 has-focus-visible:bg-white/45")}
     >
       <IconCell icon={icon} error={error} hint={hint} />
       <RowLabel htmlFor={id}>{label}</RowLabel>
@@ -502,6 +507,7 @@ export function ToggleRow({
     <label
       className={cn(
         ROW,
+        "min-h-18",
         disabled
           ? "cursor-not-allowed"
           : "cursor-pointer hover:bg-white/30 has-focus-visible:bg-white/45",
@@ -605,5 +611,100 @@ export function PanelButton({
       </span>
       {pending && <Spinner aria-hidden="true" className="absolute size-6" />}
     </Button>
+  );
+}
+
+/** The morph's pace, the same for the trash going and the pill coming. */
+const MORPH = "transition-[grid-template-columns,opacity] duration-300 ease-out";
+
+/**
+ * A trash button that asks before it deletes: clicked, it grows into a pill with the two ways out,
+ * deleting and keeping. Keeping (or Escape) shrinks it back to the trash; once deleted, the row
+ * that holds it has nothing left to delete and drops it.
+ */
+export function ConfirmTrash({
+  label,
+  confirm,
+  cancel,
+  pending = false,
+  onConfirm,
+}: {
+  /** What the trash deletes, said to a screen reader and on hover. */
+  label: string;
+  confirm: string;
+  cancel: string;
+  pending?: boolean;
+  onConfirm: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trash = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const opened = useRef(false);
+  // Focus follows the morph: onto "keep" as the pill opens, back onto the trash as it closes.
+  useEffect(() => {
+    if (open) keep.current?.focus();
+    else if (opened.current) trash.current?.focus();
+    opened.current = open;
+  }, [open]);
+
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open && !pending) {
+          event.stopPropagation();
+          setOpen(false);
+        }
+      }}
+      className={cn(
+        "flex h-14 items-center overflow-hidden rounded-full transition-colors duration-300",
+        open ? "bg-white/70 ring-1 ring-black/5" : "bg-transparent",
+      )}
+    >
+      <div className={cn("grid", MORPH, open ? "grid-cols-[0fr] opacity-0" : "grid-cols-[1fr]")}>
+        <div className="min-w-0 overflow-hidden" inert={open} aria-hidden={open || undefined}>
+          <button
+            ref={trash}
+            type="button"
+            aria-label={label}
+            title={label}
+            onClick={() => setOpen(true)}
+            className="flex size-14 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <HugeiconsIcon icon={Delete02Icon} className="size-5" />
+          </button>
+        </div>
+      </div>
+      <div className={cn("grid", MORPH, open ? "grid-cols-[1fr]" : "grid-cols-[0fr] opacity-0")}>
+        <div className="min-w-0 overflow-hidden" inert={!open} aria-hidden={!open || undefined}>
+          {/* Sibling buttons, 8px apart; the pill's own 4px round them. */}
+          <div className="flex items-center gap-2 p-1 whitespace-nowrap">
+            <button
+              ref={keep}
+              type="button"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+              className="h-12 rounded-full px-5 text-sm font-medium transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-50"
+            >
+              {cancel}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              aria-busy={pending || undefined}
+              onClick={onConfirm}
+              className="relative flex h-12 items-center justify-center gap-2 rounded-full bg-destructive px-5 text-sm font-medium text-white transition-colors hover:bg-destructive/85 focus-visible:ring-3 focus-visible:ring-destructive/40 focus-visible:outline-none disabled:pointer-events-none"
+            >
+              <span className={cn("inline-flex items-center gap-2", pending && "invisible")}>
+                <HugeiconsIcon icon={Delete02Icon} className="size-4" />
+                {confirm}
+              </span>
+              {pending && <Spinner aria-hidden="true" className="absolute size-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

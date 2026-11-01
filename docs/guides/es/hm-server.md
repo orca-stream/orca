@@ -50,7 +50,7 @@ cualquier dirección muestra la **configuración**:
 3. **Descargas.** Descargas, pistas por defecto y el navegador, con valores sugeridos ya puestos.
 
 Al terminar entras con esa misma cuenta de administrador. Todo se puede cambiar luego en **Ajustes** del
-panel (el engranaje del dock del inicio, o el menú de la cuenta); guardar reinicia la cola, el
+panel (el engranaje del dock del inicio, o el menú de la cuenta); la barra de abajo aparece con **Guardar cambios** en cuanto algo cambia (la clave de TMDB se quita desde su papelera, al momento), y guardar reinicia la cola, el
 planificador y los extractores con los ajustes nuevos, y conserva los anteriores si los nuevos no pueden
 funcionar (por ejemplo, una ruta de Chromium que no existe).
 
@@ -125,7 +125,7 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 
 - **Archivo de extractores.** Los sitios que lee H&M, en un archivo JSON tuyo que nunca va en el
   repositorio: súbelo en la configuración o en **Ajustes › Extractores** (se revisa al elegirlo, y
-  uno erróneo dice dónde falla), y descárgalo desde **Ajustes** para llevarlo a otro equipo. `apps/hm-server/extractors.example.json` muestra su forma. Tiene una entrada
+  uno erróneo dice dónde falla; en los ajustes, elegirlo ya lo guarda). `apps/hm-server/extractors.example.json` muestra su forma. Tiene una entrada
   por sitio, con el nombre que le des (las series recuerdan su sitio por ese nombre, así que no lo
   cambies una vez agregues una; `name` fija lo que muestra el panel, si no se usa el de la entrada).
   `"reads"` dice cómo se lee el sitio:

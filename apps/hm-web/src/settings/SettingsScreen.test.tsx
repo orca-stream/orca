@@ -180,11 +180,46 @@ describe("SettingsScreen", () => {
       new File([sites], "extractors.json", { type: "application/json" }),
     );
     expect(await screen.findByText("Sitios: Mine.")).toBeTruthy();
-    // The extractors come first, with their own save beside the file.
-    const saves = screen.getAllByRole("button", { name: "Guardar cambios" });
-    await user.click(saves[0]!);
+    // Picking it is saving it: no button, and nothing for the settings' bar to save.
     await waitFor(() => expect(put(requests, "/api/settings/extractors")).toHaveLength(1));
     expect(await put(requests, "/api/settings/extractors")[0]!.json()).toEqual({ text: sites });
-    expect(await screen.findByText("Extractores guardados.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
+  });
+
+  it("removes the saved TMDB key from its trash, once confirmed, keeping the other edits", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    const connections = await screen.findByLabelText("Conexiones por archivo");
+    await user.clear(connections);
+    await user.type(connections, "6");
+
+    await user.click(screen.getByRole("button", { name: "Quitar la clave guardada" }));
+    // The trash asks first; keeping it sends nothing.
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(put(requests, "/api/settings")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Quitar la clave guardada" }));
+    await user.click(screen.getByRole("button", { name: "Quitar" }));
+    await waitFor(() => expect(put(requests, "/api/settings")).toHaveLength(1));
+    const body = (await put(requests, "/api/settings")[0]!.json()) as Record<string, unknown>;
+    expect(body.tmdbApiKey).toBeNull();
+    // From what was saved: the unsaved edit is not sent with it, and is still there to save.
+    expect((body.downloads as { connections: number }).connections).toBe(4);
+    expect((screen.getByLabelText("Conexiones por archivo") as HTMLInputElement).value).toBe("6");
+    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
+  });
+
+  it("calls off changing the server, back to the one it had", async () => {
+    const user = userEvent.setup();
+    renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    await user.click(await screen.findByRole("button", { name: "Cambiar de servidor" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByText("Conectado a http://jf.test:8096.")).toBeTruthy();
+  });
+
+  it("has no Save button until something changes", async () => {
+    renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    await screen.findByLabelText("Conexiones por archivo");
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
   });
 });

@@ -456,6 +456,7 @@ const es = {
     save: "Guardar cambios",
     saved: "Guardado. El servidor ya trabaja con los cambios.",
     saveFailed: "No se pudo guardar.",
+    unsaved: "Cambios sin guardar",
     loadFailed: "No se pudieron cargar los ajustes.",
     jellyfin: {
       title: "Jellyfin",
@@ -491,17 +492,16 @@ const es = {
       keyPlaceholder: "API key (v3) o token de lectura (v4)",
       keySet: "Guardada; escribe otra para cambiarla",
       remove: "Quitar la clave guardada",
+      removeConfirm: "Quitar",
+      removeFailed: "No se pudo quitar la clave.",
     },
     extractors: {
       title: "Extractores",
       upload: "Subir extractors.json",
       another: "Elegir otro archivo",
-      download: "Descargar",
       sites: (names: string) => `Sitios: ${names}.`,
       notJson: "Ese archivo no es un JSON válido.",
       invalid: "Ese archivo no describe extractores:",
-      clear: "Quitar todos",
-      saved: "Extractores guardados.",
     },
     downloads: {
       title: "Descargas",
@@ -538,7 +538,6 @@ const es = {
         "La carpeta tal como la ve Jellyfin. Si Jellyfin está en otro equipo, H&M tiene que poder escribir en esa misma ruta (por ejemplo, montándola).",
       tmdbKey:
         "Con ella, al añadir una serie eliges temporada y episodio de las listas de TMDB. Vale la API key (v3) o el token de lectura (v4): el servidor sabe cuál es.",
-      tmdbRemove: "Borra la clave guardada. Sin ella, temporada y episodio se escriben a mano.",
       extractors:
         "Un archivo JSON tuyo que describe los sitios de donde H&M lee las series. Nunca va en el código.",
       concurrency:
@@ -1057,6 +1056,7 @@ const en: typeof es = {
     save: "Save changes",
     saved: "Saved. The server is already working with the changes.",
     saveFailed: "Could not save.",
+    unsaved: "Unsaved changes",
     loadFailed: "Could not load the settings.",
     jellyfin: {
       title: "Jellyfin",
@@ -1092,17 +1092,16 @@ const en: typeof es = {
       keyPlaceholder: "API key (v3) or read access token (v4)",
       keySet: "Saved; type another to change it",
       remove: "Remove the saved key",
+      removeConfirm: "Remove",
+      removeFailed: "Could not remove the key.",
     },
     extractors: {
       title: "Extractors",
       upload: "Upload extractors.json",
       another: "Choose another file",
-      download: "Download",
       sites: (names: string) => `Sites: ${names}.`,
       notJson: "That file is not valid JSON.",
       invalid: "That file does not describe extractors:",
-      clear: "Remove them all",
-      saved: "Extractors saved.",
     },
     downloads: {
       title: "Downloads",
@@ -1139,7 +1138,6 @@ const en: typeof es = {
         "The folder as Jellyfin sees it. When Jellyfin is on another machine, H&M has to be able to write to that same path (by mounting it, for instance).",
       tmdbKey:
         "With it, adding a show lets you pick its season and episode from TMDB's lists. Either the API key (v3) or the read access token (v4): the server tells which.",
-      tmdbRemove: "Deletes the saved key. Without one, season and episode are typed by hand.",
       extractors:
         "A JSON file of yours describing the sites H&M reads shows from. It never goes in the code.",
       concurrency:
