@@ -1,25 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { dirname, relative, resolve } from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { ConfigError, loadBootConfig } from "./infrastructure/config.ts";
-import {
-  isProfileName,
-  listProfiles,
-  profilePath,
-  profileText,
-  withServerUrl,
-} from "./infrastructure/profile.ts";
+import { envFilePath, envFileText } from "./infrastructure/env-file.ts";
 
 /*
- * `pnpm setup:hm`: asks for the little the server needs to start and writes it as a profile, so a
- * fresh clone runs with one command. Each question shows a suggestion that Enter takes; nothing is
- * written until every answer is valid. The rest is set from the panel, which walks through it.
+ * `pnpm setup:hm`: asks for the little the server needs to start and writes it to
+ * `apps/hm-server/.env`, so a fresh clone runs with one command. Each question shows a suggestion
+ * that Enter takes; nothing is written until every answer is valid. The rest is set from the panel,
+ * which walks through it, and the panel's dev server finds the server from that same file.
  */
 
 const appRoot = resolve(import.meta.dirname, "..");
-const webEnvPath = resolve(appRoot, "../hm-web/.env");
 const rl = createInterface({ input: stdin });
 // Read line by line rather than with rl.question, which drops lines that arrive before it is asked.
 const lines = rl[Symbol.asyncIterator]();
@@ -47,18 +40,8 @@ async function confirm(question: string): Promise<boolean> {
 
 try {
   console.log("Orca'H&M setup: where the server listens and keeps its database.\n");
-  const existing = listProfiles(appRoot);
-  if (existing.length > 0) console.log(`Profiles here already: ${existing.join(", ")}.\n`);
 
-  const suggestedName =
-    hostname()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "local";
-  const name = await ask("Profile name", suggestedName, (answer) =>
-    isProfileName(answer) ? null : "Letters, digits, - and _ only.",
-  );
-  const file = profilePath(appRoot, name);
+  const file = envFilePath(appRoot);
   if (
     existsSync(file) &&
     !(await confirm(`${relative(process.cwd(), file)} exists. Replace it?`))
@@ -77,29 +60,17 @@ try {
       ? null
       : "A number from 1 to 65535.",
   );
-  const dbFile = await ask("Database file", `./data/${name}.sqlite`, (answer) =>
+  const dbFile = await ask("Database file", "./data/hm.sqlite", (answer) =>
     answer.length > 0 ? null : "Give a path.",
   );
 
   // The same check the server makes at boot, so what is written is what it accepts.
   const boot = loadBootConfig({ DB_FILE: dbFile, HOST: host, PORT: port });
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, profileText(name, boot));
+  writeFileSync(file, envFileText(boot));
   console.log(`\nWrote ${relative(process.cwd(), file)}.`);
 
-  const panelHost = boot.host === "0.0.0.0" || boot.host === "::" ? "127.0.0.1" : boot.host;
-  const url = `http://${panelHost.includes(":") ? `[${panelHost}]` : panelHost}:${boot.port}`;
-  const webEnv = existsSync(webEnvPath) ? readFileSync(webEnvPath, "utf8") : null;
-  const nextWebEnv = withServerUrl(webEnv, url);
-  if (nextWebEnv !== webEnv) {
-    if (webEnv === null || (await confirm(`Point the panel's dev server at ${url}?`))) {
-      writeFileSync(webEnvPath, nextWebEnv);
-      console.log(`Wrote ${relative(process.cwd(), webEnvPath)} (HM_SERVER_URL=${url}).`);
-    }
-  }
-
   console.log(
-    `\nNow run:  HM_PROFILE=${name} pnpm dev:hm\nthen open the panel's address it prints; it walks you through the rest.`,
+    "\nNow run:  pnpm dev:hm\nthen open the panel's address it prints; it walks you through the rest.",
   );
 } catch (error) {
   if (error instanceof ConfigError) {

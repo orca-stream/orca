@@ -23,7 +23,7 @@ Each app runs on its own. This is how they connect:
 Jellyfin installed on this machine.
 
 1. In Jellyfin, create a **TV shows** library on a folder (e.g. `/srv/media/tv`).
-2. `pnpm setup:hm` (it writes the H&M profile and `apps/hm-web/.env`), then `HM_PROFILE=<name> pnpm dev:hm`.
+2. `pnpm setup:hm` (it writes `apps/hm-server/.env`), then `pnpm dev:hm`.
 3. Open the panel and follow the setup: Jellyfin's address (`http://127.0.0.1:8096`) and an
    administrator's sign-in, then that library's folder. It signs
    you in at the end; add a series.
@@ -48,7 +48,7 @@ Useful to work on H&M with hot reload against the real library.
    container): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv`, then
    `sshfs <user>@<server>:/srv/media/tv /media/tv -o reconnect`. The panel takes one folder for both
    for now, so H&M writes where Jellyfin reads.
-2. `pnpm setup:hm` with a profile of its own (its own database), then `HM_PROFILE=<server> pnpm dev:hm`.
+2. `pnpm setup:hm`, then `pnpm dev:hm`.
 3. In the panel's setup: `http://<server>:8096` and an administrator's sign-in; pick the library.
 
 Don't run this and an H&M deployed on the server against the same library at the same time: each keeps its

@@ -31,12 +31,12 @@ Only download what you have the right to download.
 ## First run
 
 ```bash
-pnpm setup:hm                 # asks where the server listens and keeps its database
-HM_PROFILE=<name> pnpm dev:hm # starts the server and the panel
+pnpm setup:hm # asks where the server listens and keeps its database
+pnpm dev:hm   # starts the server and the panel
 ```
 
 `pnpm setup:hm` asks three things in the terminal (each with a suggestion that Enter takes) and writes
-`apps/hm-server/profiles/<name>.env`, plus `apps/hm-web/.env` so the panel's dev server reaches it.
+`apps/hm-server/.env`; the panel's dev server finds the server from that same file.
 Then open the panel: until the server is set up, every address shows the **setup**:
 
 1. **Jellyfin.** Its address and an administrator's sign-in. The server makes itself an API key there
@@ -55,17 +55,16 @@ cannot run (a Chromium path that is not there, say).
 asks for a one-time **code** the server prints in its console, so nobody on the LAN can set it up first.
 From the server's own machine no code is asked.
 
-## Profiles
+## Environment
 
-A profile only holds what the server needs before it can open its database; everything else lives in
-that database. `HM_PROFILE=<name>` loads `apps/hm-server/profiles/<name>.env`; variables already in the
-environment win over the file. Without `HM_PROFILE` the environment is used as is (a container).
-`profiles/*.env` are gitignored; `profiles/.env.example` is the template. Give each profile its own
-`DB_FILE`: what it records points at that target's library.
+H&M is one installation for one person: `apps/hm-server/.env` only holds what the server needs before
+it can open its database; everything else lives in that database. The server loads that file when it
+is there; variables already in the environment win over it. Without it the environment is used as is
+(a container). `.env` is gitignored; `.env.example` is the template.
 
 | Variable         | Meaning                                                                   |
 | ---------------- | ------------------------------------------------------------------------- |
-| `DB_FILE`        | SQLite database, e.g. `./data/home.sqlite` (relative to `apps/hm-server`) |
+| `DB_FILE`        | SQLite database, e.g. `./data/hm.sqlite` (relative to `apps/hm-server`)   |
 | `HOST`, `PORT`   | Where the API listens, e.g. `127.0.0.1` and `8787`                        |
 | `WEB_ROOT`       | Optional: absolute path of the built panel, served on the same origin     |
 | `SECURE_COOKIES` | Optional: `true` only behind HTTPS                                        |
@@ -75,15 +74,15 @@ environment win over the file. Without `HM_PROFILE` the environment is used as i
 
 ```bash
 # Server and panel together, in watch mode (from the repository root)
-HM_PROFILE=home pnpm dev:hm
+pnpm dev:hm
 
 # The server alone, in watch mode
-HM_PROFILE=home pnpm --filter @orca/hm-server dev
+pnpm --filter @orca/hm-server dev
 
 # A production build, serving the panel too
 pnpm --filter @orca/hm-web build
 pnpm --filter @orca/hm-server build
-HM_PROFILE=home WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
+WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
 ```
 
 The database is created and migrated on start. `GET /health` answers when the server is up. Sign in to

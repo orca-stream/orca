@@ -7,12 +7,11 @@ import { defineConfig, lazyPlugins, loadEnv } from "vite-plus";
 
 // In production hm-server serves dist/ from the same origin; in development the proxy gives the
 // browser a single origin too, so the SameSite=Strict session cookie works in both. Where the
-// server runs is the developer's to say (its profile, or HM_SERVER_URL, see .env.example), not something to bake in.
-// With HM_PROFILE (`HM_PROFILE=<name> pnpm dev:hm`), the server is the one that profile starts: its
-// HOST and PORT, so two profiles side by side each get their own panel.
-function profileServer(profile: string | undefined): string | undefined {
-  if (!profile) return undefined;
-  const file = path.resolve(import.meta.dirname, "../hm-server/profiles", `${profile}.env`);
+// server runs is the developer's to say, not something to bake in: the HOST and PORT of
+// apps/hm-server/.env (what `pnpm setup:hm` writes), or HM_SERVER_URL (see .env.example) for a
+// server that runs elsewhere.
+function localServer(): string | undefined {
+  const file = path.resolve(import.meta.dirname, "../hm-server/.env");
   if (!existsSync(file)) return undefined;
   const { HOST, PORT } = parseEnv(readFileSync(file, "utf8"));
   if (!HOST || !PORT) return undefined;
@@ -22,8 +21,7 @@ function profileServer(profile: string | undefined): string | undefined {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const target =
-    profileServer(process.env.HM_PROFILE) ?? loadEnv(mode, process.cwd(), "HM_").HM_SERVER_URL;
+  const target = loadEnv(mode, process.cwd(), "HM_").HM_SERVER_URL || localServer();
   return {
     plugins: lazyPlugins(() => [react(), tailwindcss()]),
     resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },

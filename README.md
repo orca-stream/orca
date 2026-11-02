@@ -33,8 +33,8 @@ cp apps/jp/.env.example apps/jp/.env      # optional: list your Jellyfin servers
 pnpm dev                                  # http://localhost:5173
 
 # Orca'H&M (server + panel) against a Jellyfin you already have
-pnpm setup:hm                 # asks where it listens, writes the profile
-HM_PROFILE=<name> pnpm dev:hm # then open the panel: it walks you through the rest
+pnpm setup:hm  # asks where it listens, writes apps/hm-server/.env
+pnpm dev:hm    # then open the panel: it walks you through the rest
 ```
 
 ## Scripts (from the repository root)
@@ -43,8 +43,8 @@ HM_PROFILE=<name> pnpm dev:hm # then open the panel: it walks you through the re
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `pnpm dev`                                             | Orca'JP dev server with HMR                                              |
 | `pnpm preview`                                         | Serves Orca'JP's production build                                        |
-| `pnpm setup:hm`                                        | Asks for an Orca'H&M profile in the terminal and writes it               |
-| `HM_PROFILE=<name> pnpm dev:hm`                        | Orca'H&M server and panel together, in watch mode                        |
+| `pnpm setup:hm`                                        | Asks where Orca'H&M listens in the terminal and writes its `.env`        |
+| `pnpm dev:hm`                                          | Orca'H&M server and panel together, in watch mode                        |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Android icons, sync, debug APK ([guide](docs/guides/android.md))         |
 | `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Xbox tiles, package, install on a console ([guide](docs/guides/xbox.md)) |
 | `pnpm check`                                           | Format, lint and type checks in one pass                                 |

@@ -108,17 +108,18 @@ con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servido
 El servidor de desarrollo de Vite hace de proxy de `/api` hacia el servidor H&M, así el navegador ve un
 solo origen y la cookie de sesión funciona.
 
-`pnpm setup:hm` escribe `apps/hm-web/.env` por ti; a mano, copia `apps/hm-web/.env.example`:
+Va al `HOST` y `PORT` de `apps/hm-server/.env` (lo que escribe `pnpm setup:hm`). Solo para un servidor
+que corre en otro sitio, copia `apps/hm-web/.env.example` a `apps/hm-web/.env`:
 
-| Variable        | Significado                                                                                                                               |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `HM_SERVER_URL` | Dónde escucha el servidor H&M, p. ej. `http://127.0.0.1:8787` — solo sin `HM_PROFILE`: con él, el proxy va al `HOST`/`PORT` de ese perfil |
+| Variable        | Significado                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `HM_SERVER_URL` | Dónde escucha ese servidor H&M, p. ej. `http://<host>:8787`; gana sobre `apps/hm-server/.env` |
 
 Mientras el servidor no esté configurado, el panel muestra su **configuración** en cualquier dirección;
 después, los ajustes del servidor están en **Ajustes** (ver [la guía del servidor](hm-server.md#primera-vez)).
 
 ```bash
-HM_PROFILE=casa pnpm dev:hm               # servidor + panel juntos
+pnpm dev:hm                               # servidor + panel juntos
 pnpm --filter @orca/hm-web dev            # solo el panel, contra un servidor ya en marcha
 ```
 
@@ -133,7 +134,7 @@ Compílalo y deja que lo sirva el servidor H&M:
 pnpm --filter @orca/hm-web build          # salida: apps/hm-web/dist/
 ```
 
-Pon en el perfil del servidor `WEB_ROOT` con la ruta absoluta de `apps/hm-web/dist`. La imagen Docker ya
+Pon en `apps/hm-server/.env` `WEB_ROOT` con la ruta absoluta de `apps/hm-web/dist`. La imagen Docker ya
 incluye el panel compilado; abre `http://<servidor>:<puerto>/`.
 
 Detrás de HTTPS, pon `SECURE_COOKIES=true` en el servidor.

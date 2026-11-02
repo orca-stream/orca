@@ -33,8 +33,8 @@ cp apps/jp/.env.example apps/jp/.env      # opcional: lista tus servidores en VI
 pnpm dev                                  # http://localhost:5173
 
 # Orca'H&M (servidor + panel) contra un Jellyfin que ya tengas
-pnpm setup:hm                   # pregunta dónde escucha y escribe el perfil
-HM_PROFILE=<nombre> pnpm dev:hm # luego abre el panel: te guía con el resto
+pnpm setup:hm  # pregunta dónde escucha y escribe apps/hm-server/.env
+pnpm dev:hm    # luego abre el panel: te guía con el resto
 ```
 
 ## Scripts (desde la raíz del repositorio)
@@ -43,8 +43,8 @@ HM_PROFILE=<nombre> pnpm dev:hm # luego abre el panel: te guía con el resto
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `pnpm dev`                                             | Servidor de desarrollo de Orca'JP con HMR                                           |
 | `pnpm preview`                                         | Sirve la build de producción de Orca'JP                                             |
-| `pnpm setup:hm`                                        | Pregunta en la terminal por un perfil de Orca'H&M y lo escribe                      |
-| `HM_PROFILE=<nombre> pnpm dev:hm`                      | Servidor y panel de Orca'H&M juntos, en modo watch                                  |
+| `pnpm setup:hm`                                        | Pregunta en la terminal dónde escucha Orca'H&M y escribe su `.env`                  |
+| `pnpm dev:hm`                                          | Servidor y panel de Orca'H&M juntos, en modo watch                                  |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Íconos, sync y APK de depuración de Android ([guía](docs/guides/es/android.md))     |
 | `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Mosaicos, paquete e instalación en consola de Xbox ([guía](docs/guides/es/xbox.md)) |
 | `pnpm check`                                           | Formato, lint y tipos de una pasada                                                 |

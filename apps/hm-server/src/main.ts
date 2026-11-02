@@ -9,7 +9,7 @@ import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { JellyfinKeyMaker } from "./infrastructure/jellyfin/key-maker.ts";
-import { loadProfile } from "./infrastructure/profile.ts";
+import { loadEnvFile } from "./infrastructure/env-file.ts";
 import { startRuntime } from "./infrastructure/runtime.ts";
 import { ServerSetup } from "./infrastructure/setup.ts";
 import { createRootApp } from "./infrastructure/web/root.ts";
@@ -23,8 +23,7 @@ const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "u
   version: string;
 };
 
-const profile = loadProfile(process.env, appRoot);
-if (profile) console.log(`profile: ${profile}`);
+loadEnvFile(appRoot);
 const boot = loadBootConfig(process.env);
 
 mkdirSync(dirname(resolve(boot.dbFile)), { recursive: true });

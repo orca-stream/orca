@@ -23,7 +23,7 @@ Cada app funciona por su cuenta. Así se conectan:
 Jellyfin instalado en esta máquina.
 
 1. En Jellyfin, crea una biblioteca de **Series** sobre una carpeta (p. ej. `/srv/media/tv`).
-2. `pnpm setup:hm` (escribe el perfil de H&M y `apps/hm-web/.env`) y luego `HM_PROFILE=<nombre> pnpm dev:hm`.
+2. `pnpm setup:hm` (escribe `apps/hm-server/.env`) y luego `pnpm dev:hm`.
 3. Abre el panel y sigue la configuración: la dirección de Jellyfin (`http://127.0.0.1:8096`) y el inicio
    de sesión de un administrador, después la carpeta de esa biblioteca («Jellyfin está en este mismo
    equipo»). Al final te deja dentro; agrega una serie.
@@ -48,7 +48,7 @@ El usuario que ejecuta H&M necesita escribir en la carpeta de la biblioteca, y J
    dentro de su contenedor): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv` y luego
    `sshfs <usuario>@<servidor>:/srv/media/tv /media/tv -o reconnect`. Por ahora el panel usa una sola
    carpeta para los dos, así que H&M escribe donde Jellyfin lee.
-2. `pnpm setup:hm` con un perfil propio (su propia base de datos) y luego `HM_PROFILE=<servidor> pnpm dev:hm`.
+2. `pnpm setup:hm` y luego `pnpm dev:hm`.
 3. En la configuración del panel: `http://<servidor>:8096` y el inicio de sesión de un administrador;
    elige la biblioteca.
 

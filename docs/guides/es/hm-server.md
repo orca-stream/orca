@@ -32,13 +32,13 @@ Descarga solo lo que tengas derecho a descargar.
 ## Primera vez
 
 ```bash
-pnpm setup:hm                 # pregunta dónde escucha el servidor y dónde guarda su base de datos
-HM_PROFILE=<nombre> pnpm dev:hm # arranca el servidor y el panel
+pnpm setup:hm # pregunta dónde escucha el servidor y dónde guarda su base de datos
+pnpm dev:hm   # arranca el servidor y el panel
 ```
 
 `pnpm setup:hm` hace tres preguntas en la terminal (cada una con una sugerencia que Enter acepta) y
-escribe `apps/hm-server/profiles/<nombre>.env`, además de `apps/hm-web/.env` para que el servidor de
-desarrollo del panel lo encuentre. Después abre el panel: mientras el servidor no esté configurado,
+escribe `apps/hm-server/.env`; el servidor de desarrollo del panel encuentra el servidor en ese mismo
+archivo. Después abre el panel: mientras el servidor no esté configurado,
 cualquier dirección muestra la **configuración**:
 
 1. **Jellyfin.** Su dirección y el inicio de sesión de un administrador. El servidor se crea allí una API
@@ -58,17 +58,16 @@ funcionar (por ejemplo, una ruta de Chromium que no existe).
 servidor, te pide un **código** de un solo uso que el servidor muestra en su consola, para que nadie de
 la red local lo configure antes que tú. Desde el propio equipo del servidor no se pide código.
 
-## Perfiles
+## Entorno
 
-Un perfil solo guarda lo que el servidor necesita antes de abrir su base de datos; todo lo demás vive en
-esa base. `HM_PROFILE=<nombre>` carga `apps/hm-server/profiles/<nombre>.env`; las variables que ya estén
-en el entorno ganan sobre el archivo. Sin `HM_PROFILE` se usa el entorno tal cual (un contenedor).
-`profiles/*.env` están en `.gitignore`; `profiles/.env.example` es la plantilla. Dale a cada perfil su
-propio `DB_FILE`: lo que registra apunta a la biblioteca de ese destino.
+H&M es una sola instalación para una sola persona: `apps/hm-server/.env` solo guarda lo que el servidor
+necesita antes de abrir su base de datos; todo lo demás vive en esa base. El servidor carga ese archivo
+si existe; las variables que ya estén en el entorno ganan sobre él. Sin él se usa el entorno tal cual
+(un contenedor). `.env` está en `.gitignore`; `.env.example` es la plantilla.
 
 | Variable         | Significado                                                                     |
 | ---------------- | ------------------------------------------------------------------------------- |
-| `DB_FILE`        | Base de datos SQLite, p. ej. `./data/casa.sqlite` (relativa a `apps/hm-server`) |
+| `DB_FILE`        | Base de datos SQLite, p. ej. `./data/hm.sqlite` (relativa a `apps/hm-server`)   |
 | `HOST`, `PORT`   | Dónde escucha la API, p. ej. `127.0.0.1` y `8787`                               |
 | `WEB_ROOT`       | Opcional: ruta absoluta del panel compilado, servido en el mismo origen         |
 | `SECURE_COOKIES` | Opcional: `true` solo detrás de HTTPS                                           |
@@ -78,15 +77,15 @@ propio `DB_FILE`: lo que registra apunta a la biblioteca de ese destino.
 
 ```bash
 # Servidor y panel juntos, en modo watch (desde la raíz del repositorio)
-HM_PROFILE=casa pnpm dev:hm
+pnpm dev:hm
 
 # Solo el servidor, en modo watch
-HM_PROFILE=casa pnpm --filter @orca/hm-server dev
+pnpm --filter @orca/hm-server dev
 
 # Build de producción, sirviendo también el panel
 pnpm --filter @orca/hm-web build
 pnpm --filter @orca/hm-server build
-HM_PROFILE=casa WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
+WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
 ```
 
 La base de datos se crea y migra al arrancar. `GET /health` responde cuando el servidor está listo.
