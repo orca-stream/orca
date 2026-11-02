@@ -30,7 +30,13 @@ import { trustedPosterUrl } from "./poster-url.ts";
 import type { FetchedImage, LibraryShow } from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
-import { closeFinishedSources, newEpisode, normalizeSeries, numberOf } from "./episodes.ts";
+import {
+  closeFinishedSources,
+  newEpisode,
+  normalizeSeries,
+  numberOf,
+  placeOnDisk,
+} from "./episodes.ts";
 import { createEnqueueCheck } from "./checks.ts";
 import {
   toEpisodeDto,
@@ -289,10 +295,14 @@ export function createUseCases(deps: Deps) {
               file.relativePath,
             ]),
           );
-          const placed = episodes.map((episode): Episode => {
-            const filePath = onDisk.get(`${episode.season}:${episode.episode}`);
-            return filePath ? { ...episode, status: "available", filePath } : episode;
-          });
+          const placed = await placeOnDisk(
+            deps.library,
+            series,
+            episodes.map((episode): Episode => {
+              const filePath = onDisk.get(`${episode.season}:${episode.episode}`);
+              return filePath ? { ...episode, status: "available", filePath } : episode;
+            }),
+          );
           await deps.series.addSource(source, placed);
           await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
           return { series, episodes: placed };
@@ -407,7 +417,12 @@ export function createUseCases(deps: Deps) {
           createdAt: now,
         };
         const source = sourceFor(series.id);
-        const episodes: Episode[] = chosen.map((episode) => newEpisode(source, episode, now));
+        // A folder that was already there may hold some of them.
+        const episodes = await placeOnDisk(
+          deps.library,
+          series,
+          chosen.map((episode) => newEpisode(source, episode, now)),
+        );
 
         // The folder first: if it can't be written there is nothing to undo. If saving then fails,
         // take the folder away again (when it was ours), so a retry doesn't meet a half-made series.

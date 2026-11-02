@@ -108,10 +108,28 @@ export async function closeFinishedSources(
 }
 
 /**
- * Points every available episode whose file isn't where the database says at where it is now. A
- * rename used to keep the name Jellyfin still listed when the file had already been moved, so those
- * rows name a file that no longer exists. One that can't be found is left as it is. Returns how many
- * were fixed.
+ * Missing episodes whose video is already in the series' folder (from before, by hand, or listed
+ * late by Jellyfin) are available, at that file, so they aren't downloaded again.
+ */
+export async function placeOnDisk(
+  library: LibraryWriter,
+  series: Series,
+  episodes: readonly Episode[],
+): Promise<Episode[]> {
+  return Promise.all(
+    episodes.map(async (episode): Promise<Episode> => {
+      if (episode.status !== "missing") return episode;
+      const filePath = await library.locateEpisode(series, episode);
+      return filePath ? { ...episode, status: "available", filePath } : episode;
+    }),
+  );
+}
+
+/**
+ * Makes the database agree with the files: an available episode whose file isn't where it says is
+ * pointed at where it is now (a rename used to keep the name Jellyfin still listed after the file
+ * had moved), and a missing one whose video is in its season folder becomes available. One that
+ * can't be found is left as it is. Returns how many were fixed.
  */
 export async function repairEpisodePaths(deps: {
   series: SeriesRepository;
@@ -120,7 +138,8 @@ export async function repairEpisodePaths(deps: {
   let fixed = 0;
   for (const series of await deps.series.list()) {
     for (const episode of await deps.series.listEpisodes(series.id)) {
-      if (episode.status !== "available" || episode.filePath === null) continue;
+      const stale = episode.status === "available" && episode.filePath !== null;
+      if (!stale && episode.status !== "missing") continue;
       const path = await deps.library.locateEpisode(series, episode);
       if (path === null || path === episode.filePath) continue;
       await deps.series.setEpisodeStatus(episode.id, "available", path);

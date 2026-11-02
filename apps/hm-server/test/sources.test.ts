@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createCheckSeries } from "../src/application/check-series.ts";
@@ -58,6 +58,24 @@ describe("a season in parts", () => {
     const all = await codes(first.id);
     expect(all.slice(10, 14)).toEqual(["S01E11", "S01E12", "S01E13", "S01E14"]);
     expect(all.at(-1)).toBe("S01E24");
+  });
+
+  it("takes the episodes whose video is already in the folder as available, though Jellyfin lists none", async () => {
+    site.season("s1", "Show", range(1, 2)).season("s3", "Show S3", range(1, 3));
+    const first = await add("s1", { title: "Show", year: 2019, season: 1, firstEpisode: 1 });
+    const season = join(h.root, "Show (2019)", "Season 03");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "Show S03E01.mp4"), "video");
+    await writeFile(join(season, "Show S03E02.mp4"), "video");
+
+    await add("s3", { seriesId: first.id, season: 3, firstEpisode: 1 });
+
+    const third = (await h.series.listEpisodes(first.id)).filter((e) => e.season === 3);
+    expect(third.map((e) => [e.episode, e.status, e.filePath])).toEqual([
+      [1, "available", "Show (2019)/Season 03/Show S03E01.mp4"],
+      [2, "available", "Show (2019)/Season 03/Show S03E02.mp4"],
+      [3, "missing", null],
+    ]);
   });
 
   it("gives the same numbers whether the site restarts a part at 1 or carries on", async () => {

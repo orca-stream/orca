@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createCheckSeries } from "../src/application/check-series.ts";
 import { PermanentError, RetryableError } from "../src/domain/errors.ts";
@@ -104,6 +106,25 @@ describe("CheckSeries: the series changed", () => {
     expect(jobs).toHaveLength(1);
     const episode = await h.series.getEpisode(jobs[0]!.episodeId!);
     expect(episode).toMatchObject({ episode: 3, status: "queued" });
+  });
+
+  it("takes a new episode whose video is already in its folder as available: no download, no notice", async () => {
+    const followed = await addFake({ follow: true });
+    const season = join(h.root, "Fake Show (1960)", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "Fake Show S01E03.mp4"), "video");
+    site.marker = "m2";
+    site.episodes = [...site.episodes, fakeEpisode(3)];
+
+    await check(followed.id);
+
+    const third = (await h.series.listEpisodes(followed.id)).find((e) => e.episode === 3);
+    expect(third).toMatchObject({
+      status: "available",
+      filePath: "Fake Show (1960)/Season 01/Fake Show S01E03.mp4",
+    });
+    expect(await downloadJobs()).toHaveLength(0);
+    expect(h.extraNotifier.sent.filter((n) => n.kind === "new_episodes")).toHaveLength(0);
   });
 
   it("leaves new episodes missing when the series is not followed (a manual check)", async () => {

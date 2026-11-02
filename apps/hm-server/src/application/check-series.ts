@@ -10,7 +10,7 @@ import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, Series, SeriesSource } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createEnqueueDownloads } from "./downloads.ts";
-import { closeFinishedSources, newEpisode, numberOf, sourceOf } from "./episodes.ts";
+import { closeFinishedSources, newEpisode, numberOf, placeOnDisk, sourceOf } from "./episodes.ts";
 
 export interface CheckResult {
   /** Some source was read again (its marker moved, or its extractor has none). */
@@ -182,11 +182,12 @@ export function createCheckSeries(deps: Deps) {
       source.knownRefs = extraction.episodes
         .map((found) => found.sourceRef)
         .filter((ref) => kept.has(ref));
-      await deps.series.addSource(source, fresh);
-      await closeFinishedSources(deps.series, series.id, source.id, fresh, episodes);
+      const placed = await placeOnDisk(deps.library, series, fresh);
+      await deps.series.addSource(source, placed);
+      await closeFinishedSources(deps.series, series.id, source.id, placed, episodes);
       addresses.add(source.sourceUrl);
-      episodes.push(...fresh);
-      added.push(...fresh);
+      episodes.push(...placed);
+      added.push(...placed);
     }
     return added;
   }
@@ -213,7 +214,7 @@ export function createCheckSeries(deps: Deps) {
     const taken = new Set(existing.map((episode) => `${episode.season}:${episode.episode}`));
 
     const update: Episode[] = [];
-    const add: Episode[] = [];
+    let add: Episode[] = [];
     const skippedRefs: string[] = [];
     let learned = 0;
     const sourcePatches: { id: string; remoteMarker: string | null; knownRefs: string[] }[] = [];
@@ -269,20 +270,23 @@ export function createCheckSeries(deps: Deps) {
     }
     const skipped = skippedRefs.length;
 
+    // What is already on disk comes in as available, and isn't downloaded or announced.
+    add = await placeOnDisk(deps.library, series, add);
     await deps.series.upsertEpisodes(series.id, { update, add });
     // Only now: had the upsert failed, the stale markers make the next check read the sources again.
     for (const { id, ...patch } of sourcePatches) await deps.series.updateSource(id, patch);
     await deps.series.update(series.id, { lastCheckedAt: now });
 
-    if (add.length > 0 && series.follow) {
-      await enqueueDownloads(add.map((episode) => episode.id));
+    const missing = add.filter((episode) => episode.status !== "available");
+    if (missing.length > 0 && series.follow) {
+      await enqueueDownloads(missing.map((episode) => episode.id));
     }
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     const about = { id: series.id, title: series.title };
-    if (add.length > 0) {
+    if (missing.length > 0) {
       // The episodes are stored: a notification that cannot be made must not turn this into a retry.
       await deps.notifications
-        .newEpisodes(about, add)
+        .newEpisodes(about, missing)
         .catch((error: unknown) => console.error("notification failed:", error));
     }
     if (learned > 0) {
@@ -304,11 +308,14 @@ export function createCheckSeries(deps: Deps) {
     if (!series?.follow) return result;
     const added = await addNewSeasons(series, signal);
     if (added.length === 0) return result;
-    await enqueueDownloads(added.map((episode) => episode.id));
+    const missing = added.filter((episode) => episode.status !== "available");
     deps.events.publish({ type: "series.updated", seriesId: series.id });
-    await deps.notifications
-      .newEpisodes({ id: series.id, title: series.title }, added)
-      .catch((error: unknown) => console.error("notification failed:", error));
+    if (missing.length > 0) {
+      await enqueueDownloads(missing.map((episode) => episode.id));
+      await deps.notifications
+        .newEpisodes({ id: series.id, title: series.title }, missing)
+        .catch((error: unknown) => console.error("notification failed:", error));
+    }
     return {
       ...result,
       changed: true,

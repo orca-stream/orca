@@ -941,7 +941,22 @@ describe("repairEpisodePaths", () => {
     );
     await h.series.setEpisodeStatus(fine!.id, "available", at(fine!));
 
-    expect(await repairEpisodePaths(h.deps)).toBe(1);
+    // A missing one whose video is in its season folder, under any title.
+    const [, , , found] = await h.series.listEpisodes(series.id);
+    const code = `S${String(found!.season).padStart(2, "0")}E${String(found!.episode).padStart(2, "0")}`;
+    const dir = join(
+      h.root,
+      "The Beverly Hillbillies (1962)",
+      `Season ${String(found!.season).padStart(2, "0")}`,
+    );
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, `Old Title ${code}.mkv`), "video");
+
+    expect(await repairEpisodePaths(h.deps)).toBe(2);
+    expect(await h.series.getEpisode(found!.id)).toMatchObject({
+      status: "available",
+      filePath: `The Beverly Hillbillies (1962)/Season ${code.slice(1, 3)}/Old Title ${code}.mkv`,
+    });
 
     const after = new Map((await h.series.listEpisodes(series.id)).map((e) => [e.id, e.filePath]));
     expect(after.get(stale!.id)).toBe(at(stale!));
