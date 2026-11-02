@@ -113,9 +113,6 @@ docker run -d --name orca-hm -p 8787:8787 \
   orca-hm
 ```
 
-Bifröst's `hm up` builds and runs this same image for you on a server, passing the old variables,
-which the container carries into its database on its first boot.
-
 ## Browser: extractors file and generic detector
 
 Both need Chromium, driven by Playwright (pinned to 1.64.1).

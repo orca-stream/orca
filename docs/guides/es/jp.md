@@ -8,7 +8,7 @@ audio y subtítulos. Es una web estática; la misma build funciona en un navegad
 de la [app de Android](android.md) y dentro de la [app de Xbox/Windows](xbox.md). Se maneja con ratón,
 táctil, teclado, control remoto de TV o mando.
 
-Solo necesita un servidor Jellyfin accesible. No necesita Orca'H&M ni Bifröst.
+Solo necesita un servidor Jellyfin accesible. No necesita Orca'H&M.
 
 ## Configurar
 

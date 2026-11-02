@@ -7,7 +7,7 @@ pages, search, the whole library by genre or A–Z, and a player with audio and 
 a static web app; the same build runs in a desktop browser, inside the [Android app](android.md) and
 inside the [Xbox/Windows app](xbox.md). It is driven by mouse, touch, keyboard, TV remote or gamepad.
 
-It only needs a reachable Jellyfin server. It does not need Orca'H&M or Bifröst.
+It only needs a reachable Jellyfin server. It does not need Orca'H&M.
 
 ## Configure
 

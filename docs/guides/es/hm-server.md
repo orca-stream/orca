@@ -116,9 +116,6 @@ docker run -d --name orca-hm -p 8787:8787 \
   orca-hm
 ```
 
-El `hm up` de Bifröst construye y ejecuta esta misma imagen por ti en un servidor, pasándole las
-variables antiguas, que el contenedor copia a su base de datos en su primer arranque.
-
 ## Navegador: archivo de extractores y detector genérico
 
 Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).

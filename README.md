@@ -5,12 +5,11 @@
 A self-hosted streaming setup built around [Jellyfin](https://jellyfin.org). Four apps live in this
 pnpm monorepo; each one runs on its own, and they fit together:
 
-| App                          | What it is                                                                                                               | Guide                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| **Orca'JP** (`apps/jp`)      | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later              | [jp](docs/guides/jp.md)               |
-| **Orca'H&M** server          | Finds shows on public-domain sites (Internet Archive, or sites you describe), downloads them and files them for Jellyfin | [hm-server](docs/guides/hm-server.md) |
-| **Orca'H&M** panel           | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                                  | [hm-web](docs/guides/hm-web.md)       |
-| **Bifröst** (`apps/bifrost`) | Optional. Provisions a Jellyfin server over SSH from a YAML file: Docker, VA-API, plugins, libraries, H&M, backups       | [bifrost](docs/guides/bifrost.md)     |
+| App                     | What it is                                                                                                               | Guide                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| **Orca'JP** (`apps/jp`) | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later              | [jp](docs/guides/jp.md)               |
+| **Orca'H&M** server     | Finds shows on public-domain sites (Internet Archive, or sites you describe), downloads them and files them for Jellyfin | [hm-server](docs/guides/hm-server.md) |
+| **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                                  | [hm-web](docs/guides/hm-web.md)       |
 
 Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
 [Xbox and Windows](docs/guides/xbox.md). How the pieces combine: [Running them together](docs/guides/together.md).
@@ -20,7 +19,7 @@ Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) 
 ## Requirements
 
 - **Node.js 24** or newer and **corepack** (it provides the pnpm pinned in `package.json`'s `packageManager`).
-- A **Jellyfin** server (10.10 or newer; developed against 12.2) for Orca'JP and Orca'H&M. Bifröst can create one.
+- A **Jellyfin** server (10.10 or newer; developed against 12.2) for Orca'JP and Orca'H&M.
 - Per app, extra tools (ffmpeg, JDK, a Windows machine…): see each guide.
 
 ## Quick start
@@ -46,7 +45,6 @@ HM_PROFILE=<name> pnpm dev:hm # then open the panel: it walks you through the re
 | `pnpm preview`                                         | Serves Orca'JP's production build                                        |
 | `pnpm setup:hm`                                        | Asks for an Orca'H&M profile in the terminal and writes it               |
 | `HM_PROFILE=<name> pnpm dev:hm`                        | Orca'H&M server and panel together, in watch mode                        |
-| `pnpm bifrost <command>`                               | Bifröst CLI with `apps/bifrost/bifrost.yaml` (`-c` picks another)        |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Android icons, sync, debug APK ([guide](docs/guides/android.md))         |
 | `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Xbox tiles, package, install on a console ([guide](docs/guides/xbox.md)) |
 | `pnpm check`                                           | Format, lint and type checks in one pass                                 |
@@ -57,7 +55,7 @@ HM_PROFILE=<name> pnpm dev:hm # then open the panel: it walks you through the re
 | `pnpm build`                                           | Production build of every package                                        |
 
 Run a script of one package with `pnpm --filter @orca/<name> <script>` (`@orca/jp`, `@orca/hm-server`,
-`@orca/hm-web`, `@orca/bifrost`).
+`@orca/hm-web`).
 
 ## Layout
 
@@ -66,7 +64,6 @@ apps/
   jp/          Orca'JP client (React); android/ = Capacitor project, xbox/ = UWP + WebView2 project
   hm-server/   Orca'H&M API, job queue and downloaders (Hono + SQLite)
   hm-web/      Orca'H&M admin panel (React + shadcn/ui)
-  bifrost/     Bifröst CLI
 packages/      Shared code: Jellyfin helpers, extractors, media probing, UI, the H&M API contract
 docs/          Guides (docs/guides, Spanish in docs/guides/es) and design notes
 ```
@@ -78,14 +75,13 @@ only its Vite and Vitest settings.
 ## Configuration rule
 
 Nothing that depends on where it runs (addresses, hosts, ports, paths, device ids) is written in the
-code. It comes from environment variables or from the Bifröst YAML. Every template
-(`.env.example`, `bifrost.example.yaml`, `sites.example.json`) is versioned; the real files are
+code. It comes from environment variables. Every template
+(`.env.example`, `extractors.example.json`) is versioned; the real files are
 gitignored and their values are **suggestions**, not defaults.
 
 ## Design notes
 
-In-depth notes, in English only: [Bifröst design](docs/bifrost-design.md) ·
-[Orca'H&M design](docs/hm-server-design.md).
+In-depth notes, in English only: [Orca'H&M design](docs/hm-server-design.md).
 
 ## Contributing
 

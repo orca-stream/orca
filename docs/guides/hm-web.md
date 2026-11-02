@@ -130,8 +130,8 @@ Build it and let the H&M server serve it:
 pnpm --filter @orca/hm-web build          # output: apps/hm-web/dist/
 ```
 
-Set `WEB_ROOT` to the absolute path of `apps/hm-web/dist` in the server's profile. The Docker image and
-Bifröst's `hm up` already include the built panel; open `http://<server>:<port>/`.
+Set `WEB_ROOT` to the absolute path of `apps/hm-web/dist` in the server's profile. The Docker image already
+includes the built panel; open `http://<server>:<port>/`.
 
 Behind HTTPS, set `SECURE_COOKIES=true` on the server.
 

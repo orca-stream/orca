@@ -23,8 +23,7 @@
     "android:apk": "pnpm --filter @orca/jp android:apk",
     "xbox:assets": "pnpm --filter @orca/jp xbox:assets",
     "xbox:build": "pnpm --filter @orca/jp xbox:build",
-    "xbox:deploy": "pnpm --filter @orca/jp xbox:deploy",
-    "bifrost": "node apps/bifrost/src/cli.ts -c apps/bifrost/bifrost.yaml"
+    "xbox:deploy": "pnpm --filter @orca/jp xbox:deploy"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",

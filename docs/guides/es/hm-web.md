@@ -133,8 +133,8 @@ Compílalo y deja que lo sirva el servidor H&M:
 pnpm --filter @orca/hm-web build          # salida: apps/hm-web/dist/
 ```
 
-Pon en el perfil del servidor `WEB_ROOT` con la ruta absoluta de `apps/hm-web/dist`. La imagen Docker y
-el `hm up` de Bifröst ya incluyen el panel compilado; abre `http://<servidor>:<puerto>/`.
+Pon en el perfil del servidor `WEB_ROOT` con la ruta absoluta de `apps/hm-web/dist`. La imagen Docker ya
+incluye el panel compilado; abre `http://<servidor>:<puerto>/`.
 
 Detrás de HTTPS, pon `SECURE_COOKIES=true` en el servidor.
 

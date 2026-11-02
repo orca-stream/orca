@@ -40,11 +40,6 @@ apps/jp/xbox/Orca/bin
 apps/jp/xbox/Orca/obj
 apps/jp/xbox/out
 
-# Bifrost: real configs (one per server) name hosts and addresses; only bifrost.example.yaml is versioned
-apps/bifrost/*.yaml
-!apps/bifrost/bifrost.example.yaml
-apps/bifrost/*.env
-
 # Orca'H&M: the extractors file names real sites; only extractors.example.json is versioned
 apps/hm-server/extractors.json
 

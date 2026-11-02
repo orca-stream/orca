@@ -5,9 +5,6 @@
 Cada app funciona por su cuenta. Así se conectan:
 
 ```text
-            Bifröst (opcional, desde tu ordenador por SSH)
-              │ monta
-              ▼
   ┌──────────── servidor ───────────┐
   │  Jellyfin  ◄──API key──  Servidor + panel Orca'H&M
   │     ▲         lee la           │ escribe episodios en
@@ -20,11 +17,10 @@ Cada app funciona por su cuenta. Así se conectan:
 - **Orca'JP** solo habla con Jellyfin. Nunca habla con Orca'H&M.
 - **Orca'H&M** escribe en una biblioteca de series de Jellyfin y llama a la API de Jellyfin para
   actualizarla. Su panel se entra con cuentas de administrador de Jellyfin.
-- **Bifröst** instala Jellyfin (y opcionalmente Orca'H&M) en un servidor; no hace falta en ejecución.
 
 ## Escenario 1 — todo en un ordenador
 
-Jellyfin instalado en esta máquina, sin Bifröst.
+Jellyfin instalado en esta máquina.
 
 1. En Jellyfin, crea una biblioteca de **Series** sobre una carpeta (p. ej. `/srv/media/tv`).
 2. `pnpm setup:hm` (escribe el perfil de H&M y `apps/hm-web/.env`) y luego `HM_PROFILE=<nombre> pnpm dev:hm`.
@@ -35,13 +31,14 @@ Jellyfin instalado en esta máquina, sin Bifröst.
 
 El usuario que ejecuta H&M necesita escribir en la carpeta de la biblioteca, y Jellyfin leer lo que escribe.
 
-## Escenario 2 — un servidor en casa montado con Bifröst
+## Escenario 2 — un servidor en casa
 
-1. [Bifröst](bifrost.md): `host prepare` → `up` → `init` → `apply` → `hm up`. Jellyfin queda en
-   `jellyfin.url` y el panel de H&M en `http://<host.address>:<hm.port>/`.
-2. Orca'JP: pon `jellyfin.url` en `VITE_JELLYFIN_SERVERS` y usa la web, compila el
+1. Instala Jellyfin en el servidor y crea una biblioteca de **Series**, como en el escenario 1.
+2. Ejecuta H&M ahí con [su imagen Docker](hm-server.md#docker), montando la biblioteca en la ruta en la
+   que la ve Jellyfin, y configúralo desde su panel en `http://<servidor>:8787/`.
+3. Orca'JP: pon `http://<servidor>:8096` en `VITE_JELLYFIN_SERVERS` y usa la web, compila el
    [APK de Android](android.md) o el [paquete de Xbox](xbox.md). Todo aparato de la LAN llega al servidor.
-3. Para desplegar cambios de H&M: commit y otra vez `hm up`.
+4. Para desplegar cambios de H&M: reconstruye la imagen en el servidor y vuelve a crear el contenedor.
 
 ## Escenario 3 — H&M en tu ordenador, Jellyfin en un servidor
 
@@ -55,7 +52,7 @@ El usuario que ejecuta H&M necesita escribir en la carpeta de la biblioteca, y J
 3. En la configuración del panel: `http://<servidor>:8096` y el inicio de sesión de un administrador;
    elige la biblioteca.
 
-No ejecutes esto y un H&M desplegado por Bifröst contra la misma biblioteca a la vez: cada uno tiene su
+No ejecutes esto y un H&M desplegado en el servidor contra la misma biblioteca a la vez: cada uno tiene su
 propia base de datos y los dos descargarían los mismos episodios.
 
 ## Si algo no conecta
