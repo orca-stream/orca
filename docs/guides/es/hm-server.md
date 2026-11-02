@@ -74,10 +74,6 @@ propio `DB_FILE`: lo que registra apunta a la biblioteca de ese destino.
 | `SECURE_COOKIES` | Opcional: `true` solo detrás de HTTPS                                           |
 | `DEVICE_ID`      | Opcional: sustituye el id de dispositivo generado una vez y guardado en la base |
 
-**Si vienes de las variables antiguas.** Un servidor cuyo entorno todavía tiene `JELLYFIN_URL` y las
-demás (como se configuraba antes) las copia a su base de datos en el primer arranque con una base vacía,
-`HM_EXTRACTORS_FILE` incluido, y después avisa de que se ignoran: quítalas del perfil.
-
 ## Ejecutarlo
 
 ```bash

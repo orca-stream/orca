@@ -3,17 +3,8 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createHarness, type Harness } from "./harness.ts";
 import { FakeExtractor, FAKE_URL } from "./fakes/extractor.ts";
-import { configFrom, settingsFromEnv } from "../src/infrastructure/config.ts";
-
-const minimal = {
-  JELLYFIN_URL: "http://localhost:8096",
-  JELLYFIN_API_KEY: "key",
-  DB_FILE: "./data/hm.sqlite",
-  MEDIA_ROOT: "./media/tv",
-  JELLYFIN_MEDIA_ROOT: "./media/tv",
-  HOST: "localhost",
-  PORT: "8787",
-};
+import { Settings } from "@orca/hm-contract";
+import { configFrom } from "../src/infrastructure/config.ts";
 
 let h: Harness;
 let site: FakeExtractor;
@@ -143,24 +134,43 @@ describe("what a stream download receives", () => {
   });
 });
 
-/** The track choices an environment of old sets up. */
-const loadConfig = (env: Record<string, string | undefined>) =>
-  configFrom(settingsFromEnv(env)!.settings, false);
+/** The settings with these track choices. */
+const withTracks = (tracks: Record<string, unknown>) =>
+  configFrom(
+    Settings.parse({
+      jellyfin: {
+        url: "http://localhost:8096",
+        apiKey: "k",
+        mediaRoot: "m",
+        jellyfinMediaRoot: "m",
+      },
+      downloads: {
+        concurrency: 1,
+        ffmpegConcurrency: 1,
+        browserConcurrency: 1,
+        sequential: false,
+        skipPlayers: [],
+        connections: 1,
+        probeTimeoutMs: 180_000,
+      },
+      tracks: { externalSubtitles: false, ...tracks },
+    }),
+    false,
+  );
 
 describe("the server's default track choices", () => {
-  it("are none unless the environment sets them", () => {
-    const config = loadConfig(minimal);
+  it("are none unless the settings set them", () => {
+    const config = withTracks({});
     expect(config.streamDefaults).toEqual({});
     expect(config.externalSubtitles).toBe(false);
   });
 
-  it("are read as a height and lists of ISO 639-2 codes", () => {
-    const config = loadConfig({
-      ...minimal,
-      DEFAULT_MAX_HEIGHT: "1080",
-      DEFAULT_AUDIO_LANGS: "spa, eng",
-      DEFAULT_SUBTITLE_LANGS: "",
-      SUBTITLES_EXTERNAL: "true",
+  it("are a height and lists of ISO 639-2 codes", () => {
+    const config = withTracks({
+      maxHeight: 1080,
+      audioLangs: ["spa", "eng"],
+      subtitleLangs: [],
+      externalSubtitles: true,
     });
     expect(config.streamDefaults).toEqual({
       maxHeight: 1080,
@@ -168,17 +178,5 @@ describe("the server's default track choices", () => {
       subtitleLangs: [],
     });
     expect(config.externalSubtitles).toBe(true);
-  });
-
-  it("refuse a language that is not a three-letter code, and a silly height", () => {
-    expect(() => loadConfig({ ...minimal, DEFAULT_AUDIO_LANGS: "english" })).toThrow(
-      /DEFAULT_AUDIO_LANGS/,
-    );
-    expect(() => loadConfig({ ...minimal, DEFAULT_SUBTITLE_LANGS: "es" })).toThrow(
-      /DEFAULT_SUBTITLE_LANGS/,
-    );
-    expect(() => loadConfig({ ...minimal, DEFAULT_MAX_HEIGHT: "10" })).toThrow(
-      /DEFAULT_MAX_HEIGHT/,
-    );
   });
 });

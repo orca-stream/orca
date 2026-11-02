@@ -32,9 +32,8 @@ COPY --from=build /out ./
 COPY --from=build /repo/apps/hm-web/dist ./public
 USER node
 VOLUME ["/data", "/media/tv"]
-# Image layout, not host settings. JELLYFIN_URL, JELLYFIN_API_KEY and JELLYFIN_MEDIA_ROOT come from the
-# environment the container runs in.
-ENV DB_FILE=/data/hm.sqlite MEDIA_ROOT=/media/tv HOST=0.0.0.0 PORT=8787 WEB_ROOT=/app/public
+# Image layout, not host settings: Jellyfin and the library folder are set from the panel.
+ENV DB_FILE=/data/hm.sqlite HOST=0.0.0.0 PORT=8787 WEB_ROOT=/app/public
 EXPOSE 8787
 # Ask where the server listens: a specific HOST (e.g. a LAN address) never answers on loopback.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \

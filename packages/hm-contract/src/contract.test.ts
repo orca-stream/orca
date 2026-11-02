@@ -18,6 +18,7 @@ import {
   PreviewDto,
   SeriesDto,
   SeriesPatch,
+  Settings,
 } from "./index.ts";
 import * as z from "zod";
 import { readFileSync } from "node:fs";
@@ -388,5 +389,66 @@ describe("seasons in parts", () => {
       tmdbId: null,
       imdbId: "tt0123456",
     });
+  });
+});
+
+describe("Settings", () => {
+  const valid = {
+    jellyfin: {
+      url: "http://jellyfin:8096/",
+      apiKey: "key",
+      mediaRoot: "/media/tv",
+      jellyfinMediaRoot: "/media/tv",
+    },
+    downloads: {
+      concurrency: 2,
+      ffmpegConcurrency: 1,
+      browserConcurrency: 1,
+      sequential: false,
+      skipPlayers: [" Player.example", "other.example"],
+      connections: 1,
+      probeTimeoutMs: 180_000,
+    },
+    tracks: { externalSubtitles: false },
+  };
+  const withDownloads = (downloads: Record<string, unknown>) => ({
+    ...valid,
+    downloads: { ...valid.downloads, ...downloads },
+  });
+  const withTracks = (tracks: Record<string, unknown>) => ({
+    ...valid,
+    tracks: { ...valid.tracks, ...tracks },
+  });
+
+  it("strips the trailing slash from the Jellyfin url and lower-cases the skipped hosts", () => {
+    const settings = Settings.parse(valid);
+    expect(settings.jellyfin.url).toBe("http://jellyfin:8096");
+    expect(settings.downloads.skipPlayers).toEqual(["player.example", "other.example"]);
+  });
+
+  it("refuses a skipped player given as an address", () => {
+    expect(Settings.safeParse(withDownloads({ skipPlayers: ["https://player.example/"] })).success).toBe(
+      false,
+    );
+  });
+
+  it("keeps connections within 1 to 16 and the per-host overrides positive", () => {
+    expect(Settings.safeParse(withDownloads({ connections: 16 })).success).toBe(true);
+    expect(Settings.safeParse(withDownloads({ connections: 0 })).success).toBe(false);
+    expect(Settings.safeParse(withDownloads({ connections: 17 })).success).toBe(false);
+    expect(Settings.safeParse(withDownloads({ metadataPerSec: 0 })).success).toBe(false);
+    expect(Settings.safeParse(withDownloads({ downloadsPerHost: 0 })).success).toBe(false);
+  });
+
+  it("takes ISO 639-2 languages and a sensible height only", () => {
+    expect(Settings.safeParse(withTracks({ audioLangs: ["spa", "eng"] })).success).toBe(true);
+    expect(Settings.safeParse(withTracks({ audioLangs: ["english"] })).success).toBe(false);
+    expect(Settings.safeParse(withTracks({ subtitleLangs: ["es"] })).success).toBe(false);
+    expect(Settings.safeParse(withTracks({ maxHeight: 10 })).success).toBe(false);
+  });
+
+  it("trims a TMDB key and refuses a contact that is not an email", () => {
+    expect(Settings.parse({ ...valid, tmdbApiKey: " abc " }).tmdbApiKey).toBe("abc");
+    expect(Settings.safeParse({ ...valid, contactEmail: "nope" }).success).toBe(false);
   });
 });

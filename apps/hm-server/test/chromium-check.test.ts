@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ConfigError, deprecatedEnvWarnings } from "../src/infrastructure/config.ts";
+import { ConfigError } from "../src/infrastructure/config.ts";
 import { assertChromium } from "../src/infrastructure/chromium-check.ts";
 
 const detector = (chromiumPath?: string) => ({
@@ -47,19 +47,5 @@ describe("assertChromium", () => {
     }).catch((e: unknown) => e);
     expect((error as Error).message).toContain("/home/x/.cache/ms-playwright/chromium/chrome");
     expect((error as Error).message).toContain("playwright install chromium");
-  });
-});
-
-describe("deprecatedEnvWarnings", () => {
-  it("names a variable that no longer does anything, and what replaced it", () => {
-    const warnings = deprecatedEnvWarnings({ IA_HOST_CONCURRENCY: "2" });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("IA_HOST_CONCURRENCY");
-    expect(warnings[0]).toContain("download settings");
-  });
-
-  it("says nothing when none is set", () => {
-    expect(deprecatedEnvWarnings({})).toEqual([]);
-    expect(deprecatedEnvWarnings({ IA_HOST_CONCURRENCY: undefined })).toEqual([]);
   });
 });

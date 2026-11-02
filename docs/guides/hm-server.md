@@ -71,10 +71,6 @@ environment win over the file. Without `HM_PROFILE` the environment is used as i
 | `SECURE_COOKIES` | Optional: `true` only behind HTTPS                                        |
 | `DEVICE_ID`      | Optional: overrides the device id generated once and kept in the database |
 
-**Moving from the old variables.** A server whose environment still has `JELLYFIN_URL` and the rest
-(the way it was set up before) copies them into its database on the first boot with an empty one, its
-`HM_EXTRACTORS_FILE` included, and then reports them as ignored: remove them from the profile.
-
 ## Run it
 
 ```bash

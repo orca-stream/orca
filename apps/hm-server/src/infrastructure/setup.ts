@@ -17,7 +17,7 @@ import type { SettingsRoutes } from "./web/app.ts";
 const SETTINGS_KEY = "settings";
 const EXTRACTORS_KEY = "extractors";
 /** What an empty extractors file says: no site. */
-export const NO_EXTRACTORS = "{}\n";
+const NO_EXTRACTORS = "{}\n";
 /** Letters and digits that cannot be mistaken for one another when read off a terminal. */
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** Wrong codes before a new one replaces it, so it cannot be guessed. */
@@ -85,11 +85,6 @@ export class ServerSetup implements SettingsRoutes {
     }
     const extractors = (await this.options.settings.get(EXTRACTORS_KEY)) ?? NO_EXTRACTORS;
     await this.apply(settings, extractors, { save: false });
-  }
-
-  /** Saves settings carried over from somewhere else (the old environment) and starts with them. */
-  async adopt(settings: Settings, extractors: string): Promise<void> {
-    await this.apply(settings, extractors, { save: true });
   }
 
   // --- before the server is set up

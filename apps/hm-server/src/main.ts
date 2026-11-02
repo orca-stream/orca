@@ -4,14 +4,14 @@ import { dirname, resolve } from "node:path";
 import { serve } from "@hono/node-server";
 import { createJellyfin } from "@orca/jellyfin";
 import { resolveDeviceId } from "./application/device-id.ts";
-import { deprecatedEnvWarnings, loadBootConfig, settingsFromEnv } from "./infrastructure/config.ts";
+import { loadBootConfig } from "./infrastructure/config.ts";
 import { openDatabase } from "./infrastructure/db/client.ts";
 import { DrizzleSettingsRepository } from "./infrastructure/db/settings-repository.ts";
 import { InMemoryEventBus } from "./infrastructure/event-bus.ts";
 import { JellyfinKeyMaker } from "./infrastructure/jellyfin/key-maker.ts";
 import { loadProfile } from "./infrastructure/profile.ts";
 import { startRuntime } from "./infrastructure/runtime.ts";
-import { NO_EXTRACTORS, ServerSetup } from "./infrastructure/setup.ts";
+import { ServerSetup } from "./infrastructure/setup.ts";
 import { createRootApp } from "./infrastructure/web/root.ts";
 
 // Registered before anything else runs so a rejection during startup is logged too.
@@ -53,23 +53,7 @@ const setup: ServerSetup = new ServerSetup({
     ),
 });
 
-// A setup made in the environment, before the settings moved to the database, is carried over once.
-let carried = false;
-if (!(await setup.hasSaved())) {
-  const legacy = settingsFromEnv(process.env);
-  if (legacy) {
-    const extractors = legacy.extractorsFile
-      ? readFileSync(resolve(legacy.extractorsFile), "utf8")
-      : NO_EXTRACTORS;
-    await setup.adopt(legacy.settings, extractors);
-    carried = true;
-    console.log(
-      "settings: carried over from the environment into the database; from now on they are changed from the panel",
-    );
-  }
-}
-for (const warning of deprecatedEnvWarnings(process.env, carried)) console.warn(warning);
-if (!carried) await setup.boot();
+await setup.boot();
 
 const app = createRootApp({
   setup,
