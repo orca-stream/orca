@@ -9,6 +9,7 @@ import type { Jellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
 import { GuardedProxy, PlaywrightStreamDetector } from "@orca/stream-detector";
 import type { Deps } from "../application/deps.ts";
+import { repairEpisodePaths } from "../application/episodes.ts";
 import { createJobEvents } from "../application/job-events.ts";
 import { createJobHandler } from "../application/job-handler.ts";
 import { NotificationService, PanelNotifier } from "../application/notifications.ts";
@@ -245,6 +246,12 @@ export async function startRuntime(
     ...(boot.webRoot ? { webRoot: resolve(boot.webRoot) } : {}),
   });
 
+  // Housekeeping before any job runs; a failure here stops nothing.
+  await repairEpisodePaths(deps)
+    .then(
+      (fixed) => fixed > 0 && console.log(`episode paths: ${fixed} pointed at their files again`),
+    )
+    .catch((error: unknown) => console.error("repairing episode paths failed:", error));
   await queue.start();
   const scheduler = new Scheduler(deps);
   scheduler.start({ everyMs: SCHEDULER_TICK_MS });

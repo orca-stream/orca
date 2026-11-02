@@ -2,7 +2,7 @@ import type { Extraction } from "@orca/extractor-core";
 import { mapEpisode } from "@orca/hm-contract";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, SeriesSource, Source } from "../domain/series.ts";
-import type { SeriesRepository } from "./ports.ts";
+import type { LibraryWriter, SeriesRepository } from "./ports.ts";
 
 export type ExtractedEpisode = Extraction["episodes"][number];
 
@@ -103,4 +103,27 @@ export async function closeFinishedSources(
       : other.season !== null && other.season < from.season;
     if (finished) await series.updateSource(other.id, { closed: true });
   }
+}
+
+/**
+ * Points every available episode whose file isn't where the database says at where it is now. A
+ * rename used to keep the name Jellyfin still listed when the file had already been moved, so those
+ * rows name a file that no longer exists. One that can't be found is left as it is. Returns how many
+ * were fixed.
+ */
+export async function repairEpisodePaths(deps: {
+  series: SeriesRepository;
+  library: LibraryWriter;
+}): Promise<number> {
+  let fixed = 0;
+  for (const series of await deps.series.list()) {
+    for (const episode of await deps.series.listEpisodes(series.id)) {
+      if (episode.status !== "available" || episode.filePath === null) continue;
+      const path = await deps.library.locateEpisode(series, episode);
+      if (path === null || path === episode.filePath) continue;
+      await deps.series.setEpisodeStatus(episode.id, "available", path);
+      fixed++;
+    }
+  }
+  return fixed;
 }

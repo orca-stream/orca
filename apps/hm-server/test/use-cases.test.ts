@@ -7,6 +7,7 @@ import { addBevhill, BEVHILL, BEVHILL_URL, createHarness, type Harness } from ".
 import { FakeDownloader } from "./fakes/ports.ts";
 import { aSeries, aSource } from "./helpers.ts";
 import { createEnqueueRefresh } from "../src/application/downloads.ts";
+import { repairEpisodePaths } from "../src/application/episodes.ts";
 import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registry.ts";
 
 let h: Harness;
@@ -858,5 +859,38 @@ describe("taking over a show Jellyfin already has", () => {
     h.deps.series.findSourceByExternal = async () => null;
     expect(await fails(h.useCases.addSeries(body(show.id)))).toMatchObject({ code: "conflict" });
     expect(await h.series.list()).toHaveLength(1);
+  });
+});
+
+describe("repairEpisodePaths", () => {
+  it("points available episodes with a stale name at their file, and leaves the rest alone", async () => {
+    const { series } = await addBevhill(h);
+    const [stale, gone, fine] = await h.series.listEpisodes(series.id);
+    const season = join(h.root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(season, { recursive: true });
+    const name = (e: { episode: number }) =>
+      `The Beverly Hillbillies S01E${String(e.episode).padStart(2, "0")}.mp4`;
+    await writeFile(join(season, name(stale!)), "video");
+    await writeFile(join(season, name(fine!)), "video");
+    const at = (e: { episode: number }) => `The Beverly Hillbillies (1962)/Season 01/${name(e)}`;
+    await h.series.setEpisodeStatus(
+      stale!.id,
+      "available",
+      `The Beverly Hillbillies (1962)/Season 1/S01E0${stale!.episode}.mp4`,
+    );
+    await h.series.setEpisodeStatus(
+      gone!.id,
+      "available",
+      "The Beverly Hillbillies (1962)/Season 1/nowhere.mp4",
+    );
+    await h.series.setEpisodeStatus(fine!.id, "available", at(fine!));
+
+    expect(await repairEpisodePaths(h.deps)).toBe(1);
+
+    const after = new Map((await h.series.listEpisodes(series.id)).map((e) => [e.id, e.filePath]));
+    expect(after.get(stale!.id)).toBe(at(stale!));
+    expect(after.get(gone!.id)).toBe("The Beverly Hillbillies (1962)/Season 1/nowhere.mp4");
+    expect(after.get(fine!.id)).toBe(at(fine!));
+    expect(await repairEpisodePaths(h.deps)).toBe(0);
   });
 });

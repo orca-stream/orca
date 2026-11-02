@@ -19,6 +19,7 @@ import { episodeNfo, tvshowNfo } from "./nfo.ts";
 
 const STAGING = ".hm-staging";
 const POSTER_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
+const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".avi", ".webm", ".mov", ".ts"]);
 
 const isUnder = (path: string, folder: string) => path.startsWith(`${folder}${sep}`);
 const exists = (path: string) =>
@@ -169,7 +170,10 @@ export class FsLibraryWriter implements LibraryWriter {
         episodeFileName(series.title, file.season, file.episode, extension),
       );
       let path = file.path;
-      if (target !== file.path && !(await exists(target)) && (await exists(file.path))) {
+      // An earlier rename already moved it, and Jellyfin hasn't looked at the folder since.
+      if (target !== file.path && (await exists(target)) && !(await exists(file.path))) {
+        path = target;
+      } else if (target !== file.path && !(await exists(target)) && (await exists(file.path))) {
         await mkdir(seasonFolder, { recursive: true });
         await this.move(file.path, target);
         path = target;
@@ -198,6 +202,24 @@ export class FsLibraryWriter implements LibraryWriter {
       }
     }
     return placed;
+  }
+
+  async locateEpisode(series: Series, episode: Episode): Promise<string | null> {
+    const toRelative = (path: string) => relative(this.root, path).split(sep).join("/");
+    if (episode.filePath !== null && (await exists(join(this.root, episode.filePath)))) {
+      return episode.filePath;
+    }
+    const folder = join(this.seriesPath(series), seasonFolderName(episode.season));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const code = `S${pad(episode.season)}E${pad(episode.episode)}`;
+    const videos = (await readdir(folder).catch(() => [])).filter((name) => {
+      const base = basename(name, extname(name));
+      return (
+        VIDEO_EXTENSIONS.has(extname(name).toLowerCase()) &&
+        (base === code || base.endsWith(` ${code}`))
+      );
+    });
+    return videos.length === 1 ? toRelative(join(folder, videos[0]!)) : null;
   }
 
   /**

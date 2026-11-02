@@ -333,6 +333,46 @@ describe("FsLibraryWriter", () => {
     expect(await readdir(old)).toEqual(["S02E02.trickplay"]);
   });
 
+  it("gives the new name of an episode an earlier rename already moved, though Jellyfin still lists the old one", async () => {
+    const series = aSeries();
+    const folder = join(root, "The Beverly Hillbillies (1962)");
+    await mkdir(join(folder, "Season 02"), { recursive: true });
+    await writeFile(join(folder, "Season 02", "The Beverly Hillbillies S02E03.mp4"), "video");
+
+    const placed = await writer.renameEpisodes(series, [
+      { season: 2, episode: 3, path: join(folder, "Season 2", "S02E03.mp4") },
+    ]);
+
+    expect(placed).toEqual([
+      {
+        season: 2,
+        episode: 3,
+        relativePath: "The Beverly Hillbillies (1962)/Season 02/The Beverly Hillbillies S02E03.mp4",
+      },
+    ]);
+  });
+
+  it("finds where an episode's file is now, under any title, or nothing", async () => {
+    const series = aSeries();
+    const season = join(root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "Old Title S01E04.mkv"), "video");
+    await writeFile(join(season, "Old Title S01E04.spa.srt"), "subs");
+    await writeFile(join(season, "Old Title S01E14.mkv"), "video");
+    const at = (filePath: string, episode = 4) =>
+      writer.locateEpisode(series, anEpisode({ season: 1, episode, filePath }));
+
+    // Where it says, when it is there.
+    expect(await at("The Beverly Hillbillies (1962)/Season 01/Old Title S01E04.mkv")).toBe(
+      "The Beverly Hillbillies (1962)/Season 01/Old Title S01E04.mkv",
+    );
+    // A stale name: the one video of that number in its season folder.
+    expect(await at("The Beverly Hillbillies (1962)/Season 1/S01E04.mkv")).toBe(
+      "The Beverly Hillbillies (1962)/Season 01/Old Title S01E04.mkv",
+    );
+    expect(await at("The Beverly Hillbillies (1962)/Season 1/S01E05.mkv", 5)).toBeNull();
+  });
+
   describe("subtitle files with names that cannot be used", () => {
     async function commitWith(sidecars: { name: string; options: object }[]) {
       const series = aSeries();

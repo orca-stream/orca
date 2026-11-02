@@ -260,6 +260,11 @@ export interface LibraryWriter {
     series: Series,
     files: readonly EpisodeFile[],
   ): Promise<{ season: number; episode: number; relativePath: string }[]>;
+  /**
+   * Where an episode's video is now, under MEDIA_ROOT: its `filePath` when that is there, otherwise
+   * the one video of its number (`… S01E02.ext`) in its season folder; null when there is none.
+   */
+  locateEpisode(series: Series, episode: Episode): Promise<string | null>;
 }
 
 /** An episode file Jellyfin already has. */
