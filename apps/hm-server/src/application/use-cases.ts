@@ -30,7 +30,7 @@ import { trustedPosterUrl } from "./poster-url.ts";
 import type { FetchedImage, LibraryShow } from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
-import { closeFinishedSources, newEpisode, numberOf } from "./episodes.ts";
+import { closeFinishedSources, newEpisode, normalizeSeries, numberOf } from "./episodes.ts";
 import { createEnqueueCheck } from "./checks.ts";
 import {
   toEpisodeDto,
@@ -579,9 +579,12 @@ export function createUseCases(deps: Deps) {
           patch.tmdbId !== undefined ||
           patch.imdbId !== undefined)
       ) {
-        // The folder keeps its name; Jellyfin reads the new title from the nfo, but only when told
-        // to replace what it has.
-        await deps.library.writeSeries(updated);
+        // The folder and the files take the new name; Jellyfin reads the new title from the nfo,
+        // but only when told to replace what it has.
+        if (updated.title !== current.title || updated.year !== current.year) {
+          await withFolderLock(`series:${id}`, () => normalizeSeries(deps, updated));
+        }
+        await deps.library.writeSeries((await deps.series.get(id)) ?? updated);
         const renamed = (["title", "year", "tmdbId", "imdbId"] as const).some(
           (field) => updated[field] !== current[field],
         );

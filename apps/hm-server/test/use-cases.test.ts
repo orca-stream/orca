@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AppError, PermanentError, RetryableError } from "../src/domain/errors.ts";
@@ -7,7 +7,7 @@ import { addBevhill, BEVHILL, BEVHILL_URL, createHarness, type Harness } from ".
 import { FakeDownloader } from "./fakes/ports.ts";
 import { aSeries, aSource } from "./helpers.ts";
 import { createEnqueueRefresh } from "../src/application/downloads.ts";
-import { repairEpisodePaths } from "../src/application/episodes.ts";
+import { normalizeLibrary, repairEpisodePaths } from "../src/application/episodes.ts";
 import { StaticExtractorRegistry } from "../src/infrastructure/extractor-registry.ts";
 
 let h: Harness;
@@ -281,29 +281,70 @@ describe("addSeries", () => {
     expect(await fails(addBevhill(h, { title: "Other" }))).toMatchObject({ code: "conflict" });
   });
 
-  it("patching the title rewrites the nfo and keeps the folder", async () => {
+  it("patching the title renames the folder and the files, and rewrites the nfo", async () => {
     const { series } = await addBevhill(h);
+    const [episode] = await h.series.listEpisodes(series.id);
+    const season = join(h.root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "The Beverly Hillbillies S01E01.mp4"), "video");
+    await writeFile(join(season, "The Beverly Hillbillies S01E01.spa.srt"), "subs");
+    await h.series.setEpisodeStatus(
+      episode!.id,
+      "available",
+      "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E01.mp4",
+    );
+
     const patched = await h.useCases.patchSeries(series.id, {
       title: "Hillbillies",
       year: null,
       follow: true,
     });
+
     expect(patched).toMatchObject({ title: "Hillbillies", year: null, follow: true });
-    const nfo = await readFile(
-      join(h.root, "The Beverly Hillbillies (1962)", "tvshow.nfo"),
-      "utf8",
-    );
+    expect(await exists(join(h.root, "The Beverly Hillbillies (1962)"))).toBe(false);
+    const nfo = await readFile(join(h.root, "Hillbillies", "tvshow.nfo"), "utf8");
     expect(nfo).toContain("<title>Hillbillies</title>");
     expect(nfo).not.toContain("<year>");
+    expect((await readdir(join(h.root, "Hillbillies", "Season 01"))).sort()).toEqual([
+      "Hillbillies S01E01.mp4",
+      "Hillbillies S01E01.spa.srt",
+    ]);
+    expect((await h.series.getEpisode(episode!.id))?.filePath).toBe(
+      "Hillbillies/Season 01/Hillbillies S01E01.mp4",
+    );
+    expect((await h.series.get(series.id))?.folderName).toBe("Hillbillies");
   });
 
-  it("a new title makes Jellyfin reread the series from scratch, once", async () => {
+  it("a new title makes Jellyfin reread the series, under its new folder, once", async () => {
     const { series } = await addBevhill(h);
     await h.useCases.patchSeries(series.id, { title: "Hillbillies" });
     await h.useCases.patchSeries(series.id, { title: "The Hillbillies" });
     h.clock.advance(60_000);
     await h.queue.settle();
-    expect(h.mediaServer.replaced).toEqual([join(h.root, "The Beverly Hillbillies (1962)")]);
+    expect(h.mediaServer.replaced).toEqual([join(h.root, "The Hillbillies (1962)")]);
+  });
+
+  it("a title whose folder another series has keeps the folder, but still renames the files", async () => {
+    const { series } = await addBevhill(h);
+    await mkdir(join(h.root, "Taken (1962)"), { recursive: true });
+    await writeFile(join(h.root, "Taken (1962)", "keep.txt"), "x");
+    const [episode] = await h.series.listEpisodes(series.id);
+    const season = join(h.root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "The Beverly Hillbillies S01E01.mp4"), "video");
+    await h.series.setEpisodeStatus(
+      episode!.id,
+      "available",
+      "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E01.mp4",
+    );
+
+    await h.useCases.patchSeries(series.id, { title: "Taken" });
+
+    expect((await h.series.get(series.id))?.folderName).toBe("The Beverly Hillbillies (1962)");
+    expect(await readdir(join(h.root, "Taken (1962)"))).toEqual(["keep.txt"]);
+    expect((await h.series.getEpisode(episode!.id))?.filePath).toBe(
+      "The Beverly Hillbillies (1962)/Season 01/Taken S01E01.mp4",
+    );
   });
 
   it("other changes, or the same title again, leave Jellyfin alone", async () => {
@@ -537,6 +578,21 @@ describe("downloading (the end-to-end pipeline)", () => {
     await h.queue.settle();
     expect(h.downloader.peak).toBe(2);
     expect(h.downloader.calls).toHaveLength(6);
+  });
+
+  it("an episode that finishes after the series was renamed lands under the new name", async () => {
+    const { series } = await addBevhill(h);
+    const [episode] = await h.useCases.listEpisodes(series.id);
+    h.downloader.once(async (source, dest, context) => {
+      await h.useCases.patchSeries(series.id, { title: "Hillbillies" });
+      await FakeDownloader.writeFile(source, dest, context);
+    });
+    await h.useCases.enqueue([episode!.id]);
+    await h.queue.settle();
+    expect((await h.series.getEpisode(episode!.id))?.filePath).toBe(
+      "Hillbillies (1962)/Season 01/Hillbillies S01E01.mp4",
+    );
+    expect(await exists(join(h.root, "The Beverly Hillbillies (1962)"))).toBe(false);
   });
 
   it("keeps postponing the refresh while episodes keep landing", async () => {
@@ -892,5 +948,37 @@ describe("repairEpisodePaths", () => {
     expect(after.get(gone!.id)).toBe("The Beverly Hillbillies (1962)/Season 1/nowhere.mp4");
     expect(after.get(fine!.id)).toBe(at(fine!));
     expect(await repairEpisodePaths(h.deps)).toBe(0);
+  });
+});
+
+describe("normalizeLibrary", () => {
+  it("gives a taken-over folder its year and old-titled files the current title, once", async () => {
+    const { series } = await addBevhill(h);
+    // A folder kept from Jellyfin and a file named after an earlier title.
+    await h.series.update(series.id, { folderName: "Hillbillies" });
+    await rm(join(h.root, "The Beverly Hillbillies (1962)"), { recursive: true });
+    const season = join(h.root, "Hillbillies", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "Old Title S01E02.mkv"), "video");
+    const episode = (await h.series.listEpisodes(series.id)).find((e) => e.episode === 2)!;
+    await h.series.setEpisodeStatus(
+      episode.id,
+      "available",
+      "Hillbillies/Season 01/Old Title S01E02.mkv",
+    );
+
+    expect(await normalizeLibrary(h.deps)).toEqual([series.id]);
+
+    expect((await h.series.get(series.id))?.folderName).toBe("The Beverly Hillbillies (1962)");
+    expect(await exists(join(h.root, "Hillbillies"))).toBe(false);
+    expect((await h.series.getEpisode(episode.id))?.filePath).toBe(
+      "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E02.mkv",
+    );
+    expect(
+      await exists(
+        join(h.root, "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E02.mkv"),
+      ),
+    ).toBe(true);
+    expect(await normalizeLibrary(h.deps)).toEqual([]);
   });
 });

@@ -204,6 +204,16 @@ export class FsLibraryWriter implements LibraryWriter {
     return placed;
   }
 
+  async moveSeries(series: Series, folderName: string): Promise<"moved" | "absent" | "taken"> {
+    const from = this.seriesPath(series);
+    const to = join(this.root, folderName);
+    if (!(await exists(from))) return "absent";
+    // A name that differs only in case is the same folder on a case-insensitive share.
+    if (from.toLowerCase() !== to.toLowerCase() && (await exists(to))) return "taken";
+    await this.move(from, to);
+    return "moved";
+  }
+
   async locateEpisode(series: Series, episode: Episode): Promise<string | null> {
     const toRelative = (path: string) => relative(this.root, path).split(sep).join("/");
     if (episode.filePath !== null && (await exists(join(this.root, episode.filePath)))) {

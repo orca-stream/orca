@@ -1,7 +1,9 @@
 import type { Extraction } from "@orca/extractor-core";
 import { mapEpisode } from "@orca/hm-contract";
+import { join } from "node:path";
 import { uuidv7 } from "../domain/ids.ts";
-import type { Episode, SeriesSource, Source } from "../domain/series.ts";
+import { seriesFolderName } from "../domain/naming.ts";
+import type { Episode, Series, SeriesSource, Source } from "../domain/series.ts";
 import type { LibraryWriter, SeriesRepository } from "./ports.ts";
 
 export type ExtractedEpisode = Extraction["episodes"][number];
@@ -126,4 +128,76 @@ export async function repairEpisodePaths(deps: {
     }
   }
   return fixed;
+}
+
+/**
+ * Gives a series and its episode files the names its title and year call for now: the folder
+ * `Title (Year)` and `Season 01/Title S01E01.ext`. A folder whose new name is taken keeps its name,
+ * but its files are still renamed. Returns whether anything moved.
+ */
+export async function normalizeSeries(
+  deps: { series: SeriesRepository; library: LibraryWriter },
+  series: Series,
+): Promise<boolean> {
+  let current = series;
+  let changed = false;
+  const folderName = seriesFolderName(series.title, series.year);
+  const episodes = await deps.series.listEpisodes(series.id);
+  if (folderName !== series.folderName && !(await deps.series.findByFolder(folderName))) {
+    const moved = await deps.library.moveSeries(series, folderName);
+    if (moved !== "taken") {
+      current = { ...series, folderName };
+      await deps.series.update(series.id, { folderName });
+      const prefix = `${series.folderName}/`;
+      for (const episode of episodes) {
+        if (episode.filePath === null || !episode.filePath.startsWith(prefix)) continue;
+        episode.filePath = `${folderName}/${episode.filePath.slice(prefix.length)}`;
+        await deps.series.setEpisodeStatus(episode.id, episode.status, episode.filePath);
+      }
+      changed = moved === "moved";
+    }
+  }
+  const prefix = `${current.folderName}/`;
+  const placed = episodes.filter(
+    (episode) =>
+      episode.status === "available" &&
+      episode.filePath !== null &&
+      episode.filePath.startsWith(prefix),
+  );
+  const folder = deps.library.seriesPath(current);
+  const renamed = await deps.library.renameEpisodes(
+    current,
+    placed.map((episode) => ({
+      season: episode.season,
+      episode: episode.episode,
+      path: join(folder, ...(episode.filePath as string).slice(prefix.length).split("/")),
+    })),
+  );
+  const pathOf = new Map(
+    renamed.map((file) => [`${file.season}:${file.episode}`, file.relativePath]),
+  );
+  for (const episode of placed) {
+    const path = pathOf.get(`${episode.season}:${episode.episode}`);
+    if (path === undefined || path === episode.filePath) continue;
+    await deps.series.setEpisodeStatus(episode.id, "available", path);
+    changed = true;
+  }
+  return changed;
+}
+
+/** {@link normalizeSeries} for every series. Returns the ids of those that changed. */
+export async function normalizeLibrary(deps: {
+  series: SeriesRepository;
+  library: LibraryWriter;
+}): Promise<string[]> {
+  const changed: string[] = [];
+  for (const series of await deps.series.list()) {
+    try {
+      if (await normalizeSeries(deps, series)) changed.push(series.id);
+    } catch (error) {
+      // One series that can't be renamed leaves the others to be.
+      console.error(`renaming “${series.title}” failed:`, error);
+    }
+  }
+  return changed;
 }

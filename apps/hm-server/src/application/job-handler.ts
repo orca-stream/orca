@@ -161,10 +161,12 @@ export function createJobHandler(deps: Deps): JobHandler {
       },
     });
 
-    await deps.library.writeSeries(series);
+    // Renamed while it downloaded: it lands under the name the series has now.
+    const now = (await deps.series.get(series.id)) ?? series;
+    await deps.library.writeSeries(now);
     // The downloader may have chosen another container than the staged name asked for.
     const { relativePath } = await deps.library.commitEpisode(
-      series,
+      now,
       episode,
       downloaded.path ?? staged,
       downloaded.sidecars,

@@ -45,6 +45,7 @@ export interface SeriesRepository {
         Series,
         | "title"
         | "year"
+        | "folderName"
         | "tmdbId"
         | "imdbId"
         | "follow"
@@ -265,6 +266,11 @@ export interface LibraryWriter {
    * the one video of its number (`… S01E02.ext`) in its season folder; null when there is none.
    */
   locateEpisode(series: Series, episode: Episode): Promise<string | null>;
+  /**
+   * Renames the series' folder to `folderName`, with everything in it. "absent" when the series has
+   * no folder yet, "taken" when something already has that name (nothing moves then).
+   */
+  moveSeries(series: Series, folderName: string): Promise<"moved" | "absent" | "taken">;
 }
 
 /** An episode file Jellyfin already has. */

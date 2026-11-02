@@ -9,7 +9,8 @@ import type { Jellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
 import { GuardedProxy, PlaywrightStreamDetector } from "@orca/stream-detector";
 import type { Deps } from "../application/deps.ts";
-import { repairEpisodePaths } from "../application/episodes.ts";
+import { createEnqueueRefresh } from "../application/downloads.ts";
+import { normalizeLibrary, repairEpisodePaths } from "../application/episodes.ts";
 import { createJobEvents } from "../application/job-events.ts";
 import { createJobHandler } from "../application/job-handler.ts";
 import { NotificationService, PanelNotifier } from "../application/notifications.ts";
@@ -252,6 +253,15 @@ export async function startRuntime(
       (fixed) => fixed > 0 && console.log(`episode paths: ${fixed} pointed at their files again`),
     )
     .catch((error: unknown) => console.error("repairing episode paths failed:", error));
+  await normalizeLibrary(deps)
+    .then(async (renamed) => {
+      if (renamed.length === 0) return;
+      console.log(`library names: ${renamed.length} series renamed after their title and year`);
+      // Jellyfin finds the old folder gone and a new one: it reads them from scratch.
+      const enqueueRefresh = createEnqueueRefresh(deps);
+      for (const id of renamed) await enqueueRefresh(id, { replaceMetadata: true });
+    })
+    .catch((error: unknown) => console.error("renaming the library failed:", error));
   await queue.start();
   const scheduler = new Scheduler(deps);
   scheduler.start({ everyMs: SCHEDULER_TICK_MS });
