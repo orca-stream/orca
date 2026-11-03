@@ -4,7 +4,9 @@ import type { JobDto } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
 import { makeJob } from "@/test/fixtures";
 import { jsonResponse, renderApp, type Handler } from "@/test/render";
-import { DownloadsScreen } from "./DownloadsScreen";
+import { Dock, DockAdd } from "@/components/dock";
+import { DownloadsPanel } from "./DownloadsPanel";
+import { DownloadsPreview } from "./DownloadsPreview";
 
 function page(items: JobDto[], nextCursor: string | null = null) {
   return jsonResponse({ items, nextCursor });
@@ -43,9 +45,9 @@ const RUNNING = makeJob({
 });
 const WAITING = makeJob({ id: "j2", status: "queued", episodeCode: "S01E02", episodeId: "e2" });
 
-describe("DownloadsScreen", () => {
+describe("DownloadsPanel", () => {
   it("shows a running download with its progress, speed and ETA, and what waits behind it", async () => {
-    renderApp(<DownloadsScreen />, {
+    renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [WAITING, RUNNING], failed: [], history: [[]] }),
     });
     const bar = await screen.findByRole("progressbar", {
@@ -53,19 +55,22 @@ describe("DownloadsScreen", () => {
     });
     expect(bar.getAttribute("aria-valuenow")).toBe("42");
     expect(screen.getByText(/2 MB\/s/)).toBeTruthy();
-    expect(screen.getByText(/Quedan: 1 min/)).toBeTruthy();
-    expect(screen.getByText("Beverly Hillbillies S01E02")).toBeTruthy();
+    expect(screen.getByText(/Quedan 1 min/)).toBeTruthy();
+    expect(screen.getByText(/420 B de 1000 B · 2 MB\/s/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Cancelar Beverly Hillbillies S01E02" }),
+    ).toBeTruthy();
   });
 
   it("asks before cancelling, and cancels only once confirmed", async () => {
     const user = userEvent.setup();
-    const { requests } = renderApp(<DownloadsScreen />, {
+    const { requests } = renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [RUNNING], failed: [], history: [[]] }),
     });
     await screen.findByRole("progressbar");
     const cancelsSent = () => requests.filter((r) => r.url.endsWith("/cancel")).length;
 
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar Beverly Hillbillies S01E01" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(
       within(dialog).getByText(/¿Cancelar la descarga de Beverly Hillbillies S01E01\?/),
@@ -75,7 +80,7 @@ describe("DownloadsScreen", () => {
     await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     expect(cancelsSent()).toBe(0);
 
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar Beverly Hillbillies S01E01" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "Cancelar descarga",
@@ -110,7 +115,7 @@ describe("DownloadsScreen", () => {
         attempts: 5,
       }),
     ];
-    const { requests } = renderApp(<DownloadsScreen />, {
+    const { requests } = renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [], failed, history: [[]] }),
     });
     expect(await screen.findByText("HTTP 503")).toBeTruthy();
@@ -130,51 +135,76 @@ describe("DownloadsScreen", () => {
     const failed = [
       makeJob({ id: "j8", status: "failed", errorKind: "permanent", lastError: "HTTP 404" }),
     ];
-    const { requests } = renderApp(<DownloadsScreen />, {
+    const { requests } = renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [], failed, history: [[]] }),
     });
-    await user.click(await screen.findByRole("button", { name: "Reintentar" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Reintentar Beverly Hillbillies S01E01" }),
+    );
     await waitFor(() =>
       expect(requests.some((r) => r.url.endsWith("/api/jobs/j8/retry"))).toBe(true),
     );
     expect(screen.queryByRole("button", { name: /Reintentar los/ })).toBeNull();
   });
 
-  it("shows the last 20 finished jobs and loads more by cursor", async () => {
-    const user = userEvent.setup();
-    const first = Array.from({ length: 20 }, (_, i) =>
+  it("shows the last five finished jobs, no more", async () => {
+    const done = Array.from({ length: 7 }, (_, i) =>
       makeJob({
-        id: `h${100 - i}`,
+        id: `h${i}`,
         status: "done",
-        episodeCode: `S01E${i + 1}`,
+        episodeCode: `S01E0${i + 1}`,
         finishedAt: Date.now(),
       }),
     );
-    const second = [
-      makeJob({ id: "h1", status: "cancelled", episodeCode: "S09E09", finishedAt: Date.now() }),
-    ];
-    const { requests } = renderApp(<DownloadsScreen />, {
-      handler: handlerFor({ active: [], failed: [], history: [first, second] }),
+    renderApp(<DownloadsPanel />, {
+      handler: handlerFor({ active: [], failed: [], history: [done] }),
     });
-    await screen.findByText("Beverly Hillbillies S01E1");
-    expect(screen.queryByText("Beverly Hillbillies S09E09")).toBeNull();
-    const historyRequest = requests.find((r) => r.url.includes("status=done"));
-    expect(new URL(historyRequest!.url).searchParams.get("limit")).toBe("20");
+    expect(await screen.findByText("Terminadas")).toBeTruthy();
+    expect(screen.getByText("S01E05")).toBeTruthy();
+    expect(screen.queryByText("S01E06")).toBeNull();
+  });
 
-    await user.click(screen.getByRole("button", { name: "Ver más" }));
-    expect(await screen.findByText("Beverly Hillbillies S09E09")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Ver más" })).toBeNull();
+  it("leaves out the library refreshes the server queues on its own", async () => {
+    const refresh = makeJob({
+      id: "r1",
+      kind: "refresh_library",
+      status: "queued",
+      episodeId: null,
+      episodeCode: null,
+    });
+    const refreshed = makeJob({
+      id: "r2",
+      kind: "refresh_library",
+      status: "done",
+      episodeId: null,
+      episodeCode: null,
+      finishedAt: Date.now(),
+    });
+    renderApp(<DownloadsPanel />, {
+      handler: handlerFor({ active: [RUNNING, refresh], failed: [], history: [[refreshed]] }),
+    });
+    await screen.findByRole("progressbar");
+    expect(screen.queryByText("Actualizar biblioteca")).toBeNull();
+    expect(screen.queryByText("Terminadas")).toBeNull();
+  });
+
+  it("says nothing is downloading when the queue and the failures are empty", async () => {
+    renderApp(<DownloadsPanel />, {
+      handler: handlerFor({ active: [], failed: [], history: [[]] }),
+    });
+    expect(await screen.findByText(/aparecen aquí con su progreso/)).toBeTruthy();
+    expect(screen.getAllByText("Nada descargándose")).toHaveLength(2);
   });
 
   it("says so when cancelling is refused (409), instead of failing silently", async () => {
     const user = userEvent.setup();
     const ok = handlerFor({ active: [RUNNING], failed: [], history: [[]] });
-    renderApp(<DownloadsScreen />, {
+    renderApp(<DownloadsPanel />, {
       handler: (request) =>
         request.url.endsWith("/cancel") ? jsonResponse({ error: "conflict" }, 409) : ok(request),
     });
     await screen.findByRole("progressbar");
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar Beverly Hillbillies S01E01" }));
     await user.click(
       within(await screen.findByRole("alertdialog")).getByRole("button", {
         name: "Cancelar descarga",
@@ -187,11 +217,13 @@ describe("DownloadsScreen", () => {
     const user = userEvent.setup();
     const failed = [makeJob({ id: "j8", status: "failed", errorKind: "permanent" })];
     const ok = handlerFor({ active: [], failed, history: [[]] });
-    renderApp(<DownloadsScreen />, {
+    renderApp(<DownloadsPanel />, {
       handler: (request) =>
         request.url.endsWith("/retry") ? jsonResponse({ error: "conflict" }, 409) : ok(request),
     });
-    await user.click(await screen.findByRole("button", { name: "Reintentar" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Reintentar Beverly Hillbillies S01E01" }),
+    );
     expect((await screen.findByRole("alert")).textContent).toBe("No se pudo completar la acción.");
   });
 
@@ -200,12 +232,45 @@ describe("DownloadsScreen", () => {
       makeJob({ id: "j9", status: "failed", errorKind: "retryable", lastError: "HTTP 503" }),
       makeJob({ id: "j8", status: "failed", errorKind: "permanent", lastError: "HTTP 404" }),
     ];
-    renderApp(<DownloadsScreen />, {
+    renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [], failed, history: [[]] }),
     });
-    const retryable = (await screen.findByText("HTTP 503")).closest("td")!;
+    const retryable = (await screen.findByText("HTTP 503")).closest("li")!;
     expect(within(retryable).getByText("Último error (se reintentará)")).toBeTruthy();
-    const permanent = screen.getByText("HTTP 404").closest("td")!;
+    const permanent = screen.getByText("HTTP 404").closest("li")!;
     expect(within(permanent).getByText("Error permanente")).toBeTruthy();
+  });
+});
+
+describe("the dock's downloads", () => {
+  it("opens the list above it on click, asking for the jobs only then", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <Dock label="Atajos">
+        <DockAdd />
+      </Dock>,
+      { handler: handlerFor({ active: [WAITING, RUNNING], failed: [], history: [[]] }) },
+    );
+    await user.click(await screen.findByRole("button", { name: "Descargas" }));
+    const panel = await screen.findByRole("dialog", { name: "Descargas" });
+    expect(within(panel).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("42");
+  });
+});
+
+describe("DownloadsPreview", () => {
+  it("shows only the series' own downloads", async () => {
+    const other = makeJob({
+      id: "j5",
+      status: "running",
+      seriesId: "s2",
+      seriesTitle: "Frieren",
+      episodeCode: "S01E09",
+    });
+    renderApp(<DownloadsPreview seriesId="s1" />, {
+      handler: handlerFor({ active: [RUNNING, WAITING, other], failed: [], history: [[]] }),
+    });
+    expect(await screen.findByRole("progressbar")).toBeTruthy();
+    expect(screen.getByText("S01E02")).toBeTruthy();
+    expect(screen.queryByText("Frieren")).toBeNull();
   });
 });

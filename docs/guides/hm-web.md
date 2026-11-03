@@ -6,7 +6,7 @@ The panel (`apps/hm-web`) is the web interface of the [Orca'H&M server](hm-serve
 cards: your series first, then one card per available extractor (with a shortcut to try its example).
 From there: the list of series, adding a series from an address (with a preview of what will be
 downloaded, the season, the first episode number, TMDB/IMDb ids and track choices), each series' sources
-and episodes, the downloads page (queue, errors and history) and notifications (live, over
+and episodes, the downloads (a list over the dock: queue, errors and the last finished; hovering a card's download badge shows what it is fetching) and notifications (live, over
 server-sent events).
 
 The list of series looks like home, with no top bar or title: a card to add one more, then a card per

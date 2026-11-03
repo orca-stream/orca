@@ -1,7 +1,14 @@
-import { Add01Icon, Home01Icon, Settings01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Download04Icon,
+  Home01Icon,
+  Settings01Icon,
+  Tv01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  type CSSProperties,
   createContext,
   useContext,
   useEffect,
@@ -20,11 +27,14 @@ import { queries } from "@/api/queries";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DownloadsPanel } from "@/downloads/DownloadsPanel";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import { extractorHref } from "@/extractors/href";
 import { useT } from "@/i18n/locale";
+import { toPercent } from "@/lib/percent";
 import { cn } from "@/lib/utils";
 import { BAR_POPUP } from "@/series/bar";
+import { runningFraction } from "@/series/download-line";
 
 /** Lets an action keep the dock up while something of its own is open (the add menu, say). */
 const HoldContext = createContext<(held: boolean) => void>(() => {});
@@ -276,7 +286,8 @@ const MENU_ITEM =
 /**
  * After a separator, one "+" to add a series: it opens, above it, a menu with every extractor on its
  * own colour (only checked ones exist, so there is no "any link"). One circle instead of a row of
- * same-looking colours. `current` lights it on the add screen itself.
+ * same-looking colours. `current` lights it on the add screen itself. The downloads follow it, on
+ * every screen, so the queue is always one click away.
  */
 export function DockAdd({ current = false }: { current?: boolean }) {
   const t = useT();
@@ -292,50 +303,126 @@ export function DockAdd({ current = false }: { current?: boolean }) {
 
   useEffect(() => () => hold(false), [hold]);
 
-  if (!extractors.data?.length) return null;
   return (
     <>
       <DockSeparator />
-      <Popover open={open} onOpenChange={toggle}>
-        <Tooltip disabled={open}>
-          <TooltipTrigger
-            aria-label={t.dock.add}
-            render={
-              <PopoverTrigger
-                aria-current={current ? "page" : undefined}
-                className={cn(ITEM, "data-popup-open:bg-white data-popup-open:text-foreground")}
-              />
-            }
-          >
-            <HugeiconsIcon icon={Add01Icon} className="size-5.5" />
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={10}>
-            {t.dock.add}
-          </TooltipContent>
-        </Tooltip>
-        <PopoverContent
-          side="top"
-          sideOffset={20}
-          aria-label={t.dock.add}
-          className={cn(BAR_POPUP, "w-max min-w-56 gap-0.5 p-2")}
-        >
-          {extractors.data?.map((extractor) => (
-            <Link
-              key={extractor.id}
-              href={extractorHref(extractor)}
-              onClick={() => toggle(false)}
-              className={MENU_ITEM}
+      {extractors.data?.length ? (
+        <Popover open={open} onOpenChange={toggle}>
+          <Tooltip disabled={open}>
+            <TooltipTrigger
+              aria-label={t.dock.add}
+              render={
+                <PopoverTrigger
+                  aria-current={current ? "page" : undefined}
+                  className={cn(ITEM, "data-popup-open:bg-white data-popup-open:text-foreground")}
+                />
+              }
             >
-              <ExtractorMark
-                extractor={extractor}
-                className="size-9 rounded-full"
-                iconClassName="size-4.5"
-              />
-              {extractor.name}
-            </Link>
-          ))}
-        </PopoverContent>
-      </Popover>
+              <HugeiconsIcon icon={Add01Icon} className="size-5.5" />
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={10}>
+              {t.dock.add}
+            </TooltipContent>
+          </Tooltip>
+          <PopoverContent
+            side="top"
+            sideOffset={20}
+            aria-label={t.dock.add}
+            className={cn(BAR_POPUP, "w-max min-w-56 gap-0.5 p-2")}
+          >
+            {extractors.data?.map((extractor) => (
+              <Link
+                key={extractor.id}
+                href={extractorHref(extractor)}
+                onClick={() => toggle(false)}
+                className={MENU_ITEM}
+              >
+                <ExtractorMark
+                  extractor={extractor}
+                  className="size-9 rounded-full"
+                  iconClassName="size-4.5"
+                />
+                {extractor.name}
+              </Link>
+            ))}
+          </PopoverContent>
+        </Popover>
+      ) : null}
+      <DockDownloads />
     </>
+  );
+}
+
+/**
+ * The downloads: a circle that fills from the bottom as far as what runs has come (and breathes
+ * while that is unknown), opening above it, like the "+", a list of everything on its way, sized
+ * to what it holds and scrolling once it is taller than the window allows.
+ */
+function DockDownloads() {
+  const t = useT();
+  const api = useApi();
+  const hold = useContext(HoldContext);
+  // The series already carry how many of theirs are on the way and how far: the jobs themselves are
+  // only asked for once the list opens.
+  const series = useQuery(queries.seriesList(api)).data ?? [];
+  const [open, setOpen] = useState(false);
+  const count = series.reduce((sum, s) => sum + s.downloadingCount, 0);
+  const running = series.reduce((sum, s) => sum + s.running.length, 0);
+  const percent = toPercent(runningFraction(series));
+
+  function toggle(next: boolean) {
+    setOpen(next);
+    hold(next);
+  }
+
+  useEffect(() => () => hold(false), [hold]);
+
+  const label = t.nav.downloadsActive(count);
+  return (
+    <Popover open={open} onOpenChange={toggle}>
+      <Tooltip disabled={open}>
+        <TooltipTrigger
+          aria-label={label}
+          render={
+            <PopoverTrigger
+              className={cn(
+                ITEM,
+                "isolate data-popup-open:bg-white data-popup-open:text-foreground",
+                running > 0 && "text-primary",
+              )}
+            />
+          }
+        >
+          {running > 0 && (
+            <span
+              aria-hidden="true"
+              style={percent === null ? undefined : ({ height: `${percent}%` } as CSSProperties)}
+              className={cn(
+                "absolute inset-x-0 bottom-0 -z-10 bg-primary/15 transition-[height] duration-700 ease-out",
+                percent === null && "h-1/2 motion-safe:animate-download-tide",
+              )}
+            />
+          )}
+          <HugeiconsIcon
+            icon={Download04Icon}
+            className={cn("size-5.5", running > 0 && "motion-safe:animate-download-arrow")}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={10}>
+          {label}
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        side="top"
+        sideOffset={20}
+        aria-label={t.dashboard.title}
+        className={cn(
+          BAR_POPUP,
+          "max-h-[min(40rem,var(--available-height))] w-[min(28rem,var(--available-width))] gap-0 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]",
+        )}
+      >
+        <DownloadsPanel />
+      </PopoverContent>
+    </Popover>
   );
 }

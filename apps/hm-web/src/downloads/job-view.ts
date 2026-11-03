@@ -65,3 +65,12 @@ export function jobName(job: JobDto, kindLabel: string): string {
   if (!job.seriesTitle) return kindLabel;
   return job.episodeCode ? `${job.seriesTitle} ${job.episodeCode}` : job.seriesTitle;
 }
+
+/**
+ * Whether the job is the server's own housekeeping rather than something asked for: the library
+ * refresh it queues after each episode lands, so Jellyfin picks it up. The lists leave it out unless
+ * it failed.
+ */
+export function isHousekeeping(job: JobDto): boolean {
+  return job.kind === "refresh_library";
+}

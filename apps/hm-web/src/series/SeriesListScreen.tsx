@@ -145,7 +145,11 @@ function SeriesTile({ series }: { series: SeriesDto }) {
               )
             )}
             {downloading > 0 && (
-              <DownloadingBadge count={downloading} progress={runningFraction([series])} />
+              <DownloadingBadge
+                count={downloading}
+                progress={runningFraction([series])}
+                seriesId={series.id}
+              />
             )}
           </p>
         )}

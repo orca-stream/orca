@@ -12,39 +12,19 @@ const handler: Handler = (request) => {
 };
 
 describe("Shell", () => {
-  it("shows the brand, the way home and to the downloads, the user and the live state", async () => {
+  it("shows the brand, the way home, the user and the live state", async () => {
     renderApp(
       <Shell live="reconnecting">
         <p>contenido</p>
       </Shell>,
-      { handler, path: "/downloads" },
+      { handler, path: "/elsewhere" },
     );
     const nav = screen.getByRole("navigation", { name: "Navegación principal" });
     const brand = within(nav).getByRole("img", { name: "ORCA'H&M" });
     expect(brand.closest("a")?.getAttribute("href")).toBe("/");
-    const downloads = nav.querySelector('a[href="/downloads"]');
-    expect(downloads?.getAttribute("aria-label")).toBe("Descargas");
-    expect(downloads?.getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("Reconectando…")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Sesión de sam" })).toBeTruthy();
     expect(screen.getByText("contenido")).toBeTruthy();
-  });
-
-  it("counts the downloads in progress on the way to the queue", async () => {
-    renderApp(<Shell>x</Shell>, {
-      handler: (request) =>
-        new URL(request.url).pathname === "/api/jobs"
-          ? jsonResponse({ items: [{ id: "j1" }, { id: "j2" }], nextCursor: null })
-          : handler(request),
-      path: "/downloads",
-    });
-    expect(await screen.findByRole("link", { name: "Descargas: 2 en marcha" })).toBeTruthy();
-  });
-
-  it("names the page in the breadcrumb", () => {
-    renderApp(<Shell>x</Shell>, { handler, path: "/downloads" });
-    const crumbs = screen.getByRole("navigation", { name: "Ruta" });
-    expect(within(crumbs).getByText("Descargas")).toBeTruthy();
   });
 
   it.each(["/", "/series", "/series/new", "/series/s1"])(
@@ -60,7 +40,7 @@ describe("Shell", () => {
     const user = userEvent.setup();
     const { requests, location, queryClient } = renderApp(<Shell>x</Shell>, {
       handler,
-      path: "/downloads",
+      path: "/elsewhere",
     });
     queryClient.setQueryData(["jobs", "active"], [{ id: "j1" }]);
 

@@ -1,20 +1,9 @@
-import { Download04Icon, Logout03Icon, Settings01Icon } from "@hugeicons/core-free-icons";
+import { Logout03Icon, Settings01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, useLocation, useRoute } from "wouter";
-import { useApi } from "@/api/context";
-import { queries } from "@/api/queries";
 import logotype from "@/assets/logotype.svg";
 import { useLogout, useMe } from "@/auth/session";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -55,77 +44,6 @@ function LiveDot({ live }: { live: SseStatus }) {
       </TooltipTrigger>
       <TooltipContent side="bottom">{t.live[live]}</TooltipContent>
     </Tooltip>
-  );
-}
-
-/** Where you are below home. */
-function Crumbs() {
-  const t = useT();
-  const [location] = useLocation();
-
-  const crumbs: { label: ReactNode; href?: string }[] = [];
-  // The series, a series and adding one have no bar: the queue and the settings are the pages below
-  // home with one.
-  if (location === "/downloads") crumbs.push({ label: t.nav.downloads });
-  if (crumbs.length === 0) return null;
-
-  return (
-    <Breadcrumb aria-label={t.nav.breadcrumb} className="min-w-0">
-      <BreadcrumbList className="flex-nowrap">
-        <BreadcrumbSeparator />
-        {crumbs.map(({ label, href }, index) => {
-          const last = index === crumbs.length - 1;
-          return (
-            <Fragment key={index}>
-              {index > 0 && <BreadcrumbSeparator />}
-              <BreadcrumbItem className="min-w-0">
-                {last || !href ? (
-                  <BreadcrumbPage className="truncate rounded-full bg-white/70 px-2.5 py-0.5 font-medium">
-                    {label}
-                  </BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink render={<Link href={href} />}>{label}</BreadcrumbLink>
-                )}
-              </BreadcrumbItem>
-            </Fragment>
-          );
-        })}
-      </BreadcrumbList>
-    </Breadcrumb>
-  );
-}
-
-/** The way to the queue, with how many downloads are moving right now. */
-function DownloadsLink() {
-  const t = useT();
-  const api = useApi();
-  const [location] = useLocation();
-  const active = useQuery(queries.jobsActive(api)).data?.length ?? 0;
-  const here = location === "/downloads";
-
-  return (
-    <Link
-      href="/downloads"
-      aria-label={t.nav.downloadsActive(active)}
-      aria-current={here ? "page" : undefined}
-      className={cn(
-        buttonVariants({ variant: "ghost", size: "lg" }),
-        BAR_BUTTON,
-        "relative gap-2 px-3",
-        here && "bg-white/80 text-foreground shadow-xs",
-      )}
-    >
-      <HugeiconsIcon icon={Download04Icon} className="size-5" />
-      <span className="hidden sm:inline">{t.nav.downloads}</span>
-      {active > 0 && (
-        <span
-          aria-hidden="true"
-          className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] leading-5 font-semibold text-primary-foreground"
-        >
-          {active > 99 ? "99+" : active}
-        </span>
-      )}
-    </Link>
   );
 }
 
@@ -235,9 +153,7 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
                 <img src={logotype} alt={t.brand} className="h-5 w-auto" />
               </Link>
               {live && <LiveDot live={live} />}
-              <Crumbs />
               <div className="ml-auto flex items-center gap-1">
-                <DownloadsLink />
                 <NotificationBell />
                 <Account />
               </div>

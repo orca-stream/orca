@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Redirect, Route, Router, Switch } from "wouter";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginScreen } from "./auth/LoginScreen";
-import { DownloadsScreen } from "./dashboard/DownloadsScreen";
 import { useLiveEvents } from "./events/use-live-events";
 import { HomeScreen } from "./home/HomeScreen";
 import { Providers } from "./providers";
@@ -29,7 +28,6 @@ function Panel() {
       <LiveShell>
         <Switch>
           <Route path="/" component={HomeScreen} />
-          <Route path="/downloads" component={DownloadsScreen} />
           <Route path="/settings" component={SettingsScreen} />
           {/* "new" before ":id", or the add screen would be read as a series called new. */}
           <Route path="/series/new" component={AddSeriesScreen} />

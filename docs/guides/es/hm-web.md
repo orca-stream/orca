@@ -6,7 +6,7 @@ El panel (`apps/hm-web`) es la interfaz web del [servidor Orca'H&M](hm-server.md
 cuadrícula de tarjetas: primero tus series y después una por cada extractor disponible (con un atajo para
 probar su ejemplo). Desde ahí: la lista de series, agregar una serie desde una dirección (con vista previa
 de lo que se descargará, la temporada, el número del primer episodio, ids de TMDB/IMDb y elección de
-pistas), las fuentes y episodios de cada serie, la página de descargas (cola, errores e historial) y las
+pistas), las fuentes y episodios de cada serie, las descargas (una lista sobre el dock: cola, errores y las últimas terminadas; al pasar por el indicador de descarga de una tarjeta se ve qué baja) y las
 notificaciones (en vivo, por server-sent events).
 
 La lista de series se ve como el inicio, sin barra ni título: una tarjeta para agregar otra y después una
