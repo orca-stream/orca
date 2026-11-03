@@ -67,7 +67,37 @@ export const SiteConfig = z.object({
     /** Finds the episode number in its address; the first group is the number. Absent: its last number. */
     number: Pattern.optional(),
   }),
+  /**
+   * When the site groups a show's seasons on a page of their own: how to reach it from a season and
+   * read the seasons it lists. Lets a pasted show address stand for its first season, lets a followed
+   * series find the seasons none of its sources reads yet, and suggests the next season to add.
+   * Absent: every season is a page on its own, and nothing about the others is known.
+   */
+  seasons: z
+    .object({
+      /** The path of a show's address. Pasted, it reads the first season the show lists. */
+      showPath: Pattern,
+      /**
+       * The show's address from a season's: `from` matches the season's path and `to` is the show's,
+       * `{1}`, `{2}`… being its groups.
+       */
+      show: z.object({ from: Pattern, to: z.string().min(1) }),
+      /** The link of each season, on the show page. */
+      links: Pick.extend({ attribute: z.string().min(1).default("href") }),
+      /** Finds the season number in its address; the first group is the number. Absent: its last number. */
+      number: Pattern.optional(),
+    })
+    .optional(),
   /** On an episode page: each player's address. */
-  mirrors: Pick.extend({ attribute: z.string().min(1) }),
+  mirrors: Pick.extend({
+    attribute: z.string().min(1),
+    /** How the attribute is written when it is not the address itself. */
+    decode: z.enum(["base64"]).optional(),
+    /**
+     * A query parameter that carries the player inside a wrapper's address (`?url=`): when present,
+     * the address it holds is the player. Absent: every address is taken as it is.
+     */
+    unwrap: z.string().min(1).optional(),
+  }),
 });
 export type SiteConfig = z.infer<typeof SiteConfig>;

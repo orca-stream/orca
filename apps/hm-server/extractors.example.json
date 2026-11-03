@@ -42,5 +42,42 @@
       "metadataPerSec": 2,
       "downloadsPerHost": 1
     }
+  },
+  "site-c": {
+    "reads": "page",
+    "name": "Site C",
+    "hosts": ["origin.test"],
+    "example": "https://origin.test/serie/some-show/",
+    "seasonPath": "^/temporada/[^/]+-\\d+$",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "limits": {
+      "metadataPerSec": 2,
+      "downloadsPerHost": 1
+    },
+    "listing": {
+      "episodes": {
+        "selector": "div.item-season-episodes > a",
+        "attribute": "href"
+      },
+      "number": "\\d+x(\\d+)/?$"
+    },
+    "seasons": {
+      "showPath": "^/serie/[^/]+$",
+      "show": {
+        "from": "^/temporada/(.+)-\\d+$",
+        "to": "/serie/{1}/"
+      },
+      "links": {
+        "selector": "p.item-season-title a",
+        "attribute": "href"
+      },
+      "number": "-(\\d+)$"
+    },
+    "mirrors": {
+      "selector": ".tab-video-item > ul > li[role=presentation]",
+      "attribute": "data-server",
+      "decode": "base64",
+      "unwrap": "url"
+    }
   }
 }

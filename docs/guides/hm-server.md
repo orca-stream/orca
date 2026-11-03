@@ -117,7 +117,12 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   site, under the name you give it (series remember their site by that name, so keep it once you add
   one; `name` sets what the panel shows, the entry's name otherwise). `"reads"` says how the site is read:
   - `"page"`: its pages, by CSS selectors. Give its hosts, the path of a season address, the listing
-    and episode selectors, the episode-number pattern and the selector of the players.
+    and episode selectors, the episode-number pattern and the selector of the players. Optionally:
+    `seasons`, when the site lists a show's seasons on a page of their own (the show path, how to get
+    from a season's address to the show's, the season links and the season-number pattern) — then
+    a pasted show reads its first season, **Follow** adds the new seasons and **+** suggests the next
+    one; `mirrors.decode: "base64"` when the players' attribute is base64; and `mirrors.unwrap`, the
+    query parameter of a wrapper that frames the real player (`?url=`), so the player itself is opened.
   - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
     show path (its first group is the slug), the API's base address and, optionally, the audio
     languages to keep, best first. A season is added like any

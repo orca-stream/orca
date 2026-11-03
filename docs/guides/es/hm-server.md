@@ -122,7 +122,12 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   `"reads"` dice cómo se lee el sitio:
   - `"page"`: sus páginas, con selectores CSS. Dale sus hosts, la ruta de una dirección de temporada,
     los selectores del listado y de los episodios, el patrón del número de episodio y el selector de
-    los reproductores.
+    los reproductores. Opcional: `seasons`, cuando el sitio lista las temporadas de una serie en una
+    página propia (la ruta de la serie, cómo pasar de la dirección de una temporada a la de la serie,
+    los enlaces de temporada y el patrón de su número) — así pegar la serie lee su primera temporada,
+    **Seguir** agrega las temporadas nuevas y **+** sugiere la siguiente; `mirrors.decode: "base64"`
+    cuando el atributo de los reproductores va en base64; y `mirrors.unwrap`, el parámetro de un
+    envoltorio que enmarca el reproductor real (`?url=`), para abrir el reproductor en sí.
   - `"api"`: su API JSON, que lista las temporadas, episodios y reproductores de una serie. Dale sus
     hosts, la ruta de la serie (su primer grupo es el slug), la dirección base de la API y, si quieres,
     los idiomas de audio que conservar, el mejor primero. Una temporada se agrega como cualquier fuente: pega

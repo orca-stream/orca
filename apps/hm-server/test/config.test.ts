@@ -147,7 +147,10 @@ describe("the extractors file", () => {
     const { readFile } = await import("node:fs/promises");
     const example = await readFile(new URL("../extractors.example.json", import.meta.url), "utf8");
     const { pages, apis } = parseExtractorsFile(example);
-    expect(pages.map((site) => [site.id, site.name])).toEqual([["site-a", "Site A"]]);
+    expect(pages.map((site) => [site.id, site.name])).toEqual([
+      ["site-a", "Site A"],
+      ["site-c", "Site C"],
+    ]);
     expect(apis.map((site) => [site.id, site.name])).toEqual([["site-b", "site-b"]]);
   });
 });

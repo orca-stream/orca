@@ -151,6 +151,131 @@ describe("HTML extractor: the players of an episode", () => {
   });
 });
 
+/** A site that groups the seasons on a show page, numbers episodes `SxE` and hides its players. */
+const SHOW = `${ORIGIN}/serie/some-show`;
+const seasonsSite: SiteConfig = SiteConfig.parse({
+  id: "site-c",
+  name: "Site C",
+  hosts: ["origin.test"],
+  example: `${SHOW}/`,
+  seasonPath: "^/temporada/[^/]+-\\d+$",
+  listing: {
+    episodes: { selector: "div.item-season-episodes > a" },
+    number: "\\d+x(\\d+)/?$",
+  },
+  seasons: {
+    showPath: "^/serie/[^/]+$",
+    show: { from: "^/temporada/(.+)-\\d+$", to: "/serie/{1}/" },
+    links: { selector: "p.item-season-title a" },
+    number: "-(\\d+)$",
+  },
+  mirrors: {
+    selector: ".tab-video-item > ul > li[role=presentation]",
+    attribute: "data-server",
+    decode: "base64",
+    unwrap: "url",
+  },
+});
+
+const seasonLink = (n: number) =>
+  `<p class="item-season-title"><a href="${ORIGIN}/temporada/some-show-${n}/">Temporada ${n}</a></p>`;
+const episodeLink = (season: number, n: number) =>
+  `<a href="${ORIGIN}/episodio/some-show-${season}x${n}/">${season}x${n}</a>`;
+
+const showPages = () => ({
+  // Listed out of order, with a repeat and a link elsewhere.
+  [SHOW]:
+    seasonLink(2) +
+    seasonLink(1) +
+    seasonLink(10) +
+    seasonLink(2) +
+    `<p class="item-season-title"><a href="https://elsewhere.test/temporada/x-3/">Other</a></p>`,
+  [`${ORIGIN}/temporada/some-show-1`]: `<div class="item-season-episodes">${episodeLink(1, 1)}${episodeLink(1, 2)}</div>`,
+  [`${ORIGIN}/temporada/some-show-2`]: `<div class="item-season-episodes">${episodeLink(2, 1)}${episodeLink(2, 74)}</div>
+    <div class="related">${episodeLink(9, 9)}</div>`,
+});
+
+describe("HTML extractor: a show with its seasons on a page of their own", () => {
+  it("claims both the show and its seasons", () => {
+    const extractor = createHtmlExtractor({ site: seasonsSite, http: fakePages({}).http });
+    expect(extractor.canHandle(`${SHOW}/`)).toBe(true);
+    expect(extractor.canHandle(`${ORIGIN}/temporada/some-show-2/`)).toBe(true);
+    expect(extractor.canHandle(`${ORIGIN}/episodio/some-show-2x1/`)).toBe(false);
+  });
+
+  it("reads a season under its own number, with the episode number from the SxE address", async () => {
+    const { http } = fakePages(showPages());
+    const extraction = await createHtmlExtractor({ site: seasonsSite, http }).extract(
+      `${ORIGIN}/temporada/some-show-2/`,
+    );
+    expect(extraction.series.sourceUrl).toBe(`${ORIGIN}/temporada/some-show-2`);
+    expect(extraction.seasons).toEqual([{ number: 2, episodeCount: 2 }]);
+    expect(extraction.episodes.map((e) => [e.season, e.episode, e.media.url])).toEqual([
+      [2, 1, `${ORIGIN}/episodio/some-show-2x1`],
+      [2, 74, `${ORIGIN}/episodio/some-show-2x74`],
+    ]);
+  });
+
+  it("takes a pasted show for its first season", async () => {
+    const { http } = fakePages(showPages());
+    const extraction = await createHtmlExtractor({ site: seasonsSite, http }).extract(`${SHOW}/`);
+    expect(extraction.series.sourceUrl).toBe(`${ORIGIN}/temporada/some-show-1`);
+    expect(extraction.episodes.map((e) => [e.season, e.episode])).toEqual([
+      [1, 1],
+      [1, 2],
+    ]);
+  });
+
+  it("lists the show's seasons from any of them, lowest first, once each, only its own", async () => {
+    const { http, requests } = fakePages(showPages());
+    const sources = await createHtmlExtractor({ site: seasonsSite, http }).seasonSources!(
+      `${ORIGIN}/temporada/some-show-2/`,
+    );
+    expect(requests.map((r) => r.url)).toEqual([SHOW]);
+    expect(sources).toEqual([
+      { season: 1, url: `${ORIGIN}/temporada/some-show-1` },
+      { season: 2, url: `${ORIGIN}/temporada/some-show-2` },
+      { season: 10, url: `${ORIGIN}/temporada/some-show-10` },
+    ]);
+  });
+
+  it("suggests the next season after a season, and nothing after a show", () => {
+    const extractor = createHtmlExtractor({ site: seasonsSite, http: fakePages({}).http });
+    expect(extractor.nextSourceUrl!(`${ORIGIN}/temporada/some-show-9/`)).toBe(
+      `${ORIGIN}/temporada/some-show-10`,
+    );
+    expect(extractor.nextSourceUrl!(`${SHOW}/`)).toBeNull();
+  });
+
+  it("has no seasons to list or suggest when the site doesn't group them", () => {
+    const extractor = createHtmlExtractor({ site, http: fakePages({}).http });
+    // A followed series asks for seasons only of an extractor that has them.
+    expect("seasonSources" in extractor).toBe(false);
+    expect("nextSourceUrl" in extractor).toBe(false);
+  });
+
+  it("decodes each player and takes the one a wrapper frames, framed by it", async () => {
+    const episode = `${ORIGIN}/episodio/some-show-1x1`;
+    const wrapper = "https://wrapper.test/iframe/?url=https%3A%2F%2Fplayer-two.test%2Fe%2Fxyz";
+    const item = (address: string) =>
+      `<li role="presentation" data-server="${btoa(address)}"></li>`;
+    const { http } = fakePages({
+      [episode]: `<div class="tab-video-item"><ul>
+        ${item("https://wrapper.test/watch/abc")}
+        ${item(wrapper)}
+        ${item(wrapper)}
+        <li role="presentation" data-server="%%not base64%%"></li>
+        <li role="tab" data-server="${btoa("https://ignored.test/")}"></li>
+      </ul></div>`,
+    });
+    const mirrors = await createHtmlExtractor({ site: seasonsSite, http }).resolveMirrors!(episode);
+    expect(mirrors).toEqual([
+      { url: "https://wrapper.test/watch/abc", referer: episode },
+      { url: "https://player-two.test/e/xyz", referer: wrapper },
+    ]);
+  });
+});
+
 describe("a site's description", () => {
   it("lists every problem by where it is", () => {
     const parsed = SiteConfig.safeParse({

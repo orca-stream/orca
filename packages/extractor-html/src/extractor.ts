@@ -5,6 +5,7 @@ import {
   type ExtractionWarning,
   type HttpClient,
   type Mirror,
+  type SeasonSource,
   type SiteExtractor,
 } from "@orca/extractor-core";
 import { parse, type HTMLElement } from "node-html-parser";
@@ -60,6 +61,29 @@ function resolveOn(page: URL, value: string): URL | null {
   }
 }
 
+/** The number a pattern finds in a path (its first group, or the whole match), and where it is. */
+function numberIn(
+  path: string,
+  pattern: RegExp,
+): { value: number; start: number; end: number } | null {
+  const match = pattern.exec(path);
+  if (!match) return null;
+  const [start, end] = match.indices?.[1] ?? match.indices?.[0] ?? [];
+  const digits = match[1] ?? match[0];
+  if (start === undefined || end === undefined || !/^\d+$/.test(digits)) return null;
+  return { value: Number(digits), start, end };
+}
+
+/** What a mirror attribute holds once `decode` undid how the site wrote it; null if it can't be undone. */
+function decoded(value: string, decode: "base64" | undefined): string | null {
+  if (decode === undefined) return value;
+  try {
+    return atob(value).trim();
+  } catch {
+    return null;
+  }
+}
+
 /** A readable title from the last piece of the path: `my-show` → `my show`. */
 function titleFromPath(url: URL): string {
   const last =
@@ -78,7 +102,14 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
   if (!getText) throw new Error("The HTML extractor needs an HttpClient that reads pages");
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
   const seasonPath = site.seasonPath === undefined ? null : new RegExp(site.seasonPath);
-  const numberPattern = site.listing.number === undefined ? null : new RegExp(site.listing.number);
+  const LAST_NUMBER = /(\d+)(?!.*\d)/d;
+  const numberPattern =
+    site.listing.number === undefined ? LAST_NUMBER : new RegExp(site.listing.number, "d");
+  const seasons = site.seasons;
+  const showPath = seasons ? new RegExp(seasons.showPath) : null;
+  const showFrom = seasons ? new RegExp(seasons.show.from) : null;
+  const seasonNumberPattern =
+    seasons?.number === undefined ? LAST_NUMBER : new RegExp(seasons.number, "d");
 
   async function load(url: URL, signal?: AbortSignal, referer?: URL): Promise<HTMLElement> {
     const html = await getText!(url.href, {
@@ -91,11 +122,40 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
   }
 
   function episodeNumber(url: URL): number | null {
-    const path = decodeURIComponent(url.pathname);
-    const match = numberPattern ? numberPattern.exec(path) : /(\d+)(?!.*\d)/.exec(path);
-    const digits = match?.[1] ?? match?.[0];
-    if (digits === undefined || !/^\d+$/.test(digits)) return null;
-    return Number(digits);
+    return numberIn(decodeURIComponent(url.pathname), numberPattern)?.value ?? null;
+  }
+
+  /** The number of the season at this address, when the site says how its seasons are numbered. */
+  function seasonNumber(url: URL): number | null {
+    return seasons ? (numberIn(url.pathname, seasonNumberPattern)?.value ?? null) : null;
+  }
+
+  const isShow = (url: URL): boolean => showPath?.test(normalize(url).pathname) ?? false;
+
+  /** The show page a season belongs to, from the season's address alone. */
+  function showOf(season: URL): URL | null {
+    const match = showFrom?.exec(normalize(season).pathname);
+    if (!seasons || !match) return null;
+    const path = seasons.show.to.replace(
+      /\{(\d+)\}/g,
+      (_, group: string) => match[Number(group)] ?? "",
+    );
+    const show = resolveOn(season, path);
+    return show && normalize(show);
+  }
+
+  /** The seasons a show page lists, lowest first, each at its normalized address. */
+  async function listSeasons(show: URL, signal?: AbortSignal): Promise<SeasonSource[]> {
+    const root = await load(show, signal);
+    const found = new Map<number, string>();
+    for (const value of readAll(root, seasons!.links)) {
+      const url = resolveOn(show, value);
+      if (!url || !ownsHost(site.hosts, url.hostname.toLowerCase())) continue;
+      const season = normalize(url);
+      const number = seasonNumber(season);
+      if (number !== null && !found.has(number)) found.set(number, season.href);
+    }
+    return [...found].sort(([a], [b]) => a - b).map(([season, url]) => ({ season, url }));
   }
 
   /** The pages that hold the season's episodes: the season page itself, or the ones it lists. */
@@ -120,7 +180,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
   function canHandle(input: string): boolean {
     const url = parseUrl(input);
     if (!url || !ownsHost(site.hosts, url.hostname.toLowerCase())) return false;
-    return seasonPath === null || seasonPath.test(normalize(url).pathname);
+    return seasonPath === null || seasonPath.test(normalize(url).pathname) || isShow(url);
   }
 
   return {
@@ -136,8 +196,15 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
       if (!parsed || !canHandle(input)) {
         throw new ExtractorError("unsupported-url", `${site.name} does not read this address`);
       }
-      const season = normalize(parsed);
       const signal = options?.signal;
+      let season = normalize(parsed);
+      // A show stands for its first season: one source is always one season.
+      if (isShow(season)) {
+        const [first] = await listSeasons(season, signal);
+        if (!first) throw new ExtractorError("no-episodes", `No seasons found on ${season.href}`);
+        season = new URL(first.url);
+      }
+      const seasonNo = seasonNumber(season) ?? 1;
       const root = await load(season, signal);
 
       const links: URL[] = [];
@@ -172,7 +239,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
         const title = titles.get(url.href) || `Episode ${number}`;
         return [
           {
-            season: 1,
+            season: seasonNo,
             episode: number,
             title,
             inferred: false,
@@ -212,12 +279,40 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
         (site.title ? readAll(root, site.title)[0] : undefined) ?? titleFromPath(season);
       return {
         series: { externalId: season.pathname, sourceUrl: season.href, title },
-        seasons: [{ number: 1, episodeCount: episodes.length }],
+        seasons: [{ number: seasonNo, episodeCount: episodes.length }],
         episodes,
         license: { kind: "unknown" },
         warnings,
       };
     },
+
+    ...(seasons
+      ? {
+          nextSourceUrl(input: string): string | null {
+            const url = parseUrl(input);
+            if (!url || !canHandle(input) || isShow(url)) return null;
+            const season = normalize(url);
+            const at = numberIn(season.pathname, seasonNumberPattern);
+            if (!at) return null;
+            const path = season.pathname;
+            season.pathname = `${path.slice(0, at.start)}${at.value + 1}${path.slice(at.end)}`;
+            return season.href;
+          },
+
+          async seasonSources(
+            input: string,
+            options?: { signal?: AbortSignal },
+          ): Promise<SeasonSource[]> {
+            const url = parseUrl(input);
+            const show =
+              url && canHandle(input) ? (isShow(url) ? normalize(url) : showOf(url)) : null;
+            if (!show) {
+              throw new ExtractorError("unsupported-url", `${site.name} has no show for ${input}`);
+            }
+            return listSeasons(show, options?.signal);
+          },
+        }
+      : {}),
 
     async resolveMirrors(
       episodeUrl: string,
@@ -228,11 +323,19 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
       const root = await load(page, options?.signal);
       const seen = new Set<string>();
       const mirrors: Mirror[] = [];
+      const { decode, unwrap } = site.mirrors;
       for (const value of readAll(root, site.mirrors)) {
-        const url = resolveOn(page, value);
-        if (!url || seen.has(url.href)) continue;
-        seen.add(url.href);
-        mirrors.push({ url: url.href, referer: page.href });
+        const written = decoded(value, decode);
+        const url = written === null ? null : resolveOn(page, written);
+        if (!url) continue;
+        // A wrapper only frames the player: the player is what the browser opens, framed by it.
+        const inner = unwrap ? parseUrl(url.searchParams.get(unwrap) ?? "") : null;
+        const mirror = inner
+          ? { url: inner.href, referer: url.href }
+          : { url: url.href, referer: page.href };
+        if (seen.has(mirror.url)) continue;
+        seen.add(mirror.url);
+        mirrors.push(mirror);
       }
       return mirrors;
     },
