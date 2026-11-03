@@ -58,6 +58,18 @@ function SelectTrigger({
   );
 }
 
+/**
+ * Base UI shows the scroll arrows from the list's scroll events, and measures it once on opening:
+ * opened for the first time, the list is not its final height yet and the down arrow never came.
+ * A resize now counts as a scroll, so it measures again.
+ */
+function announceResize(list: HTMLDivElement | null) {
+  if (!list) return;
+  const observer = new ResizeObserver(() => list.dispatchEvent(new Event("scroll")));
+  observer.observe(list);
+  return () => observer.disconnect();
+}
+
 function SelectContent({
   className,
   children,
@@ -86,13 +98,17 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            // Opened below its trigger, the list scrolls, not the popup: Base UI only watches the
+            // list for its scroll arrows, and hides the scrollbar there.
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto data-[align-trigger=false]:flex data-[align-trigger=false]:flex-col data-[align-trigger=false]:overflow-y-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className,
           )}
           {...props}
         >
           <SelectScrollUpButton />
-          <SelectPrimitive.List>{children}</SelectPrimitive.List>
+          <SelectPrimitive.List ref={announceResize} className="min-h-0 flex-1 overflow-y-auto">
+            {children}
+          </SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
