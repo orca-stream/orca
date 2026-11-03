@@ -1,4 +1,4 @@
-import type { EpisodeDto } from "@orca/hm-contract";
+import type { EpisodeDto, SeriesDto } from "@orca/hm-contract";
 import { formatBytes, formatSpeed } from "@/i18n/format";
 import type { Locale, Messages } from "@/i18n/messages";
 
@@ -28,4 +28,15 @@ export function downloadLine(episode: EpisodeDto, t: Messages, locale: Locale): 
   return [episode.player, got, speed && speed > 0 ? formatSpeed(speed, locale) : null]
     .filter((part) => part)
     .join(" · ");
+}
+
+/**
+ * How far what the series are fetching right now has come, 0–1: the mean of the running downloads
+ * whose amount is known, or null while none is (or nothing is running).
+ */
+export function runningFraction(series: readonly Pick<SeriesDto, "running">[]): number | null {
+  const known = series
+    .flatMap((s) => s.running)
+    .flatMap((d) => (d.progress === null ? [] : [d.progress]));
+  return known.length === 0 ? null : known.reduce((sum, p) => sum + p, 0) / known.length;
 }

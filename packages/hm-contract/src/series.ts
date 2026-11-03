@@ -311,6 +311,8 @@ export const SeriesDto = z.object({
   availableCount: z.number().int(),
   /** Episode downloads of this series that are queued or running right now. */
   downloadingCount: z.number().int(),
+  /** Of those, the ones fetching right now and how far each is (0–1; null while unknown). */
+  running: z.array(z.object({ episodeId: z.string(), progress: z.number().nullable() })),
   createdAt: z.number(),
 });
 export type SeriesDto = z.infer<typeof SeriesDto>;

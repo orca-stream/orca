@@ -13,7 +13,12 @@ describe("SeriesListScreen", () => {
       const { pathname } = new URL(request.url);
       if (pathname === "/api/series")
         return jsonResponse([
-          makeSeries({ id: "s1", follow: true, downloadingCount: 2 }),
+          makeSeries({
+            id: "s1",
+            follow: true,
+            downloadingCount: 2,
+            running: [{ episodeId: "e1", progress: 0.45 }],
+          }),
           makeSeries({
             id: "s2",
             title: "Other",
@@ -31,7 +36,7 @@ describe("SeriesListScreen", () => {
     const card = link.closest("li")!;
     expect(within(card).getByText(/12\/36/)).toBeTruthy();
     expect(within(card).getByText("Siguiendo")).toBeTruthy();
-    expect(within(card).getByText("Descargando 2")).toBeTruthy();
+    expect(within(card).getByRole("img", { name: "Descargando 2 · 45 %" })).toBeTruthy();
     // The count comes with the series: the list doesn't go and fetch the queue to work it out.
     expect(requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
     expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster");
@@ -103,6 +108,29 @@ describe("SeriesListScreen", () => {
         .getByRole("link", { name: "Añadir serie" })
         .getAttribute("href"),
     ).toBe("/series/new");
+  });
+
+  it('opens the search on "/" with the field ready to type into', async () => {
+    const user = userEvent.setup();
+    renderApp(<SeriesListScreen />, {
+      handler: (request) =>
+        new URL(request.url).pathname === "/api/series"
+          ? jsonResponse([
+              makeSeries({ id: "s1", title: "Pokémon" }),
+              makeSeries({ id: "s2", title: "Bonanza" }),
+            ])
+          : jsonResponse([]),
+      path: "/series",
+    });
+    await screen.findByRole("link", { name: "Bonanza" });
+
+    await user.keyboard("/");
+    const field = screen.getByRole("searchbox", { name: "Buscar entre las series" });
+    expect(document.activeElement).toBe(field);
+    // The slash opened it; it isn't the start of the query.
+    await user.keyboard("poke/");
+    expect((field as HTMLInputElement).value).toBe("poke/");
+    expect(screen.queryByRole("link", { name: "Bonanza" })).toBeNull();
   });
 
   it("turns the dock into a search that narrows the series, clears it and closes", async () => {

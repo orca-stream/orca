@@ -151,6 +151,8 @@ export interface JobRepository {
   activeDownloadJobs(episodeIds: string[]): Promise<Job[]>;
   /** Queued plus running episode downloads per series id; series with none are absent. */
   countActiveDownloads(): Promise<Map<string, number>>;
+  /** The episode downloads running right now, of every series. */
+  runningDownloads(): Promise<Job[]>;
 }
 
 export interface SessionRecord {

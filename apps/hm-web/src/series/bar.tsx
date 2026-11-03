@@ -25,10 +25,11 @@ export const GLASS_PANEL =
 /**
  * The episodes' header and the selection's bar, on both series screens: islands inset from the panel's edges, rounded all round so
  * they look the same stuck to the window mid-list as resting at the panel's top or bottom. Inset
- * 16px, the grid's 8px plus a card's 8px, so their edges line up with the frames'.
+ * 16px, the grid's 8px plus a card's 8px, so their edges line up with the frames'. Their corner
+ * runs alongside the panel's: its 36px less its 1px edge and the 16px between them.
  */
 export const ISLAND =
-  "sticky z-10 flex min-h-20 flex-wrap items-center gap-4 rounded-[40px] border border-(--glass-edge) bg-(--glass-strong) p-4 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
+  "sticky z-10 flex min-h-20 flex-wrap items-center gap-4 rounded-[19px] border border-(--glass-edge) bg-(--glass-strong) p-4 shadow-[0_12px_32px_-16px_var(--glass-shadow)] supports-backdrop-filter:bg-white/85 supports-backdrop-filter:backdrop-blur-[24px] supports-backdrop-filter:backdrop-saturate-[1.6]";
 
 /*
  * A button comes in three sizes, never a fourth: 56px for what a panel ends with or a settings row

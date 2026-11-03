@@ -128,6 +128,7 @@ export function makeSeries(over: Partial<SeriesDto> = {}): SeriesDto {
     episodeCount: 36,
     availableCount: 12,
     downloadingCount: 0,
+    running: [],
     createdAt: 0,
     ...over,
   };

@@ -395,6 +395,23 @@ export class DrizzleJobRepository implements JobRepository {
     );
   }
 
+  async runningDownloads(): Promise<Job[]> {
+    return this.db
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.kind, "download_episode"),
+          eq(jobs.status, "running"),
+          isNotNull(jobs.seriesId),
+          isNotNull(jobs.episodeId),
+        ),
+      )
+      .orderBy(jobs.createdAt)
+      .all()
+      .map(toJob);
+  }
+
   private recover(where: ReturnType<typeof sql>): number {
     const result = this.db
       .update(jobs)

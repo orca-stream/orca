@@ -32,6 +32,7 @@ import { useElementHeight } from "@/hooks/use-element-height";
 import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { GLASS_PANEL } from "./bar";
+import { CurrentDownloads } from "./CurrentDownloads";
 import { PosterImage } from "./Poster";
 import { guideKey } from "./preview-form";
 import { absentSeasons } from "./tmdb-match";
@@ -308,6 +309,7 @@ export function SeriesDetailScreen() {
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />
         <SeriesSettings series={data} checkSeries={checkSeries} />
+        <CurrentDownloads episodes={episodes} guide={stills} />
       </div>
 
       <SeriesEpisodes

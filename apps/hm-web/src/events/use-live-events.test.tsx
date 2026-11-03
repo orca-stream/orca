@@ -95,6 +95,36 @@ describe("useLiveEvents", () => {
     expect(requests).toHaveLength(0);
   });
 
+  it("fills the series' card as its episode comes in, from bytes when there is no fraction", () => {
+    const { queryClient, requests } = renderApp(<Probe />, { handler: () => jsonResponse({}) });
+    queryClient.setQueryData(keys.seriesList, [
+      { id: "s1", running: [{ episodeId: "e0", progress: 0.9 }] },
+      { id: "s2", running: [] },
+    ]);
+    const source = FakeEventSource.instances[0]!;
+    act(() => source.open());
+    send(source, {
+      type: "job.progress",
+      seq: 1,
+      jobId: "j1",
+      seriesId: "s1",
+      episodeId: "e1",
+      progress: null,
+      detail: { bytes: 25, total: 100 },
+    });
+    expect(queryClient.getQueryData(keys.seriesList)).toEqual([
+      {
+        id: "s1",
+        running: [
+          { episodeId: "e0", progress: 0.9 },
+          { episodeId: "e1", progress: 0.25 },
+        ],
+      },
+      { id: "s2", running: [] },
+    ]);
+    expect(requests).toHaveLength(0);
+  });
+
   it("moves a failed job to the errors list", () => {
     const { queryClient } = renderApp(<Probe />, { handler: () => jsonResponse({}) });
     queryClient.setQueryData(keys.jobsActive, [JOB]);

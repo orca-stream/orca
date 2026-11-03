@@ -102,3 +102,42 @@
     @apply bg-background font-sans text-foreground antialiased;
   }
 }
+
+/* The downloading circle: its arrow drops in, rests and falls out through the bottom; its wave
+   slides along the top of the fill, and rises and falls (the tide) while how far is unknown. */
+@theme {
+  --animate-download-arrow: download-arrow 1.6s ease-in-out infinite;
+  --animate-download-wave: download-wave 1.2s linear infinite;
+  --animate-download-tide: download-tide 2.4s ease-in-out infinite;
+
+  @keyframes download-wave {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes download-tide {
+    0%,
+    100% {
+      height: 30%;
+    }
+    50% {
+      height: 65%;
+    }
+  }
+
+  @keyframes download-arrow {
+    0% {
+      transform: translateY(-120%);
+      opacity: 0;
+    }
+    30%,
+    60% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(120%);
+      opacity: 0;
+    }
+  }
+}

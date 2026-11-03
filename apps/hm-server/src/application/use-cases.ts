@@ -44,6 +44,7 @@ import {
   toNotificationDto,
   toPreviewDto,
   toSeriesDto,
+  downloadsBySeries,
 } from "./presenter.ts";
 
 /** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
@@ -152,6 +153,14 @@ export function createUseCases(deps: Deps) {
     deps.extractors.get(source.extractorId)?.nextSourceUrl?.(source.sourceUrl) ?? null;
   const hostsOf = (extractorId: string): readonly string[] =>
     deps.extractors.list().find((extractor) => extractor.id === extractorId)?.hosts ?? [];
+  /** Each series' downloads as they stand now. */
+  const downloadsNow = async () => {
+    const [counts, running] = await Promise.all([
+      deps.jobs.countActiveDownloads(),
+      deps.jobs.runningDownloads(),
+    ]);
+    return downloadsBySeries(counts, running);
+  };
 
   return {
     enqueueDownloads,
@@ -455,7 +464,7 @@ export function createUseCases(deps: Deps) {
         created,
         await deps.series.listSources([created.id]),
         nextUrlOf,
-        (await deps.jobs.countActiveDownloads()).get(created.id) ?? 0,
+        (await downloadsNow())(created.id),
         { episodeCount: episodes.length, availableCount: 0 },
       );
     },
@@ -464,14 +473,14 @@ export function createUseCases(deps: Deps) {
       const [all, sources, downloading] = await Promise.all([
         deps.series.list(),
         deps.series.listSources(),
-        deps.jobs.countActiveDownloads(),
+        downloadsNow(),
       ]);
       return all.map((series) =>
         toSeriesDto(
           series,
           sources.filter((source) => source.seriesId === series.id),
           nextUrlOf,
-          downloading.get(series.id) ?? 0,
+          downloading(series.id),
         ),
       );
     },
@@ -567,7 +576,7 @@ export function createUseCases(deps: Deps) {
       const series = await deps.series.get(id);
       if (!series) throw new AppError("not_found", "No such series");
       const episodes = await deps.series.listEpisodes(id);
-      const downloading = (await deps.jobs.countActiveDownloads()).get(id) ?? 0;
+      const downloading = (await downloadsNow())(id);
       return toSeriesDto(series, await deps.series.listSources([id]), nextUrlOf, downloading, {
         episodeCount: episodes.length,
         availableCount: episodes.filter((episode) => episode.status === "available").length,

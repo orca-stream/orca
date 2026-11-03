@@ -2,7 +2,7 @@ import { HM_EVENT_TYPES, isHmEvent } from "@orca/hm-contract/rules";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { keys } from "@/api/keys";
-import type { EpisodeDto, JobDto } from "@/api/types";
+import type { EpisodeDto, JobDto, SeriesDto } from "@/api/types";
 import { dropSession } from "@/auth/session";
 import { patchProgress, placeJob, planEvent, type JobLists, type Op } from "./apply-event";
 import { connectEvents, type EventSourceConstructor, type SseStatus } from "./sse";
@@ -49,6 +49,22 @@ function applyOp(queryClient: QueryClient, op: Op) {
                   progressDetail: op.detail ?? episode.progressDetail,
                 }
               : episode,
+          ),
+        );
+        // The series' card fills as its episode comes in, without refetching the list.
+        const { bytes, total } = op.detail ?? {};
+        const fraction = op.progress ?? (bytes !== undefined && total ? bytes / total : null);
+        queryClient.setQueryData<SeriesDto[]>(keys.seriesList, (list) =>
+          list?.map((series) =>
+            series.id === seriesId
+              ? {
+                  ...series,
+                  running: [
+                    ...series.running.filter((download) => download.episodeId !== episodeId),
+                    { episodeId, progress: fraction },
+                  ],
+                }
+              : series,
           ),
         );
       }

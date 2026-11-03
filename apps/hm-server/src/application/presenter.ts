@@ -92,11 +92,39 @@ export function toSourceDto(source: SeriesSource, nextUrl: NextSourceUrl): Sourc
   };
 }
 
+/** A series' episode downloads: how many are queued or running, and the running ones' progress. */
+export interface SeriesDownloads {
+  count: number;
+  running: SeriesDto["running"];
+}
+
+/** How far a job is, 0–1: its own fraction, else bytes over a known total; null while unknown. */
+function fractionOf(job: Job): number | null {
+  if (job.progress !== null) return job.progress;
+  const { bytes, total } = job.progressDetail ?? {};
+  return bytes !== undefined && total ? bytes / total : null;
+}
+
+/** Each series' downloads, from the per-series counts and the downloads running now. */
+export function downloadsBySeries(
+  counts: ReadonlyMap<string, number>,
+  running: readonly Job[],
+): (seriesId: string) => SeriesDownloads {
+  return (seriesId) => ({
+    count: counts.get(seriesId) ?? 0,
+    running: running.flatMap((job) =>
+      job.seriesId === seriesId && job.episodeId
+        ? [{ episodeId: job.episodeId, progress: fractionOf(job) }]
+        : [],
+    ),
+  });
+}
+
 export function toSeriesDto(
   series: Series | SeriesWithCounts,
   sources: readonly SeriesSource[],
   nextUrl: NextSourceUrl,
-  downloadingCount: number,
+  downloads: SeriesDownloads,
   counts?: { episodeCount: number; availableCount: number },
 ): SeriesDto {
   const c = counts ?? ("episodeCount" in series ? series : { episodeCount: 0, availableCount: 0 });
@@ -118,7 +146,8 @@ export function toSeriesDto(
     hasPoster: series.hasPoster,
     episodeCount: c.episodeCount,
     availableCount: c.availableCount,
-    downloadingCount,
+    downloadingCount: downloads.count,
+    running: downloads.running,
     createdAt: series.createdAt,
   };
 }

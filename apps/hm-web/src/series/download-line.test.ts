@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { MESSAGES } from "@/i18n/messages";
 import { makeEpisode } from "@/test/fixtures";
-import { downloadFraction, downloadLine } from "./download-line";
+import { downloadFraction, downloadLine, runningFraction } from "./download-line";
 
 const t = MESSAGES.en;
 const MB = 1024 * 1024;
@@ -53,5 +53,26 @@ describe("downloadFraction", () => {
       downloadFraction(makeEpisode({ status: "downloading", progressDetail: { bytes: 25 } })),
     ).toBeNull();
     expect(downloadFraction(makeEpisode({ status: "queued", progress: 0.3 }))).toBeNull();
+  });
+});
+
+describe("runningFraction", () => {
+  it("averages the running downloads whose amount is known", () => {
+    expect(
+      runningFraction([
+        { running: [{ episodeId: "a", progress: 0.2 }] },
+        {
+          running: [
+            { episodeId: "b", progress: 0.6 },
+            { episodeId: "c", progress: null },
+          ],
+        },
+      ]),
+    ).toBeCloseTo(0.4);
+  });
+
+  it("is null while nothing running says how far it is", () => {
+    expect(runningFraction([{ running: [] }])).toBeNull();
+    expect(runningFraction([{ running: [{ episodeId: "a", progress: null }] }])).toBeNull();
   });
 });

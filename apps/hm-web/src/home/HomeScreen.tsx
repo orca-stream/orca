@@ -11,7 +11,7 @@ import type { CSSProperties } from "react";
 import { Link } from "wouter";
 import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
-import { StatusBadge } from "@/components/status-badge";
+import { DownloadingBadge } from "@/components/downloading-badge";
 import { Dock, DockExtractors, DockLink } from "@/components/dock";
 import { extractorHref } from "@/extractors/href";
 import { ROUND_ACTION, TILE_GRID, Tile, TileLink } from "@/components/tile";
@@ -19,6 +19,7 @@ import { useT } from "@/i18n/locale";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import { paletteOf } from "@/extractors/palette";
 import { cn } from "@/lib/utils";
+import { runningFraction } from "@/series/download-line";
 
 /** How many covers the series card fans out. */
 const FANNED = 3;
@@ -62,6 +63,13 @@ function SeriesTile() {
 
   return (
     <Tile className="bg-linear-to-b from-primary/10 to-transparent">
+      {downloading > 0 && (
+        <DownloadingBadge
+          count={downloading}
+          progress={runningFraction(series)}
+          className="absolute top-4 right-4 z-10 sm:top-5 sm:right-5"
+        />
+      )}
       <div className="flex flex-1 items-center justify-center p-4 pb-1 sm:p-6 sm:pb-2">
         <Covers series={series} />
       </div>
@@ -79,11 +87,6 @@ function SeriesTile() {
                 ? t.dashboard.loadFailed
                 : t.common.loading}
           </p>
-          {downloading > 0 && (
-            <StatusBadge tone="info" className="mt-2">
-              {t.series.downloading(downloading)}
-            </StatusBadge>
-          )}
         </div>
         <Link
           href="/series/new"

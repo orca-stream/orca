@@ -38,6 +38,24 @@ describe("DrizzleJobRepository", () => {
     expect(counts.has("nope")).toBe(false);
   });
 
+  it("lists the episode downloads running now, with their progress", async () => {
+    const { jobs, series, clock } = testDatabase();
+    await series.create(aSeries(), aSource(), [
+      anEpisode({ episode: 1 }),
+      anEpisode({ episode: 2 }),
+    ]);
+    const forEpisode = (n: number) => job({ seriesId: "series-1", episodeId: `episode-1-${n}` });
+    const running = await jobs.enqueue(forEpisode(1));
+    clock.advance(10);
+    await jobs.enqueue(forEpisode(2)); // still queued: not running
+    await jobs.claim("download", "w", 1000);
+    await jobs.updateProgress(running.job.id, 0.4, null);
+
+    expect(await jobs.runningDownloads()).toEqual([
+      expect.objectContaining({ id: running.job.id, episodeId: "episode-1-1", progress: 0.4 }),
+    ]);
+  });
+
   it("claims by priority, then oldest first, only jobs that are due and of the asked resource", async () => {
     const { jobs, clock } = testDatabase();
     const first = await jobs.enqueue(job());

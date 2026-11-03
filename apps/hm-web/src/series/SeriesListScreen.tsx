@@ -10,7 +10,7 @@ import {
   Search01Icon,
   Tv01Icon,
 } from "@hugeicons/core-free-icons";
-import { useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
 import { Dock, DockButton, DockExtractors, DockLink, DockSeparator } from "@/components/dock";
@@ -27,7 +27,9 @@ import {
 import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
+import { DownloadingBadge } from "@/components/downloading-badge";
 import { AiringChip } from "./AiringChip";
+import { runningFraction } from "./download-line";
 import { airingHint } from "./airing";
 
 /** The chips along a tile's top edge, all 24px tall: the open sources' pill sets it with its marks. */
@@ -143,9 +145,7 @@ function SeriesTile({ series }: { series: SeriesDto }) {
               )
             )}
             {downloading > 0 && (
-              <span className={cn(CHIP, "bg-primary text-primary-foreground ring-primary/20")}>
-                {t.series.downloading(downloading)}
-              </span>
+              <DownloadingBadge count={downloading} progress={runningFraction([series])} />
             )}
           </p>
         )}
@@ -225,6 +225,14 @@ function AddTile() {
   );
 }
 
+/** Whether a key pressed on this goes into it as text. */
+function isEditable(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.closest("input, textarea, select") !== null)
+  );
+}
+
 /** A title as the search compares it: no case, no accents. */
 function folded(text: string) {
   return text
@@ -238,16 +246,17 @@ function folded(text: string) {
  * right, the way to clear it (or, once empty, to put the dock back).
  */
 function SearchBar({
+  input,
   query,
   onChange,
   onClose,
 }: {
+  input: RefObject<HTMLInputElement | null>;
   query: string;
   onChange: (query: string) => void;
   onClose: () => void;
 }) {
   const t = useT();
-  const input = useRef<HTMLInputElement>(null);
   const empty = query === "";
 
   return (
@@ -297,6 +306,19 @@ export function SeriesListScreen() {
   const list = useQuery(queries.seriesList(api));
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
+  // "/" opens the search ready to type, as on most sites; typed into a field, it is just a slash.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isEditable(event.target)) return;
+      event.preventDefault();
+      setSearching(true);
+      searchInput.current?.focus();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
   const needle = folded(query.trim());
   const shown = list.data?.filter((series) => folded(series.title).includes(needle)) ?? [];
   const [measure, width] = useElementWidth<HTMLDivElement>();
@@ -340,6 +362,7 @@ export function SeriesListScreen() {
       <Dock label={t.dock.label} pinned={searching}>
         {searching ? (
           <SearchBar
+            input={searchInput}
             query={query}
             onChange={setQuery}
             onClose={() => {
