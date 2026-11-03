@@ -361,7 +361,7 @@ Every hour, the middleware re-checks that the user is still an admin, using the 
 - `series.follow` (boolean), `check_interval_hours` (default 12), `last_checked_at`, `last_remote_marker`.
   - For IA, `last_remote_marker` is `item_last_updated` in shape A, or the scrape `total` plus the newest `addeddate` in shape B.
 - A scheduler tick every 5 minutes enqueues `check_series` (dedupe `check:{id}`) for due series.
-- The job re-runs the extractor only if the marker changed. It upserts new episodes and enqueues them.
+- The job re-runs the extractor only if the marker changed. It upserts new episodes and never enqueues them: a download only starts when the user asks for it.
 
 ## 7. Dockerfile (built on the host)
 

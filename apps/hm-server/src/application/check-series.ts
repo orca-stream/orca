@@ -9,7 +9,6 @@ import { PermanentError, RetryableError } from "../domain/errors.ts";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, Series, SeriesSource } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
-import { createEnqueueDownloads } from "./downloads.ts";
 import { closeFinishedSources, newEpisode, numberOf, placeOnDisk, sourceOf } from "./episodes.ts";
 
 export interface CheckResult {
@@ -53,13 +52,11 @@ interface SourceRead {
 /**
  * The `check_series` job: for each open source of the series (the whole show, or one season or part
  * of one), asks the site for a cheap marker, and only when it moved reads that source again, stores what
- * is new and (for a followed series) queues the new episodes. Every source is read before anything is
+ * is new; downloading it is always asked for by hand. Every source is read before anything is
  * stored, so a site that fails leaves the whole series as it was, to be checked again; each marker is
  * saved after the episodes, so a failure in between is simply read again.
  */
 export function createCheckSeries(deps: Deps) {
-  const enqueueDownloads = createEnqueueDownloads(deps);
-
   async function read(source: SeriesSource, signal?: AbortSignal): Promise<SourceRead | null> {
     const extractor = deps.extractors.get(source.extractorId);
     if (!extractor) {
@@ -82,7 +79,7 @@ export function createCheckSeries(deps: Deps) {
    * The seasons the site lists for a followed series after the last one its sources read, each added
    * as a source of its own with the site's season number: what a new season of a show on the air needs
    * to be found, whichever order the site uploads them in. With a TMDB key, only seasons TMDB has.
-   * Returns the episodes stored, not queued yet.
+   * Returns the episodes stored, which are not queued.
    */
   async function addNewSeasons(series: Series, signal?: AbortSignal): Promise<Episode[]> {
     const options = signal ? { signal } : undefined;
@@ -277,10 +274,8 @@ export function createCheckSeries(deps: Deps) {
     for (const { id, ...patch } of sourcePatches) await deps.series.updateSource(id, patch);
     await deps.series.update(series.id, { lastCheckedAt: now });
 
+    // Stored, never queued: a download only starts when it is asked for.
     const missing = add.filter((episode) => episode.status !== "available");
-    if (missing.length > 0 && series.follow) {
-      await enqueueDownloads(missing.map((episode) => episode.id));
-    }
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     const about = { id: series.id, title: series.title };
     if (missing.length > 0) {
@@ -311,7 +306,6 @@ export function createCheckSeries(deps: Deps) {
     const missing = added.filter((episode) => episode.status !== "available");
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     if (missing.length > 0) {
-      await enqueueDownloads(missing.map((episode) => episode.id));
       await deps.notifications
         .newEpisodes({ id: series.id, title: series.title }, missing)
         .catch((error: unknown) => console.error("notification failed:", error));

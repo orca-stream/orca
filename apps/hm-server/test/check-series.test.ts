@@ -72,7 +72,7 @@ describe("CheckSeries: the series changed", () => {
     expect(episodes.map((e) => [e.season, e.episode, e.status])).toEqual([
       [1, 1, "missing"],
       [1, 2, "missing"],
-      [1, 3, "queued"],
+      [1, 3, "missing"],
     ]);
     expect(await h.series.get(created.id)).toMatchObject({ lastCheckedAt: h.clock.now() });
     expect(await firstSource(created.id)).toMatchObject({ remoteMarker: "m2" });
@@ -97,15 +97,14 @@ describe("CheckSeries: the series changed", () => {
     expect(await h.series.listEpisodes(created.id)).toHaveLength(2);
   });
 
-  it("enqueues only the new episodes, and only when the series is followed", async () => {
+  it("stores the new episodes of a followed series without queueing them: downloads are asked for", async () => {
     const followed = await addFake({ follow: true });
     site.marker = "m2";
     site.episodes = [...site.episodes, fakeEpisode(3)];
     await check(followed.id);
-    const jobs = await downloadJobs();
-    expect(jobs).toHaveLength(1);
-    const episode = await h.series.getEpisode(jobs[0]!.episodeId!);
-    expect(episode).toMatchObject({ episode: 3, status: "queued" });
+    expect(await downloadJobs()).toEqual([]);
+    const third = (await h.series.listEpisodes(followed.id)).find((e) => e.episode === 3);
+    expect(third).toMatchObject({ status: "missing" });
   });
 
   it("takes a new episode whose video is already in its folder as available: no download, no notice", async () => {

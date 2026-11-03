@@ -179,7 +179,7 @@ describe("the scheduler and the queue together", () => {
     });
   }
 
-  it("runs a due check as a job: a changed marker downloads only the new episode", async () => {
+  it("runs a due check as a job: a changed marker stores the new episode and downloads nothing", async () => {
     const created = await addFollowed();
     h.clock.advance(13 * HOUR);
     site.marker = "m2";
@@ -196,7 +196,7 @@ describe("the scheduler and the queue together", () => {
     expect((await h.series.listEpisodes(created.id)).map((e) => e.status)).toEqual([
       "missing",
       "missing",
-      "available",
+      "missing",
     ]);
   });
 

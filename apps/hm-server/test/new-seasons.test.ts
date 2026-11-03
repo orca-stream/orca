@@ -96,7 +96,7 @@ const codes = async (seriesId: string) =>
   (await h.series.listEpisodes(seriesId)).map((e) => [e.season, e.episode, e.status]);
 
 describe("a followed series finds the seasons its site adds", () => {
-  it("adds each new season as its own source, queues its episodes and closes the one before", async () => {
+  it("adds each new season as its own source, stores its episodes unqueued and closes the one before", async () => {
     const series = await addSeason(1);
     site.seasons.set(2, [1]).set(3, [1]);
 
@@ -111,8 +111,8 @@ describe("a followed series finds the seasons its site adds", () => {
     expect(await codes(series.id)).toEqual([
       [1, 1, "missing"],
       [1, 2, "missing"],
-      [2, 1, "queued"],
-      [3, 1, "queued"],
+      [2, 1, "missing"],
+      [3, 1, "missing"],
     ]);
   });
 
@@ -128,15 +128,15 @@ describe("a followed series finds the seasons its site adds", () => {
       [0, 1, "missing"],
       [1, 1, "missing"],
       [1, 2, "missing"],
-      [2, 1, "queued"],
-      [2, 2, "queued"],
+      [2, 1, "missing"],
+      [2, 2, "missing"],
     ]);
     // Its episode 0 is known, sent to the next free special: no later check adds it.
     const [, second] = await h.series.listSources([series.id]);
     expect(second!.adjustments).toEqual([{ season: 2, episode: 0, kind: "special", number: 2 }]);
     site.seasons.set(2, [0, 1, 2, 3]);
     expect(await check(series.id)).toMatchObject({ added: 1 });
-    expect((await codes(series.id)).at(-1)).toEqual([2, 3, "queued"]);
+    expect((await codes(series.id)).at(-1)).toEqual([2, 3, "missing"]);
   });
 
   it("finds a later season the site uploaded first, without waiting for the one in between", async () => {
