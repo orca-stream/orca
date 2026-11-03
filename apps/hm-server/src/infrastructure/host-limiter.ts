@@ -56,7 +56,7 @@ export function hostLimitsFor(
 
 /**
  * How many connections a file from a host is fetched over: what the extractor that owns the host
- * declares (archive.org asks for one), otherwise the configured number (players, which no extractor
+ * declares, otherwise the configured number (players, which no extractor
  * owns, cap each connection's speed).
  */
 export function connectionsFor(

@@ -1,0 +1,138 @@
+{
+  "series": {
+    "externalId": "bevhill-s01e01-36",
+    "sourceUrl": "https://archive.org/details/bevhill-s01e01-36",
+    "title": "beverly hillbillies",
+    "plot": "public domain episodes of the beverly hillbillies",
+    "posterUrl": "https://archive.org/services/img/bevhill-s01e01-36",
+    "remoteMarker": "1757346685"
+  },
+  "seasons": [
+    {
+      "number": 1,
+      "episodeCount": 5
+    },
+    {
+      "number": 2,
+      "episodeCount": 1
+    }
+  ],
+  "episodes": [
+    {
+      "season": 1,
+      "episode": 1,
+      "title": "The Clampetts Strike Oil",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/s01e01-The-Clampetts-Strike-Oil.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/s01e01-The-Clampetts-Strike-Oil.mp4",
+        "fileName": "s01e01-The-Clampetts-Strike-Oil.mp4",
+        "sizeBytes": 195406971,
+        "md5": "1252e15c9a9c193569e808cb57d13f3f",
+        "durationSec": 1526.06,
+        "format": "MPEG4",
+        "height": 480
+      }
+    },
+    {
+      "season": 1,
+      "episode": 2,
+      "title": "Getting Settled",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/s01e02-Getting-Settled.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/s01e02-Getting-Settled.mp4",
+        "fileName": "s01e02-Getting-Settled.mp4",
+        "sizeBytes": 209019962,
+        "md5": "4095784cbdc8f1c224efc9a0e9244d33",
+        "durationSec": 1579.65,
+        "format": "MPEG4",
+        "height": 480
+      }
+    },
+    {
+      "season": 1,
+      "episode": 18,
+      "title": "Jed Saves The Drysdales Marriage",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/s01e18_Jed_Saves_The_Drysdales_Marriage.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/s01e18_Jed_Saves_The_Drysdales_Marriage.mp4",
+        "fileName": "s01e18_Jed_Saves_The_Drysdales_Marriage.mp4",
+        "sizeBytes": 233317844,
+        "md5": "7c2689e79856444639463ffb29eb6803",
+        "durationSec": 1507.52,
+        "format": "MPEG4",
+        "height": 352
+      }
+    },
+    {
+      "season": 1,
+      "episode": 20,
+      "title": "Jed Throws A WingDing",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/s01e20_Jed_Throws_A_WingDing.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/s01e20_Jed_Throws_A_WingDing.mp4",
+        "fileName": "s01e20_Jed_Throws_A_WingDing.mp4",
+        "sizeBytes": 183460732,
+        "md5": "4a7ef25c4484f8e86ba99a3df11772aa",
+        "durationSec": 1391.29,
+        "format": "MPEG4",
+        "height": 480
+      }
+    },
+    {
+      "season": 1,
+      "episode": 21,
+      "title": "Jed Plays Solomon",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/S01e21_jedPlaysSolomon.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/S01e21_jedPlaysSolomon.mp4",
+        "fileName": "S01e21_jedPlaysSolomon.mp4",
+        "sizeBytes": 218948121,
+        "md5": "9313a71fa13990b748fc92e63c4782fe",
+        "durationSec": 1495.42,
+        "format": "MPEG4",
+        "height": 368
+      }
+    },
+    {
+      "season": 2,
+      "episode": 1,
+      "title": "Jed Gets The Misery",
+      "inferred": false,
+      "sourceRef": "bevhill-s01e01-36/s02e01_Jed_Gets_The_Misery.mp4",
+      "media": {
+        "kind": "direct",
+        "url": "https://archive.org/download/bevhill-s01e01-36/s02e01_Jed_Gets_The_Misery.mp4",
+        "fileName": "s02e01_Jed_Gets_The_Misery.mp4",
+        "sizeBytes": 219224761,
+        "md5": "3153a5fd2f9dda44cc15b71c027d017d",
+        "durationSec": 1512.94,
+        "format": "MPEG4",
+        "height": 384
+      }
+    }
+  ],
+  "license": {
+    "kind": "public-domain",
+    "url": "http://creativecommons.org/publicdomain/mark/1.0/"
+  },
+  "warnings": [
+    {
+      "code": "gap",
+      "message": "Season 1 is missing episodes 3-17, 19"
+    },
+    {
+      "code": "year-missing",
+      "message": "No year in the item: fill it in before adding, it names the folder"
+    }
+  ]
+}

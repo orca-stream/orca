@@ -5,11 +5,11 @@
 A self-hosted streaming setup built around [Jellyfin](https://jellyfin.org). Four apps live in this
 pnpm monorepo; each one runs on its own, and they fit together:
 
-| App                     | What it is                                                                                                               | Guide                                 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| **Orca'JP** (`apps/jp`) | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later              | [jp](docs/guides/jp.md)               |
-| **Orca'H&M** server     | Finds shows on public-domain sites (Internet Archive, or sites you describe), downloads them and files them for Jellyfin | [hm-server](docs/guides/hm-server.md) |
-| **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                                  | [hm-web](docs/guides/hm-web.md)       |
+| App                     | What it is                                                                                                  | Guide                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Orca'JP** (`apps/jp`) | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later | [jp](docs/guides/jp.md)               |
+| **Orca'H&M** server     | Finds shows on the sites you describe, downloads them and files them for Jellyfin                           | [hm-server](docs/guides/hm-server.md) |
+| **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                     | [hm-web](docs/guides/hm-web.md)       |
 
 Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
 [Xbox and Windows](docs/guides/xbox.md). How the pieces combine: [Running them together](docs/guides/together.md).

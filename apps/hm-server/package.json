@@ -33,7 +33,6 @@
   "devDependencies": {
     "@orca/extractor-core": "workspace:*",
     "@orca/extractor-html": "workspace:*",
-    "@orca/extractor-internet-archive": "workspace:*",
     "@orca/extractor-show-api": "workspace:*",
     "@orca/hm-contract": "workspace:*",
     "@orca/jellyfin": "workspace:*",

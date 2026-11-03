@@ -4,7 +4,7 @@ import { DEFAULT_BACKOFF_MS, parseRetryAfter } from "./retry-after.ts";
 
 export interface FetchHttpClientOptions {
   userAgent: string;
-  /** Spaces and caps the requests per host (archive.org asks for politeness). */
+  /** Spaces and caps the requests per host (sites ask for politeness). */
   limiter: HostLimiter;
   fetch?: typeof fetch;
 }

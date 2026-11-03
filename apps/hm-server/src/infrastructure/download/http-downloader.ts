@@ -21,7 +21,7 @@ type DirectSource = Extract<Source, { kind: "direct" }>;
 
 export interface HttpDownloaderOptions {
   userAgent: string;
-  /** Caps and spaces the downloads per remote host (be polite to archive.org). */
+  /** Caps and spaces the downloads per remote host (be polite to the sites). */
   limiter: HostLimiter;
   /** Checked on the address and on every redirect hop. */
   guard: UrlGuard;

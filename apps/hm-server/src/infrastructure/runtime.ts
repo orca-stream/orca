@@ -3,7 +3,6 @@ import { resolve } from "node:path";
 import { Agent, fetch as undiciFetch } from "undici";
 import type { SiteExtractor } from "@orca/extractor-core";
 import { createHtmlExtractor } from "@orca/extractor-html";
-import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createShowApiExtractor } from "@orca/extractor-show-api";
 import type { Jellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
@@ -106,7 +105,6 @@ export async function startRuntime(
       input as never,
       { ...(init as object), dispatcher: downloadDispatcher } as never,
     )) as typeof fetch;
-  extractors.push(createInternetArchiveExtractor({ http }));
   // The sites' players need the browser: without it they are left out rather than failing every job.
   if (config.detector) {
     for (const site of sites.pages) extractors.push(createHtmlExtractor({ site, http }));

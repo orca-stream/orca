@@ -1,5 +1,8 @@
 # Orca'H&M (`apps/hm-server`): design doc
 
+> **Note (2026-11-02):** the built-in Internet Archive extractor described in section 1 was removed;
+> only the sites described in the extractors file remain. Section 1 is kept as history.
+
 **Summary:** everything below was checked on 2026-10-18 against npm, live archive.org, Jellyfin's source on GitHub, the installed `@jellyfin/sdk` 1.0.0, Playwright's docs and context7.
 
 Two findings change the plan:

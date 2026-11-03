@@ -10,7 +10,6 @@ aparecen. Expone una API HTTP bajo `/api`, que usa el [panel de administración]
 
 Fuentes que entiende:
 
-- **Internet Archive** (`archive.org`), integrado: elementos y colecciones de dominio público.
 - **Sitios que describas** en un solo archivo JSON tuyo (el archivo de extractores), cada uno leído por sus
   páginas con selectores CSS o por su API JSON, donde una sola dirección de serie tiene todas las
   temporadas (cada temporada es entonces su propia fuente); ver abajo. Ningún sitio aparece en el código.

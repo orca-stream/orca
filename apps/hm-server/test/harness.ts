@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SiteExtractor } from "@orca/extractor-core";
-import { createInternetArchiveExtractor } from "@orca/extractor-internet-archive";
 import { createUseCases } from "../src/application/use-cases.ts";
 import type { Deps } from "../src/application/deps.ts";
 import { createJobEvents } from "../src/application/job-events.ts";
@@ -23,7 +22,7 @@ import {
   RecordingNotifier,
   FakeStreamDetector,
 } from "./fakes/ports.ts";
-import { fakeHttp, fixture, metadataUrl } from "@orca/extractor-internet-archive/testing";
+import { createRecordedExtractor } from "./fakes/recorded-site.ts";
 import { testDatabase, testGuard } from "./helpers.ts";
 import type { HmEvent } from "@orca/hm-contract";
 
@@ -31,13 +30,12 @@ export const BEVHILL = "bevhill-s01e01-36";
 export const BEVHILL_URL = `https://archive.org/details/${BEVHILL}`;
 
 /**
- * The whole server minus HTTP and the network: real SQLite, real queue, real IA extractor on a
- * fixture, real library on a temp folder; fake downloader, Jellyfin and image fetcher.
+ * The whole server minus HTTP and the network: real SQLite, real queue, a recorded site extractor, real library on a temp folder; fake downloader, Jellyfin and image fetcher.
  */
 export async function createHarness(
   options: {
     limits?: Partial<Record<"browser" | "ffmpeg" | "download" | "none", number>>;
-    /** Extra sites next to Internet Archive. */
+    /** Extra sites next to the recorded one. */
     extractors?: SiteExtractor[];
     /** One episode at a time, players in order (SEQUENTIAL_DOWNLOADS). */
     sequentialDownloads?: boolean;
@@ -51,7 +49,6 @@ export async function createHarness(
   const bus = new InMemoryEventBus();
   bus.subscribe((event) => events.push(event));
 
-  const { http, requests } = fakeHttp({ [metadataUrl(BEVHILL)]: fixture(`${BEVHILL}.metadata`) });
   const downloader = new FakeDownloader();
   const mediaServer = new FakeMediaServer();
   const episodeGuide = new FakeEpisodeGuide();
@@ -68,7 +65,7 @@ export async function createHarness(
     jobs: db.jobs,
     sessions: db.sessions,
     extractors: new StaticExtractorRegistry([
-      createInternetArchiveExtractor({ http }),
+      createRecordedExtractor(),
       ...(options.extractors ?? []),
     ]),
     previews: new InMemoryPreviewStore(db.clock),
@@ -120,7 +117,6 @@ export async function createHarness(
     bus,
     events,
     root,
-    requests,
     downloader,
     mediaServer,
     episodeGuide,

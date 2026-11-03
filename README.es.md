@@ -5,11 +5,11 @@
 Un sistema de streaming autoalojado alrededor de [Jellyfin](https://jellyfin.org). En este monorepo de
 pnpm viven cuatro apps; cada una funciona por separado y encajan entre sí:
 
-| App                     | Qué es                                                                                                                            | Guía                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **Orca'JP** (`apps/jp`) | Cliente de Jellyfin al estilo Netflix: navegador, teléfonos y TV Android, Xbox (y Windows); LG webOS más adelante                 | [jp](docs/guides/es/jp.md)               |
-| Servidor **Orca'H&M**   | Encuentra series en sitios de dominio público (Internet Archive, o sitios que describas), las descarga y las ordena para Jellyfin | [hm-server](docs/guides/es/hm-server.md) |
-| Panel **Orca'H&M**      | El panel web de administración del servidor H&M; se entra con una cuenta de administrador de Jellyfin                             | [hm-web](docs/guides/es/hm-web.md)       |
+| App                     | Qué es                                                                                                            | Guía                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Orca'JP** (`apps/jp`) | Cliente de Jellyfin al estilo Netflix: navegador, teléfonos y TV Android, Xbox (y Windows); LG webOS más adelante | [jp](docs/guides/es/jp.md)               |
+| Servidor **Orca'H&M**   | Encuentra series en los sitios que describas, las descarga y las ordena para Jellyfin                             | [hm-server](docs/guides/es/hm-server.md) |
+| Panel **Orca'H&M**      | El panel web de administración del servidor H&M; se entra con una cuenta de administrador de Jellyfin             | [hm-web](docs/guides/es/hm-web.md)       |
 
 Versiones instalables de Orca'JP: [Android (teléfono y TV)](docs/guides/es/android.md) ·
 [Xbox y Windows](docs/guides/es/xbox.md). Cómo se combinan: [Usarlas juntas](docs/guides/es/together.md).

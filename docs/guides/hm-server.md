@@ -10,7 +10,6 @@ refresh. It can follow a series and fetch new episodes as they appear. It expose
 
 Sources it understands:
 
-- **Internet Archive** (`archive.org`), built in: public-domain items and collections.
 - **Sites you describe** in one JSON file of yours (the extractors file), each read either through its pages
   with CSS selectors or through its JSON API, where one show address holds every season (each season
   is then its own source); see below. No site is named in the code.

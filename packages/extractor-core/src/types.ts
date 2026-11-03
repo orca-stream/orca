@@ -61,7 +61,7 @@ export interface DirectMedia {
 }
 
 export interface ExtractedSeries {
-  /** The site's own id for the show (for Internet Archive, the item or collection identifier). */
+  /** The site's own id for the show. */
   externalId: string;
   /** Where the user pasted from, normalized. */
   sourceUrl: string;
@@ -158,7 +158,7 @@ export interface Mirror {
   referer?: string;
 }
 
-/** The port every site (Internet Archive today, others later) implements. */
+/** The port every site implements. */
 export interface SiteExtractor extends ExtractorInfo {
   /** True when the extractor must be chosen by the user: `canHandle` never claims an address. */
   explicitOnly?: boolean;
