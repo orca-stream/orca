@@ -56,6 +56,33 @@ describe("DrizzleJobRepository", () => {
     ]);
   });
 
+  it("drops the failed downloads of an episode that got downloaded after all, and only those", async () => {
+    const { jobs, series } = testDatabase();
+    await series.create(aSeries(), aSource(), [
+      anEpisode({ episode: 1 }),
+      anEpisode({ episode: 2 }),
+    ]);
+    const failed = async (episode: number) => {
+      const { job: queued } = await jobs.enqueue(
+        job({
+          seriesId: "series-1",
+          episodeId: `episode-1-${episode}`,
+          dedupeKey: `dl:${episode}:${Math.random()}`,
+        }),
+      );
+      await jobs.claim("download", "w", 1000);
+      await jobs.fail(queued.id, "w", "every player failed", "permanent");
+      return queued.id;
+    };
+    const settled = await failed(1);
+    const pending = await failed(2);
+    await series.setEpisodeStatus("episode-1-1", "available", "S01E01.mkv");
+
+    expect(await jobs.dropSettledFailures()).toBe(1);
+    expect(await jobs.get(settled)).toBeNull();
+    expect(await jobs.get(pending)).toMatchObject({ status: "failed" });
+  });
+
   it("claims by priority, then oldest first, only jobs that are due and of the asked resource", async () => {
     const { jobs, clock } = testDatabase();
     const first = await jobs.enqueue(job());

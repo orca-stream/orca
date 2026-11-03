@@ -9,7 +9,7 @@ import type {
 import { uuidv7 } from "../../domain/ids.ts";
 import { HOST_LANE_PREFIX, type HostLane, type Job, type NewJob } from "../../domain/job.ts";
 import type { Database_, Db } from "./client.ts";
-import { jobs } from "./schema.ts";
+import { episodes, jobs } from "./schema.ts";
 
 type Row = typeof jobs.$inferSelect;
 
@@ -410,6 +410,23 @@ export class DrizzleJobRepository implements JobRepository {
       .orderBy(jobs.createdAt)
       .all()
       .map(toJob);
+  }
+
+  async dropSettledFailures(): Promise<number> {
+    const available = this.db
+      .select({ id: episodes.id })
+      .from(episodes)
+      .where(eq(episodes.status, "available"));
+    return this.db
+      .delete(jobs)
+      .where(
+        and(
+          eq(jobs.kind, "download_episode"),
+          eq(jobs.status, "failed"),
+          inArray(jobs.episodeId, available),
+        ),
+      )
+      .run().changes;
   }
 
   private recover(where: ReturnType<typeof sql>): number {

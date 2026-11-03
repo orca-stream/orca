@@ -251,6 +251,12 @@ export async function startRuntime(
       (fixed) => fixed > 0 && console.log(`episode paths: ${fixed} pointed at their files again`),
     )
     .catch((error: unknown) => console.error("repairing episode paths failed:", error));
+  await deps.jobs
+    .dropSettledFailures()
+    .then(
+      (dropped) => dropped > 0 && console.log(`failures: ${dropped} already downloaded, cleared`),
+    )
+    .catch((error: unknown) => console.error("clearing settled failures failed:", error));
   await normalizeLibrary(deps)
     .then(async (renamed) => {
       if (renamed.length === 0) return;

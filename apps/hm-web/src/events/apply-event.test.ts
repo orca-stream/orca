@@ -65,6 +65,13 @@ describe("planEvent", () => {
     expect(done).toContainEqual({ type: "invalidate", key: keys.jobsHistory });
   });
 
+  it("reloads the failures when a download lands: the server cleared that episode's old ones", () => {
+    const done = planEvent({ type: "job.updated", seq: 2, job: job({ status: "done" }) }, 1);
+    expect(done).toContainEqual({ type: "invalidate", key: keys.jobsFailed });
+    const running = planEvent({ type: "job.updated", seq: 2, job: job() }, 1);
+    expect(running).not.toContainEqual({ type: "invalidate", key: keys.jobsFailed });
+  });
+
   it("does not touch series for a job that belongs to none", () => {
     const ops = planEvent(
       { type: "job.updated", seq: 2, job: job({ kind: "refresh_library", seriesId: null }) },

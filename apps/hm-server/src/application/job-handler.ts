@@ -172,6 +172,8 @@ export function createJobHandler(deps: Deps): JobHandler {
       downloaded.sidecars,
     );
     await deps.series.setEpisodeStatus(episode.id, "available", relativePath);
+    // Earlier attempts at it that failed are settled now: they leave the failures.
+    await deps.jobs.dropSettledFailures();
     deps.events.publish({ type: "series.updated", seriesId: series.id });
     await enqueueRefresh(series.id);
   }

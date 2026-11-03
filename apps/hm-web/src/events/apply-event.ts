@@ -57,6 +57,10 @@ export function planEvent(event: HmEvent, lastSeq: number | null): Op[] {
     case "job.updated":
       ops.push({ type: "place", job: event.job });
       if (FINAL.has(event.job.status)) ops.push({ type: "invalidate", key: keys.jobsHistory });
+      // A download that landed clears the episode's earlier failures on the server, without events.
+      if (event.job.kind === "download_episode" && event.job.status === "done") {
+        ops.push({ type: "invalidate", key: keys.jobsFailed });
+      }
       if (event.job.seriesId) ops.push(...refreshSeries(event.job.seriesId));
       break;
     case "series.updated":

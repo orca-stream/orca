@@ -153,6 +153,11 @@ export interface JobRepository {
   countActiveDownloads(): Promise<Map<string, number>>;
   /** The episode downloads running right now, of every series. */
   runningDownloads(): Promise<Job[]>;
+  /**
+   * Deletes the failed downloads whose episode is available after all (another attempt got it):
+   * nothing is left to retry, and retrying them is refused. Returns how many went.
+   */
+  dropSettledFailures(): Promise<number>;
 }
 
 export interface SessionRecord {
