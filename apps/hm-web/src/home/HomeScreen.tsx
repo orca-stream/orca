@@ -1,10 +1,5 @@
 import type { ExtractorDto, SeriesDto } from "@orca/hm-contract";
-import {
-  Add01Icon,
-  ArrowUpRight01Icon,
-  Settings01Icon,
-  Tv01Icon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, ArrowUpRight01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import type { CSSProperties } from "react";
@@ -12,7 +7,7 @@ import { Link } from "wouter";
 import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
 import { DownloadingBadge } from "@/components/downloading-badge";
-import { Dock, DockExtractors, DockLink } from "@/components/dock";
+import { Dock, DockAdd, DockPlaces } from "@/components/dock";
 import { extractorHref } from "@/extractors/href";
 import { ROUND_ACTION, TILE_GRID, Tile, TileLink } from "@/components/tile";
 import { useT } from "@/i18n/locale";
@@ -178,9 +173,8 @@ export function HomeScreen() {
         <p className="text-sm text-muted-foreground">{t.extractors.empty}</p>
       )}
       <Dock label={t.dock.label}>
-        <DockLink href="/series" label={t.nav.series} icon={Tv01Icon} />
-        <DockLink href="/settings" label={t.settings.open} icon={Settings01Icon} />
-        <DockExtractors />
+        <DockPlaces here="home" />
+        <DockAdd />
       </Dock>
     </div>
   );

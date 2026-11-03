@@ -33,7 +33,7 @@ import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { useMutations } from "@/api/mutations";
 import { posterUrl, queries } from "@/api/queries";
-import { Dock, DockButton, DockExtractors, DockPlaces, DockSeparator } from "@/components/dock";
+import { Dock, DockAdd, DockButton, DockPlaces, DockSeparator } from "@/components/dock";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, FieldLabel } from "@/components/ui/field";
 import {
@@ -1106,7 +1106,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
       )}
       <Dock label={t.dock.label}>
         <DockPlaces />
-        <DockExtractors />
+        <DockAdd current />
         {attached && (
           <>
             <DockSeparator />

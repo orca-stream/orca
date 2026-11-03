@@ -98,7 +98,7 @@ describe("SeriesListScreen", () => {
   it("invites to add the first series when there are none", async () => {
     renderApp(<SeriesListScreen />, {
       handler: (request) =>
-        new URL(request.url).pathname === "/api/series"
+        ["/api/series", "/api/extractors"].includes(new URL(request.url).pathname)
           ? jsonResponse([])
           : jsonResponse({ items: [], nextCursor: null }),
     });
@@ -119,7 +119,17 @@ describe("SeriesListScreen", () => {
               makeSeries({ id: "s1", title: "Pokémon" }),
               makeSeries({ id: "s2", title: "Bonanza" }),
             ])
-          : jsonResponse([]),
+          : new URL(request.url).pathname === "/api/extractors"
+            ? jsonResponse([
+                {
+                  id: "tv-anime",
+                  name: "TV Anime",
+                  hosts: ["tv.test"],
+                  example: "https://tv.test/x",
+                  explicit: true,
+                },
+              ])
+            : jsonResponse([]),
       path: "/series",
     });
     await screen.findByRole("link", { name: "Bonanza" });
@@ -142,15 +152,35 @@ describe("SeriesListScreen", () => {
               makeSeries({ id: "s1", title: "Pokémon" }),
               makeSeries({ id: "s2", title: "Bonanza" }),
             ])
-          : jsonResponse([]),
+          : new URL(request.url).pathname === "/api/extractors"
+            ? jsonResponse([
+                {
+                  id: "tv-anime",
+                  name: "TV Anime",
+                  hosts: ["tv.test"],
+                  example: "https://tv.test/x",
+                  explicit: true,
+                },
+              ])
+            : jsonResponse([]),
       path: "/series",
     });
     await screen.findByRole("link", { name: "Bonanza" });
     const dock = screen.getByRole("navigation", { name: "Atajos" });
     expect(within(dock).getByRole("link", { name: "Inicio" }).getAttribute("href")).toBe("/");
-    expect(within(dock).getByRole("link", { name: "Añadir serie" }).getAttribute("href")).toBe(
-      "/series/new",
+    // The same three places on every screen, the one you are on lit rather than gone.
+    expect(within(dock).getByRole("link", { name: "Series" }).getAttribute("aria-current")).toBe(
+      "page",
     );
+    expect(within(dock).getByRole("link", { name: "Ajustes" }).getAttribute("href")).toBe(
+      "/settings",
+    );
+    // One "+" opens the extractors to add a series with.
+    await user.click(await within(dock).findByRole("button", { name: "Nueva serie" }));
+    expect((await screen.findByRole("link", { name: "TV Anime" })).getAttribute("href")).toBe(
+      "/series/new?extractor=tv-anime",
+    );
+    await user.keyboard("{Escape}");
 
     await user.click(within(dock).getByRole("button", { name: "Buscar series" }));
     const field = screen.getByRole("searchbox", { name: "Buscar entre las series" });

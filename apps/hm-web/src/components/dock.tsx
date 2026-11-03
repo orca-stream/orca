@@ -1,7 +1,9 @@
-import { Home01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, Home01Icon, Settings01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  createContext,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -15,12 +17,17 @@ import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import { extractorHref } from "@/extractors/href";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
+import { BAR_POPUP } from "@/series/bar";
+
+/** Lets an action keep the dock up while something of its own is open (the add menu, say). */
+const HoldContext = createContext<(held: boolean) => void>(() => {});
 
 /** Whether focus landed from the keyboard, not from a click (a click keeps the dock open otherwise). */
 function focusVisible(element: Element) {
@@ -58,10 +65,11 @@ export function Dock({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [held, setHeld] = useState(false);
   const swallow = useRef(false);
   const leaving = useRef<ReturnType<typeof setTimeout>>(undefined);
   const self = useRef<HTMLDivElement>(null);
-  const open = pinned || hovered || focused || touched;
+  const open = pinned || held || hovered || focused || touched;
 
   // A tap outside lowers a dock a tap raised.
   useEffect(() => {
@@ -145,7 +153,7 @@ export function Dock({
             : "translate-y-[calc(50%+1rem)] scale-[0.6] sm:translate-y-[calc(50%+1.5rem)]",
         )}
       >
-        {children}
+        <HoldContext.Provider value={setHeld}>{children}</HoldContext.Provider>
       </nav>
     </div>,
     document.body,
@@ -241,34 +249,93 @@ export function DockSeparator() {
   return <span aria-hidden="true" className="mx-1 h-7 w-px shrink-0 bg-foreground/10" />;
 }
 
-/** Home and the series: every screen's way back. */
-export function DockPlaces({ here }: { here?: "home" | "series" }) {
+/**
+ * Home, the series and the settings: the same three, in the same places, on every screen, so the
+ * hand learns them. The one you are on is lit, never taken away (that shifted everything after it).
+ */
+export function DockPlaces({ here }: { here?: "home" | "series" | "settings" }) {
   const t = useT();
   return (
     <>
       <DockLink href="/" label={t.nav.home} icon={Home01Icon} current={here === "home"} />
       <DockLink href="/series" label={t.nav.series} icon={Tv01Icon} current={here === "series"} />
+      <DockLink
+        href="/settings"
+        label={t.settings.open}
+        icon={Settings01Icon}
+        current={here === "settings"}
+      />
     </>
   );
 }
 
-/** One shortcut per extractor, each on its own colour, to add a series with it, after a separator. */
-export function DockExtractors() {
+/** One row of the add menu: a mark (or an icon) and its name. */
+const MENU_ITEM =
+  "flex items-center gap-3 rounded-xl p-2 pr-4 text-sm font-medium text-foreground outline-none transition hover:bg-white/70 focus-visible:bg-white/70 focus-visible:ring-3 focus-visible:ring-ring/50";
+
+/**
+ * After a separator, one "+" to add a series: it opens, above it, a menu with every extractor on its
+ * own colour (only checked ones exist, so there is no "any link"). One circle instead of a row of
+ * same-looking colours. `current` lights it on the add screen itself.
+ */
+export function DockAdd({ current = false }: { current?: boolean }) {
+  const t = useT();
   const api = useApi();
+  const hold = useContext(HoldContext);
   const extractors = useQuery(queries.extractors(api));
+  const [open, setOpen] = useState(false);
+
+  function toggle(next: boolean) {
+    setOpen(next);
+    hold(next);
+  }
+
+  useEffect(() => () => hold(false), [hold]);
+
   if (!extractors.data?.length) return null;
   return (
     <>
       <DockSeparator />
-      {extractors.data.map((extractor) => (
-        <DockLink key={extractor.id} href={extractorHref(extractor)} label={extractor.name}>
-          <ExtractorMark
-            extractor={extractor}
-            className="size-full rounded-full ring-0 transition hover:brightness-110"
-            iconClassName="size-5.5"
-          />
-        </DockLink>
-      ))}
+      <Popover open={open} onOpenChange={toggle}>
+        <Tooltip disabled={open}>
+          <TooltipTrigger
+            aria-label={t.dock.add}
+            render={
+              <PopoverTrigger
+                aria-current={current ? "page" : undefined}
+                className={cn(ITEM, "data-popup-open:bg-white data-popup-open:text-foreground")}
+              />
+            }
+          >
+            <HugeiconsIcon icon={Add01Icon} className="size-5.5" />
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={10}>
+            {t.dock.add}
+          </TooltipContent>
+        </Tooltip>
+        <PopoverContent
+          side="top"
+          sideOffset={20}
+          aria-label={t.dock.add}
+          className={cn(BAR_POPUP, "w-max min-w-56 gap-0.5 p-2")}
+        >
+          {extractors.data?.map((extractor) => (
+            <Link
+              key={extractor.id}
+              href={extractorHref(extractor)}
+              onClick={() => toggle(false)}
+              className={MENU_ITEM}
+            >
+              <ExtractorMark
+                extractor={extractor}
+                className="size-9 rounded-full"
+                iconClassName="size-4.5"
+              />
+              {extractor.name}
+            </Link>
+          ))}
+        </PopoverContent>
+      </Popover>
     </>
   );
 }

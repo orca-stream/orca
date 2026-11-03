@@ -13,7 +13,7 @@ import {
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useApi } from "@/api/context";
 import { posterUrl, queries } from "@/api/queries";
-import { Dock, DockButton, DockExtractors, DockLink, DockSeparator } from "@/components/dock";
+import { Dock, DockAdd, DockButton, DockPlaces, DockSeparator } from "@/components/dock";
 import { Loading } from "@/components/loading";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import {
@@ -372,10 +372,9 @@ export function SeriesListScreen() {
           />
         ) : (
           <div className="flex items-center gap-1 duration-200 animate-in fade-in-0 zoom-in-95">
-            <DockLink href="/" label={t.nav.home} icon={Home01Icon} />
-            <DockExtractors />
+            <DockPlaces here="series" />
+            <DockAdd />
             <DockSeparator />
-            <DockLink href="/series/new" label={t.series.add} icon={Add01Icon} />
             <DockButton
               label={t.dock.search}
               icon={Search01Icon}

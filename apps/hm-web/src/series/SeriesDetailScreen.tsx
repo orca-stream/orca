@@ -4,7 +4,7 @@ import { type CSSProperties, useState } from "react";
 import { Link, useParams } from "wouter";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Add01Icon,
+  Link04Icon,
   ArrowLeft01Icon,
   Download04Icon,
   PauseIcon,
@@ -15,14 +15,7 @@ import {
 import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { useMutations } from "@/api/mutations";
-import {
-  Dock,
-  DockButton,
-  DockExtractors,
-  DockLink,
-  DockPlaces,
-  DockSeparator,
-} from "@/components/dock";
+import { Dock, DockButton, DockAdd, DockLink, DockPlaces, DockSeparator } from "@/components/dock";
 import { posterUrl, queries } from "@/api/queries";
 import { EmptyState } from "@/components/empty-state";
 import { Loading } from "@/components/loading";
@@ -346,13 +339,13 @@ export function SeriesDetailScreen() {
         }
       />
       <Dock label={t.dock.label}>
-        <DockPlaces />
-        <DockExtractors />
+        <DockPlaces here="series" />
+        <DockAdd />
         <DockSeparator />
         <DockLink
           href={addSourceHref(data, episodes ?? [])}
           label={t.series.detail.addSource}
-          icon={Add01Icon}
+          icon={Link04Icon}
         />
         <DockButton
           label={t.series.downloadMissing}

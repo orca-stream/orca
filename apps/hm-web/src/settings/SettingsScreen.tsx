@@ -3,7 +3,7 @@ import { Alert02Icon } from "@hugeicons/core-free-icons";
 import logotype from "@/assets/logotype.svg";
 import type { JellyfinConnection, SettingsView } from "@/api/types";
 import { Loading } from "@/components/loading";
-import { Dock, DockExtractors, DockPlaces } from "@/components/dock";
+import { Dock, DockAdd, DockPlaces } from "@/components/dock";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n/locale";
@@ -216,8 +216,8 @@ export function SettingsScreen() {
       </Panel>
       {/* No bar on top: the dock is the way back. */}
       <Dock label={t.dock.label}>
-        <DockPlaces />
-        <DockExtractors />
+        <DockPlaces here="settings" />
+        <DockAdd />
       </Dock>
     </div>
   );
