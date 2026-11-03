@@ -117,6 +117,7 @@ const es = {
     gapsSeasons: (seasons: string) => `Temporadas ${seasons}: ninguna fuente las trae`,
     gapsSeasonsHint:
       "Si el sitio las sube, «Seguir la serie» las añade sola; si no, añade otra fuente.",
+    seasonNoSource: "Ninguna fuente",
     gapLabel: "En ninguna fuente",
     gapHint: (code: string) =>
       `TMDB lista ${code} como emitido, pero ninguna fuente de la serie lo trae.`,
@@ -748,6 +749,7 @@ const en: typeof es = {
     gapsSeasons: (seasons: string) => `Seasons ${seasons}: no source has them`,
     gapsSeasonsHint:
       "If the site uploads them, Follow the series adds them on its own; if not, add another source.",
+    seasonNoSource: "No source",
     gapLabel: "In no source",
     gapHint: (code: string) => `TMDB lists ${code} as aired, but no source of the series has it.`,
     following: "Following",

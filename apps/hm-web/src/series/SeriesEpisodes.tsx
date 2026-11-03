@@ -121,7 +121,15 @@ export function SeriesEpisodes({
 }: SeriesEpisodesProps) {
   const t = useT();
   const [chosen, setChosen] = useState<number | null>(null);
-  const group = groups.find((g) => g.season === chosen) ?? groups[0];
+  // Every season TMDB has as aired, not only those a source brings: one no source has is there
+  // too, empty, so its episodes show as gaps.
+  const rank = (season: number) => (season === 0 ? Number.POSITIVE_INFINITY : season);
+  const listed: SeasonGroup[] = [
+    ...groups,
+    ...absentSeasons.map((season) => ({ season: season.number, episodes: [] })),
+  ].toSorted((a, b) => rank(a.season) - rank(b.season));
+  const tmdbCount = new Map(absentSeasons.map((season) => [season.number, season.episodeCount]));
+  const group = listed.find((g) => g.season === chosen) ?? listed[0];
   const titleOf = (season: number) => (season === 0 ? t.series.specials : t.series.season(season));
   const seasonPicked = group ? seasonState(selection, episodes, group.season) : "none";
   // What TMDB lists for the seasons the series has and no source brought: aired, or still to air.
@@ -129,7 +137,9 @@ export function SeriesEpisodes({
   const gapsOf = (season: number) => matches.find((match) => match.season === season);
   const absent = matches.filter((match) => match.missing.length > 0);
   // The season's episodes and its gaps together, in number order.
-  const shown = group ? gapsOf(group.season) : undefined;
+  const shown = group
+    ? (gapsOf(group.season) ?? wholeSeason(guideSeasons.get(group.season), localToday()))
+    : undefined;
   const cells: Cell[] = group
     ? [
         ...group.episodes.map((episode) => ({
@@ -157,7 +167,7 @@ export function SeriesEpisodes({
           {t.series.available(availableCount, episodes.length)}
         </span>
         {/* A season at a time, only when there is more than one: a list, so eleven fit as well as two. */}
-        {groups.length > 1 && group && (
+        {listed.length > 1 && group && (
           <Select
             value={group.season}
             onValueChange={(season) => season !== null && setChosen(season)}
@@ -167,21 +177,31 @@ export function SeriesEpisodes({
               className="h-12 gap-2 rounded-full border-0 bg-white/55 px-5 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white sm:ml-3"
             >
               <SelectValue>
-                {() => <SeasonLabel group={group} title={titleOf(group.season)} />}
+                {() => (
+                  <SeasonLabel
+                    group={group}
+                    title={titleOf(group.season)}
+                    tmdb={tmdbCount.get(group.season)}
+                  />
+                )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent
               alignItemWithTrigger={false}
               align="start"
-              className={cn(BAR_POPUP, "w-max min-w-(--anchor-width)")}
+              // Not down to the window's foot: a long show's seasons scroll under the arrows.
+              className={cn(
+                BAR_POPUP,
+                "max-h-[min(28rem,var(--available-height))] w-max min-w-(--anchor-width)",
+              )}
             >
-              {groups.map((g) => (
+              {listed.map((g) => (
                 <SelectItem
                   key={g.season}
                   value={g.season}
                   className="rounded-xl py-2 pl-3 text-base"
                 >
-                  <SeasonLabel group={g} title={titleOf(g.season)} />
+                  <SeasonLabel group={g} title={titleOf(g.season)} tmdb={tmdbCount.get(g.season)} />
                 </SelectItem>
               ))}
             </SelectContent>
@@ -258,7 +278,7 @@ export function SeriesEpisodes({
           <span className="mr-auto text-sm font-medium tabular-nums">
             {t.series.selected(selection.size)}
           </span>
-          {group && seasonPicked !== "all" && (
+          {group && group.episodes.length > 0 && seasonPicked !== "all" && (
             <button
               type="button"
               onClick={() => onToggleSeason(group.season, true)}
@@ -363,17 +383,49 @@ function Gaps({
   );
 }
 
-/** A season's name and how many of its episodes are here, in the picker and on its button. */
-function SeasonLabel({ group, title }: { group: SeasonGroup; title: string }) {
+/**
+ * A season's name and how many of its episodes are here, in the picker and on its button. A
+ * season no source brings counts against TMDB's episodes, in amber.
+ */
+function SeasonLabel({
+  group,
+  title,
+  tmdb,
+}: {
+  group: SeasonGroup;
+  title: string;
+  /** TMDB's number of episodes, for a season no source brings. */
+  tmdb?: number;
+}) {
+  const t = useT();
   const have = group.episodes.filter((e) => e.status === "available").length;
   return (
     <span className="flex items-center gap-2">
       {title}
-      <span className="text-xs tabular-nums opacity-70">
-        {have}/{group.episodes.length}
-      </span>
+      {tmdb === undefined ? (
+        <span className="text-xs tabular-nums opacity-70">
+          {have}/{group.episodes.length}
+        </span>
+      ) : (
+        <span title={t.series.seasonNoSource} className="text-xs text-warning tabular-nums">
+          0/{tmdb}
+        </span>
+      )}
     </span>
   );
+}
+
+/** A season no source brings, as gaps: all TMDB lists, aired or still to air by `today`. */
+function wholeSeason(
+  listed: readonly GuideEpisodeDto[] | undefined,
+  today: string,
+): Pick<SeasonMatch, "missing" | "upcoming"> | undefined {
+  if (!listed) return undefined;
+  const aired = (episode: GuideEpisodeDto) => episode.airDate !== null && episode.airDate <= today;
+  return {
+    missing: listed.filter(aired).map((episode) => episode.number),
+    upcoming: listed.filter((episode) => !aired(episode)).map((episode) => episode.number),
+  };
 }
 
 function EpisodeCard({

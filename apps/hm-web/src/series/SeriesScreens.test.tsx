@@ -270,6 +270,49 @@ describe("SeriesDetailScreen", () => {
     ).toBe("true");
   });
 
+  it("lists a season TMDB has and no source brings, with its episodes as gaps", async () => {
+    const user = userEvent.setup();
+    const guideEpisode = (number: number, airDate: string | null) => ({
+      number,
+      name: `Ep ${number}`,
+      airDate,
+      overview: null,
+      runtimeMin: null,
+      stillUrl: null,
+    });
+    renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        path: "/series/s1",
+        handler: (request) => {
+          const { pathname } = new URL(request.url);
+          if (pathname === "/api/series/s1") return jsonResponse(makeSeries({ tmdbId: "9" }));
+          if (pathname === "/api/lookup/tmdb/9/seasons")
+            return jsonResponse(
+              [1, 2, 3].map((number) => ({
+                number,
+                name: `S${number}`,
+                episodeCount: 2,
+                year: 2020,
+              })),
+            );
+          if (pathname === "/api/lookup/tmdb/9/seasons/3")
+            return jsonResponse([guideEpisode(1, "2020-01-01"), guideEpisode(2, null)]);
+          if (pathname.startsWith("/api/lookup/tmdb/9/seasons/")) return jsonResponse([]);
+          return detailHandler(request);
+        },
+      },
+    );
+    await user.click(await screen.findByRole("combobox", { name: "Temporada que se muestra" }));
+    await user.click(await screen.findByRole("option", { name: /^Temporada 3\s*0\/2/ }));
+    const season3 = screen.getByRole("region", { name: "Temporada 3" });
+    expect(await within(season3).findByText("Ep 1")).toBeTruthy();
+    expect(within(season3).getByText("Ep 2")).toBeTruthy();
+    expect(within(season3).getByText("En ninguna fuente")).toBeTruthy();
+  });
+
   it("downloads the missing ones, which includes the failed", async () => {
     const user = userEvent.setup();
     const { posted } = detailSetup();

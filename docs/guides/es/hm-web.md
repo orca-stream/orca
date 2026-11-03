@@ -98,7 +98,8 @@ llena la pantalla y sus fotogramas y nombres, las tarjetas. Un episodio que TMDB
 y que ninguna fuente trae aparece como tarjeta apagada con borde discontinuo en su lugar (**En ninguna
 fuente** si ya se emitió, **Sin emitir** si no), y la cabecera muestra un **Faltan n** ámbar que al pasar
 el ratón los lista por temporada; la fila de una temporada muestra esa temporada. También salen ahí, y cuentan, las temporadas
-enteras que TMDB da por emitidas y ninguna fuente trae.
+enteras que TMDB da por emitidas y ninguna fuente trae; el selector de temporada también las lista (su
+cuenta en ámbar, contra los episodios de TMDB) y al elegir una se ven todos sus episodios como huecos.
 
 No tiene backend propio: siempre habla con un servidor H&M en el **mismo origen**, bajo `/api`. Se entra
 con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servidor.

@@ -95,7 +95,8 @@ id, TMDB's backdrop fills the background and its frames and names fill the cards
 for a season the series has and no source brings shows as a faded card with a dashed rim in its place
 (**In no source** when it has aired, **Not aired** when not), and the header shows an amber **n missing**
 that lists them by season on hover; a season's row there shows that season. Whole seasons TMDB has as
-aired and no source brings are listed there too, and counted in it.
+aired and no source brings are listed there too, and counted in it; the season picker lists them as
+well (their count in amber, against TMDB's episodes), and picking one shows all its episodes as gaps.
 
 It has no backend of its own: it always talks to an H&M server on the **same origin**, under `/api`.
 Sign in with a **Jellyfin administrator** account of the Jellyfin that server uses.

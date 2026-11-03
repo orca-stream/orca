@@ -215,9 +215,13 @@ export function SeriesDetailScreen() {
     enabled: tmdbId !== "",
   });
   const guideSeasons = new Set((guide.data ?? []).map((season) => season.number));
-  const seasons = [...new Set((episodes ?? []).map((episode) => episode.season))].filter((season) =>
-    guideSeasons.has(season),
-  );
+  const had = new Set((episodes ?? []).map((episode) => episode.season));
+  // The seasons TMDB has as aired and no source brings: they are listed too, all of them gaps.
+  const absent = absentSeasons(guide.data ?? [], had);
+  const seasons = [
+    ...[...had].filter((season) => guideSeasons.has(season)),
+    ...absent.map((season) => season.number),
+  ];
   const guideEpisodes = useQueries({
     queries: seasons.map((season) => queries.guideEpisodes(api, tmdbId, season, locale)),
   });
@@ -313,10 +317,7 @@ export function SeriesDetailScreen() {
         selection={selection}
         guide={stills}
         guideSeasons={guideBySeason}
-        absentSeasons={absentSeasons(
-          guide.data ?? [],
-          new Set(episodes.map((episode) => episode.season)),
-        )}
+        absentSeasons={absent}
         missingCount={missing.length}
         busy={bulk}
         failed={enqueue.isError}
