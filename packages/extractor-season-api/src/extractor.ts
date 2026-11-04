@@ -7,6 +7,7 @@ import {
   type Mirror,
   type SiteExtractor,
 } from "@orca/extractor-core";
+import type * as z from "zod";
 import { SeasonData } from "./schema.ts";
 import type { SeasonApiSite, Track } from "./site.ts";
 
@@ -36,6 +37,15 @@ function parseUrl(input: string): URL | null {
 }
 
 type Episode = SeasonData["episodeList"][number];
+
+/** The first few fields the answer got wrong, by where they are, so a changed site says what changed. */
+function problemsOf(error: z.ZodError): string {
+  const shown = error.issues
+    .slice(0, 3)
+    .map((issue) => `${issue.path.join(".") || "(answer)"}: ${issue.message}`);
+  const more = error.issues.length - shown.length;
+  return more > 0 ? `${shown.join("; ")}; and ${more} more` : shown.join("; ");
+}
 
 export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptions): SiteExtractor {
   const seasonPath = new RegExp(site.seasonPath);
@@ -72,11 +82,27 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
       ...(signal ? { signal } : {}),
       ...(headers ? { headers } : {}),
     });
-    const parsed = SeasonData.safeParse(raw);
+    // The site answers `{ data: season }`; a bare season is read the same.
+    const wrapped = raw !== null && typeof raw === "object" && "data" in raw;
+    const body: unknown = wrapped ? (raw as { data: unknown }).data : raw;
+    if (body === null || body === undefined) {
+      const said = (raw as { message?: unknown; error?: unknown } | null) ?? {};
+      const why =
+        typeof said.message === "string"
+          ? said.message
+          : typeof said.error === "string"
+            ? said.error
+            : "";
+      throw new ExtractorError(
+        "not-found",
+        `${site.name} has no season ${id}${why ? `: ${why}` : ""}`,
+      );
+    }
+    const parsed = SeasonData.safeParse(body);
     if (!parsed.success) {
       throw new ExtractorError(
         "invalid-response",
-        `${site.name} answered ${id} in an unknown shape`,
+        `${site.name} answered ${id} in an unknown shape (${problemsOf(parsed.error)})`,
         {
           cause: parsed.error,
         },
@@ -125,9 +151,10 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
           silent.push(item.number);
           continue;
         }
-        const sourceRef = String(item.number);
+        // Unique across the whole series: its other seasons, from this same site, number from 1 too.
+        const sourceRef = `${address.id}:${item.number}`;
         const url = new URL(seasonApi(address.id));
-        url.searchParams.set(EPISODE_PARAM, sourceRef);
+        url.searchParams.set(EPISODE_PARAM, String(item.number));
         const airDate = /^\d{4}-\d{2}-\d{2}/.exec(item.aired ?? "")?.[0];
         episodes.push({
           season: SEASON,

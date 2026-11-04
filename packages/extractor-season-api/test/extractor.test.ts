@@ -41,8 +41,8 @@ const episode = (
   ...extra,
 });
 
-/** The site's answer as recorded, trimmed to the parts that vary. */
-const answer = (episodeList: unknown[]) => ({
+/** The season as the site describes it, trimmed to the parts that vary. */
+const season = (episodeList: unknown[]) => ({
   anilistId: 11111,
   malId: 22222,
   title: "Some Show",
@@ -59,12 +59,14 @@ const answer = (episodeList: unknown[]) => ({
   embed: `${ORIGIN}/embed/ani/11111/1/sub`,
   episodeList,
 });
+/** The site's answer as recorded: the season wrapped in `data`. */
+const answer = (episodeList: unknown[]) => ({ data: season(episodeList) });
 
 const full = answer([
   episode(2, undefined, { title: "Second", aired: "2016-04-10T00:00:00Z" }),
   episode(1),
-  episode(3, { sub: true, dub: false }, { runtimeSeconds: null }),
-  episode(5),
+  episode(3, { sub: true, dub: false }, { runtimeSeconds: 0 }),
+  episode(5, undefined, { number: "5" }),
   episode(6, { sub: false, dub: false }),
 ]);
 
@@ -118,7 +120,7 @@ describe("season API extractor: one season per address", () => {
     expect(extraction.episodes[1]).toMatchObject({
       airDate: "2016-04-10",
       inferred: false,
-      sourceRef: "2",
+      sourceRef: "11111:2",
       media: { kind: "mirrors", url: `${SEASON_API}?episode=2`, durationSec: 1464 },
     });
     expect(extraction.episodes[2]!.media).not.toHaveProperty("durationSec");
@@ -174,16 +176,33 @@ describe("season API extractor: one season per address", () => {
     );
   });
 
+  it("reads a bare season like a wrapped one, and says when the site has none", async () => {
+    const bare = fakeApi({ [SEASON_API]: season([episode(1), episode(2)]) });
+    const read = await createSeasonApiExtractor({ site, http: bare.http }).extract(SEASON);
+    expect(read.episodes.map((e) => e.episode)).toEqual([1, 2]);
+
+    const none = fakeApi({ [SEASON_API]: { data: null, message: "Series not found" } });
+    await expect(
+      createSeasonApiExtractor({ site, http: none.http }).extract(SEASON),
+    ).rejects.toMatchObject({
+      code: "not-found",
+      message: expect.stringContaining("Series not found"),
+    });
+  });
+
   it("says what is wrong when the season has no playable episode or an unknown shape", async () => {
     const empty = fakeApi({ [SEASON_API]: answer([episode(1, { sub: false, dub: false })]) });
     await expect(
       createSeasonApiExtractor({ site, http: empty.http }).extract(SEASON),
     ).rejects.toMatchObject({ code: "no-episodes" });
 
-    const odd = fakeApi({ [SEASON_API]: { title: "Some Show" } });
+    const odd = fakeApi({ [SEASON_API]: { data: { title: "Some Show" } } });
     await expect(
       createSeasonApiExtractor({ site, http: odd.http }).extract(SEASON),
-    ).rejects.toMatchObject({ code: "invalid-response" });
+    ).rejects.toMatchObject({
+      code: "invalid-response",
+      message: expect.stringContaining("episodeList: "),
+    });
   });
 
   it("refuses a site whose season path captures no id", () => {

@@ -25,6 +25,8 @@ function rethrowConflict(error: unknown): never {
     throw new AppError("conflict", "This address was already added");
   if (/UNIQUE constraint failed: series\./.test(message))
     throw new AppError("conflict", "This series was already added, or its folder is taken");
+  if (/UNIQUE constraint failed: episodes\.series_id, episodes\.source_ref/.test(message))
+    throw new AppError("conflict", "An episode of this address is already in the series");
   if (/UNIQUE constraint failed: episodes\./.test(message))
     throw new AppError("conflict", "Two episodes would get the same season and number");
   throw error;

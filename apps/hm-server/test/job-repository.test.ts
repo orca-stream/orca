@@ -451,7 +451,18 @@ describe("DrizzleSeriesRepository: sources", () => {
     const clash = aSource({ id: "part-2", externalId: "part-2" });
     await expect(
       series.addSource(clash, [anEpisode({ id: "x", episode: 1, sourceRef: "part-2/e1" })]),
-    ).rejects.toMatchObject({ code: "conflict" });
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Two episodes would get the same season and number",
+    });
+    const sameRef = aSource({ id: "part-3", externalId: "part-3" });
+    const taken = (await series.listEpisodes("series-1"))[0]!.sourceRef;
+    await expect(
+      series.addSource(sameRef, [anEpisode({ id: "y", episode: 2, sourceRef: taken })]),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "An episode of this address is already in the series",
+    });
     expect((await series.listSources(["series-1"])).map((s) => s.id)).toEqual(["series-1"]);
   });
 

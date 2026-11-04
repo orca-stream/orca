@@ -14,14 +14,15 @@ const flag = z
 export const SeasonData = z.object({
   title: text,
   nativeTitle: text,
-  year: z.number().int().min(1900).max(2999).nullish(),
+  year: z.coerce.number().int().positive().nullish().catch(undefined),
   synopsis: text,
   poster: text,
   episodeList: z.array(
     z.object({
-      number: z.number().int().min(0),
+      number: z.coerce.number().int().min(0),
       title: text,
-      runtimeSeconds: z.number().positive().nullish(),
+      // Unknown or zero means unknown: never a reason to refuse the season.
+      runtimeSeconds: z.coerce.number().positive().nullish().catch(undefined),
       aired: text,
       available: z.object({ sub: flag, dub: flag }).partial().nullish(),
       embed: z.object({ sub: text, dub: text }).partial().nullish(),
