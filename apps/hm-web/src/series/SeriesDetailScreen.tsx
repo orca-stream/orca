@@ -305,7 +305,7 @@ export function SeriesDetailScreen() {
         )}
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />
-        <SeriesSettings series={data} checkSeries={checkSeries} />
+        <SeriesSettings series={data} checkSeries={checkSeries} showStatus={tmdb?.status ?? null} />
         <CurrentDownloads episodes={episodes} guide={stills} />
       </div>
 

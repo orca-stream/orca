@@ -15,7 +15,11 @@ hacia abajo bajo su nombre, año y cuántos episodios hay (`24/24`). En la panta
 agregar una serie con esa ya elegida en «Añadir a» (`/series/new?into=<id>`): otra temporada, o la parte
 que a un sitio le falta. Con dos o más direcciones se pliegan bajo una cabecera que las cuenta (y cuántas
 están cerradas); su flecha las despliega todas, en una lista con scroll propio a partir de cuatro filas y media. Cada dirección dice qué temporada y qué episodios trajo (`Temporada 1, episodios 25 al 37`) y los números que se salta entre medias (`Temporada 3, episodios 1 al 25, sin E23` — a menudo es la numeración de TMDB, que da dos números a un episodio doble), y tiene un candado que la cierra o la
-reabre: una fuente cerrada (una temporada terminada) deja de leerse al buscar episodios nuevos.
+reabre: una fuente cerrada (una temporada terminada) deja de leerse al buscar episodios nuevos. Si
+TMDB dice que la serie terminó o se canceló, una fuente aún abierta lleva la marca ámbar `Abierta`,
+su candado resalta y la cabecera dice `1 abierta, pero la serie terminó`: no traerá nada nuevo,
+así que conviene cerrarla. En la lista de series, la píldora de fuentes abiertas de su tarjeta
+sale en ámbar, con un aviso en lugar del globo del sitio.
 
 Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
 dirección. En una serie nueva, al escribir su id de TMDB se rellenan el título, el año y el id de IMDb:

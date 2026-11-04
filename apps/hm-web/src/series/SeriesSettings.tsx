@@ -1,4 +1,4 @@
-import type { SeriesDto } from "@orca/hm-contract";
+import type { SeriesDto, ShowLookupDto } from "@orca/hm-contract";
 import { MAX_TITLE_LENGTH } from "@orca/hm-contract/rules";
 import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -60,8 +60,11 @@ const TYPING_PAUSE_MS = 800;
 export function SeriesSettings({
   series,
   checkSeries,
+  showStatus = null,
 }: {
   series: SeriesDto;
+  /** What TMDB says of the show, so open sources of one that ended are pointed out. */
+  showStatus?: ShowLookupDto["status"];
   /** The page's own, so the dock's "look now" and this row's show the same state. */
   checkSeries: ReturnType<typeof useMutations>["checkSeries"];
 }) {
@@ -150,7 +153,7 @@ export function SeriesSettings({
       }}
       className="border-t border-(--glass-edge) [&>*+*]:border-t [&>*+*]:border-t-(--glass-edge)"
     >
-      <SeriesSources series={series} />
+      <SeriesSources series={series} showStatus={showStatus} />
 
       <div className={PAIR}>
         <BarToggle

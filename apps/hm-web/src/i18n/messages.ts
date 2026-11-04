@@ -239,6 +239,12 @@ const es = {
       closeSourceHint: "Ya no trae episodios nuevos: la búsqueda deja de leerla",
       reopenSourceHint: "La búsqueda vuelve a leerla",
       sourceClosed: "Cerrada",
+      openButEnded: (open: number, status: "ended" | "canceled") =>
+        `${open === 1 ? "1 abierta" : `${open} abiertas`}, pero la serie ${status === "ended" ? "terminó" : "se canceló"}`,
+      closedSources: (n: number) => (n === 1 ? "1 cerrada" : `${n} cerradas`),
+      sourceStillOpen: "Abierta",
+      sourceStillOpenHint: (status: "ended" | "canceled") =>
+        `TMDB dice que la serie ${status === "ended" ? "ya terminó" : "se canceló"}: esta fuente no traerá episodios nuevos. Ciérrala con el candado.`,
       sourceFailed: "No se pudo cambiar la fuente.",
       intervalPlaceholder: "Horas entre búsquedas, p. ej. 12",
       hours: "h",
@@ -886,6 +892,12 @@ const en: typeof es = {
       closeSourceHint: "It brings no new episodes: the search stops reading it",
       reopenSourceHint: "The search reads it again",
       sourceClosed: "Closed",
+      openButEnded: (open: number, status: "ended" | "canceled") =>
+        `${open} open, but the show ${status === "ended" ? "has ended" : "was canceled"}`,
+      closedSources: (n: number) => `${n} closed`,
+      sourceStillOpen: "Open",
+      sourceStillOpenHint: (status: "ended" | "canceled") =>
+        `TMDB says the show ${status === "ended" ? "has ended" : "was canceled"}: this source will bring no new episodes. Close it with the padlock.`,
       sourceFailed: "The source could not be changed.",
       intervalPlaceholder: "Hours between searches, e.g. 12",
       hours: "h",

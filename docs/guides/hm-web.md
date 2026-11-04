@@ -16,7 +16,10 @@ adding a series with that one already chosen as "Add to" (`/series/new?into=<id>
 or the part a site is missing. With two or more addresses they fold under a header that counts them
 (and how many are closed); its arrow unfolds them all, in a list that scrolls on its own past four and a half rows. Each address says which season and which episodes it brought (`Season 1, episodes 25 to 37`), and the numbers it skips in between (`Season 3, episodes 1 to 25, without E23` — often TMDB's own numbering, where a double episode takes two numbers), and has a padlock that closes or
 reopens it: a closed source (a finished season) is no longer read when the series looks for new
-episodes.
+episodes. When TMDB says the show has ended or was canceled, a source still open is marked
+`Open` in amber, its padlock stands out and the header says `1 open, but the show has ended`: it
+will bring nothing new, so close it. Its card in the series list shows the open-sources pill in
+amber, with a warning in place of the site's globe.
 
 When adding, leave "Add to" empty to make a new series, or pick one you have to add the address to it.
 For a new series, typing its TMDB id fills in the title, the year and the IMDb id: the server asks

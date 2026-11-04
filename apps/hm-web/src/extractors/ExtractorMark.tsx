@@ -1,16 +1,21 @@
 import type { ExtractorDto } from "@orca/hm-contract";
 import { Globe02Icon, PuzzleIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { cn } from "@/lib/utils";
 import { paletteOf } from "./palette";
 
-/** The extractor's icon on its own gradient, the same on its home card and wherever it is named. */
+/**
+ * The extractor's icon on its own gradient, the same on its home card and wherever it is named.
+ * `icon` swaps the glyph and keeps the gradient: a warning about that site's sources.
+ */
 export function ExtractorMark({
   extractor,
+  icon,
   className,
   iconClassName,
 }: {
   extractor: ExtractorDto;
+  icon?: IconSvgElement;
   className?: string;
   iconClassName?: string;
 }) {
@@ -24,7 +29,7 @@ export function ExtractorMark({
       )}
     >
       <HugeiconsIcon
-        icon={extractor.explicit ? PuzzleIcon : Globe02Icon}
+        icon={icon ?? (extractor.explicit ? PuzzleIcon : Globe02Icon)}
         className={iconClassName}
       />
     </span>

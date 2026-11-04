@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
+  Alert02Icon,
   ArrowUpRight01Icon,
   Cancel01Icon,
   Home01Icon,
@@ -28,9 +29,10 @@ import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { DownloadingBadge } from "@/components/downloading-badge";
-import { AiringChip } from "./AiringChip";
+import { AiringChip, CHIP_HOVER_CARD } from "./AiringChip";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { runningFraction } from "./download-line";
-import { airingHint } from "./airing";
+import { airingHint, finishedStatus } from "./airing";
 
 /** The chips along a tile's top edge, all 24px tall: the open sources' pill sets it with its marks. */
 const CHIP = "flex h-6 items-center rounded-full px-2.5 text-xs font-medium ring-1";
@@ -47,15 +49,17 @@ function useShow(series: SeriesDto) {
   return {
     cover: series.hasPoster ? posterUrl(series.id) : (show?.posterUrl ?? null),
     hint: airingHint(series.follow, show?.status ?? null),
+    ended: finishedStatus(show?.status),
     nextEpisode: show?.nextEpisode ?? null,
   };
 }
 
 /**
  * The sources a series is still read from (the closed ones left out), as a chip in the card's top
- * left corner: each site's mark once, overlapping, and how many there are. Which, on hover.
+ * left corner: each site's mark once, overlapping, and how many there are. Which, on hover. Amber,
+ * with a warning, when TMDB says the show won't air again: those are worth closing.
  */
-function OpenSources({ series }: { series: SeriesDto }) {
+function OpenSources({ series, ended }: { series: SeriesDto; ended: "ended" | "canceled" | null }) {
   const t = useT();
   const api = useApi();
   const extractors = useQuery(queries.extractors(api));
@@ -72,37 +76,70 @@ function OpenSources({ series }: { series: SeriesDto }) {
     }
   }
   const label = t.series.openSources(open.length);
-  const lines = [...sites.entries()].map(
-    ([id, { extractor, count }]) => `${extractor?.name ?? id} · ${count}`,
-  );
+  const warning = ended && t.series.detail.sourceStillOpenHint(ended);
+  const markOf = (id: string, extractor: ExtractorDto | null, icon?: typeof Alert02Icon) =>
+    extractor ? (
+      <ExtractorMark
+        key={id}
+        extractor={extractor}
+        icon={icon}
+        className="size-5 rounded-full ring-white"
+        iconClassName="size-3"
+      />
+    ) : (
+      <span
+        key={id}
+        aria-hidden="true"
+        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-black/10 ring-1 ring-white"
+      >
+        <HugeiconsIcon icon={icon ?? Link01Icon} className="size-3" />
+      </span>
+    );
 
   return (
-    <span
-      title={[label, ...lines].join("\n")}
-      className="flex h-6 shrink-0 items-center gap-1.5 rounded-full bg-white/80 pr-2.5 pl-0.5 text-xs font-medium text-foreground/80 tabular-nums ring-1 ring-black/5"
-    >
-      <span className="sr-only">{label}</span>
-      <span aria-hidden="true" className="flex -space-x-1.5">
-        {[...sites.entries()].map(([id, { extractor }]) =>
-          extractor ? (
-            <ExtractorMark
-              key={id}
-              extractor={extractor}
-              className="size-5 rounded-full ring-white"
-              iconClassName="size-3"
-            />
-          ) : (
-            <span
-              key={id}
-              className="flex size-5 items-center justify-center rounded-full bg-black/10 ring-1 ring-white"
-            >
-              <HugeiconsIcon icon={Link01Icon} className="size-3" />
-            </span>
-          ),
+    <HoverCard>
+      <HoverCardTrigger
+        delay={0}
+        closeDelay={100}
+        render={<span />}
+        className={cn(
+          "flex h-6 shrink-0 cursor-help items-center gap-1.5 rounded-full pr-2.5 pl-0.5 text-xs font-medium tabular-nums ring-1",
+          warning
+            ? "bg-amber-100 text-amber-900 ring-amber-500/40"
+            : "bg-white/80 text-foreground/80 ring-black/5",
         )}
-      </span>
-      <span aria-hidden="true">{open.length}</span>
-    </span>
+      >
+        <span className="sr-only">{warning ? `${label}. ${warning}` : label}</span>
+        <span aria-hidden="true" className="flex -space-x-1.5">
+          {[...sites.entries()].map(([id, { extractor }]) =>
+            markOf(id, extractor, warning ? Alert02Icon : undefined),
+          )}
+        </span>
+        <span aria-hidden="true">{open.length}</span>
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="start" sideOffset={6} className={CHIP_HOVER_CARD}>
+        <p className="font-medium">{label}</p>
+        <ul className="mt-1.5 flex flex-col gap-1.5">
+          {[...sites.entries()].map(([id, { extractor, count }]) => (
+            <li key={id} className="flex items-center gap-2">
+              {markOf(id, extractor)}
+              <span className="min-w-0 flex-1 truncate">{extractor?.name ?? id}</span>
+              <span className="text-muted-foreground tabular-nums">{count}</span>
+            </li>
+          ))}
+        </ul>
+        {warning && (
+          <p className="mt-2 flex gap-1.5 border-t border-(--glass-edge) pt-2 text-amber-900">
+            <HugeiconsIcon
+              icon={Alert02Icon}
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            {warning}
+          </p>
+        )}
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -112,7 +149,7 @@ function OpenSources({ series }: { series: SeriesDto }) {
  */
 function SeriesTile({ series }: { series: SeriesDto }) {
   const t = useT();
-  const { cover, hint, nextEpisode } = useShow(series);
+  const { cover, hint, ended, nextEpisode } = useShow(series);
   const downloading = series.downloadingCount;
 
   return (
@@ -132,7 +169,7 @@ function SeriesTile({ series }: { series: SeriesDto }) {
         </>
       )}
       <div className="absolute inset-x-4 top-4 z-10 flex items-start gap-1.5 sm:inset-x-5 sm:top-5">
-        <OpenSources series={series} />
+        <OpenSources series={series} ended={ended} />
         {(series.follow || hint || downloading > 0) && (
           <p className="flex min-w-0 flex-1 flex-wrap justify-end gap-1.5">
             {hint ? (

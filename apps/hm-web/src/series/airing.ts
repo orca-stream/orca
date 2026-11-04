@@ -12,3 +12,10 @@ export function airingHint(follow: boolean, status: ShowLookupDto["status"]): Ai
   if (!follow && status === "airing") return "airing";
   return null;
 }
+
+/** Whether TMDB says the show won't air again: its open sources will bring nothing new. */
+export function finishedStatus(
+  status: ShowLookupDto["status"] | undefined,
+): "ended" | "canceled" | null {
+  return status === "ended" || status === "canceled" ? status : null;
+}

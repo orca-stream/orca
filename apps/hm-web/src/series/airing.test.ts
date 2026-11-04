@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { airingHint } from "./airing";
+import { airingHint, finishedStatus } from "./airing";
 
 describe("airingHint", () => {
   it("warns of a followed show that ended or was canceled", () => {
@@ -17,5 +17,19 @@ describe("airingHint", () => {
     expect(airingHint(false, "canceled")).toBeNull();
     expect(airingHint(true, null)).toBeNull();
     expect(airingHint(false, null)).toBeNull();
+  });
+});
+
+describe("finishedStatus", () => {
+  it("names a show that won't air again", () => {
+    expect(finishedStatus("ended")).toBe("ended");
+    expect(finishedStatus("canceled")).toBe("canceled");
+  });
+
+  it("says nothing of one airing, between seasons, or unknown", () => {
+    expect(finishedStatus("airing")).toBeNull();
+    expect(finishedStatus("returning")).toBeNull();
+    expect(finishedStatus(null)).toBeNull();
+    expect(finishedStatus(undefined)).toBeNull();
   });
 });

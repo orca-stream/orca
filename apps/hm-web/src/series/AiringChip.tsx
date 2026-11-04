@@ -7,6 +7,10 @@ import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import type { AiringHint } from "./airing";
 
+/** The glass a chip's hover card is made of, on the series cards and the series' own page. */
+export const CHIP_HOVER_CARD =
+  "w-auto max-w-72 rounded-xl border border-(--glass-edge) bg-(--glass-strong) px-3 py-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]";
+
 /**
  * The chip that says following and the show disagree: amber for a followed show that won't air
  * again (it stands in for the "Following" chip), green for one airing that isn't followed. Why, on
@@ -42,11 +46,7 @@ export function AiringChip({
         <HugeiconsIcon icon={ended ? Alert02Icon : LiveStreaming02Icon} className="size-3.5" />
         {copy[hint]}
       </HoverCardTrigger>
-      <HoverCardContent
-        side="top"
-        sideOffset={6}
-        className="w-auto max-w-72 rounded-xl border border-(--glass-edge) bg-(--glass-strong) px-3 py-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]"
-      >
+      <HoverCardContent side="top" sideOffset={6} className={CHIP_HOVER_CARD}>
         <p>{copy.hints[hint]}</p>
         {nextEpisode && (
           <p className="mt-1 font-medium">
