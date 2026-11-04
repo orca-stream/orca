@@ -1,5 +1,5 @@
 import type { EpisodeDto, GuideEpisodeDto, GuideSeasonDto } from "@orca/hm-contract";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { formatBytes, formatDate, formatDuration } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
@@ -642,8 +643,8 @@ function EpisodeCard({
 }
 
 /**
- * The trash over a downloaded episode's frame: there on hover (always on a touch screen), and
- * clicked, it turns into the two ways out, keeping and deleting. Once deleted the episode is
+ * The trash over a downloaded episode's frame: there on hover (always on a touch screen). Clicked,
+ * it asks in a glass card over it, so nothing on the frame moves. Once deleted the episode is
  * missing, and the card drops it.
  */
 function FrameTrash({
@@ -657,43 +658,41 @@ function FrameTrash({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const trash = useRef<HTMLButtonElement>(null);
-  const keep = useRef<HTMLButtonElement>(null);
-  const opened = useRef(false);
-  // Focus follows the swap: onto "keep" as it opens, back onto the trash as it closes.
-  useEffect(() => {
-    if (open) keep.current?.focus();
-    else if (opened.current) trash.current?.focus();
-    opened.current = open;
-  }, [open]);
 
   return (
-    <div
-      role="group"
-      aria-label={t.series.deleteEpisode(code)}
-      // The card picks the episode on a click: deleting it is not picking it.
-      onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && open && !pending) {
-          event.stopPropagation();
-          setOpen(false);
-        }
-      }}
-      className={cn(
-        // Sibling buttons, 8px apart.
-        "ml-auto flex items-center gap-2",
-        !open &&
-          "opacity-0 transition-opacity group-hover/card:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100",
-      )}
-    >
-      {open ? (
-        <>
+    <Popover open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+      <PopoverTrigger
+        aria-label={t.series.deleteEpisode(code)}
+        title={t.series.deleteEpisode(code)}
+        // The card picks the episode on a click: deleting it is not picking it.
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          "ml-auto flex size-10 items-center justify-center rounded-full bg-black/45 text-white shadow-md ring-1 ring-white/30 backdrop-blur-md transition-[opacity,background-color] hover:bg-destructive focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none data-popup-open:bg-destructive",
+          !open &&
+            "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
+        )}
+      >
+        <HugeiconsIcon icon={Delete02Icon} className="size-4.5" />
+      </PopoverTrigger>
+      {/* Clicks inside reach the card through the portal: they mustn't pick the episode. */}
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        onClick={(event) => event.stopPropagation()}
+        className={cn(BAR_POPUP, "w-[min(20rem,var(--available-width))] gap-4 p-4")}
+      >
+        <div className="flex flex-col gap-1">
+          <p className="font-medium">{t.series.deleteEpisode(code)}</p>
+          <p className="text-sm text-muted-foreground">{t.series.deleteEpisodeHint}</p>
+        </div>
+        {/* Sibling buttons, 8px apart. */}
+        <div className="flex justify-end gap-2">
           <button
-            ref={keep}
             type="button"
             disabled={pending}
             onClick={() => setOpen(false)}
-            className="h-10 rounded-full bg-white/90 px-4 text-sm font-medium text-foreground shadow-md backdrop-blur-md transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-50"
+            className="h-10 rounded-full px-4 text-sm font-medium transition-colors hover:bg-white/70 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-50"
           >
             {t.common.cancel}
           </button>
@@ -701,9 +700,8 @@ function FrameTrash({
             type="button"
             disabled={pending}
             aria-busy={pending || undefined}
-            title={t.series.deleteEpisodeHint}
             onClick={onConfirm}
-            className="relative flex h-10 items-center justify-center gap-2 rounded-full bg-destructive px-4 text-sm font-medium text-white shadow-md transition-colors hover:bg-destructive/85 focus-visible:ring-3 focus-visible:ring-destructive/40 focus-visible:outline-none disabled:pointer-events-none"
+            className="relative flex h-10 items-center justify-center gap-2 rounded-full bg-destructive px-4 text-sm font-medium text-white transition-colors hover:bg-destructive/85 focus-visible:ring-3 focus-visible:ring-destructive/40 focus-visible:outline-none disabled:pointer-events-none"
           >
             <span className={cn("inline-flex items-center gap-2", pending && "invisible")}>
               <HugeiconsIcon icon={Delete02Icon} className="size-4" />
@@ -711,19 +709,8 @@ function FrameTrash({
             </span>
             {pending && <Spinner aria-hidden="true" className="absolute size-4" />}
           </button>
-        </>
-      ) : (
-        <button
-          ref={trash}
-          type="button"
-          aria-label={t.series.deleteEpisode(code)}
-          title={t.series.deleteEpisode(code)}
-          onClick={() => setOpen(true)}
-          className="flex size-10 items-center justify-center rounded-full bg-black/45 text-white shadow-md ring-1 ring-white/30 backdrop-blur-md transition-colors hover:bg-destructive focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none"
-        >
-          <HugeiconsIcon icon={Delete02Icon} className="size-4.5" />
-        </button>
-      )}
-    </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

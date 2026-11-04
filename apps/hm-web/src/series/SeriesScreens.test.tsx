@@ -425,10 +425,10 @@ describe("SeriesDetailScreen", () => {
     const deletes = () => view.requests.filter((r) => r.method === "DELETE");
     expect(deletes()).toHaveLength(0);
     // Keeping it closes the question, and the click never picks the episode.
-    await user.click(within(card).getByRole("button", { name: "Cancelar" }));
+    await user.click(await screen.findByRole("button", { name: "Cancelar" }));
     expect(screen.queryByRole("toolbar")).toBeNull();
     await user.click(within(card).getByRole("button", { name: "Borrar el archivo de S01E01" }));
-    await user.click(within(card).getByRole("button", { name: "Borrar" }));
+    await user.click(await screen.findByRole("button", { name: "Borrar" }));
     await waitFor(() =>
       expect(deletes().map((r) => new URL(r.url).pathname)).toEqual([
         "/api/series/s1/episodes/e1/file",
