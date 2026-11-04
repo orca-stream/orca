@@ -129,6 +129,11 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
+  - `"season-api"`: its JSON API, when every season has an address of its own and one answer holds the
+    whole season (details, episodes and players). Give its hosts, the season path (its first group is
+    the season's id in the API), the API's base address and, optionally, the audio tracks to keep, best
+    first (`"tracks": ["sub", "dub"]`; absent, both, original audio first). Paste a season's address,
+    then pick its target season and first episode, as with any other source.
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.
 - Locally, install Playwright's Chromium with

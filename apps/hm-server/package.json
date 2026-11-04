@@ -21,6 +21,7 @@
     "@hono/node-server": "catalog:",
     "@hono/zod-validator": "catalog:",
     "@jellyfin/sdk": "catalog:",
+    "@orca/extractor-season-api": "workspace:*",
     "axios": "catalog:",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:",

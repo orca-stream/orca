@@ -79,5 +79,19 @@
       "decode": "base64",
       "unwrap": "url"
     }
+  },
+  "site-d": {
+    "reads": "season-api",
+    "name": "Site D",
+    "hosts": ["origin.test"],
+    "example": "https://origin.test/ani/11111",
+    "seasonPath": "^/ani/(\\d+)/?$",
+    "api": "https://origin.test/api-prefix/v1",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "tracks": ["sub", "dub"],
+    "limits": {
+      "metadataPerSec": 2,
+      "downloadsPerHost": 1
+    }
   }
 }

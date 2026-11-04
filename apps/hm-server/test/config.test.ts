@@ -146,12 +146,13 @@ describe("the extractors file", () => {
   it("ships an example that is a valid extractors file", async () => {
     const { readFile } = await import("node:fs/promises");
     const example = await readFile(new URL("../extractors.example.json", import.meta.url), "utf8");
-    const { pages, apis } = parseExtractorsFile(example);
+    const { pages, apis, seasonApis } = parseExtractorsFile(example);
     expect(pages.map((site) => [site.id, site.name])).toEqual([
       ["site-a", "Site A"],
       ["site-c", "Site C"],
     ]);
     expect(apis.map((site) => [site.id, site.name])).toEqual([["site-b", "site-b"]]);
+    expect(seasonApis.map((site) => [site.id, site.name])).toEqual([["site-d", "Site D"]]);
   });
 });
 
@@ -170,10 +171,18 @@ describe("parseExtractorsFile", () => {
     showPath: "^/series/([^/]+)$",
     api: "https://other.test/api/",
   };
+  const seasonApi = {
+    reads: "season-api",
+    hosts: ["third.test"],
+    example: "https://third.test/ani/1",
+    seasonPath: "^/ani/(\\d+)$",
+    api: "https://third.test/api/v1/",
+    tracks: ["dub"],
+  };
 
   it("names each site by its key, and reads it the way the entry says", () => {
-    const { pages, apis } = parseExtractorsFile(
-      JSON.stringify({ mine: page, theirs: { ...api, name: "Their site" } }),
+    const { pages, apis, seasonApis } = parseExtractorsFile(
+      JSON.stringify({ mine: page, theirs: { ...api, name: "Their site" }, third: seasonApi }),
     );
     expect(pages).toMatchObject([
       { id: "mine", name: "mine", listing: { episodes: { attribute: "href" } } },
@@ -181,7 +190,11 @@ describe("parseExtractorsFile", () => {
     expect(apis).toMatchObject([
       { id: "theirs", name: "Their site", api: "https://other.test/api" },
     ]);
+    expect(seasonApis).toMatchObject([
+      { id: "third", name: "third", api: "https://third.test/api/v1", tracks: ["dub"] },
+    ]);
     expect(pages[0]).not.toHaveProperty("reads");
+    expect(seasonApis[0]).not.toHaveProperty("reads");
   });
 
   it("lists every problem by where it is", () => {
@@ -190,6 +203,7 @@ describe("parseExtractorsFile", () => {
       mine: { ...page, hosts: ["https://x.test"] },
       theirs: { ...api, showPath: "^/series/[^/]+$" },
       other: { ...page, reads: "rss" },
+      third: { ...seasonApi, tracks: ["latino"] },
     });
     expect(() => parseExtractorsFile(bad)).toThrow(ExtractorsFileError);
     const message = (() => {
@@ -199,7 +213,13 @@ describe("parseExtractorsFile", () => {
         return (error as Error).message;
       }
     })();
-    for (const path of ["Bad Key", "mine.hosts.0", "theirs.showPath", "other.reads"]) {
+    for (const path of [
+      "Bad Key",
+      "mine.hosts.0",
+      "theirs.showPath",
+      "other.reads",
+      "third.tracks.0",
+    ]) {
       expect(message).toContain(path);
     }
   });

@@ -17,6 +17,7 @@
   "dependencies": {
     "@orca/extractor-core": "workspace:*",
     "@orca/extractor-html": "workspace:*",
+    "@orca/extractor-season-api": "workspace:*",
     "@orca/extractor-show-api": "workspace:*",
     "zod": "catalog:"
   },

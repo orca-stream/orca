@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { Agent, fetch as undiciFetch } from "undici";
 import type { SiteExtractor } from "@orca/extractor-core";
 import { createHtmlExtractor } from "@orca/extractor-html";
+import { createSeasonApiExtractor } from "@orca/extractor-season-api";
 import { createShowApiExtractor } from "@orca/extractor-show-api";
 import type { Jellyfin } from "@orca/jellyfin";
 import { FfprobeInspector } from "@orca/media-probe";
@@ -109,6 +110,7 @@ export async function startRuntime(
   if (config.detector) {
     for (const site of sites.pages) extractors.push(createHtmlExtractor({ site, http }));
     for (const site of sites.apis) extractors.push(createShowApiExtractor({ site, http }));
+    for (const site of sites.seasonApis) extractors.push(createSeasonApiExtractor({ site, http }));
   }
   // Everything the browser and ffmpeg fetch goes through this proxy, which checks each address it is
   // asked for (redirects, segments and keys included) and connects to the IP it checked.

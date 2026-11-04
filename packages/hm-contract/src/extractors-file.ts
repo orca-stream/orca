@@ -1,4 +1,5 @@
 import { SiteConfig } from "@orca/extractor-html/site";
+import { SeasonApiSite } from "@orca/extractor-season-api/site";
 import { ShowApiSite } from "@orca/extractor-show-api/site";
 import * as z from "zod";
 
@@ -7,7 +8,8 @@ const Id = z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/, "Lower-case letters, di
 
 /**
  * One entry per site, under the name its owner gives it, saying how the site is read: `page` reads
- * its pages with selectors, `api` asks its JSON API. What follows is that reader's description of it.
+ * its pages with selectors, `api` asks its JSON API for a show and its seasons, `season-api` asks its
+ * JSON API for one season per address. What follows is that reader's description of it.
  */
 const Entry = z.discriminatedUnion("reads", [
   SiteConfig.omit({ id: true, name: true }).extend({
@@ -17,6 +19,10 @@ const Entry = z.discriminatedUnion("reads", [
   }),
   ShowApiSite.omit({ id: true, name: true }).extend({
     reads: z.literal("api"),
+    name: z.string().min(1).max(60).optional(),
+  }),
+  SeasonApiSite.omit({ id: true, name: true }).extend({
+    reads: z.literal("season-api"),
     name: z.string().min(1).max(60).optional(),
   }),
 ]);

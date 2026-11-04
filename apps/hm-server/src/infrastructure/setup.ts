@@ -175,7 +175,7 @@ export class ServerSetup implements SettingsRoutes {
       }
       throw error;
     }
-    const hasSites = sites.pages.length + sites.apis.length > 0;
+    const hasSites = sites.pages.length + sites.apis.length + sites.seasonApis.length > 0;
     if (hasSites && settings.browser === undefined) {
       throw new AppError(
         "bad_request",
@@ -192,7 +192,10 @@ export class ServerSetup implements SettingsRoutes {
       if (previous) {
         const old = parseExtractorsFile(previous.extractors);
         this.runtime = await this.options.start(
-          configFrom(previous.settings, old.pages.length + old.apis.length > 0),
+          configFrom(
+            previous.settings,
+            old.pages.length + old.apis.length + old.seasonApis.length > 0,
+          ),
           old,
         );
       }

@@ -1,4 +1,5 @@
 import type { SiteConfig } from "@orca/extractor-html";
+import type { SeasonApiSite } from "@orca/extractor-season-api";
 import type { ShowApiSite } from "@orca/extractor-show-api";
 import { checkExtractorsFile } from "@orca/hm-contract/extractors-file";
 
@@ -7,6 +8,8 @@ export interface Extractors {
   pages: SiteConfig[];
   /** Sites read through their JSON API (`reads: "api"`). */
   apis: ShowApiSite[];
+  /** Sites whose JSON API answers one season per address (`reads: "season-api"`). */
+  seasonApis: SeasonApiSite[];
 }
 
 export class ExtractorsFileError extends Error {
@@ -30,11 +33,14 @@ export function parseExtractorsFile(json: string): Extractors {
     const lines = problem.issues.map((issue) => `  ${issue.path}: ${issue.message}`);
     throw new ExtractorsFileError(`The extractors file is not valid:\n${lines.join("\n")}`);
   }
-  const extractors: Extractors = { pages: [], apis: [] };
+  const extractors: Extractors = { pages: [], apis: [], seasonApis: [] };
   for (const [id, entry] of Object.entries(checked.file)) {
     if (entry.reads === "page") {
       const { reads: _, name, ...site } = entry;
       extractors.pages.push({ ...site, id, name: name ?? id });
+    } else if (entry.reads === "season-api") {
+      const { reads: _, name, ...site } = entry;
+      extractors.seasonApis.push({ ...site, id, name: name ?? id });
     } else {
       const { reads: _, name, ...site } = entry;
       extractors.apis.push({ ...site, id, name: name ?? id });
