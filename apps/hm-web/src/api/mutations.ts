@@ -3,6 +3,7 @@ import { keys } from "./keys";
 import { useApi } from "./context";
 import type {
   CreateSeriesBody,
+  EpisodeDto,
   JobDto,
   PreviewDto,
   SeriesDto,
@@ -59,6 +60,12 @@ export function useMutations() {
     checkSeries: useMutation({
       mutationFn: (seriesId: string) => api.post<JobDto>(`/series/${id(seriesId)}/check`),
       onSuccess: refreshAll,
+    }),
+    /** The episode stays in the series as missing; only its file goes. */
+    deleteEpisodeFile: useMutation({
+      mutationFn: ({ seriesId, episodeId }: { seriesId: string; episodeId: string }) =>
+        api.delete<EpisodeDto>(`/series/${id(seriesId)}/episodes/${id(episodeId)}/file`),
+      onSettled: refreshAll,
     }),
     downloadSeries: useMutation({
       mutationFn: (seriesId: string) => api.post<JobDto[]>(`/series/${id(seriesId)}/download`),

@@ -200,6 +200,10 @@ const es = {
     downloadMissing: "Descargar los que faltan",
     nothingToDownload: "No hay nada pendiente.",
     retryEpisode: "Reintentar",
+    deleteEpisode: (code: string) => `Borrar el archivo de ${code}`,
+    deleteEpisodeConfirm: "Borrar",
+    deleteEpisodeHint:
+      "Se borra el vídeo con sus subtítulos; el episodio queda «Falta» y se puede volver a descargar.",
     episodeStatus: {
       missing: "Falta",
       queued: "En cola",
@@ -843,6 +847,10 @@ const en: typeof es = {
     downloadMissing: "Download the missing ones",
     nothingToDownload: "Nothing is pending.",
     retryEpisode: "Retry",
+    deleteEpisode: (code: string) => `Delete the file of ${code}`,
+    deleteEpisodeConfirm: "Delete",
+    deleteEpisodeHint:
+      "The video goes with its subtitles; the episode stays as missing and can be downloaded again.",
     episodeStatus: {
       missing: "Missing",
       queued: "Queued",

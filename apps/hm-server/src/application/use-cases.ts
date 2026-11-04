@@ -648,6 +648,39 @@ export function createUseCases(deps: Deps) {
       return episodes.map((episode) => toEpisodeDto(episode, downloads.get(episode.id) ?? null));
     },
 
+    /**
+     * Deletes a downloaded episode's file (and what goes with it) so it can be downloaded again: it
+     * stays in the series as not downloaded, and Jellyfin is told to look.
+     */
+    async deleteEpisodeFile(seriesId: string, episodeId: string): Promise<EpisodeDto> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      const episode = await deps.series.getEpisode(episodeId);
+      if (!episode || episode.seriesId !== seriesId) {
+        throw new AppError("not_found", "No such episode");
+      }
+      if (episode.status !== "available") {
+        throw new AppError("conflict", "Only a downloaded episode can be deleted");
+      }
+      if ((await deps.jobs.activeDownloadJobs([episodeId])).length > 0) {
+        throw new AppError("conflict", "That episode is being downloaded");
+      }
+      await withFolderLock(`series:${seriesId}`, async () => {
+        const result = await deps.library.deleteEpisode(series, episode);
+        if (result === "outside") {
+          throw new AppError(
+            "conflict",
+            "That episode's file is outside the series' folder: delete it from Jellyfin",
+          );
+        }
+        await deps.series.setEpisodeStatus(episodeId, "missing", null);
+      });
+      deps.events.publish({ type: "series.updated", seriesId });
+      await enqueueRefresh(seriesId);
+      const updated = (await deps.series.getEpisode(episodeId)) as Episode;
+      return toEpisodeDto(updated, null);
+    },
+
     async downloadSeries(seriesId: string): Promise<JobDto[]> {
       if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
       const episodes = await deps.series.listEpisodes(seriesId);

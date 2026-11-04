@@ -231,6 +231,8 @@ const detailHandler: Handler = (request) => {
     return jsonResponse(makeSeries({ follow: true }));
   if (url.pathname === "/api/series/s1/episodes") return jsonResponse(EPISODES);
   if (url.pathname === "/api/jobs" && request.method === "POST") return jsonResponse([], 201);
+  if (url.pathname === "/api/series/s1/episodes/e1/file" && request.method === "DELETE")
+    return jsonResponse({ ...EPISODES[0], status: "missing", filePath: null });
   if (url.pathname === "/api/series/s1/check" && request.method === "POST")
     return jsonResponse(makeJob({ kind: "check_series", episodeId: null, episodeCode: null }), 202);
   return jsonResponse({}, 404);
@@ -407,6 +409,32 @@ describe("SeriesDetailScreen", () => {
       }),
     );
     await waitFor(async () => expect(await posted()).toEqual([{ episodeIds: ["e3"] }]));
+  });
+
+  it("deletes a downloaded episode's file only once asked twice, and only on that one", async () => {
+    const user = userEvent.setup();
+    const view = detailSetup();
+    const card = (await screen.findByText("Uno")).closest("article")!;
+    // Only a downloaded episode has a file to delete.
+    expect(
+      within(screen.getByText("Dos").closest("article")!).queryByRole("button", {
+        name: "Borrar el archivo de S01E02",
+      }),
+    ).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Borrar el archivo de S01E01" }));
+    const deletes = () => view.requests.filter((r) => r.method === "DELETE");
+    expect(deletes()).toHaveLength(0);
+    // Keeping it closes the question, and the click never picks the episode.
+    await user.click(within(card).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Borrar el archivo de S01E01" }));
+    await user.click(within(card).getByRole("button", { name: "Borrar" }));
+    await waitFor(() =>
+      expect(deletes().map((r) => new URL(r.url).pathname)).toEqual([
+        "/api/series/s1/episodes/e1/file",
+      ]),
+    );
+    expect(screen.queryByRole("toolbar")).toBeNull();
   });
 
   it("pauses the series' downloads at once, and shows a paused series as such", async () => {

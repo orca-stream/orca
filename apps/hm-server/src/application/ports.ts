@@ -278,6 +278,12 @@ export interface LibraryWriter {
    * no folder yet, "taken" when something already has that name (nothing moves then).
    */
   moveSeries(series: Series, folderName: string): Promise<"moved" | "absent" | "taken">;
+  /**
+   * Deletes an episode's video and what is named after it (subtitles, nfo, thumbnail, trickplay).
+   * "absent" when there is no video to delete; "outside" when its file is not in the series' own
+   * folder (nothing is deleted then). A companion this server is not allowed to delete stays.
+   */
+  deleteEpisode(series: Series, episode: Episode): Promise<"deleted" | "absent" | "outside">;
 }
 
 /** An episode file Jellyfin already has. */

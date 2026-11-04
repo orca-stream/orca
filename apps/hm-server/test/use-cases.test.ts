@@ -585,6 +585,40 @@ describe("downloading (the end-to-end pipeline)", () => {
     await h.queue.cancel(running!.id);
   });
 
+  it("deletes a downloaded episode's file so it can be downloaded again", async () => {
+    const { series } = await addBevhill(h);
+    const [episode, other] = await h.useCases.listEpisodes(series.id);
+    expect(await fails(h.useCases.deleteEpisodeFile(series.id, episode!.id))).toMatchObject({
+      code: "conflict",
+    });
+    await h.useCases.enqueue([episode!.id]);
+    await h.queue.settle();
+    const downloaded = await h.series.getEpisode(episode!.id);
+    expect(downloaded?.status).toBe("available");
+    const video = join(h.root, downloaded!.filePath!);
+    expect(await exists(video)).toBe(true);
+
+    const deleted = await h.useCases.deleteEpisodeFile(series.id, episode!.id);
+    expect(deleted).toMatchObject({ id: episode!.id, status: "missing" });
+    expect(await exists(video)).toBe(false);
+    expect((await h.series.getEpisode(episode!.id))?.filePath).toBeNull();
+    const refresh = await h.jobs.list({ status: ["queued"], limit: 10 });
+    expect(refresh.items.map((job) => job.kind)).toContain("refresh_library");
+    // Of another series, or one that isn't there: nothing to delete.
+    expect(await fails(h.useCases.deleteEpisodeFile("nope", other!.id))).toMatchObject({
+      code: "not_found",
+    });
+    expect(await fails(h.useCases.deleteEpisodeFile(series.id, "nope"))).toMatchObject({
+      code: "not_found",
+    });
+
+    // And it downloads again like any missing one.
+    await h.useCases.enqueue([episode!.id]);
+    await h.queue.settle();
+    expect((await h.series.getEpisode(episode!.id))?.status).toBe("available");
+    expect(await exists(video)).toBe(true);
+  });
+
   it("never runs more downloads than the download limit", async () => {
     await h.cleanup();
     h = await createHarness({ limits: { download: 2 } });

@@ -232,6 +232,28 @@ export class FsLibraryWriter implements LibraryWriter {
     return videos.length === 1 ? toRelative(join(folder, videos[0]!)) : null;
   }
 
+  async deleteEpisode(series: Series, episode: Episode): Promise<"deleted" | "absent" | "outside"> {
+    const relativePath = await this.locateEpisode(series, episode);
+    if (relativePath === null) return "absent";
+    const video = join(this.root, relativePath);
+    if (!isUnder(video, this.seriesPath(series))) return "outside";
+    const folder = dirname(video);
+    const base = basename(video, extname(video));
+    await rm(video, { force: true });
+    for (const name of await readdir(folder).catch(() => [])) {
+      if (companionSuffix(name, base) === null) continue;
+      try {
+        await rm(join(folder, name), { recursive: true, force: true });
+      } catch (error) {
+        // A `.trickplay` folder Jellyfin made 755 is its own to clear; the video is what matters.
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EACCES" && code !== "EPERM") throw error;
+        console.warn(`left ${join(folder, name)} in place: ${code}`);
+      }
+    }
+    return "deleted";
+  }
+
   /**
    * A companion Jellyfin wrote itself can be beyond this server's reach: a `.trickplay` folder it
    * created 755 can't change parent, since that rewrites its `..`. Jellyfin makes those again for the

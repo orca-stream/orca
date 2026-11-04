@@ -198,7 +198,7 @@ export function SeriesDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const series = useQuery(queries.seriesDetail(api, id));
   const episodesQuery = useQuery(queries.episodes(api, id));
-  const { enqueue, checkSeries } = useMutations();
+  const { enqueue, checkSeries, deleteEpisodeFile } = useMutations();
 
   const episodes = episodesQuery.data;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -320,7 +320,7 @@ export function SeriesDetailScreen() {
         absentSeasons={absent}
         missingCount={missing.length}
         busy={bulk}
-        failed={enqueue.isError}
+        failed={enqueue.isError || deleteEpisodeFile.isError}
         onToggle={(episodeId) => setPicked(() => toggleSelected(selection, episodes, episodeId))}
         onToggleSeason={(season, on) => setPicked(() => setSeason(selection, episodes, season, on))}
         onClear={() => setPicked(new Set())}
@@ -338,6 +338,8 @@ export function SeriesDetailScreen() {
             ? (enqueue.variables[0] ?? null)
             : null
         }
+        onDelete={(episodeId) => deleteEpisodeFile.mutate({ seriesId: data.id, episodeId })}
+        deletingId={deleteEpisodeFile.isPending ? deleteEpisodeFile.variables.episodeId : null}
       />
       <Dock label={t.dock.label}>
         <DockPlaces here="series" />

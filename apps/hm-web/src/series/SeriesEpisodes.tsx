@@ -1,10 +1,11 @@
 import type { EpisodeDto, GuideEpisodeDto, GuideSeasonDto } from "@orca/hm-contract";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
   Clock01Icon,
   CloudOffIcon,
+  Delete02Icon,
   Download04Icon,
   PauseIcon,
   RefreshIcon,
@@ -93,6 +94,9 @@ interface SeriesEpisodesProps {
   onDownloadMissing: () => void;
   onRetry: (episodeId: string) => void;
   retryingId: string | null;
+  /** Deletes a downloaded episode's file, so it can be downloaded again. */
+  onDelete?: (episodeId: string) => void;
+  deletingId?: string | null;
 }
 
 /**
@@ -118,6 +122,8 @@ export function SeriesEpisodes({
   onDownloadMissing,
   onRetry,
   retryingId,
+  onDelete,
+  deletingId = null,
 }: SeriesEpisodesProps) {
   const t = useT();
   const [chosen, setChosen] = useState<number | null>(null);
@@ -260,6 +266,8 @@ export function SeriesEpisodes({
                     onToggle={() => onToggle(episode.id)}
                     onRetry={() => onRetry(episode.id)}
                     retrying={retryingId === episode.id}
+                    {...(onDelete ? { onDelete: () => onDelete(episode.id) } : {})}
+                    deleting={deletingId === episode.id}
                   />
                 </li>
               );
@@ -436,6 +444,8 @@ function EpisodeCard({
   onToggle,
   onRetry,
   retrying,
+  onDelete,
+  deleting = false,
 }: {
   episode: EpisodeDto;
   picked: boolean;
@@ -444,6 +454,8 @@ function EpisodeCard({
   onToggle: () => void;
   onRetry: () => void;
   retrying: boolean;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -597,6 +609,7 @@ function EpisodeCard({
               {t.series.retryEpisode}
             </button>
           )}
+          {here && onDelete && <FrameTrash code={code} pending={deleting} onConfirm={onDelete} />}
         </div>
       </div>
 
@@ -625,5 +638,92 @@ function EpisodeCard({
         {overview && <p className="line-clamp-2 text-sm text-foreground/70">{overview}</p>}
       </div>
     </article>
+  );
+}
+
+/**
+ * The trash over a downloaded episode's frame: there on hover (always on a touch screen), and
+ * clicked, it turns into the two ways out, keeping and deleting. Once deleted the episode is
+ * missing, and the card drops it.
+ */
+function FrameTrash({
+  code,
+  pending,
+  onConfirm,
+}: {
+  code: string;
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const trash = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const opened = useRef(false);
+  // Focus follows the swap: onto "keep" as it opens, back onto the trash as it closes.
+  useEffect(() => {
+    if (open) keep.current?.focus();
+    else if (opened.current) trash.current?.focus();
+    opened.current = open;
+  }, [open]);
+
+  return (
+    <div
+      role="group"
+      aria-label={t.series.deleteEpisode(code)}
+      // The card picks the episode on a click: deleting it is not picking it.
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open && !pending) {
+          event.stopPropagation();
+          setOpen(false);
+        }
+      }}
+      className={cn(
+        // Sibling buttons, 8px apart.
+        "ml-auto flex items-center gap-2",
+        !open &&
+          "opacity-0 transition-opacity group-hover/card:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100",
+      )}
+    >
+      {open ? (
+        <>
+          <button
+            ref={keep}
+            type="button"
+            disabled={pending}
+            onClick={() => setOpen(false)}
+            className="h-10 rounded-full bg-white/90 px-4 text-sm font-medium text-foreground shadow-md backdrop-blur-md transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-50"
+          >
+            {t.common.cancel}
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            aria-busy={pending || undefined}
+            title={t.series.deleteEpisodeHint}
+            onClick={onConfirm}
+            className="relative flex h-10 items-center justify-center gap-2 rounded-full bg-destructive px-4 text-sm font-medium text-white shadow-md transition-colors hover:bg-destructive/85 focus-visible:ring-3 focus-visible:ring-destructive/40 focus-visible:outline-none disabled:pointer-events-none"
+          >
+            <span className={cn("inline-flex items-center gap-2", pending && "invisible")}>
+              <HugeiconsIcon icon={Delete02Icon} className="size-4" />
+              {t.series.deleteEpisodeConfirm}
+            </span>
+            {pending && <Spinner aria-hidden="true" className="absolute size-4" />}
+          </button>
+        </>
+      ) : (
+        <button
+          ref={trash}
+          type="button"
+          aria-label={t.series.deleteEpisode(code)}
+          title={t.series.deleteEpisode(code)}
+          onClick={() => setOpen(true)}
+          className="flex size-10 items-center justify-center rounded-full bg-black/45 text-white shadow-md ring-1 ring-white/30 backdrop-blur-md transition-colors hover:bg-destructive focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none"
+        >
+          <HugeiconsIcon icon={Delete02Icon} className="size-4.5" />
+        </button>
+      )}
+    </div>
   );
 }

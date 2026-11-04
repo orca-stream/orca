@@ -271,6 +271,12 @@ export function createApp(deps: AppDeps) {
     c.json(await useCases.listEpisodes(c.req.param("id"))),
   );
 
+  // The episode stays in the series, not downloaded: only its file goes.
+  api.delete("/series/:id/episodes/:episodeId/file", async (c) => {
+    const { id, episodeId } = c.req.param();
+    return c.json(await useCases.deleteEpisodeFile(id, episodeId));
+  });
+
   api.get("/series/:id/poster", async (c) => {
     const path = await useCases.posterOf(c.req.param("id"));
     if (!path)

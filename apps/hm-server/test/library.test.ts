@@ -352,6 +352,45 @@ describe("FsLibraryWriter", () => {
     ]);
   });
 
+  it("deletes an episode's video and what is named after it, and nothing else", async () => {
+    const series = aSeries();
+    const season = join(root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(join(season, "The Beverly Hillbillies S01E04.trickplay", "320 - 10x10"), {
+      recursive: true,
+    });
+    for (const name of [
+      "The Beverly Hillbillies S01E04.mp4",
+      "The Beverly Hillbillies S01E04.eng.srt",
+      "The Beverly Hillbillies S01E04.spa.srt",
+      "The Beverly Hillbillies S01E04.nfo",
+      "The Beverly Hillbillies S01E04-thumb.jpg",
+      "The Beverly Hillbillies S01E14.mp4",
+      "The Beverly Hillbillies S01E14.spa.srt",
+    ])
+      await writeFile(join(season, name), "x");
+    const episode = anEpisode({
+      season: 1,
+      episode: 4,
+      filePath: "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E04.mp4",
+    });
+
+    expect(await writer.deleteEpisode(series, episode)).toBe("deleted");
+    expect((await readdir(season)).sort()).toEqual([
+      "The Beverly Hillbillies S01E14.mp4",
+      "The Beverly Hillbillies S01E14.spa.srt",
+    ]);
+    expect(await writer.deleteEpisode(series, episode)).toBe("absent");
+  });
+
+  it("deletes nothing of an episode whose file is outside the series' folder", async () => {
+    await mkdir(join(root, "Elsewhere"), { recursive: true });
+    await writeFile(join(root, "Elsewhere", "S01E04.mp4"), "x");
+    const episode = anEpisode({ season: 1, episode: 4, filePath: "Elsewhere/S01E04.mp4" });
+
+    expect(await writer.deleteEpisode(aSeries(), episode)).toBe("outside");
+    expect(await readdir(join(root, "Elsewhere"))).toEqual(["S01E04.mp4"]);
+  });
+
   it("finds where an episode's file is now, under any title, or nothing", async () => {
     const series = aSeries();
     const season = join(root, "The Beverly Hillbillies (1962)", "Season 01");
