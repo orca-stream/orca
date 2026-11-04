@@ -195,12 +195,17 @@ export class FakeStreamDetector implements StreamDetector {
   streams: DetectedStream[] = [];
   readonly calls: string[] = [];
   readonly referers: (string | undefined)[] = [];
+  readonly framed: (boolean | undefined)[] = [];
   /** Answers for some pages: their streams, or the error detecting them throws. */
   readonly byPage = new Map<string, DetectedStream[] | Error>();
 
-  async detect(pageUrl: string, options?: { referer?: string }): Promise<DetectedStream[]> {
+  async detect(
+    pageUrl: string,
+    options?: { referer?: string; framed?: boolean },
+  ): Promise<DetectedStream[]> {
     this.calls.push(pageUrl);
     this.referers.push(options?.referer);
+    this.framed.push(options?.framed);
     const answer = this.byPage.get(pageUrl);
     if (answer instanceof Error) throw answer;
     return answer ?? this.streams;

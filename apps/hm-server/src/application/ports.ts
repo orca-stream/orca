@@ -412,10 +412,13 @@ export interface DetectedStream {
 
 /** Finds the media stream a web page plays, with a headless browser. */
 export interface StreamDetector {
-  /** `referer`: the page the player is embedded in, for players that refuse to play elsewhere. */
+  /**
+   * `referer`: the page the player is embedded in, for players that refuse to play elsewhere.
+   * `framed`: the player only plays inside an iframe, so it is opened in one.
+   */
   detect(
     pageUrl: string,
-    options: { signal: AbortSignal; referer?: string },
+    options: { signal: AbortSignal; referer?: string; framed?: boolean },
   ): Promise<DetectedStream[]>;
 }
 

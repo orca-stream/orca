@@ -252,7 +252,8 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
       if (!episode) {
         throw new ExtractorError("not-found", `${site.name} no longer lists episode ${number}`);
       }
-      return playersOf(episode).map((player) => ({ url: player, referer }));
+      // An `embed` is an iframe player: opened on its own, it may send the visitor to the show page.
+      return playersOf(episode).map((player) => ({ url: player, referer, framed: true }));
     },
   };
 }

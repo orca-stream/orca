@@ -54,6 +54,10 @@ export interface RouteLike {
   continue(): Promise<unknown>;
   abort(errorCode?: string): Promise<unknown>;
 }
+/** A request a page route answers itself, without the network. */
+export interface FulfillRouteLike {
+  fulfill(response: { status?: number; contentType?: string; body: string }): Promise<unknown>;
+}
 export interface WebSocketRouteLike {
   url(): string;
   connectToServer(): unknown;
@@ -70,6 +74,8 @@ export interface PageLike {
   ): Promise<unknown>;
   /** Clicks for players that wait for one before they play. Absent in fakes that don't need it. */
   mouse?: { click(x: number, y: number): Promise<unknown> };
+  /** Answers one address of this page locally (the frame a `framed` player is opened in). */
+  route(url: string, handler: (route: FulfillRouteLike) => Promise<void> | void): Promise<unknown>;
 }
 export interface ContextLike {
   newPage(): Promise<PageLike>;
@@ -80,6 +86,8 @@ export interface ContextLike {
 export interface BrowserLike {
   /** Fires when the browser process dies or is closed from outside. */
   on?(event: "disconnected", listener: () => void): unknown;
+  /** Chromium's version (`156.0.7520.0`). Absent in fakes. */
+  version?(): string;
   newContext(options: {
     userAgent?: string;
     serviceWorkers?: "allow" | "block";
@@ -218,6 +226,44 @@ export interface DetectOptions {
   signal: AbortSignal;
   /** Sent as the Referer of the page: players embedded in another site often refuse to play without it. */
   referer?: string;
+  /**
+   * The player only plays inside an iframe (opened on its own it sends the visitor elsewhere): it is
+   * opened in a frame of a page answered locally on the referer's origin, as the site embeds it.
+   */
+  framed?: boolean;
+}
+
+/** The path of the local page a `framed` player is opened in; nothing is ever fetched from it. */
+const FRAME_PATH = "/__orca-player-frame";
+
+const escapeAttribute = (value: string): string =>
+  value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+
+/** A page that is only the player, filling the viewport so the middle click lands on it. Pure. */
+export function framePage(playerUrl: string): string {
+  return (
+    '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;' +
+    "background:#000}iframe{display:block;width:100%;height:100%;border:0}</style></head><body>" +
+    `<iframe src="${escapeAttribute(playerUrl)}" allow="autoplay; fullscreen; encrypted-media" ` +
+    "allowfullscreen></iframe></body></html>"
+  );
+}
+
+const PLATFORM_TOKENS: Readonly<Record<string, string>> = {
+  linux: "X11; Linux x86_64",
+  darwin: "Macintosh; Intel Mac OS X 10_15_7",
+  win32: "Windows NT 10.0; Win64; x64",
+};
+
+/**
+ * The User-Agent of the desktop Chrome of this version, as Chrome itself writes it (minor numbers
+ * zeroed). Headless Chromium's own says `HeadlessChrome`, and some players refuse to play for it
+ * (site-b.example, 2026-11). Pure.
+ */
+export function desktopUserAgent(version: string, platform: string): string {
+  const major = version.split(".")[0] ?? version;
+  const system = PLATFORM_TOKENS[platform] ?? PLATFORM_TOKENS.linux;
+  return `Mozilla/5.0 (${system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
 }
 
 /** Watches what a page requests inside a headless Chromium and returns the streams it found. */
@@ -231,7 +277,10 @@ export class PlaywrightStreamDetector {
     this.semaphore = new Semaphore(options.maxConcurrent);
   }
 
-  async detect(pageUrl: string, { signal, referer }: DetectOptions): Promise<DetectedStream[]> {
+  async detect(
+    pageUrl: string,
+    { signal, referer, framed = false }: DetectOptions,
+  ): Promise<DetectedStream[]> {
     const aborted = () =>
       new StreamDetectionError("aborted", "Stream detection aborted", { cause: signal.reason });
     if (signal.aborted) throw aborted();
@@ -253,8 +302,11 @@ export class PlaywrightStreamDetector {
       const browser = await handle;
       let context: ContextLike;
       try {
+        const userAgent =
+          this.options.userAgent ??
+          (browser.version ? desktopUserAgent(browser.version(), process.platform) : undefined);
         context = await browser.newContext({
-          ...(this.options.userAgent === undefined ? {} : { userAgent: this.options.userAgent }),
+          ...(userAgent === undefined ? {} : { userAgent }),
           // A service worker fetches on its own, outside the context's routing.
           serviceWorkers: "block",
         });
@@ -273,8 +325,13 @@ export class PlaywrightStreamDetector {
         this.forget(handle);
         throw new StreamDetectionError("browser", "The browser could not be confined", { cause });
       }
-      const found = await this.watch(context, closeContext, pageUrl, referer, signal, aborted, () =>
-        this.forget(handle),
+      const found = await this.watch(
+        context,
+        closeContext,
+        { pageUrl, referer, framed },
+        signal,
+        aborted,
+        () => this.forget(handle),
       );
       return pickBest(found).map(({ url, kind, headers }) => ({ url, kind, headers }));
     } finally {
@@ -338,8 +395,7 @@ export class PlaywrightStreamDetector {
   private async watch(
     context: ContextLike,
     closeContext: () => Promise<void>,
-    pageUrl: string,
-    referer: string | undefined,
+    target: { pageUrl: string; referer: string | undefined; framed: boolean },
     signal: AbortSignal,
     aborted: () => StreamDetectionError,
     browserLost: () => void,
@@ -352,6 +408,23 @@ export class PlaywrightStreamDetector {
       throw new StreamDetectionError("browser", "The browser could not open a page", { cause });
     }
     const { timeoutMs, settleMs } = this.options;
+    const { pageUrl, referer, framed } = target;
+    // A framed player is opened inside a local page on the referer's origin (its own, without one).
+    let openUrl = pageUrl;
+    if (framed) {
+      openUrl = new URL(FRAME_PATH, referer ?? pageUrl).href;
+      const body = framePage(pageUrl);
+      try {
+        await page.route(openUrl, async (route) => {
+          await route.fulfill({ contentType: "text/html", body });
+        });
+      } catch (cause) {
+        browserLost();
+        throw new StreamDetectionError("browser", "The browser could not frame the player", {
+          cause,
+        });
+      }
+    }
 
     return new Promise<Candidate[]>((resolve, reject) => {
       const found = new Map<string, Candidate>();
@@ -474,10 +547,11 @@ export class PlaywrightStreamDetector {
 
       const { mouse } = page;
       page
-        .goto(pageUrl, {
+        .goto(openUrl, {
           waitUntil: "domcontentloaded",
           timeout: timeoutMs,
-          ...(referer === undefined ? {} : { referer }),
+          // The frame page stands for the referer itself; the iframe sends it as the player's.
+          ...(referer === undefined || framed ? {} : { referer }),
         })
         .then(() => {
           if (!mouse) return;

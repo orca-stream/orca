@@ -97,6 +97,26 @@ describe("an episode with several players", () => {
     expect(await h.series.getEpisode(episode!.id)).toMatchObject({ status: "available" });
   });
 
+  it("opens in an iframe the players the extractor says only play framed", async () => {
+    await h.cleanup();
+    const framing = {
+      ...site.extractor,
+      resolveMirrors: async (url: string, options?: { signal?: AbortSignal }) =>
+        (await site.extractor.resolveMirrors!(url, options)).map((mirror) => ({
+          ...mirror,
+          framed: true,
+        })),
+    };
+    h = await createHarness({ extractors: [framing] });
+    episodesOn(1, [P1]);
+    await addShow();
+    await h.queue.settle();
+
+    expect(h.detector.calls).toEqual([player(P1, 1)]);
+    expect(h.detector.referers).toEqual([episodeUrl(SLUG, 1)]);
+    expect(h.detector.framed).toEqual([true]);
+  });
+
   it("downloads one at a time per player host, as many at once as there are hosts, taking turns", async () => {
     episodesOn(4, [P1, P2]);
     const release = holdDownloads(4);

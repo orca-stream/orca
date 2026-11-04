@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   buildLaunchOptions,
+  desktopUserAgent,
   launchWithSandboxFallback,
   PlaywrightStreamDetector,
   StreamDetectionError,
   type BrowserLike,
   type ContextLike,
+  type FulfillRouteLike,
   type PageLike,
   type RequestLike,
   type ResponseLike,
@@ -23,6 +25,22 @@ class FakePage implements PageLike {
   clicks: { x: number; y: number }[] = [];
   /** Set to make the page clickable, as a real one is. */
   mouse: PageLike["mouse"];
+  pageRoutes = new Map<string, (route: FulfillRouteLike) => Promise<void> | void>();
+
+  route(url: string, handler: (route: FulfillRouteLike) => Promise<void> | void): Promise<void> {
+    this.pageRoutes.set(url, handler);
+    return Promise.resolve();
+  }
+  /** What the page's own route answers for `url`, as the browser would load it. */
+  async served(url: string): Promise<string | undefined> {
+    let body: string | undefined;
+    await this.pageRoutes.get(url)?.({
+      fulfill: async (response) => {
+        body = response.body;
+      },
+    });
+    return body;
+  }
 
   on(event: "request" | "response" | "popup", listener: Listener): void {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]);
@@ -486,6 +504,30 @@ describe("PlaywrightStreamDetector and what a page can do around the route", () 
     expect(browser.contexts).toHaveLength(1);
     expect(browser.contextOptions).toEqual([{ userAgent: "UA/9", serviceWorkers: "block" }]);
   });
+
+  it("introduces itself as the desktop Chrome of its version when no User-Agent is set", async () => {
+    const browser = Object.assign(new FakeBrowser(), { version: () => "156.0.7520.12" });
+    await detectorWith(browser)
+      .detect("https://site.test/", { signal: noSignal() })
+      .catch(() => null);
+    const [contextOptions] = browser.contextOptions as { userAgent?: string }[];
+    expect(contextOptions?.userAgent).toBe(desktopUserAgent("156.0.7520.12", process.platform));
+    expect(contextOptions?.userAgent).toContain("Chrome/156.0.0.0");
+    expect(contextOptions?.userAgent).not.toContain("Headless");
+  });
+});
+
+describe("desktopUserAgent", () => {
+  it("writes Chrome's User-Agent for each system, with the minor numbers zeroed", () => {
+    expect(desktopUserAgent("156.0.7520.12", "linux")).toBe(
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+    );
+    expect(desktopUserAgent("156.0.7520.12", "win32")).toContain("(Windows NT 10.0; Win64; x64)");
+    expect(desktopUserAgent("156.0.7520.12", "darwin")).toContain(
+      "(Macintosh; Intel Mac OS X 10_15_7)",
+    );
+    expect(desktopUserAgent("156.0.7520.12", "freebsd")).toContain("(X11; Linux x86_64)");
+  });
 });
 
 describe("launchWithSandboxFallback", () => {
@@ -575,6 +617,41 @@ describe("PlaywrightStreamDetector: players embedded in another site", () => {
       referer: "https://site.test/watch/1",
     });
     expect(browser.contexts[0]!.page.gotoReferers).toEqual(["https://site.test/watch/1"]);
+  });
+
+  it("opens a framed player inside a local page on the referer's origin", async () => {
+    const browser = new FakeBrowser();
+    browser.onNewContext = (context) => {
+      context.page.gotoImpl = () => {
+        const { req, res } = manifest();
+        context.page.emit("request", req);
+        context.page.emit("response", res);
+        return Promise.resolve(null);
+      };
+    };
+    const streams = await detectorWith(browser).detect('https://player.test/e/1?a=1&b="2"', {
+      signal: noSignal(),
+      referer: "https://site.test/watch/1",
+      framed: true,
+    });
+    const page = browser.contexts[0]!.page;
+    expect(streams.map((stream) => stream.url)).toEqual(["https://cdn.test/master.m3u8"]);
+    expect(page.gotoCalls).toEqual(["https://site.test/__orca-player-frame"]);
+    // The iframe sends the referer; the frame page itself is opened without one.
+    expect(page.gotoReferers).toEqual([undefined]);
+    expect(await page.served("https://site.test/__orca-player-frame")).toContain(
+      '<iframe src="https://player.test/e/1?a=1&amp;b=&quot;2&quot;"',
+    );
+  });
+
+  it("frames a player on its own origin when nothing embeds it", async () => {
+    const browser = new FakeBrowser();
+    await detectorWith(browser)
+      .detect("https://player.test/e/1", { signal: noSignal(), framed: true })
+      .catch(() => undefined);
+    expect(browser.contexts[0]!.page.gotoCalls).toEqual([
+      "https://player.test/__orca-player-frame",
+    ]);
   });
 
   it("clicks the middle of a player that waits for a click, and closes the ads it opens", async () => {

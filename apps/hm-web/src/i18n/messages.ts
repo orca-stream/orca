@@ -571,7 +571,7 @@ const es = {
       timeout: "Segundos como máximo por página",
       settle: "Segundos de espera tras ver el primer vídeo",
       userAgent: "User-Agent",
-      userAgentPlaceholder: "El de Chromium",
+      userAgentPlaceholder: "El de Chrome de escritorio",
       chromium: "Ruta de Chromium",
       chromiumPlaceholder: "El de Playwright",
     },
@@ -602,7 +602,8 @@ const es = {
         "Si una página no muestra ningún vídeo en este tiempo, se da por fallida y se prueba el siguiente reproductor.",
       settle:
         "Tras ver el primer vídeo, espera esto por si era un anuncio y el episodio llega después.",
-      userAgent: "Cómo se presenta el navegador ante los sitios. Vacío, usa el de Chromium.",
+      userAgent:
+        "Cómo se presenta el navegador ante los sitios. Vacío, como el Chrome de escritorio de su misma versión (nunca «HeadlessChrome», que algunos reproductores rechazan).",
       chromium:
         "Otro Chromium en lugar del que instala Playwright, como /usr/bin/chromium en la imagen Docker.",
     },
@@ -1212,7 +1213,7 @@ const en: typeof es = {
       timeout: "Seconds at most per page",
       settle: "Seconds to wait after the first stream",
       userAgent: "User-Agent",
-      userAgentPlaceholder: "Chromium's own",
+      userAgentPlaceholder: "Desktop Chrome's",
       chromium: "Chromium path",
       chromiumPlaceholder: "Playwright's",
     },
@@ -1242,7 +1243,8 @@ const en: typeof es = {
         "When a page shows no video within this time, it counts as failed and the next player is tried.",
       settle:
         "After the first video shows up, it waits this long in case it was an ad and the episode comes next.",
-      userAgent: "How the browser introduces itself to the sites. Empty: Chromium's own.",
+      userAgent:
+        "How the browser introduces itself to the sites. Empty: as the desktop Chrome of its version (never “HeadlessChrome”, which some players refuse).",
       chromium:
         "Another Chromium instead of the one Playwright installs, such as /usr/bin/chromium in the Docker image.",
     },

@@ -156,6 +156,8 @@ export interface Mirror {
   url: string;
   /** The page the player is embedded in, sent as the Referer when the browser opens it. */
   referer?: string;
+  /** The player only plays inside an iframe: the browser opens it in one, on the referer's origin. */
+  framed?: boolean;
 }
 
 /** The port every site implements. */

@@ -36,7 +36,15 @@ const REFUSED_BY_SERVER = /\b(?:HTTP|returned) 4(?:\d\d|XX)\b/;
 /** A download of an episode with several players: which ones, which one this try uses, which failed. */
 const MirrorPayload = z.object({
   episodeId: z.string(),
-  mirrors: z.array(z.object({ url: z.string(), referer: z.string().optional() })).min(1),
+  mirrors: z
+    .array(
+      z.object({
+        url: z.string(),
+        referer: z.string().optional(),
+        framed: z.boolean().optional(),
+      }),
+    )
+    .min(1),
   mirror: z.number().int().min(0),
   tried: z.array(z.number().int().min(0)),
   /** What each player that failed said, to report once every one has. */
@@ -66,7 +74,7 @@ export function createJobHandler(deps: Deps): JobHandler {
   async function detectStream(
     pageUrl: string,
     signal: AbortSignal,
-    referer?: string,
+    embedding: { referer?: string; framed?: boolean } = {},
   ): Promise<z.infer<typeof ResolvedSource>> {
     if (!deps.detector) {
       throw new PermanentError(
@@ -74,7 +82,11 @@ export function createJobHandler(deps: Deps): JobHandler {
       );
     }
     const stream = (
-      await deps.detector.detect(pageUrl, { signal, ...(referer ? { referer } : {}) })
+      await deps.detector.detect(pageUrl, {
+        signal,
+        ...(embedding.referer ? { referer: embedding.referer } : {}),
+        ...(embedding.framed ? { framed: true } : {}),
+      })
     )[0];
     if (!stream) throw new PermanentError(`No video stream found on ${pageUrl}`);
     const url = await deps.guard.assertUrl(stream.url);
@@ -248,7 +260,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     if (!mirror) throw new PermanentError("The job names a player the episode does not have");
     const host = new URL(mirror.url).hostname;
     try {
-      const found = await detectStream(mirror.url, context.signal, mirror.referer);
+      const found = await detectStream(mirror.url, context.signal, mirror);
       await fetchInto(series, episode, found, context);
     } catch (error) {
       if (context.signal.aborted || error instanceof AbortedError) throw error;

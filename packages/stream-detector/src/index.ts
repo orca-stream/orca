@@ -11,6 +11,7 @@ export {
 } from "./candidates.ts";
 export {
   buildLaunchOptions,
+  desktopUserAgent,
   launchWithSandboxFallback,
   PlaywrightStreamDetector,
   StreamDetectionError,

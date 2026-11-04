@@ -15,7 +15,7 @@ export class PlaywrightDetectorAdapter implements StreamDetector {
 
   async detect(
     pageUrl: string,
-    options: { signal: AbortSignal; referer?: string },
+    options: { signal: AbortSignal; referer?: string; framed?: boolean },
   ): Promise<DetectedStream[]> {
     try {
       return await this.inner.detect(pageUrl, options);

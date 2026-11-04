@@ -55,6 +55,11 @@ const LOCAL_PROBE_TIMEOUT_MS = 60_000;
  * 15–30 s to finish a handshake (player-c), past fetch's own 10 s.
  */
 const DOWNLOAD_CONNECT_TIMEOUT_MS = 60_000;
+/**
+ * OpenSSL's own cipher list, the one curl and ffmpeg offer, instead of Node's: some CDNs behind
+ * Cloudflare answer 403 to Node's TLS handshake alone (player-f.example, 2026-11), whatever the headers.
+ */
+const DOWNLOAD_TLS_CIPHERS = "DEFAULT";
 /** The panel waits on TMDB while a person picks a season. */
 const TMDB_TIMEOUT_MS = 10_000;
 
@@ -100,7 +105,9 @@ export async function startRuntime(
     clock: systemClock,
   });
   const http = new FetchHttpClient({ userAgent: agent, limiter });
-  const downloadDispatcher = new Agent({ connect: { timeout: DOWNLOAD_CONNECT_TIMEOUT_MS } });
+  const downloadDispatcher = new Agent({
+    connect: { timeout: DOWNLOAD_CONNECT_TIMEOUT_MS, ciphers: DOWNLOAD_TLS_CIPHERS },
+  });
   const downloadFetch = ((input, init) =>
     undiciFetch(
       input as never,
