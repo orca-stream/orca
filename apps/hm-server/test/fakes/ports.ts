@@ -87,6 +87,8 @@ export class FakeDownloader implements Downloader {
 
   static hangUntilAborted: DownloadBehavior = (_source, _dest, context) =>
     new Promise<void>((_, reject) => {
+      // The abort may already have fired while an earlier step of the behaviour ran.
+      if (context.signal.aborted) return reject(new AbortedError());
       context.signal.addEventListener("abort", () => reject(new AbortedError()), { once: true });
     });
 }
