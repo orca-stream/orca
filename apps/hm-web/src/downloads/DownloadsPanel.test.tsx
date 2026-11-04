@@ -30,6 +30,8 @@ function handlerFor(world: World): Handler {
       const next = index + 1 < world.history.length ? String(index + 1) : null;
       return page(world.history[index] ?? [], next);
     }
+    if (request.method === "POST" && url.pathname.endsWith("/cancel-queued"))
+      return jsonResponse({ cancelled: 2 });
     if (request.method === "POST" && url.pathname.endsWith("/cancel")) return jsonResponse({});
     if (request.method === "POST" && url.pathname.endsWith("/retry")) return jsonResponse({});
     return jsonResponse({ error: "not_found" }, 404);
@@ -88,6 +90,25 @@ describe("DownloadsPanel", () => {
     );
     await waitFor(() => expect(cancelsSent()).toBe(1));
     expect(requests.find((r) => r.url.endsWith("/cancel"))?.url).toContain("/api/jobs/j1/cancel");
+  });
+
+  it("cancels every queued download at once, only once confirmed", async () => {
+    const user = userEvent.setup();
+    const third = makeJob({ id: "j3", status: "queued", episodeCode: "S01E03", episodeId: "e3" });
+    const { requests } = renderApp(<DownloadsPanel />, {
+      handler: handlerFor({ active: [RUNNING, WAITING, third], failed: [], history: [[]] }),
+    });
+    await screen.findByRole("progressbar");
+    const sent = () => requests.filter((r) => r.url.endsWith("/jobs/cancel-queued")).length;
+
+    await user.click(screen.getByRole("button", { name: "Cancelar todas" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("¿Cancelar las 2 descargas en cola?")).toBeTruthy();
+    expect(sent()).toBe(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar todas" }));
+    await waitFor(() => expect(sent()).toBe(1));
+    expect(requests.filter((r) => r.url.endsWith("/cancel"))).toHaveLength(0);
   });
 
   it("lists failures with their error and retries all the retryable ones, not the permanent", async () => {

@@ -72,6 +72,11 @@ export function useMutations() {
       mutationFn: (jobId: string) => api.post<JobDto>(`/jobs/${id(jobId)}/cancel`),
       onSuccess: refreshAll,
     }),
+    /** Every download still waiting in the queue; the running ones go on. */
+    cancelQueued: useMutation({
+      mutationFn: () => api.post<{ cancelled: number }>("/jobs/cancel-queued"),
+      onSettled: refreshAll,
+    }),
     /** One after another: the server rejects a retry when another job of the same work is active. */
     retryJobs: useMutation({
       mutationFn: async (jobIds: string[]) => {

@@ -353,6 +353,7 @@ Every hour, the middleware re-checks that the user is still an admin, using the 
 | `POST /jobs {episodeIds[]}` / `POST /series/:id/download`                             | Enqueue (deduped).                                                                                                                                 |
 | `GET /jobs?status=&limit=&cursor=`                                                    | History.                                                                                                                                           |
 | `POST /jobs/:id/retry`, `POST /jobs/:id/cancel`                                       |                                                                                                                                                    |
+| `POST /jobs/cancel-queued`                                                            | Cancels every queued download (running ones go on); returns `{ cancelled }`                                                                        |
 | `GET /events`                                                                         | SSE: `job.updated`, `job.progress`, `series.updated`, plus a `ping` every 25 s.                                                                    |
 | `GET /health`                                                                         | Unauthenticated, for Docker `HEALTHCHECK`.                                                                                                         |
 

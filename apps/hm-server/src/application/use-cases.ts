@@ -699,6 +699,27 @@ export function createUseCases(deps: Deps) {
       return (await jobDtos([await deps.canceller.cancel(id)]))[0] as JobDto;
     },
 
+    /**
+     * Cancels every episode download still waiting in the queue, not the ones already running.
+     * Collects them first and cancels after, so cancelling never shifts the pages being read.
+     * Returns how many were cancelled.
+     */
+    async cancelQueuedDownloads(): Promise<{ cancelled: number }> {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await deps.jobs.list({ status: ["queued"], limit: 200, cursor });
+        for (const job of page.items) if (job.kind === "download_episode") ids.push(job.id);
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      let cancelled = 0;
+      for (const id of ids) {
+        const job = await deps.canceller.cancel(id);
+        if (job.status === "cancelled") cancelled += 1;
+      }
+      return { cancelled };
+    },
+
     async listNotifications(limit: number): Promise<NotificationList> {
       const [items, unreadCount] = await Promise.all([
         deps.notificationRepository.list(limit),

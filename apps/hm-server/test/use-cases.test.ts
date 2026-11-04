@@ -564,6 +564,27 @@ describe("downloading (the end-to-end pipeline)", () => {
     expect(await fails(h.useCases.cancelJob("nope"))).toMatchObject({ code: "not_found" });
   });
 
+  it("cancels every queued download at once, leaving the running one alone", async () => {
+    await h.cleanup();
+    h = await createHarness({ limits: { download: 1 } });
+    const { series } = await addBevhill(h);
+    const episodes = await h.useCases.listEpisodes(series.id);
+    h.downloader.once(FakeDownloader.hangUntilAborted);
+    const [running] = await h.useCases.enqueue([episodes[0]!.id]);
+    await h.queue.pump();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await h.jobs.get(running!.id))?.status).toBe("running");
+    const waiting = await h.useCases.enqueue(episodes.slice(1).map((e) => e.id));
+    expect(waiting.length).toBeGreaterThan(0);
+
+    expect(await h.useCases.cancelQueuedDownloads()).toEqual({ cancelled: waiting.length });
+    for (const job of waiting) expect((await h.jobs.get(job.id))?.status).toBe("cancelled");
+    expect((await h.jobs.get(running!.id))?.status).toBe("running");
+    const statuses = (await h.useCases.listEpisodes(series.id)).slice(1).map((e) => e.status);
+    expect(new Set(statuses)).toEqual(new Set(["missing"]));
+    await h.queue.cancel(running!.id);
+  });
+
   it("never runs more downloads than the download limit", async () => {
     await h.cleanup();
     h = await createHarness({ limits: { download: 2 } });

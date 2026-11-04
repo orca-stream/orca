@@ -81,6 +81,12 @@ const es = {
     cancelTitle: (name: string) => `¿Cancelar la descarga de ${name}?`,
     cancelBody: "Se detiene y no se reintentará. Podrás volver a encolarla desde la serie.",
     cancelConfirm: "Cancelar descarga",
+    cancelAll: "Cancelar todas",
+    cancelAllTitle: (n: number) =>
+      n === 1 ? "¿Cancelar la descarga en cola?" : `¿Cancelar las ${n} descargas en cola?`,
+    cancelAllBody:
+      "Las que ya se están descargando siguen. Podrás volver a encolarlas desde cada serie.",
+    cancelAllConfirm: "Cancelar todas",
     retryIn: (wait: string, attempt: number, of: number) =>
       `Reintento en ${wait} (intento ${attempt} de ${of})`,
     attempt: (n: number, of: number) => `Intento ${n} de ${of}`,
@@ -719,6 +725,11 @@ const en: typeof es = {
     cancelTitle: (name: string) => `Cancel the download of ${name}?`,
     cancelBody: "It stops and will not be retried. You can queue it again from the series.",
     cancelConfirm: "Cancel download",
+    cancelAll: "Cancel all",
+    cancelAllTitle: (n: number) =>
+      n === 1 ? "Cancel the queued download?" : `Cancel the ${n} queued downloads?`,
+    cancelAllBody: "The ones already downloading go on. You can queue them again from each series.",
+    cancelAllConfirm: "Cancel all",
     retryIn: (wait: string, attempt: number, of: number) =>
       `Retrying in ${wait} (attempt ${attempt} of ${of})`,
     attempt: (n: number, of: number) => `Attempt ${n} of ${of}`,

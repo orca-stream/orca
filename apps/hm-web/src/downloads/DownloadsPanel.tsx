@@ -105,8 +105,9 @@ export function DownloadsPanel() {
   const active = useQuery(queries.jobsActive(api));
   const failed = useQuery(queries.jobsFailed(api));
   const history = useInfiniteQuery(queries.jobsHistory(api));
-  const { cancelJob, retryJob, retryJobs } = useMutations();
+  const { cancelJob, cancelQueued, retryJob, retryJobs } = useMutations();
   const [toCancel, setToCancel] = useState<JobDto | null>(null);
+  const [cancelAllAsked, setCancelAllAsked] = useState(false);
 
   const { running, queued } = splitActive(
     (active.data ?? []).filter((job) => !isHousekeeping(job)),
@@ -138,7 +139,7 @@ export function DownloadsPanel() {
         </div>
       </header>
 
-      {(cancelJob.isError || retryJob.isError) && (
+      {(cancelJob.isError || cancelQueued.isError || retryJob.isError) && (
         <p role="alert" className="px-2 text-sm text-warning">
           {t.dashboard.actionFailed}
         </p>
@@ -184,7 +185,20 @@ export function DownloadsPanel() {
       )}
 
       {queued.length > 0 && (
-        <Section title={t.dashboard.waiting} count={queued.length}>
+        <Section
+          title={t.dashboard.waiting}
+          count={queued.length}
+          end={
+            <PendingButton
+              variant="ghost"
+              pending={cancelQueued.isPending}
+              onClick={() => setCancelAllAsked(true)}
+              className="text-destructive hover:bg-white hover:text-destructive"
+            >
+              {t.dashboard.cancelAll}
+            </PendingButton>
+          }
+        >
           {queued.map((job, index) => {
             const wait = retryWait(job, now);
             return (
@@ -292,6 +306,20 @@ export function DownloadsPanel() {
         }}
       >
         {t.dashboard.cancelBody}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={cancelAllAsked}
+        destructive
+        title={t.dashboard.cancelAllTitle(queued.length)}
+        confirmLabel={t.dashboard.cancelAllConfirm}
+        onCancel={() => setCancelAllAsked(false)}
+        onConfirm={() => {
+          cancelQueued.mutate();
+          setCancelAllAsked(false);
+        }}
+      >
+        {t.dashboard.cancelAllBody}
       </ConfirmDialog>
     </div>
   );

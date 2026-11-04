@@ -146,6 +146,7 @@ describe("auth", () => {
       ["POST", "/api/jobs"],
       ["POST", "/api/jobs/x/retry"],
       ["POST", "/api/jobs/x/cancel"],
+      ["POST", "/api/jobs/cancel-queued"],
       ["GET", "/api/events"],
       ["GET", "/api/auth/me"],
       ["GET", "/api/settings"],

@@ -302,6 +302,7 @@ export function createApp(deps: AppDeps) {
     return c.json(await useCases.listJobs(c.req.valid("query")));
   });
 
+  api.post("/jobs/cancel-queued", async (c) => c.json(await useCases.cancelQueuedDownloads()));
   api.post("/jobs/:id/retry", async (c) => c.json(await useCases.retryJob(c.req.param("id"))));
   api.post("/jobs/:id/cancel", async (c) => c.json(await useCases.cancelJob(c.req.param("id"))));
 
