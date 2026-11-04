@@ -153,18 +153,25 @@ function SeriesTile({ series }: { series: SeriesDto }) {
   const downloading = series.downloadingCount;
 
   return (
-    <Tile className={cover ? "bg-black/80" : "bg-linear-to-b from-primary/10 to-transparent"}>
+    // The cover and its shade lie under the text (-z-10 in its own stacking context), so nothing in
+    // between needs `relative`: the title's link then covers the whole card, not just its bottom.
+    <Tile
+      className={cn(
+        "isolate",
+        cover ? "bg-black/80" : "bg-linear-to-b from-primary/10 to-transparent",
+      )}
+    >
       {cover && (
         <>
           <img
             src={cover}
             alt=""
             loading="lazy"
-            className="absolute inset-0 size-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover/tile:scale-[1.04]"
+            className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover/tile:scale-[1.04]"
           />
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-linear-to-t from-black/85 via-black/35 via-40% to-transparent to-65%"
+            className="absolute inset-0 -z-10 bg-linear-to-t from-black/85 via-black/35 via-40% to-transparent to-65%"
           />
         </>
       )}
@@ -191,14 +198,14 @@ function SeriesTile({ series }: { series: SeriesDto }) {
           </p>
         )}
       </div>
-      <div className="relative flex flex-1 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         {!cover && (
           <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
             <HugeiconsIcon icon={Tv01Icon} className="size-10" />
           </span>
         )}
       </div>
-      <div className="relative flex items-end gap-2 p-4 sm:gap-3 sm:p-5">
+      <div className="flex items-end gap-2 p-4 sm:gap-3 sm:p-5">
         <div className={cn("min-w-0 flex-1", cover && "text-white")}>
           <h2
             title={series.title}

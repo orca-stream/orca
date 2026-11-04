@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 /**
  * One tile of a grid of cards (home, the series): a 3:4 glass card that lifts on hover. The whole
  * card is one link (its title stretched over it); anything else clickable inside sits above that
- * with `relative z-10`.
+ * with `relative z-10`. Nothing between the link and the card may be `relative`, or the link covers
+ * only that box: layers under the text go `absolute -z-10` in an `isolate` card instead.
  */
 export function Tile({ children, className }: { children?: ReactNode; className?: string }) {
   return (
