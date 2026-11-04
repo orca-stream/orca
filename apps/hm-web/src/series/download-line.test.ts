@@ -26,14 +26,14 @@ describe("downloadLine", () => {
   });
 
   it("says it is still looking before any byte arrives", () => {
-    const episode = makeEpisode({ status: "downloading", player: "player.example" });
-    expect(downloadLine(episode, t, "en")).toBe("player.example · looking for the video…");
+    const episode = makeEpisode({ status: "downloading", player: "player-b.example" });
+    expect(downloadLine(episode, t, "en")).toBe("player-b.example · looking for the video…");
   });
 
   it("names the next player of one waiting, and says nothing of one that just waits", () => {
-    expect(downloadLine(makeEpisode({ status: "queued", player: "player-a.example" }), t, "en")).toBe(
-      "Next: player-a.example",
-    );
+    expect(
+      downloadLine(makeEpisode({ status: "queued", player: "player-a.example" }), t, "en"),
+    ).toBe("Next: player-a.example");
     expect(downloadLine(makeEpisode({ status: "queued" }), t, "en")).toBeNull();
     expect(
       downloadLine(makeEpisode({ status: "available", player: "player-a.example" }), t, "en"),

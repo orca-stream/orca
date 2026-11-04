@@ -30,10 +30,7 @@ beforeEach(async () => {
   h = await createHarness();
   settings = new FakeSettingsRoutes();
   app = build();
-  const login = await app.request(
-    "/api/auth/login",
-    json({ username: "sam", password: "secret" }),
-  );
+  const login = await app.request("/api/auth/login", json({ username: "sam", password: "secret" }));
   cookie = login.headers.get("set-cookie")!.split(";")[0]!;
 });
 afterEach(() => h.cleanup());
@@ -68,10 +65,7 @@ describe("health and the /api prefix", () => {
 
 describe("auth", () => {
   it("sets an HttpOnly, SameSite=Strict cookie on login", async () => {
-    const res = await app.request(
-      "/api/auth/login",
-      json({ username: "sam", password: "secret" }),
-    );
+    const res = await app.request("/api/auth/login", json({ username: "sam", password: "secret" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ userId: "id-sam", userName: "sam" });
     const header = res.headers.get("set-cookie")!;

@@ -34,7 +34,7 @@ Windows-only). The scripts are written to drive a Windows machine (a VM is fine)
 XBOX_BUILD_HOST=<user>@<windows-host> pnpm xbox:build
 ```
 
-Always set `XBOX_BUILD_HOST`; the script's fallback is the maintainer's own VM. The script:
+`XBOX_BUILD_HOST` is required; the script stops without it. The script:
 
 1. builds the web app (`apps/jp/dist`);
 2. copies it and the UWP project to `C:/orca-build/src` on Windows, with the repo's layout;

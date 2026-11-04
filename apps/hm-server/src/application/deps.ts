@@ -51,7 +51,7 @@ export interface Deps {
   sequentialDownloads: boolean;
   /**
    * Hosts whose players are left out of an episode's list before any is tried (SKIP_PLAYERS): those
-   * that never give a stream (player.example decrypts in the page) would only burn the detector's timeout.
+   * that never give a stream (one that decrypts in the page) would only burn the detector's timeout.
    */
   skipPlayers: readonly string[];
   events: EventBus;

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-vm="${XBOX_BUILD_HOST:-user@192.168.122.10}"
+vm="${XBOX_BUILD_HOST:?Set XBOX_BUILD_HOST=<user>@<windows-host>}"
 remote='C:/orca-build/src'
 
 cd "$root"

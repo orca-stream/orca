@@ -403,7 +403,7 @@ export function ChipsRow({
       onValueChange={(next: string[]) => take(next)}
       inputValue={text}
       // Only what is typed: Base UI also empties the text when the list closes, which here happens
-      // as soon as the text stops being a value ("mega." on the way to "player.example").
+      // as soon as the text stops being a value ("player." on the way to "player.example").
       onInputValueChange={(next, details) => {
         if (details.reason === "input-change") setText(next);
       }}

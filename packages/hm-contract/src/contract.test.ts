@@ -427,9 +427,9 @@ describe("Settings", () => {
   });
 
   it("refuses a skipped player given as an address", () => {
-    expect(Settings.safeParse(withDownloads({ skipPlayers: ["https://player.example/"] })).success).toBe(
-      false,
-    );
+    expect(
+      Settings.safeParse(withDownloads({ skipPlayers: ["https://player.example/"] })).success,
+    ).toBe(false);
   });
 
   it("keeps connections within 1 to 16 and the per-host overrides positive", () => {

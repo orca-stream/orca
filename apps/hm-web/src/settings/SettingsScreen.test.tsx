@@ -98,9 +98,9 @@ describe("SettingsScreen", () => {
     const user = userEvent.setup();
     const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
     const players = await screen.findByLabelText("Reproductores que nunca se prueban");
-    // Rubbing out what is typed keeps the rest, even while it is not a host ("mega.").
-    await user.type(players, "player.example{Backspace}{Backspace}");
-    expect((players as HTMLInputElement).value).toBe("mega.");
+    // Rubbing out what is typed keeps the rest, even while it is not a host ("player.").
+    await user.type(players, "player.nz{Backspace}{Backspace}");
+    expect((players as HTMLInputElement).value).toBe("player.");
     await user.clear(players);
     await user.type(players, "https://Player.example/file/x,");
     await user.type(players, "other.example{Enter}");

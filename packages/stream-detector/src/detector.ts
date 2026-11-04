@@ -258,7 +258,7 @@ const PLATFORM_TOKENS: Readonly<Record<string, string>> = {
 /**
  * The User-Agent of the desktop Chrome of this version, as Chrome itself writes it (minor numbers
  * zeroed). Headless Chromium's own says `HeadlessChrome`, and some players refuse to play for it
- * (site-b.example, 2026-11). Pure.
+ * (seen 2026-11). Pure.
  */
 export function desktopUserAgent(version: string, platform: string): string {
   const major = version.split(".")[0] ?? version;

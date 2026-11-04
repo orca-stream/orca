@@ -52,12 +52,12 @@ import { createApp, type SettingsRoutes } from "./web/app.ts";
 const LOCAL_PROBE_TIMEOUT_MS = 60_000;
 /**
  * How long a direct download may take to open a connection, TLS included. Some players' servers take
- * 15–30 s to finish a handshake (player-c), past fetch's own 10 s.
+ * 15–30 s to finish a handshake, past fetch's own 10 s.
  */
 const DOWNLOAD_CONNECT_TIMEOUT_MS = 60_000;
 /**
  * OpenSSL's own cipher list, the one curl and ffmpeg offer, instead of Node's: some CDNs behind
- * Cloudflare answer 403 to Node's TLS handshake alone (player-f.example, 2026-11), whatever the headers.
+ * Cloudflare answer 403 to Node's TLS handshake alone, whatever the headers.
  */
 const DOWNLOAD_TLS_CIPHERS = "DEFAULT";
 /** The panel waits on TMDB while a person picks a season. */

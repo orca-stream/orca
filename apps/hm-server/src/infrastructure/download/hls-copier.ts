@@ -18,7 +18,7 @@ export interface HlsCopierOptions {
   guard: UrlGuard;
   /**
    * How many files are fetched side by side, by the host of the first segment. Players cap each
-   * connection's speed (player-e: 16–80 KB/s each), so one connection takes hours for an episode.
+   * connection's speed (16–80 KB/s each, measured), so one connection takes hours for an episode.
    */
   connectionsFor?: (host: string) => number;
   /** The wait before a file's second try; doubled, tripled… after. Replaced in tests. */

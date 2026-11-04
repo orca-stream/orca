@@ -27,7 +27,7 @@ export interface HttpDownloaderOptions {
   guard: UrlGuard;
   /**
    * How many connections one file is fetched over, by host. Players cap each connection's speed
-   * (player-c: ~160 KB/s each, ~5× with 4), so the file is split in ranges fetched side by side.
+   * (one measured at ~160 KB/s each, ~5× with 4), so the file is split in ranges fetched side by side.
    * 1, or a server that ignores `Range`: a single stream, as before.
    */
   connectionsFor?: (host: string) => number;

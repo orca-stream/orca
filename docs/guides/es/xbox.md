@@ -35,7 +35,7 @@ son exclusivos de Windows). Los scripts manejan una máquina Windows (vale una V
 XBOX_BUILD_HOST=<usuario>@<host-windows> pnpm xbox:build
 ```
 
-Pon siempre `XBOX_BUILD_HOST`; el valor de reserva del script es la VM del propio responsable. El script:
+`XBOX_BUILD_HOST` es obligatorio; sin él el script se detiene. El script:
 
 1. compila la web (`apps/jp/dist`);
 2. la copia junto con el proyecto UWP a `C:/orca-build/src` en Windows, con la estructura del repo;
