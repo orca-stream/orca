@@ -5,15 +5,17 @@ import { SeasonApiSite } from "../src/site.ts";
 
 const ORIGIN = "https://origin.test";
 const API = `${ORIGIN}/api/partner/v1`;
-const SEASON = `${ORIGIN}/ani/11111`;
+/** The pages people browse live on another domain than the API, and name the season inside a slug. */
+const PAGES = "https://another.test";
+const SEASON = `${PAGES}/anime/some-show-11111`;
 const SEASON_API = `${API}/series/11111`;
 
 const siteJson = {
   id: "site-d",
   name: "Site D",
-  hosts: ["origin.test"],
+  hosts: ["another.test"],
   example: SEASON,
-  seasonPath: "^/ani/(\\d+)/?$",
+  seasonPath: "^/anime/[^/]*-(\\d+)/?$",
   api: `${API}/`,
   userAgent: "Mozilla/5.0 test",
 };
@@ -84,10 +86,11 @@ describe("season API extractor: one season per address", () => {
     const extractor = createSeasonApiExtractor({ site, http: fakeApi({}).http });
     expect(extractor.canHandle(SEASON)).toBe(true);
     expect(extractor.canHandle(`${SEASON}/?ref=home#top`)).toBe(true);
-    expect(extractor.canHandle("https://www.origin.test/ani/11111")).toBe(true);
-    expect(extractor.canHandle(`${ORIGIN}/ani/some-show`)).toBe(false);
+    expect(extractor.canHandle("https://www.another.test/anime/some-show-2-11111")).toBe(true);
+    expect(extractor.canHandle(`${PAGES}/anime/some-show`)).toBe(false);
+    expect(extractor.canHandle(`${ORIGIN}/ani/11111`)).toBe(false);
     expect(extractor.canHandle(`${ORIGIN}/embed/ani/11111/1/sub`)).toBe(false);
-    expect(extractor.canHandle("https://other.test/ani/11111")).toBe(false);
+    expect(extractor.canHandle("https://other.test/anime/some-show-11111")).toBe(false);
     expect(extractor.canHandle("not an address")).toBe(false);
   });
 
@@ -127,16 +130,16 @@ describe("season API extractor: one season per address", () => {
     const { http } = fakeApi({ [SEASON_API]: full });
     const subFirst = createSeasonApiExtractor({ site, http });
     expect(await subFirst.resolveMirrors!(`${SEASON_API}?episode=1`)).toEqual([
-      { url: `${ORIGIN}/embed/ani/11111/1/sub`, referer: `${ORIGIN}/` },
-      { url: `${ORIGIN}/embed/ani/11111/1/dub`, referer: `${ORIGIN}/` },
+      { url: `${ORIGIN}/embed/ani/11111/1/sub`, referer: `${PAGES}/` },
+      { url: `${ORIGIN}/embed/ani/11111/1/dub`, referer: `${PAGES}/` },
     ]);
     expect(await subFirst.resolveMirrors!(`${SEASON_API}?episode=3`)).toEqual([
-      { url: `${ORIGIN}/embed/ani/11111/3/sub`, referer: `${ORIGIN}/` },
+      { url: `${ORIGIN}/embed/ani/11111/3/sub`, referer: `${PAGES}/` },
     ]);
 
     const dubOnly = createSeasonApiExtractor({ site: parseSite({ tracks: ["dub"] }), http });
     expect(await dubOnly.resolveMirrors!(`${SEASON_API}?episode=1`)).toEqual([
-      { url: `${ORIGIN}/embed/ani/11111/1/dub`, referer: `${ORIGIN}/` },
+      { url: `${ORIGIN}/embed/ani/11111/1/dub`, referer: `${PAGES}/` },
     ]);
     const dubbed = await dubOnly.extract(SEASON);
     expect(dubbed.episodes.map((e) => e.episode)).toEqual([1, 2, 5]);

@@ -40,6 +40,8 @@ type Episode = SeasonData["episodeList"][number];
 export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptions): SiteExtractor {
   const seasonPath = new RegExp(site.seasonPath);
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
+  // The pages people browse and the API may live on different domains of the same site: the players
+  // are embedded in the pages, and the API's own relative addresses are relative to the API.
   const referer = `${new URL(site.example).origin}/`;
   const tracks = site.tracks ?? ALL_TRACKS;
   const seasonApi = (id: string) => `${site.api}${SEASON_PATH}${encodeURIComponent(id)}`;
@@ -182,7 +184,7 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
           title: data.title ?? data.nativeTitle ?? address.id,
           ...(year !== undefined ? { year } : {}),
           ...(data.synopsis ? { plot: data.synopsis } : {}),
-          ...(data.poster ? { posterUrl: new URL(data.poster, referer).href } : {}),
+          ...(data.poster ? { posterUrl: new URL(data.poster, site.api).href } : {}),
           remoteMarker: markerOf(data),
         },
         seasons: [{ number: SEASON, episodeCount: episodes.length }],

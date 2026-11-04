@@ -136,7 +136,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
   - `"season-api"`: su API JSON, cuando cada temporada tiene su propia dirección y una sola respuesta
     trae la temporada entera (datos, episodios y reproductores). Dale sus hosts, la ruta de una
-    temporada (su primer grupo es el id de la temporada en la API), la dirección base de la API y, si
+    temporada (su primer grupo es el id de la temporada en la API, p. ej. `^/anime/[^/]*-(\\d+)/?$` para
+    `/anime/some-show-11111`), la dirección base de la API (puede estar en otro dominio que las páginas) y, si
     quieres, las pistas de audio que conservar, la mejor primero (`"tracks": ["sub", "dub"]`; sin ella,
     las dos, el audio original primero). Pega la dirección de una temporada y elige su temporada destino
     y su primer episodio, como con cualquier otra fuente.
