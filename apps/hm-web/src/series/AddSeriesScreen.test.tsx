@@ -730,6 +730,47 @@ describe("AddSeriesScreen", () => {
     });
   });
 
+  it("goes on to the next season when the series has the address's season whole", async () => {
+    const user = userEvent.setup();
+    // Season 1 found whole by an earlier source, downloaded or not.
+    const existing = Array.from({ length: 24 }, (_, i) =>
+      makeEpisode({ id: `x${i + 1}`, season: 1, episode: i + 1, status: "missing" }),
+    );
+    const { requests } = setup({
+      series: [makeSeries({ id: "s9", title: "Show", year: 2023, tmdbId: "220542" })],
+      episodesOf: { s9: existing },
+      guide: {
+        seasons: {
+          "220542": [
+            { number: 0, name: "Specials", episodeCount: 1, year: null },
+            { number: 1, name: "Season 1", episodeCount: 24, year: 2023 },
+            { number: 2, name: "Season 2", episodeCount: 24, year: 2025 },
+          ],
+        },
+        episodes: {},
+      },
+    });
+    await previewIt(user);
+    await user.click(screen.getByRole("combobox", { name: "Añadir a" }));
+    await user.click(await screen.findByRole("option", { name: /^Show/ }));
+
+    const season = await screen.findByRole("combobox", { name: "Temporada" }, { timeout: 2000 });
+    await waitFor(() => expect(season.textContent).toContain("Temporada 2"));
+    expect(screen.getByTitle("en el sitio S01E01").textContent).toContain("S02E01");
+    expect(screen.queryByText("Ya la tienes")).toBeNull();
+
+    await user.click(confirmButton());
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === "POST" && new URL(r.url).pathname === "/api/series"),
+      ).toBe(true),
+    );
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series",
+    )!;
+    expect(await post.json()).toMatchObject({ seriesId: "s9", season: 2, firstEpisode: null });
+  });
+
   it("marks what the series' folder already has as files, though the series doesn't know of it", async () => {
     const user = userEvent.setup();
     setup({

@@ -31,7 +31,9 @@ Muscles` queda en `Mashle - Magic and Muscles (2023)/`.
 
 La última fila de la barra es la numeración: la temporada a la que van los episodios y el número que
 toma allí el primer episodio de la dirección (vacíos, se usa la numeración del sitio; al añadir a una
-serie que ya tiene esa temporada, empieza justo tras su último episodio, p. ej. 25 tras 24), y al final cómo
+serie que ya tiene esa temporada, empieza justo tras su último episodio, p. ej. 25 tras 24; y si la
+serie ya tiene esa temporada completa —episodios obtenidos por otra fuente, descargados o no—, la
+temporada pasa sola a la siguiente que le falta, según TMDB), y al final cómo
 quedarán (`S02E13–E24`). Si la serie tiene id de TMDB (el que escribiste para una nueva, o el de la
 serie elegida) y el servidor tiene una clave de TMDB (Ajustes › TMDB), las dos son listas: las temporadas de TMDB y luego
 los episodios de la temporada elegida, en el idioma del panel. Sin tocarlas, muestran lo que da la

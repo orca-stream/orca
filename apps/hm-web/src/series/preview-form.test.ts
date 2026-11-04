@@ -15,6 +15,7 @@ import {
   parseTmdbId,
   matchExtractor,
   nextEpisode,
+  nextOpenSeason,
   nextSpecial,
   parseYear,
   setAdjustment,
@@ -349,6 +350,43 @@ describe("numbering", () => {
     const existing = [{ season: 5, episode: 22 }];
     expect(nextEpisode(existing, 5, 22)).toBeNull();
     expect(nextEpisode(existing, 5, 23)).toBe(23);
+  });
+
+  it("moves an address whose season the series has whole to the next one it hasn't", () => {
+    const seasons = [
+      { number: 0, episodeCount: 4 },
+      { number: 1, episodeCount: 13 },
+      { number: 2, episodeCount: 25 },
+      { number: 3, episodeCount: 25 },
+    ];
+    const s1 = Array.from({ length: 13 }, (_, i) => ({ season: 1, episode: i + 1 }));
+    // Season 1 whole, nothing of 2: the address goes to 2.
+    expect(nextOpenSeason(s1, seasons, 1)).toBe(2);
+    // Season 2 started too: it is continued, not skipped.
+    expect(nextOpenSeason([...s1, { season: 2, episode: 7 }], seasons, 1)).toBe(2);
+    // 1 and 2 whole: 3.
+    expect(nextOpenSeason([...s1, { season: 2, episode: 25 }], seasons, 1)).toBe(3);
+  });
+
+  it("leaves the season alone when the series doesn't have it whole, or has every later one", () => {
+    const seasons = [
+      { number: 1, episodeCount: 13 },
+      { number: 2, episodeCount: 25 },
+    ];
+    expect(nextOpenSeason([], seasons, 1)).toBeNull();
+    expect(nextOpenSeason([{ season: 1, episode: 5 }], seasons, 1)).toBeNull();
+    expect(
+      nextOpenSeason(
+        [
+          { season: 1, episode: 13 },
+          { season: 2, episode: 25 },
+        ],
+        seasons,
+        1,
+      ),
+    ).toBeNull();
+    // A season TMDB doesn't list can't be told complete.
+    expect(nextOpenSeason([{ season: 9, episode: 1 }], seasons, 9)).toBeNull();
   });
 
   it("sums up what a series has, season by season", () => {

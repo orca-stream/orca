@@ -30,7 +30,9 @@ hold are dropped or replaced: `Mashle: Magic and Muscles` lives in `Mashle - Mag
 
 The last row of the bar is the numbering: the season the episodes go to and the number the address's
 first episode gets there (empty keeps the site's own numbers; adding to a series that already has
-that season, it starts right after the last episode there, e.g. 25 after 24), with where they will land at its end
+that season, it starts right after the last episode there, e.g. 25 after 24; and when the series
+already has that season whole — episodes found by an earlier source, downloaded or not — the season
+moves on its own to the next one it lacks, as TMDB lists them), with where they will land at its end
 (`S02E13–E24`). When the show has a TMDB id (typed for a new series, or the one the chosen series has)
 and the server has a TMDB key (Settings › TMDB), both are lists to pick from: TMDB's seasons, then the episodes of
 the season picked, in the panel's language. Left alone, they show what the site's numbering

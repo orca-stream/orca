@@ -227,6 +227,28 @@ export function nextEpisode(
   return length !== undefined && next > length ? null : next;
 }
 
+/**
+ * The season an address goes to when the one it says is already complete in the series: the first
+ * season after it, as TMDB lists them (`seasons`, specials aside), that the series doesn't have
+ * whole — continued after its last episode, or started. Null when the season it says isn't complete
+ * there (nothing to move), or every one after it is.
+ */
+export function nextOpenSeason(
+  existing: readonly Pick<EpisodeDto, "season" | "episode">[],
+  seasons: readonly { number: number; episodeCount: number }[],
+  from: number,
+): number | null {
+  const complete = (season: number, length: number) =>
+    existing.some((episode) => episode.season === season) &&
+    nextEpisode(existing, season, length) === null;
+  const own = seasons.find((season) => season.number === from);
+  if (!own || !complete(own.number, own.episodeCount)) return null;
+  const after = seasons
+    .filter((season) => season.number > from && season.number > 0)
+    .toSorted((a, b) => a.number - b.number);
+  return after.find((season) => !complete(season.number, season.episodeCount))?.number ?? null;
+}
+
 /** The codes the chosen episodes would take that the series already has (or that repeat). */
 export function clashingCodes(
   preview: PreviewDto,

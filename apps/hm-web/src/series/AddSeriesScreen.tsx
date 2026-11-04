@@ -72,6 +72,7 @@ import {
   jellyfinTarget,
   matchExtractor,
   nextEpisode,
+  nextOpenSeason,
   numberer,
   parseSeason,
   shortRanges,
@@ -553,6 +554,31 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
     ...queries.episodes(api, targetSeriesId),
     enabled: targetSeriesId !== "",
   });
+  // Adding to a series that already has the address's season whole (episodes found, downloaded or
+  // not), it goes to the next season the series lacks: a second source after a finished first one
+  // is the season after it. Only for an address of one season and while TMDB lists the seasons;
+  // replaced only while nobody has picked another.
+  const movesTo =
+    form && guided && targetEpisodes.isSuccess && oneSiteSeason !== undefined && siteSeason !== null
+      ? nextOpenSeason(targetEpisodes.data, guide.data, siteSeason)
+      : null;
+  const moveKey =
+    targetSeriesId === ""
+      ? ""
+      : targetEpisodes.isSuccess && (guideTmdbId === "" || !guide.isPending)
+        ? `${targetSeriesId}:${siteSeason ?? ""}:${guided ? guide.data.length : ""}`
+        : null;
+  const [moved, setMoved] = useState<{ key: string; value: string } | null>(null);
+  if (form && moveKey !== null && moveKey !== moved?.key) {
+    const value = movesTo === null ? "" : String(movesTo);
+    const previous = moved?.value;
+    setMoved({ key: moveKey, value });
+    setForm((current) =>
+      current && current.season !== value && (current.season === "" || current.season === previous)
+        ? { ...current, season: value, firstEpisode: "" }
+        : current,
+    );
+  }
   // Adding to a series that has the season already, the numbering starts after its last episode
   // there — unless TMDB says the season has no more; applied while rendering, and replaced only
   // while nobody has picked another number. It waits for TMDB's seasons too, so a length that comes
