@@ -719,10 +719,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                 />
                 <InputGroupAddon align="inline-start" className="cursor-default pl-[15px]">
                   {urlError ? (
-                    <ErrorHint
-                      error={urlError}
-                      className="size-14 bg-white/90 shadow-xs ring-1 ring-destructive/20 hover:bg-white [&_svg]:size-6"
-                    />
+                    <ErrorHint error={urlError} className="size-14 [&_svg]:size-6" />
                   ) : (
                     <ExtractorIndicator extractor={reader} faded={!urlFilled} />
                   )}

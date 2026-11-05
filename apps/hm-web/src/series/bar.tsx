@@ -72,8 +72,9 @@ export const HINT_CARD =
   "w-auto max-w-72 rounded-xl border border-(--glass-edge) bg-(--glass-strong) px-3 py-2 text-sm shadow-[0_16px_48px_-20px_var(--glass-shadow)] ring-0 supports-backdrop-filter:bg-(--glass) supports-backdrop-filter:backdrop-blur-[24px]";
 
 /**
- * What is wrong with a part of the bar, in place of its icon: a red warning that says why on hover,
- * the way every field of the bar does. `className` sizes the warning's round.
+ * What is wrong with a part of the bar, in place of its icon: the same warning icon, white on a red
+ * round that pops in with a ring so it is not missed, and says why on hover, the way every field of
+ * the bar does. `className` sizes the round.
  */
 export function ErrorHint({ error, className }: { error: string; className?: string }) {
   return (
@@ -83,7 +84,7 @@ export function ErrorHint({ error, className }: { error: string; className?: str
         closeDelay={100}
         render={<span />}
         className={cn(
-          "flex size-8 cursor-help items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive/10",
+          "flex size-8 cursor-help items-center justify-center rounded-full bg-destructive text-white transition-colors hover:bg-destructive/85 motion-safe:animate-error-hint",
           className,
         )}
       >
