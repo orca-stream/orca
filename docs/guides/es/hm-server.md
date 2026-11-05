@@ -4,8 +4,8 @@
 
 El servidor Orca'H&M (`apps/hm-server`) recibe la dirección de una serie en un sitio soportado, lista
 sus temporadas y episodios, los descarga (archivos directos, o streams HLS/DASH con ffmpeg) y los
-escribe en una biblioteca de series de Jellyfin con los nombres y archivos `.nfo` que Jellyfin espera;
-después le pide a Jellyfin que la actualice. Puede seguir una serie y bajar los episodios nuevos según
+escribe en una carpeta de series con los nombres y archivos `.nfo` que espera Jellyfin (o Kodi, o
+Emby). Si hay un Jellyfin, después le pide que la actualice; Jellyfin es opcional. Puede seguir una serie y bajar los episodios nuevos según
 aparecen. Expone una API HTTP bajo `/api`, que usa el [panel de administración](hm-web.md).
 
 Fuentes que entiende:
@@ -22,55 +22,69 @@ Descarga solo lo que tengas derecho a descargar.
 
 - Node.js 24 y el repositorio preparado (`pnpm install`).
 - **ffmpeg** y **ffprobe** en el `PATH`.
-- Un servidor **Jellyfin** con una biblioteca de **series**, y el inicio de sesión de uno de sus
-  administradores.
-- Permiso de escritura en la carpeta de esa biblioteca desde donde corre el servidor.
+- Una carpeta para las series en la que el servidor pueda escribir.
+- Opcionalmente, un servidor **Jellyfin** con una biblioteca de **series** sobre esa carpeta, y el
+  inicio de sesión de uno de sus administradores.
 - Para los sitios de un archivo de extractores o el detector genérico: Chromium (ver
   [Navegador](#navegador-archivo-de-extractores-y-detector-genérico)).
 
 ## Primera vez
 
 ```bash
-pnpm setup:hm # pregunta dónde escucha el servidor y dónde guarda su base de datos
 pnpm dev:hm   # arranca el servidor y el panel
 ```
 
-`pnpm setup:hm` hace tres preguntas en la terminal (cada una con una sugerencia que Enter acepta) y
-escribe `apps/hm-server/.env`; el servidor de desarrollo del panel encuentra el servidor en ese mismo
-archivo. Después abre el panel: mientras el servidor no esté configurado,
-cualquier dirección muestra la **configuración**:
+No se pregunta nada en la terminal: sin `apps/hm-server/.env`, el servidor escucha en todas las
+direcciones (también la red local) en el puerto `8787` y guarda su base de datos en
+`apps/hm-server/data/hm.sqlite` (para cambiarlo, ver [Entorno](#entorno)). Abre el panel: mientras el
+servidor no esté configurado, cualquier dirección muestra la **configuración**:
 
-1. **Jellyfin.** Su dirección y el inicio de sesión de un administrador. El servidor se crea allí una API
-   key (con el nombre `Orca'H&M (<equipo>)`, que reutiliza si vuelves a entrar), así que nunca copias una
-   a mano, y lista las bibliotecas de series de Jellyfin para elegir la carpeta. H&M escribe en esa misma
-   ruta: si Jellyfin corre en otro equipo, monta antes aquí su carpeta en esa ruta (ver
-   [Usarlas juntas](together.md), escenario 3).
-2. **Extras.** Una clave de TMDB (opcional) y tu archivo de extractores.
-3. **Descargas.** Descargas, pistas por defecto y el navegador, con valores sugeridos ya puestos.
+1. **Acceso al panel.** Quién entra al panel: un **administrador de Jellyfin**, o el **administrador de
+   H&M**, un usuario y una contraseña que eliges aquí (al menos 8 caracteres), guardada en la base
+   como un hash con sal.
+2. **Jellyfin y la carpeta.** **Usar Jellyfin** es opcional (queda encendido mientras se entre al panel
+   con Jellyfin). Con él: su dirección y el inicio de sesión de un administrador. El servidor se crea
+   allí una API key (con el nombre `Orca'H&M (<equipo>)`, que reutiliza si vuelves a entrar), así que
+   nunca copias una a mano, y lista las bibliotecas de series de Jellyfin para elegir la carpeta. H&M
+   escribe en esa misma ruta: si Jellyfin corre en otro equipo, monta antes aquí su carpeta en esa ruta
+   (ver [Usarlas juntas](together.md), escenario 3). Sin él: la ruta de la carpeta de series en este
+   equipo.
+3. **Extras.** Una clave de TMDB (opcional) y tu archivo de extractores.
+4. **Descargas.** Descargas, pistas por defecto y el navegador, con valores sugeridos ya puestos.
 
-Al terminar entras con esa misma cuenta de administrador. Todo se puede cambiar luego en **Ajustes** del
+Al terminar entras con la cuenta con la que se entra al panel desde ahora. Todo se puede cambiar luego en **Ajustes** del
 panel (el engranaje del dock del inicio, o el menú de la cuenta); la barra de abajo aparece con **Guardar cambios** en cuanto algo cambia (la clave de TMDB se quita desde su papelera, al momento), y guardar reinicia la cola, el
 planificador y los extractores con los ajustes nuevos, y conserva los anteriores si los nuevos no pueden
 funcionar (por ejemplo, una ruta de Chromium que no existe).
 
-**Desde otro equipo.** Si abres el panel desde un teléfono u otro ordenador antes de configurar el
-servidor, te pide un **código** de un solo uso que el servidor muestra en su consola, para que nadie de
-la red local lo configure antes que tú. Desde el propio equipo del servidor no se pide código.
+**Quién lo configura.** Como en la primera vez de Jellyfin, quien abra primero el panel configura el
+servidor, desde cualquier equipo: configúralo en cuanto arranque.
+
+**El acceso, después.** En **Ajustes › Acceso al panel**, cambiar quién entra cierra todas las
+sesiones abiertas (también la tuya: vuelves a entrar con la otra cuenta); pasar al administrador de
+H&M pide crearlo antes, en esa misma sección. **Cambiar contraseña** cierra las demás sesiones del
+administrador y conserva la tuya.
+
+**Sin Jellyfin.** El servidor solo escribe la carpeta: no se actualiza nada, y no hay series de
+Jellyfin a las que añadir una dirección. Un id de TMDB se busca con la clave de TMDB del propio
+servidor, en el idioma del navegador; sin clave, escribe a mano los datos de la serie. Un vídeo que ya
+esté en la carpeta de temporada con su número (`… S01E02.mkv`), puesto a mano, se toma como ese
+episodio y nunca se descarga encima (con o sin Jellyfin).
 
 ## Entorno
 
 H&M es una sola instalación para una sola persona: `apps/hm-server/.env` solo guarda lo que el servidor
-necesita antes de abrir su base de datos; todo lo demás vive en esa base. El servidor carga ese archivo
-si existe; las variables que ya estén en el entorno ganan sobre él. Sin él se usa el entorno tal cual
-(un contenedor). `.env` está en `.gitignore`; `.env.example` es la plantilla.
+necesita antes de abrir su base de datos; todo lo demás vive en esa base. Nada de eso hace falta: lo
+que no esté toma el valor por defecto de abajo. El servidor carga ese archivo si existe; las variables
+que ya estén en el entorno ganan sobre él. `.env` está en `.gitignore`; `.env.example` es la plantilla.
 
-| Variable         | Significado                                                                     |
-| ---------------- | ------------------------------------------------------------------------------- |
-| `DB_FILE`        | Base de datos SQLite, p. ej. `./data/hm.sqlite` (relativa a `apps/hm-server`)   |
-| `HOST`, `PORT`   | Dónde escucha la API, p. ej. `127.0.0.1` y `8787`                               |
-| `WEB_ROOT`       | Opcional: ruta absoluta del panel compilado, servido en el mismo origen         |
-| `SECURE_COOKIES` | Opcional: `true` solo detrás de HTTPS                                           |
-| `DEVICE_ID`      | Opcional: sustituye el id de dispositivo generado una vez y guardado en la base |
+| Variable         | Significado                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `DB_FILE`        | Base de datos SQLite. Por defecto: `apps/hm-server/data/hm.sqlite`; una ruta relativa parte de donde arranca el servidor |
+| `HOST`, `PORT`   | Dónde escucha la API. Por defecto: `0.0.0.0` (todas las direcciones) y `8787`                                            |
+| `WEB_ROOT`       | Opcional: ruta absoluta del panel compilado, servido en el mismo origen                                                  |
+| `SECURE_COOKIES` | Opcional: `true` solo detrás de HTTPS                                                                                    |
+| `DEVICE_ID`      | Opcional: sustituye el id de dispositivo generado una vez y guardado en la base                                          |
 
 ## Ejecutarlo
 
@@ -88,7 +102,8 @@ WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
 ```
 
 La base de datos se crea y migra al arrancar. `GET /health` responde cuando el servidor está listo.
-Entra al panel con una cuenta de **administrador de Jellyfin**; al resto de usuarios se les rechaza.
+Entra al panel con la cuenta que eligió la configuración: un **administrador de Jellyfin** (al resto de
+usuarios de Jellyfin se les rechaza) o el administrador propio de H&M.
 
 ## Docker
 

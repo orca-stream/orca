@@ -5,11 +5,11 @@
 Un sistema de streaming autoalojado alrededor de [Jellyfin](https://jellyfin.org). En este monorepo de
 pnpm viven cuatro apps; cada una funciona por separado y encajan entre sí:
 
-| App                     | Qué es                                                                                                            | Guía                                     |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **Orca'JP** (`apps/jp`) | Cliente de Jellyfin al estilo Netflix: navegador, teléfonos y TV Android, Xbox (y Windows); LG webOS más adelante | [jp](docs/guides/es/jp.md)               |
-| Servidor **Orca'H&M**   | Encuentra series en los sitios que describas, las descarga y las ordena para Jellyfin                             | [hm-server](docs/guides/es/hm-server.md) |
-| Panel **Orca'H&M**      | El panel web de administración del servidor H&M; se entra con una cuenta de administrador de Jellyfin             | [hm-web](docs/guides/es/hm-web.md)       |
+| App                     | Qué es                                                                                                                      | Guía                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Orca'JP** (`apps/jp`) | Cliente de Jellyfin al estilo Netflix: navegador, teléfonos y TV Android, Xbox (y Windows); LG webOS más adelante           | [jp](docs/guides/es/jp.md)               |
+| Servidor **Orca'H&M**   | Encuentra series en los sitios que describas, las descarga y las ordena para Jellyfin                                       | [hm-server](docs/guides/es/hm-server.md) |
+| Panel **Orca'H&M**      | El panel web de administración del servidor H&M; se entra con un administrador de Jellyfin o el administrador propio de H&M | [hm-web](docs/guides/es/hm-web.md)       |
 
 Versiones instalables de Orca'JP: [Android (teléfono y TV)](docs/guides/es/android.md) ·
 [Xbox y Windows](docs/guides/es/xbox.md). Cómo se combinan: [Usarlas juntas](docs/guides/es/together.md).
@@ -32,9 +32,8 @@ pnpm install
 cp apps/jp/.env.example apps/jp/.env      # opcional: lista tus servidores en VITE_JELLYFIN_SERVERS
 pnpm dev                                  # http://localhost:5173
 
-# Orca'H&M (servidor + panel) contra un Jellyfin que ya tengas
-pnpm setup:hm  # pregunta dónde escucha y escribe apps/hm-server/.env
-pnpm dev:hm    # luego abre el panel: te guía con el resto
+# Orca'H&M (servidor + panel), con o sin Jellyfin
+pnpm dev:hm    # luego abre el panel: te guía con la configuración
 ```
 
 ## Scripts (desde la raíz del repositorio)
@@ -43,7 +42,6 @@ pnpm dev:hm    # luego abre el panel: te guía con el resto
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `pnpm dev`                                             | Servidor de desarrollo de Orca'JP con HMR                                           |
 | `pnpm preview`                                         | Sirve la build de producción de Orca'JP                                             |
-| `pnpm setup:hm`                                        | Pregunta en la terminal dónde escucha Orca'H&M y escribe su `.env`                  |
 | `pnpm dev:hm`                                          | Servidor y panel de Orca'H&M juntos, en modo watch                                  |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Íconos, sync y APK de depuración de Android ([guía](docs/guides/es/android.md))     |
 | `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Mosaicos, paquete e instalación en consola de Xbox ([guía](docs/guides/es/xbox.md)) |

@@ -4,8 +4,8 @@
 
 The Orca'H&M server (`apps/hm-server`) takes the address of a show on a supported site, lists its
 seasons and episodes, downloads them (direct files, or HLS/DASH streams through ffmpeg) and writes them
-into a Jellyfin TV library with the names and `.nfo` files Jellyfin expects, then asks Jellyfin to
-refresh. It can follow a series and fetch new episodes as they appear. It exposes an HTTP API under
+into a TV library folder with the names and `.nfo` files Jellyfin (or Kodi, or Emby) expects. With a
+Jellyfin, it then asks Jellyfin to refresh; Jellyfin is optional. It can follow a series and fetch new episodes as they appear. It exposes an HTTP API under
 `/api`, used by the [admin panel](hm-web.md).
 
 Sources it understands:
@@ -22,52 +22,68 @@ Only download what you have the right to download.
 
 - Node.js 24 and the repo set up (`pnpm install`).
 - **ffmpeg** and **ffprobe** on the `PATH`.
-- A **Jellyfin** server with a **TV shows** library, and the sign-in of one of its administrators.
-- Write access to that library's folder from where the server runs.
+- A folder for the shows the server can write to.
+- Optionally, a **Jellyfin** server with a **TV shows** library on that folder, and the sign-in of one
+  of its administrators.
 - For the sites of an extractors file or the generic detector: Chromium (see
   [Browser](#browser-extractors-file-and-generic-detector)).
 
 ## First run
 
 ```bash
-pnpm setup:hm # asks where the server listens and keeps its database
 pnpm dev:hm   # starts the server and the panel
 ```
 
-`pnpm setup:hm` asks three things in the terminal (each with a suggestion that Enter takes) and writes
-`apps/hm-server/.env`; the panel's dev server finds the server from that same file.
-Then open the panel: until the server is set up, every address shows the **setup**:
+Nothing is asked in the terminal: without an `apps/hm-server/.env` the server listens on every
+address (the LAN too) on port `8787` and keeps its database in `apps/hm-server/data/hm.sqlite` (see
+[Environment](#environment) to change that). Open the panel: until the server is set up, every address
+shows the **setup**:
 
-1. **Jellyfin.** Its address and an administrator's sign-in. The server makes itself an API key there
-   (named `Orca'H&M (<machine>)`, reused if you sign in again), so you never copy one by hand, and lists
-   Jellyfin's show libraries to pick the folder from. H&M writes to that same path, so if Jellyfin runs on
-   another machine, mount its folder here at that path first (see [Together](together.md), scenario 3).
-2. **Extras.** A TMDB key (optional) and your extractors file.
-3. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
+1. **Panel access.** Who signs in to the panel: a **Jellyfin administrator**, or **H&M's own
+   administrator**, a name and a password you choose here (at least 8 characters), kept in the
+   database as a salted hash.
+2. **Jellyfin and the folder.** **Use Jellyfin** is optional (it stays on while the panel signs in with
+   Jellyfin). With it: its address and an administrator's sign-in. The server makes itself an API key
+   there (named `Orca'H&M (<machine>)`, reused if you sign in again), so you never copy one by hand, and
+   lists Jellyfin's show libraries to pick the folder from. H&M writes to that same path, so if Jellyfin
+   runs on another machine, mount its folder here at that path first (see [Together](together.md),
+   scenario 3). Without it: the path of the shows folder on this machine.
+3. **Extras.** A TMDB key (optional) and your extractors file.
+4. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
 
-When you finish, you are signed in with that same administrator account. Everything can be changed
+When you finish, you are signed in with the account the panel now uses. Everything can be changed
 later in the panel's **Settings** (the gear in the home dock, or the account menu); the bar at the bottom appears with **Save changes** once something changes (the TMDB key is removed from its trash, at once), and saving restarts the
 queue, the scheduler and the extractors with the new settings, and keeps the old ones when the new ones
 cannot run (a Chromium path that is not there, say).
 
-**From another device.** Opening the panel from a phone or another computer before the server is set up
-asks for a one-time **code** the server prints in its console, so nobody on the LAN can set it up first.
-From the server's own machine no code is asked.
+**Who sets it up.** As with Jellyfin's own first run, whoever opens the panel first sets the server up,
+from any device: set it up as soon as it starts.
+
+**Panel access, later.** In **Settings › Panel access**, changing who signs in ends every open session
+(yours too: you sign in again with the other account); switching to H&M's administrator needs it
+created first, from that same section. **Change password** ends the administrator's other sessions and
+keeps yours.
+
+**Without Jellyfin.** The server only writes the folder: nothing is refreshed, and there is no Jellyfin
+show to add an address to. A TMDB id is looked up with the server's own TMDB key, in the browser's
+language; without a key, type the show's details by hand. A video already in the series' season
+folder under its number (`… S01E02.mkv`), put there by hand, is taken as that episode and never
+downloaded over (with or without Jellyfin).
 
 ## Environment
 
 H&M is one installation for one person: `apps/hm-server/.env` only holds what the server needs before
-it can open its database; everything else lives in that database. The server loads that file when it
-is there; variables already in the environment win over it. Without it the environment is used as is
-(a container). `.env` is gitignored; `.env.example` is the template.
+it can open its database; everything else lives in that database. None of it is needed: what is left
+out takes the default below. The server loads that file when it is there; variables already in the
+environment win over it. `.env` is gitignored; `.env.example` is the template.
 
-| Variable         | Meaning                                                                   |
-| ---------------- | ------------------------------------------------------------------------- |
-| `DB_FILE`        | SQLite database, e.g. `./data/hm.sqlite` (relative to `apps/hm-server`)   |
-| `HOST`, `PORT`   | Where the API listens, e.g. `127.0.0.1` and `8787`                        |
-| `WEB_ROOT`       | Optional: absolute path of the built panel, served on the same origin     |
-| `SECURE_COOKIES` | Optional: `true` only behind HTTPS                                        |
-| `DEVICE_ID`      | Optional: overrides the device id generated once and kept in the database |
+| Variable         | Meaning                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| `DB_FILE`        | SQLite database. Default: `apps/hm-server/data/hm.sqlite`; a relative path is from where the server starts |
+| `HOST`, `PORT`   | Where the API listens. Default: `0.0.0.0` (every address) and `8787`                                       |
+| `WEB_ROOT`       | Optional: absolute path of the built panel, served on the same origin                                      |
+| `SECURE_COOKIES` | Optional: `true` only behind HTTPS                                                                         |
+| `DEVICE_ID`      | Optional: overrides the device id generated once and kept in the database                                  |
 
 ## Run it
 
@@ -85,7 +101,8 @@ WEB_ROOT="$PWD/apps/hm-web/dist" pnpm --filter @orca/hm-server start
 ```
 
 The database is created and migrated on start. `GET /health` answers when the server is up. Sign in to
-the panel with a **Jellyfin administrator** account; other Jellyfin users are refused.
+the panel with the account the setup chose: a **Jellyfin administrator** (other Jellyfin users are
+refused) or H&M's own administrator.
 
 ## Docker
 

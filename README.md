@@ -9,7 +9,7 @@ pnpm monorepo; each one runs on its own, and they fit together:
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | **Orca'JP** (`apps/jp`) | A Netflix-style Jellyfin client: browser, Android phones and Android TV, Xbox (and Windows), LG webOS later | [jp](docs/guides/jp.md)               |
 | **Orca'H&M** server     | Finds shows on the sites you describe, downloads them and files them for Jellyfin                           | [hm-server](docs/guides/hm-server.md) |
-| **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator account                     | [hm-web](docs/guides/hm-web.md)       |
+| **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator or H&M's own administrator  | [hm-web](docs/guides/hm-web.md)       |
 
 Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
 [Xbox and Windows](docs/guides/xbox.md). How the pieces combine: [Running them together](docs/guides/together.md).
@@ -32,9 +32,8 @@ pnpm install
 cp apps/jp/.env.example apps/jp/.env      # optional: list your Jellyfin servers in VITE_JELLYFIN_SERVERS
 pnpm dev                                  # http://localhost:5173
 
-# Orca'H&M (server + panel) against a Jellyfin you already have
-pnpm setup:hm  # asks where it listens, writes apps/hm-server/.env
-pnpm dev:hm    # then open the panel: it walks you through the rest
+# Orca'H&M (server + panel), with or without a Jellyfin
+pnpm dev:hm    # then open the panel: it walks you through the setup
 ```
 
 ## Scripts (from the repository root)
@@ -43,7 +42,6 @@ pnpm dev:hm    # then open the panel: it walks you through the rest
 | ------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `pnpm dev`                                             | Orca'JP dev server with HMR                                              |
 | `pnpm preview`                                         | Serves Orca'JP's production build                                        |
-| `pnpm setup:hm`                                        | Asks where Orca'H&M listens in the terminal and writes its `.env`        |
 | `pnpm dev:hm`                                          | Orca'H&M server and panel together, in watch mode                        |
 | `pnpm android:assets` / `android:sync` / `android:apk` | Android icons, sync, debug APK ([guide](docs/guides/android.md))         |
 | `pnpm xbox:assets` / `xbox:build` / `xbox:deploy`      | Xbox tiles, package, install on a console ([guide](docs/guides/xbox.md)) |

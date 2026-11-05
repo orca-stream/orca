@@ -120,14 +120,16 @@ aired and no source brings are listed there too, and counted in it; the season p
 well (their count in amber, against TMDB's episodes), and picking one shows all its episodes as gaps.
 
 It has no backend of its own: it always talks to an H&M server on the **same origin**, under `/api`.
-Sign in with a **Jellyfin administrator** account of the Jellyfin that server uses.
+Sign in with the account the server's setup chose: a **Jellyfin administrator** of the Jellyfin that
+server uses, or H&M's own administrator (**Settings › Panel access**).
 
 ## In development
 
 The Vite dev server proxies `/api` to the H&M server, so the browser sees one origin and the session
 cookie works.
 
-It proxies to the `HOST` and `PORT` of `apps/hm-server/.env` (what `pnpm setup:hm` writes). Only for a
+It proxies to the `HOST` and `PORT` of `apps/hm-server/.env`, or to the server's defaults (port `8787`)
+when that file says nothing. Only for a
 server that runs elsewhere, copy `apps/hm-web/.env.example` to `apps/hm-web/.env`:
 
 | Variable        | Meaning                                                                                      |

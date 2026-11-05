@@ -16,15 +16,17 @@ Cada app funciona por su cuenta. Así se conectan:
 
 - **Orca'JP** solo habla con Jellyfin. Nunca habla con Orca'H&M.
 - **Orca'H&M** escribe en una biblioteca de series de Jellyfin y llama a la API de Jellyfin para
-  actualizarla. Su panel se entra con cuentas de administrador de Jellyfin.
+  actualizarla. Su panel se entra con cuentas de administrador de Jellyfin, o con el administrador
+  propio de H&M. Sin Jellyfin solo llena una carpeta (Orca'JP entonces no tiene nada que mostrar: se ve
+  con Kodi u otro reproductor que lea archivos `.nfo`).
 
 ## Escenario 1 — todo en un ordenador
 
 Jellyfin instalado en esta máquina.
 
 1. En Jellyfin, crea una biblioteca de **Series** sobre una carpeta (p. ej. `/srv/media/tv`).
-2. `pnpm setup:hm` (escribe `apps/hm-server/.env`) y luego `pnpm dev:hm`.
-3. Abre el panel y sigue la configuración: la dirección de Jellyfin (`http://127.0.0.1:8096`) y el inicio
+2. `pnpm dev:hm` (no hace falta `.env`: el servidor escucha en el puerto `8787`).
+3. Abre el panel y sigue la configuración: quién entra, después la dirección de Jellyfin (`http://127.0.0.1:8096`) y el inicio
    de sesión de un administrador, después la carpeta de esa biblioteca («Jellyfin está en este mismo
    equipo»). Al final te deja dentro; agrega una serie.
 4. `apps/jp/.env`: `VITE_JELLYFIN_SERVERS=http://127.0.0.1:8096`; `pnpm dev`, entra y a ver.
@@ -48,7 +50,7 @@ El usuario que ejecuta H&M necesita escribir en la carpeta de la biblioteca, y J
    dentro de su contenedor): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv` y luego
    `sshfs <usuario>@<servidor>:/srv/media/tv /media/tv -o reconnect`. Por ahora el panel usa una sola
    carpeta para los dos, así que H&M escribe donde Jellyfin lee.
-2. `pnpm setup:hm` y luego `pnpm dev:hm`.
+2. `pnpm dev:hm`.
 3. En la configuración del panel: `http://<servidor>:8096` y el inicio de sesión de un administrador;
    elige la biblioteca.
 
@@ -61,4 +63,5 @@ propia base de datos y los dos descargarían los mismos episodios.
 - Página `https` y Jellyfin por `http://`: contenido mixto (ver [la guía del cliente](jp.md#compilar-y-alojar)).
 - H&M descarga pero Jellyfin no muestra nada: la carpeta «como la ve Jellyfin» (Ajustes › Carpeta de
   series) tiene que estar dentro de una biblioteca de series; revisa los permisos de los archivos.
-- El panel dice que la cuenta no tiene permiso: solo pueden entrar administradores de Jellyfin.
+- El panel dice que la cuenta no tiene permiso: solo pueden entrar administradores de Jellyfin (o, si el
+  panel se entra con el administrador propio de H&M, solo ese).

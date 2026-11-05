@@ -125,14 +125,16 @@ enteras que TMDB da por emitidas y ninguna fuente trae; el selector de temporada
 cuenta en ámbar, contra los episodios de TMDB) y al elegir una se ven todos sus episodios como huecos.
 
 No tiene backend propio: siempre habla con un servidor H&M en el **mismo origen**, bajo `/api`. Se entra
-con una cuenta de **administrador de Jellyfin** del Jellyfin que usa ese servidor.
+con la cuenta que eligió la configuración del servidor: un **administrador de Jellyfin** del Jellyfin
+que usa ese servidor, o el administrador propio de H&M (**Ajustes › Acceso al panel**).
 
 ## En desarrollo
 
 El servidor de desarrollo de Vite hace de proxy de `/api` hacia el servidor H&M, así el navegador ve un
 solo origen y la cookie de sesión funciona.
 
-Va al `HOST` y `PORT` de `apps/hm-server/.env` (lo que escribe `pnpm setup:hm`). Solo para un servidor
+Va al `HOST` y `PORT` de `apps/hm-server/.env`, o a los valores por defecto del servidor (puerto
+`8787`) si ese archivo no dice nada. Solo para un servidor
 que corre en otro sitio, copia `apps/hm-web/.env.example` a `apps/hm-web/.env`:
 
 | Variable        | Significado                                                                                   |

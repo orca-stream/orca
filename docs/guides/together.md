@@ -16,15 +16,17 @@ Each app runs on its own. This is how they connect:
 
 - **Orca'JP** talks only to Jellyfin. It never talks to Orca'H&M.
 - **Orca'H&M** writes into a Jellyfin TV library and calls Jellyfin's API to refresh it. Its panel signs
-  in with Jellyfin administrator accounts.
+  in with Jellyfin administrator accounts, or with H&M's own administrator. Without Jellyfin it only
+  fills a folder (Orca'JP then has nothing to show: watch it with Kodi or another player that reads
+  `.nfo` files).
 
 ## Scenario 1 — everything on one computer
 
 Jellyfin installed on this machine.
 
 1. In Jellyfin, create a **TV shows** library on a folder (e.g. `/srv/media/tv`).
-2. `pnpm setup:hm` (it writes `apps/hm-server/.env`), then `pnpm dev:hm`.
-3. Open the panel and follow the setup: Jellyfin's address (`http://127.0.0.1:8096`) and an
+2. `pnpm dev:hm` (no `.env` needed: the server listens on port `8787`).
+3. Open the panel and follow the setup: who signs in, then Jellyfin's address (`http://127.0.0.1:8096`) and an
    administrator's sign-in, then that library's folder. It signs
    you in at the end; add a series.
 4. `apps/jp/.env`: `VITE_JELLYFIN_SERVERS=http://127.0.0.1:8096`; `pnpm dev`, sign in and watch.
@@ -48,7 +50,7 @@ Useful to work on H&M with hot reload against the real library.
    container): `sudo mkdir -p /media/tv && sudo chown $USER /media/tv`, then
    `sshfs <user>@<server>:/srv/media/tv /media/tv -o reconnect`. The panel takes one folder for both
    for now, so H&M writes where Jellyfin reads.
-2. `pnpm setup:hm`, then `pnpm dev:hm`.
+2. `pnpm dev:hm`.
 3. In the panel's setup: `http://<server>:8096` and an administrator's sign-in; pick the library.
 
 Don't run this and an H&M deployed on the server against the same library at the same time: each keeps its
@@ -60,4 +62,5 @@ own database and both would download the same episodes.
 - An https page and an `http://` Jellyfin: mixed content (see [the client guide](jp.md#build-and-host-it)).
 - H&M downloads but Jellyfin shows nothing: the folder "as Jellyfin sees it" (Settings › Shows folder)
   must be inside a TV library; check file permissions.
-- The panel says the account is not allowed: only Jellyfin administrators can sign in.
+- The panel says the account is not allowed: only Jellyfin administrators can sign in (or, when the
+  panel signs in with H&M's own administrator, only that one).
