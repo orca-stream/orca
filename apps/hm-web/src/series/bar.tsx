@@ -44,6 +44,14 @@ export const PILL_BUTTON =
   "flex h-12 shrink-0 items-center gap-2 rounded-full px-5 text-sm font-medium transition-colors focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
 export const PRIMARY = "bg-primary text-primary-foreground shadow-xs hover:bg-primary/85";
 export const SECONDARY = "bg-white/70 ring-1 ring-black/5 hover:bg-white";
+/** Two lists that belong together (a season and its source) as one pill split in halves. */
+export const SPLIT_PILL =
+  "flex h-12 min-w-0 items-center rounded-full bg-white/55 ring-1 ring-black/5";
+/**
+ * A half of a `SPLIT_PILL`: the pill draws the glass and the edge, the half only its hover. A shade,
+ * not white: over the near-white pill, white would not tell one half from the other.
+ */
+export const SPLIT_HALF = "bg-transparent ring-0 hover:bg-black/6 data-popup-open:bg-black/6";
 
 /*
  * The one spacing of every panel: 16px from its edges to whatever is in it (icons, circles, buttons,

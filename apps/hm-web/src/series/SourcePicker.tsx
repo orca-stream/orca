@@ -240,11 +240,14 @@ export function PreferredSourceSelect({
   episodes,
   season,
   onFailed,
+  className,
 }: {
   series: SeriesDto;
   episodes: readonly EpisodeDto[];
   season: number;
   onFailed: () => void;
+  /** Merged into the trigger's, as the half of a pill shared with the season. */
+  className?: string;
 }) {
   const t = useT();
   const { patchSeries } = useMutations();
@@ -276,7 +279,10 @@ export function PreferredSourceSelect({
       <SelectTrigger
         aria-label={t.series.preferredSource(season)}
         title={preferred ? t.series.preferredHint(season) : t.series.preferredSource(season)}
-        className="h-12 max-w-48 gap-2 rounded-full border-0 bg-white/55 pr-5 pl-1 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white"
+        className={cn(
+          "h-12 max-w-48 gap-2 rounded-full border-0 bg-white/55 pr-5 pl-1 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white",
+          className,
+        )}
       >
         <SelectValue>
           {() =>

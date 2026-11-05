@@ -4,6 +4,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
   ArrowDataTransferHorizontalIcon,
+  Cancel01Icon,
   Clock01Icon,
   CloudOffIcon,
   Delete02Icon,
@@ -28,7 +29,16 @@ import { useLocale, useT } from "@/i18n/locale";
 import { toPercent } from "@/lib/percent";
 import { useRetryingImage } from "@/lib/retrying-image";
 import { cn } from "@/lib/utils";
-import { BAR_POPUP, GLASS_PANEL, ISLAND, PILL_BUTTON, PRIMARY, SECONDARY } from "./bar";
+import {
+  BAR_POPUP,
+  GLASS_PANEL,
+  ISLAND,
+  PILL_BUTTON,
+  PRIMARY,
+  SECONDARY,
+  SPLIT_HALF,
+  SPLIT_PILL,
+} from "./bar";
 import { downloadFraction, downloadLine } from "./download-line";
 import { GapCard } from "./EpisodeGrid";
 import { episodeCode, guideKey } from "./preview-form";
@@ -101,8 +111,11 @@ interface SeriesEpisodesProps {
   deletingId?: string | null;
   /** What a change of source did, said under the header until the next one. */
   notice?: string | null;
-  /** More for the header, about the season shown (its preferred source). */
-  seasonTools?: (season: number) => React.ReactNode;
+  /**
+   * More for the header, about the season shown (its preferred source). `half` is the class that
+   * makes it the second half of the season's pill, empty when there is no season list to share.
+   */
+  seasonTools?: (season: number, half: string) => React.ReactNode;
   /** More for the selection's bar, before its download button (change the source). */
   selectionTools?: React.ReactNode;
   /** The mark of the source an episode takes its video from, over its frame. */
@@ -175,76 +188,97 @@ export function SeriesEpisodes({
       ].sort((a, b) => a.number - b.number)
     : [];
 
+  const seasonPicker = listed.length > 1 && group !== undefined;
+  const pairedTools = seasonPicker && group ? seasonTools?.(group.season, SPLIT_HALF) : null;
+  const loneTools = !seasonPicker && group ? seasonTools?.(group.season, "") : null;
+
   return (
     // One panel, as adding a series shows its episodes: the header and the selection's bar float
     // inside it over the frames. A clip, not a hidden overflow, so both can stick.
     <section aria-labelledby="episodes-title" className={cn(GLASS_PANEL, "min-w-0 overflow-clip")}>
+      {/* What is shown on the left, what it does to the whole series on the right. */}
       <header className={cn(ISLAND, "top-4 mx-4 mt-4")}>
-        <h2 id="episodes-title" className="text-base font-medium">
+        {/* The season's list is the heading when there is one; the title only names a lone season. */}
+        <h2 id="episodes-title" className={cn("text-base font-medium", seasonPicker && "sr-only")}>
           {t.series.episodes}
         </h2>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {t.series.available(availableCount, episodes.length)}
-        </span>
-        {/* A season at a time, only when there is more than one: a list, so eleven fit as well as two. */}
-        {listed.length > 1 && group && (
-          <Select
-            value={group.season}
-            onValueChange={(season) => season !== null && setChosen(season)}
-          >
-            <SelectTrigger
-              aria-label={t.series.seasonPicker}
-              className="h-12 gap-2 rounded-full border-0 bg-white/55 px-5 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white sm:ml-3"
+        {seasonPicker && (
+          // The season and its source in one pill: the source is the season's, not the series'.
+          <div className={SPLIT_PILL}>
+            {/* A season at a time, only when there is more than one: a list, so eleven fit as well as two. */}
+            <Select
+              value={group.season}
+              onValueChange={(season) => season !== null && setChosen(season)}
             >
-              <SelectValue>
-                {() => (
-                  <SeasonLabel
-                    group={group}
-                    title={titleOf(group.season)}
-                    tmdb={tmdbCount.get(group.season)}
-                  />
+              <SelectTrigger
+                aria-label={t.series.seasonPicker}
+                className={cn(
+                  "h-12 gap-2 rounded-full border-0 px-5 text-sm focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12",
+                  SPLIT_HALF,
                 )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent
-              alignItemWithTrigger={false}
-              align="start"
-              // Not down to the window's foot: a long show's seasons scroll under the arrows.
-              className={cn(
-                BAR_POPUP,
-                "max-h-[min(28rem,var(--available-height))] w-max min-w-(--anchor-width)",
-              )}
-            >
-              {listed.map((g) => (
-                <SelectItem
-                  key={g.season}
-                  value={g.season}
-                  className="rounded-xl py-2 pl-3 text-base"
-                >
-                  <SeasonLabel group={g} title={titleOf(g.season)} tmdb={tmdbCount.get(g.season)} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              >
+                <SelectValue>
+                  {() => (
+                    <SeasonLabel
+                      group={group}
+                      title={titleOf(group.season)}
+                      tmdb={tmdbCount.get(group.season)}
+                    />
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent
+                alignItemWithTrigger={false}
+                align="start"
+                // Not down to the window's foot: a long show's seasons scroll under the arrows.
+                className={cn(
+                  BAR_POPUP,
+                  "max-h-[min(28rem,var(--available-height))] w-max min-w-(--anchor-width)",
+                )}
+              >
+                {listed.map((g) => (
+                  <SelectItem
+                    key={g.season}
+                    value={g.season}
+                    className="rounded-xl py-2 pl-3 text-base"
+                  >
+                    <SeasonLabel
+                      group={g}
+                      title={titleOf(g.season)}
+                      tmdb={tmdbCount.get(g.season)}
+                    />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {pairedTools}
+          </div>
         )}
+        {!seasonPicker && loneTools}
         {(absent.length > 0 || absentSeasons.length > 0) && (
           <Gaps matches={absent} seasons={absentSeasons} onPick={(season) => setChosen(season)} />
         )}
-        {group && seasonTools?.(group.season)}
-        <button
-          type="button"
-          disabled={missingCount === 0 || busy !== null}
-          aria-busy={busy === "missing" || undefined}
-          onClick={onDownloadMissing}
-          className={cn(PILL_BUTTON, PRIMARY, "ml-auto")}
-        >
-          {busy === "missing" ? (
-            <Spinner aria-hidden="true" />
-          ) : (
-            <HugeiconsIcon icon={Download04Icon} className="size-4" />
-          )}
-          {t.series.downloadMissing}
-        </button>
+        {/* The count beside the button it scopes: what is missing is counted over every season. */}
+        <div className="ml-auto flex items-center gap-4">
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {t.series.available(availableCount, episodes.length)}
+          </span>
+          <button
+            type="button"
+            disabled={missingCount === 0 || busy !== null}
+            aria-busy={busy === "missing" || undefined}
+            onClick={onDownloadMissing}
+            className={cn(PILL_BUTTON, PRIMARY)}
+          >
+            {busy === "missing" ? (
+              <Spinner aria-hidden="true" />
+            ) : (
+              <HugeiconsIcon icon={Download04Icon} className="size-4" />
+            )}
+            {t.series.downloadMissing}
+          </button>
+        </div>
       </header>
       {failed && (
         <p role="alert" className="px-4 pt-4 text-sm text-warning">
@@ -304,36 +338,47 @@ export function SeriesEpisodes({
           aria-label={t.series.selected(selection.size)}
           className={cn(ISLAND, "bottom-4 mx-4 mb-4")}
         >
-          <span className="mr-auto text-sm font-medium tabular-nums">
-            {t.series.selected(selection.size)}
-          </span>
+          {/* On the left what changes the selection, on the right what acts on it. */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClear}
+              aria-label={t.series.clearSelection}
+              title={t.series.clearSelection}
+              className={cn(PILL_BUTTON, SECONDARY, "size-10 justify-center px-0")}
+            >
+              <HugeiconsIcon icon={Cancel01Icon} className="size-4" />
+            </button>
+            <span className="text-sm font-medium tabular-nums">
+              {t.series.selected(selection.size)}
+            </span>
+          </div>
           {group && group.episodes.length > 0 && seasonPicked !== "all" && (
             <button
               type="button"
               onClick={() => onToggleSeason(group.season, true)}
-              className={cn(PILL_BUTTON, SECONDARY)}
+              className="rounded-full text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               {groups.length > 1 ? t.series.selectSeason(group.season) : t.series.selectEvery}
             </button>
           )}
-          <button type="button" onClick={onClear} className={cn(PILL_BUTTON, SECONDARY)}>
-            {t.series.clearSelection}
-          </button>
-          {selectionTools}
-          <button
-            type="button"
-            disabled={busy !== null}
-            aria-busy={busy === "selected" || undefined}
-            onClick={onDownloadSelected}
-            className={cn(PILL_BUTTON, PRIMARY)}
-          >
-            {busy === "selected" ? (
-              <Spinner aria-hidden="true" />
-            ) : (
-              <HugeiconsIcon icon={Download04Icon} className="size-4" />
-            )}
-            {t.series.downloadSelected(selection.size)}
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {selectionTools}
+            <button
+              type="button"
+              disabled={busy !== null}
+              aria-busy={busy === "selected" || undefined}
+              onClick={onDownloadSelected}
+              className={cn(PILL_BUTTON, PRIMARY)}
+            >
+              {busy === "selected" ? (
+                <Spinner aria-hidden="true" />
+              ) : (
+                <HugeiconsIcon icon={Download04Icon} className="size-4" />
+              )}
+              {t.series.downloadSelected(selection.size)}
+            </button>
+          </div>
         </div>
       )}
     </section>
@@ -591,7 +636,8 @@ function EpisodeCard({
           )}
         </button>
 
-        <div className="absolute inset-x-2 bottom-2 flex flex-wrap-reverse items-end gap-1.5">
+        {/* Wrapped in reverse, so the cross axis is flipped too: `items-start` keeps every chip on the frame's foot, level with the 40px trash. */}
+        <div className="absolute inset-x-2 bottom-2 flex flex-wrap-reverse items-start gap-1.5">
           {percent === null ? (
             <span className={cn(CHIP, STATUS_STYLE[episode.status])}>
               {statusIcon && <HugeiconsIcon icon={statusIcon} className="size-3.5" />}

@@ -341,7 +341,7 @@ export function SeriesDetailScreen() {
             <EpisodeSourceMark series={data} episodes={episodes} episode={episode} />
           )
         }
-        seasonTools={(season) =>
+        seasonTools={(season, half) =>
           // A preference needs two sources that can bring the season.
           sourcesFor(data, episodes, [season]).length > 1 && (
             <PreferredSourceSelect
@@ -349,6 +349,7 @@ export function SeriesDetailScreen() {
               episodes={episodes}
               season={season}
               onFailed={() => setSourceFailed(true)}
+              className={half}
             />
           )
         }

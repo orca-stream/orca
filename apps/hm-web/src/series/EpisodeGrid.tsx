@@ -461,7 +461,8 @@ function EpisodeCard({
           {fateText.icon && <HugeiconsIcon icon={fateText.icon} className="size-4.5" />}
         </button>
 
-        <div className="absolute inset-x-2 bottom-2 flex flex-wrap-reverse items-end gap-1.5">
+        {/* Wrapped in reverse, so the cross axis is flipped too: `items-start` keeps every chip on the frame's foot. */}
+        <div className="absolute inset-x-2 bottom-2 flex flex-wrap-reverse items-start gap-1.5">
           <span title={fateText.hint} className={cn(CHIP, FATE_STYLE[fate])}>
             {fateText.icon && <HugeiconsIcon icon={fateText.icon} className="size-3.5" />}
             {fateText.label}
