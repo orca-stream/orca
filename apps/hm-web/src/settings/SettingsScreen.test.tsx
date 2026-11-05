@@ -8,7 +8,8 @@ import { SettingsScreen } from "./SettingsScreen";
 const VIEW: SettingsView = {
   signIn: "jellyfin",
   localAdmin: null,
-  jellyfin: { url: "http://jf.test:8096", mediaRoot: "/media/tv", jellyfinMediaRoot: "/media/tv" },
+  mediaRoot: "/media/tv",
+  jellyfin: { url: "http://jf.test:8096", jellyfinMediaRoot: "/media/tv" },
   hasTmdbApiKey: true,
   downloads: {
     concurrency: 2,

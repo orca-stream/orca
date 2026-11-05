@@ -99,6 +99,21 @@ export function validate<Target extends "json" | "query" | "param", Schema exten
   });
 }
 
+/**
+ * The browser's first language as TMDB takes it (`es`, `en-US`), for a server that looks shows up on
+ * TMDB itself; undefined when it names none TMDB would take.
+ */
+export function firstLanguage(header: string | undefined): string | undefined {
+  const tag = header?.split(",")[0]?.split(";")[0]?.trim();
+  if (!tag) return undefined;
+  const [language = "", region = ""] = tag.split("-");
+  if (!/^[a-z]{2}$/i.test(language)) return undefined;
+  // A region TMDB has no name for (Latin America's `419`) leaves the language alone.
+  return /^[a-z]{2}$/i.test(region)
+    ? `${language.toLowerCase()}-${region.toUpperCase()}`
+    : language.toLowerCase();
+}
+
 /** The peer address; behind a reverse proxy this is the proxy's, which is the best we can trust. */
 export function clientAddress(c: Context): string {
   try {
@@ -212,7 +227,13 @@ export function createApp(deps: AppDeps) {
 
   api.get("/lookup/tmdb/:tmdbId", validate("param", ShowLookupParams), async (c) => {
     const { tmdbId } = c.req.valid("param");
-    return c.json(await useCases.lookupShow(tmdbId, c.req.raw.signal));
+    return c.json(
+      await useCases.lookupShow(
+        tmdbId,
+        c.req.raw.signal,
+        firstLanguage(c.req.header("accept-language")),
+      ),
+    );
   });
 
   api.get(

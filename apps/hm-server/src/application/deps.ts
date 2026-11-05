@@ -34,7 +34,8 @@ export interface Deps {
   library: LibraryWriter;
   images: ImageFetcher;
   authenticator: Authenticator;
-  mediaServer: MediaServer;
+  /** Null without a Jellyfin: the library is only written, nobody is told about it. */
+  mediaServer: MediaServer | null;
   /** Null without a TMDB key (TMDB_API_KEY): the panel then asks for the numbers by hand. */
   episodeGuide: EpisodeGuide | null;
   downloaders: Downloader[];

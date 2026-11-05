@@ -428,6 +428,12 @@ export interface EpisodeGuide {
   ): Promise<GuideEpisode[] | null>;
   /** The show itself, beyond its seasons; null when TMDB has no such show. */
   show(tmdbId: string, signal?: AbortSignal): Promise<GuideShow | null>;
+  /** The show itself (name, year, IMDb id, synopsis, poster), for a server without Jellyfin. */
+  match(
+    tmdbId: string,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ShowMatch | null>;
 }
 
 export interface Authenticated {

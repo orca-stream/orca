@@ -139,6 +139,14 @@ export class FakeEpisodeGuide implements EpisodeGuide {
   readonly languages: (string | undefined)[] = [];
   /** The show beyond its seasons, by TMDB id. */
   readonly showFacts = new Map<string, GuideShow>();
+  /** The show itself, as a server without Jellyfin looks it up. */
+  readonly matches = new Map<string, ShowMatch>();
+
+  async match(tmdbId: string, language: string | undefined): Promise<ShowMatch | null> {
+    if (this.fail) throw this.fail;
+    this.languages.push(language);
+    return this.matches.get(tmdbId) ?? null;
+  }
 
   async seasons(tmdbId: string, language: string | undefined): Promise<GuideSeason[] | null> {
     if (this.fail) throw this.fail;
@@ -238,7 +246,8 @@ export class FakeSettingsRoutes implements SettingsRoutes {
     return {
       signIn: this.signIn,
       localAdmin: this.admins.length > 0 ? { username: this.admins.at(-1)!.username } : null,
-      jellyfin: { url: "http://jellyfin.test", mediaRoot: "/tv", jellyfinMediaRoot: "/tv" },
+      mediaRoot: "/tv",
+      jellyfin: { url: "http://jellyfin.test", jellyfinMediaRoot: "/tv" },
       hasTmdbApiKey: false,
       downloads: {
         concurrency: 2,

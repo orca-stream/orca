@@ -389,7 +389,8 @@ const es = {
     imdbInvalid: "Como tt0123456.",
     tmdbLooking: "Buscando la serie en TMDB…",
     tmdbNotFound: "TMDB no tiene ninguna serie con ese id.",
-    tmdbLookupFailed: "Jellyfin no pudo buscarla en TMDB; rellena el título a mano.",
+    tmdbLookupFailed: "No se pudo buscar en TMDB; rellena el título a mano.",
+    tmdbUnavailable: "Sin Jellyfin ni clave de TMDB no se puede buscar: rellena los datos a mano.",
     titlePlaceholder: "Título, p. ej. Cowboy Bebop",
     yearPlaceholder: "Año, p. ej. 1998",
     tmdbPlaceholder: "Id de TMDB, p. ej. 30991",
@@ -569,7 +570,9 @@ const es = {
     },
     jellyfin: {
       title: "Jellyfin",
-      description: "El servidor donde viven tus series.",
+      description: "El servidor donde ves tus series. Opcional: sin él, H&M solo llena la carpeta.",
+      use: "Usar Jellyfin",
+      neededToSignIn: "Se entra al panel con Jellyfin, así que hace falta.",
       url: "Dirección de Jellyfin",
       urlPlaceholder: "http://localhost:8096",
       username: "Usuario administrador",
@@ -587,6 +590,9 @@ const es = {
     library: {
       title: "Carpeta de series",
       description: "Donde H&M guarda los episodios que descarga, para que Jellyfin los vea.",
+      descriptionAlone:
+        "Donde H&M guarda los episodios que descarga, con nombres y archivos .nfo que leen Kodi, Emby o Jellyfin.",
+      pathPlaceholder: "Donde H&M guarda las series",
       pick: "Biblioteca de series de Jellyfin",
       noLibraries:
         "Ese Jellyfin no tiene bibliotecas de series. Crea una en Jellyfin y vuelve a conectar, o escribe la ruta.",
@@ -643,6 +649,7 @@ const es = {
     },
     hints: {
       library: "La biblioteca de series de Jellyfin donde H&M deja los episodios que descarga.",
+      mediaRoot: "La carpeta de este equipo donde H&M guarda las series; se crea si no existe.",
       jellyfinPath:
         "La carpeta tal como la ve Jellyfin. Si Jellyfin está en otro equipo, H&M tiene que poder escribir en esa misma ruta (por ejemplo, montándola).",
       tmdbKey:
@@ -1092,7 +1099,9 @@ const en: typeof es = {
     imdbInvalid: "Like tt0123456.",
     tmdbLooking: "Looking the show up on TMDB…",
     tmdbNotFound: "TMDB has no show with that id.",
-    tmdbLookupFailed: "Jellyfin couldn't look it up on TMDB; fill in the title by hand.",
+    tmdbLookupFailed: "Couldn't look it up on TMDB; fill in the title by hand.",
+    tmdbUnavailable:
+      "Without Jellyfin or a TMDB key it can't be looked up: fill in the details by hand.",
     titlePlaceholder: "Title, e.g. Cowboy Bebop",
     yearPlaceholder: "Year, e.g. 1998",
     tmdbPlaceholder: "TMDB id, e.g. 30991",
@@ -1272,7 +1281,10 @@ const en: typeof es = {
     },
     jellyfin: {
       title: "Jellyfin",
-      description: "The server your shows live on.",
+      description:
+        "The server you watch your shows on. Optional: without it, H&M only fills the folder.",
+      use: "Use Jellyfin",
+      neededToSignIn: "The panel signs in with Jellyfin, so it is needed.",
       url: "Jellyfin address",
       urlPlaceholder: "http://localhost:8096",
       username: "Administrator user",
@@ -1290,6 +1302,9 @@ const en: typeof es = {
     library: {
       title: "Shows folder",
       description: "Where H&M saves the episodes it downloads, so Jellyfin sees them.",
+      descriptionAlone:
+        "Where H&M saves the episodes it downloads, named and with .nfo files that Kodi, Emby or Jellyfin read.",
+      pathPlaceholder: "Where H&M keeps the shows",
       pick: "Jellyfin's shows library",
       noLibraries:
         "That Jellyfin has no shows library. Make one in Jellyfin and connect again, or type the path.",
@@ -1346,6 +1361,7 @@ const en: typeof es = {
     },
     hints: {
       library: "Jellyfin's shows library where H&M puts the episodes it downloads.",
+      mediaRoot: "The folder on this machine where H&M keeps the shows; made if it isn't there.",
       jellyfinPath:
         "The folder as Jellyfin sees it. When Jellyfin is on another machine, H&M has to be able to write to that same path (by mounting it, for instance).",
       tmdbKey:

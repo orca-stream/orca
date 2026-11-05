@@ -9,7 +9,7 @@ import { useLogin } from "@/auth/session";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/locale";
 import { Backdrop } from "@/shell/Shell";
-import { useFinishSetup } from "./api";
+import { useFinishSetup, useSetupDone } from "./api";
 import {
   adminFromDraft,
   emptyAdmin,
@@ -58,6 +58,7 @@ export function SetupScreen() {
   const t = useT();
   const [, navigate] = useLocation();
   const finish = useFinishSetup();
+  const setupDone = useSetupDone();
   const login = useLogin();
   const steps: Step[] = ["access", "jellyfin", "extras", "downloads"];
   const [step, setStep] = useState<Step>(steps[0]!);
@@ -110,7 +111,7 @@ export function SetupScreen() {
     const { tmdbApiKey, jellyfin, ...rest } = result.update;
     const settings: Settings = {
       ...rest,
-      jellyfin: { ...jellyfin, apiKey: draft.apiKey },
+      ...(jellyfin ? { jellyfin: { ...jellyfin, apiKey: draft.apiKey } } : {}),
       ...(tmdbApiKey ? { tmdbApiKey } : {}),
     };
     finish.mutate(
@@ -121,22 +122,28 @@ export function SetupScreen() {
       },
       {
         onSuccess: () => {
-          // Signed in as whoever signs in from now on.
+          const leave = (path: string) => {
+            setupDone(settings);
+            navigate(path, { replace: true });
+          };
+          // Signed in as whoever signs in from now on, before the panel asks who that is.
           const signIn = local ?? credentials;
-          if (!signIn) return navigate("/login", { replace: true });
+          if (!signIn) return leave("/login");
           login.mutate(signIn, {
-            onSuccess: () => navigate("/", { replace: true }),
-            onError: () => navigate("/login", { replace: true }),
+            onSuccess: () => leave("/"),
+            onError: () => leave("/login"),
           });
         },
       },
     );
   }
 
-  const canLeaveJellyfin = draft.apiKey !== "";
+  // Signing in with Jellyfin needs one; otherwise it can be left out.
+  const jellyfinOn = draft.jellyfinOn || draft.signIn === "jellyfin";
+  const canLeaveJellyfin = !jellyfinOn || draft.apiKey !== "";
   // The step's one button connects while the sign-in is open, and goes on once it is not.
   const [jellyfinForm, setJellyfinForm] = useState({ editing: true, ready: false, pending: false });
-  const connecting = step === "jellyfin" && jellyfinForm.editing;
+  const connecting = step === "jellyfin" && jellyfinOn && jellyfinForm.editing;
 
   return (
     <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">

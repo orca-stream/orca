@@ -18,6 +18,8 @@ export type AudioMode = "all" | "some";
 export interface Draft {
   /** Who signs in to the panel. */
   signIn: SignIn;
+  /** There is a Jellyfin; signing in with it needs one. */
+  jellyfinOn: boolean;
   jellyfinUrl: string;
   /** The key `POST /settings/jellyfin` made; empty keeps the one the server has. */
   apiKey: string;
@@ -25,7 +27,7 @@ export interface Draft {
   jellyfinMediaRoot: string;
   /** Jellyfin runs on this same machine, so H&M writes to the folder it reads. */
   sameMachine: boolean;
-  /** The folder as this server sees it, when Jellyfin is elsewhere (a mount of it). */
+  /** The folder as this server sees it: the only one without Jellyfin, a mount of Jellyfin's otherwise. */
   mediaRoot: string;
   /** A new TMDB key; empty keeps the stored one, unless `removeTmdb`. */
   tmdbApiKey: string;
@@ -76,6 +78,7 @@ export type DraftErrors = Partial<Record<DraftField, DraftProblem>>;
 export function suggestedDraft(): Draft {
   return {
     signIn: "jellyfin",
+    jellyfinOn: true,
     jellyfinUrl: "",
     apiKey: "",
     jellyfinMediaRoot: "",
@@ -121,10 +124,11 @@ export function draftFromView(view: SettingsView): Draft {
   return {
     ...suggested,
     signIn: view.signIn,
-    jellyfinUrl: jellyfin.url,
-    jellyfinMediaRoot: jellyfin.jellyfinMediaRoot,
-    sameMachine: jellyfin.mediaRoot === jellyfin.jellyfinMediaRoot,
-    mediaRoot: jellyfin.mediaRoot,
+    jellyfinOn: jellyfin !== undefined,
+    jellyfinUrl: jellyfin?.url ?? "",
+    jellyfinMediaRoot: jellyfin?.jellyfinMediaRoot ?? "",
+    sameMachine: jellyfin === undefined || view.mediaRoot === jellyfin.jellyfinMediaRoot,
+    mediaRoot: view.mediaRoot,
     hasTmdbApiKey: view.hasTmdbApiKey,
     contactEmail: view.contactEmail ?? "",
     // One at a time is how the careful way (players in order) shows: "1".
@@ -201,10 +205,15 @@ export function settingsFromDraft(
     return codes;
   };
 
-  const url = required("jellyfinUrl", draft.jellyfinUrl);
+  // Signing in with Jellyfin needs one, whatever the switch says.
+  const jellyfinOn = draft.jellyfinOn || draft.signIn === "jellyfin";
+  const url = jellyfinOn ? required("jellyfinUrl", draft.jellyfinUrl) : "";
   if (url !== "" && !/^https?:\/\/[^\s/]+/.test(url)) errors.jellyfinUrl = "url";
-  const jellyfinMediaRoot = required("jellyfinMediaRoot", draft.jellyfinMediaRoot);
-  const mediaRoot = draft.sameMachine ? jellyfinMediaRoot : required("mediaRoot", draft.mediaRoot);
+  const jellyfinMediaRoot = jellyfinOn
+    ? required("jellyfinMediaRoot", draft.jellyfinMediaRoot)
+    : "";
+  const mediaRoot =
+    jellyfinOn && draft.sameMachine ? jellyfinMediaRoot : required("mediaRoot", draft.mediaRoot);
   const contactEmail = draft.contactEmail.trim();
   if (contactEmail !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
     errors.contactEmail = "email";
@@ -224,12 +233,16 @@ export function settingsFromDraft(
   const concurrency = number("concurrency") ?? 0;
   const update: SettingsUpdate = {
     signIn: draft.signIn,
-    jellyfin: {
-      url,
-      mediaRoot,
-      jellyfinMediaRoot,
-      ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
-    },
+    mediaRoot,
+    ...(jellyfinOn
+      ? {
+          jellyfin: {
+            url,
+            jellyfinMediaRoot,
+            ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
+          },
+        }
+      : {}),
     ...(draft.removeTmdb
       ? { tmdbApiKey: null }
       : draft.tmdbApiKey.trim()

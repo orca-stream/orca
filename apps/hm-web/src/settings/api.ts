@@ -42,18 +42,27 @@ export function useConnectJellyfin(during: "setup" | "settings") {
   });
 }
 
+/**
+ * Saves the first settings. The panel leaves the setup only through `useSetupDone`, once the person
+ * is signed in: leaving at once would ask who is signed in before the sign-in, and send them to it.
+ */
 export function useFinishSetup() {
   const api = useApi();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: { settings: Settings; extractors?: string; admin?: LocalAdminBody }) =>
       api.post("/setup", body),
-    onSuccess: (_, body) =>
-      queryClient.setQueryData<SetupStatus>(keys.setup, {
-        configured: true,
-        signIn: body.settings.signIn,
-      }),
   });
+}
+
+/** Swaps the setup for the panel, with what the server was set up with. */
+export function useSetupDone() {
+  const queryClient = useQueryClient();
+  return (settings: Settings) =>
+    queryClient.setQueryData<SetupStatus>(keys.setup, {
+      configured: true,
+      signIn: settings.signIn,
+      jellyfin: settings.jellyfin !== undefined,
+    });
 }
 
 export function useSettings() {
@@ -72,7 +81,11 @@ export function useSaveSettings() {
     onSuccess: (view) => {
       const before = queryClient.getQueryData<SettingsView>(keys.settings)?.signIn;
       queryClient.setQueryData(keys.settings, view);
-      queryClient.setQueryData<SetupStatus>(keys.setup, { configured: true, signIn: view.signIn });
+      queryClient.setQueryData<SetupStatus>(keys.setup, {
+        configured: true,
+        signIn: view.signIn,
+        jellyfin: view.jellyfin !== undefined,
+      });
       // Someone else signs in now: the server ended every session, this one included.
       if (before !== undefined && before !== view.signIn) dropSession(queryClient);
       // The extractors and the TMDB guide may have changed with them.

@@ -69,10 +69,12 @@ export interface Config {
   /** Offer the "Generic page" extractor. */
   genericExtractor: boolean;
   mediaRoot: string;
-  jellyfinUrl: string;
-  jellyfinApiKey: string;
-  /** The media root as Jellyfin sees it. */
-  jellyfinMediaRoot: string;
+  /** Null without a Jellyfin: nothing to sign in with, refresh or ask about the library. */
+  jellyfin: {
+    url: string;
+    apiKey: string;
+    /** The media root as Jellyfin sees it. */ mediaRoot: string;
+  } | null;
   /** A v3 key or a v4 read token; undefined turns the episode guide off. */
   tmdbApiKey: string | undefined;
   /** Put in the User-Agent so a site's operators know who to write to. */
@@ -151,10 +153,10 @@ export function configFrom(settings: Settings, hasSites: boolean): Config {
         }
       : null,
     genericExtractor: detectorOn && browser.genericDetector,
-    mediaRoot: jellyfin.mediaRoot,
-    jellyfinUrl: jellyfin.url,
-    jellyfinApiKey: jellyfin.apiKey,
-    jellyfinMediaRoot: jellyfin.jellyfinMediaRoot,
+    mediaRoot: settings.mediaRoot,
+    jellyfin: jellyfin
+      ? { url: jellyfin.url, apiKey: jellyfin.apiKey, mediaRoot: jellyfin.jellyfinMediaRoot }
+      : null,
     tmdbApiKey: settings.tmdbApiKey,
     contactEmail: settings.contactEmail,
     sequentialDownloads: downloads.sequential,

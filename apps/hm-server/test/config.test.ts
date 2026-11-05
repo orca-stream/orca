@@ -17,10 +17,10 @@ const root = "/srv/hm";
 
 /** The least a server is set up with from the panel. */
 const minimal = Settings.parse({
+  mediaRoot: "./media/tv",
   jellyfin: {
     url: "http://localhost:8096",
     apiKey: "key",
-    mediaRoot: "./media/tv",
     jellyfinMediaRoot: "./media/tv",
   },
   downloads: {
@@ -95,9 +95,7 @@ describe("configFrom", () => {
   it("runs what the settings say, and fills in only what they leave out", () => {
     expect(configFrom(minimal, false)).toMatchObject({
       mediaRoot: "./media/tv",
-      jellyfinUrl: "http://localhost:8096",
-      jellyfinApiKey: "key",
-      jellyfinMediaRoot: "./media/tv",
+      jellyfin: { url: "http://localhost:8096", apiKey: "key", mediaRoot: "./media/tv" },
       sequentialDownloads: false,
       skipPlayers: [],
       concurrency: { download: 2, ffmpeg: 1, browser: 1, none: 4 },

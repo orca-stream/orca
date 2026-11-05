@@ -115,6 +115,34 @@ describe("TmdbEpisodeGuide", () => {
     expect((await tmdb.show("2"))?.nextEpisode).toBeNull();
   });
 
+  it("finds the show itself, with its IMDb id, for a server without Jellyfin", async () => {
+    const { fetchImpl, calls } = fakeTmdb({
+      "/3/tv/4219": {
+        body: {
+          name: " Los nuevos ricos ",
+          first_air_date: "1962-09-26",
+          overview: "Una familia.",
+          poster_path: "/p-1.jpg",
+          external_ids: { imdb_id: "tt0055662" },
+        },
+      },
+      "/3/tv/5": {
+        body: { name: "", original_name: "", poster_path: "http://evil.example/x.jpg" },
+      },
+    });
+    expect(await guide("v3key", fetchImpl).match("4219", "es")).toEqual({
+      title: "Los nuevos ricos",
+      year: 1962,
+      imdbId: "tt0055662",
+      overview: "Una familia.",
+      posterUrl: "https://image.tmdb.org/t/p/w500/p-1.jpg",
+    });
+    expect(calls[0]?.url.searchParams.get("append_to_response")).toBe("external_ids");
+    expect(calls[0]?.url.searchParams.get("language")).toBe("es");
+    expect(await guide("v3key", fetchImpl).match("5", undefined)).toBeNull();
+    expect(await guide("v3key", fetchImpl).match("6", undefined)).toBeNull();
+  });
+
   it("answers null for TMDB's 404", async () => {
     const { fetchImpl } = fakeTmdb({});
     expect(await guide("k", fetchImpl).seasons("9", undefined)).toBeNull();

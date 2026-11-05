@@ -364,7 +364,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     const { seriesId, replaceMetadata } = RefreshPayload.parse(job.payload);
     const series = await deps.series.get(seriesId);
     if (!series) return;
-    await deps.mediaServer.libraryUpdated(deps.library.seriesPath(series), { replaceMetadata });
+    await deps.mediaServer?.libraryUpdated(deps.library.seriesPath(series), { replaceMetadata });
   }
 
   /**

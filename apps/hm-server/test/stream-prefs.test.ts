@@ -138,12 +138,8 @@ describe("what a stream download receives", () => {
 const withTracks = (tracks: Record<string, unknown>) =>
   configFrom(
     Settings.parse({
-      jellyfin: {
-        url: "http://localhost:8096",
-        apiKey: "k",
-        mediaRoot: "m",
-        jellyfinMediaRoot: "m",
-      },
+      mediaRoot: "m",
+      jellyfin: { url: "http://localhost:8096", apiKey: "k", jellyfinMediaRoot: "m" },
       downloads: {
         concurrency: 1,
         ffmpegConcurrency: 1,

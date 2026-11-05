@@ -5,6 +5,7 @@ import type {
   GuideEpisode,
   GuideSeason,
   GuideShow,
+  ShowMatch,
 } from "../../application/ports.ts";
 import { AppError } from "../../domain/errors.ts";
 
@@ -14,6 +15,8 @@ const TMDB_API = "https://api.themoviedb.org/3";
 const TMDB_STILL = "https://image.tmdb.org/t/p/w400";
 /** A show's backdrop, wide enough to fill the panel's background behind a blur. */
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
+/** A show's poster, as wide as the panel's cards show it. */
+const TMDB_POSTER = "https://image.tmdb.org/t/p/w500";
 
 export interface TmdbEpisodeGuideOptions {
   /** A v3 API key, or a v4 read access token (a JWT, sent as a bearer token). */
@@ -43,6 +46,15 @@ const ShowBody = z.object({
       }),
     )
     .default([]),
+});
+
+const MatchBody = z.object({
+  name: z.string().nullish(),
+  original_name: z.string().nullish(),
+  first_air_date: z.string().nullish(),
+  overview: z.string().nullish(),
+  poster_path: z.string().nullish(),
+  external_ids: z.object({ imdb_id: z.string().nullish() }).nullish(),
 });
 
 const SeasonBody = z.object({
@@ -152,6 +164,29 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
             airDate: next.air_date || null,
           }
         : null,
+    };
+  }
+
+  async match(
+    tmdbId: string,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ShowMatch | null> {
+    const body = await this.get(
+      `/tv/${encodeURIComponent(tmdbId)}?append_to_response=external_ids`,
+      language,
+      signal,
+    );
+    if (body === null) return null;
+    const show = this.parse(MatchBody, body);
+    const title = show.name?.trim() || show.original_name?.trim();
+    if (!title) return null;
+    return {
+      title,
+      year: yearOf(show.first_air_date),
+      imdbId: show.external_ids?.imdb_id || null,
+      overview: show.overview?.trim() || null,
+      posterUrl: imageOf(TMDB_POSTER, show.poster_path),
     };
   }
 

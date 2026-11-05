@@ -41,6 +41,8 @@ export async function createHarness(
     sequentialDownloads?: boolean;
     /** Hosts whose players are never tried (SKIP_PLAYERS). */
     skipPlayers?: string[];
+    /** A server set up without Jellyfin. */
+    noJellyfin?: boolean;
   } = {},
 ) {
   const db = testDatabase();
@@ -72,7 +74,7 @@ export async function createHarness(
     library,
     images,
     authenticator,
-    mediaServer,
+    mediaServer: options.noJellyfin ? null : mediaServer,
     episodeGuide,
     downloaders: [downloader],
     detector,

@@ -88,6 +88,8 @@ export function createEnqueueRefresh(deps: Deps) {
     seriesId: string,
     options: { replaceMetadata?: boolean } = {},
   ): Promise<void> {
+    // Nobody to tell: whatever plays the library finds the files on its own.
+    if (!deps.mediaServer) return;
     const runAfter = deps.clock.now() + deps.refreshDebounceMs;
     const replace = options.replaceMetadata === true;
     const request = {

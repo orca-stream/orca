@@ -90,7 +90,7 @@ export class ServerSetup implements SettingsRoutes {
     }
     let settings: Settings;
     try {
-      settings = Settings.parse(JSON.parse(saved));
+      settings = Settings.parse(upgradeSettings(JSON.parse(saved)));
     } catch (error) {
       throw new ConfigError(
         "The settings in the database are not valid; fix them or start from an empty database",
@@ -103,9 +103,13 @@ export class ServerSetup implements SettingsRoutes {
 
   // --- before the server is set up: open to whoever opens the panel first, as Jellyfin's own is
 
-  status(): { configured: boolean; signIn?: SignIn } {
+  status(): { configured: boolean; signIn?: SignIn; jellyfin?: boolean } {
     return this.current
-      ? { configured: this.configured, signIn: this.current.settings.signIn }
+      ? {
+          configured: this.configured,
+          signIn: this.current.settings.signIn,
+          jellyfin: this.current.settings.jellyfin !== undefined,
+        }
       : { configured: this.configured };
   }
 
@@ -136,10 +140,11 @@ export class ServerSetup implements SettingsRoutes {
   async view(): Promise<SettingsView> {
     const { settings } = this.requireCurrent();
     const { tmdbApiKey, jellyfin, ...rest } = settings;
-    const { apiKey: _, ...shownJellyfin } = jellyfin;
     return {
       ...rest,
-      jellyfin: shownJellyfin,
+      ...(jellyfin
+        ? { jellyfin: { url: jellyfin.url, jellyfinMediaRoot: jellyfin.jellyfinMediaRoot } }
+        : {}),
       hasTmdbApiKey: tmdbApiKey !== undefined,
       localAdmin: this.admin ? { username: this.admin.username } : null,
     };
@@ -148,9 +153,13 @@ export class ServerSetup implements SettingsRoutes {
   async update(input: SettingsUpdate): Promise<SettingsView> {
     const { settings: old, extractors } = this.requireCurrent();
     const { tmdbApiKey, jellyfin, ...rest } = input;
+    const apiKey = jellyfin ? (jellyfin.apiKey ?? old.jellyfin?.apiKey) : undefined;
+    if (jellyfin && apiKey === undefined) {
+      throw new AppError("bad_request", "Connect to the Jellyfin server first, for its key");
+    }
     const next = Settings.parse({
       ...rest,
-      jellyfin: { ...jellyfin, apiKey: jellyfin.apiKey ?? old.jellyfin.apiKey },
+      ...(jellyfin ? { jellyfin: { ...jellyfin, apiKey } } : {}),
       tmdbApiKey: tmdbApiKey === undefined ? old.tmdbApiKey : (tmdbApiKey ?? undefined),
     });
     await this.serially(() => this.apply(next, extractors, { save: true }));
@@ -206,6 +215,12 @@ export class ServerSetup implements SettingsRoutes {
       throw error;
     }
     const hasSites = sites.pages.length + sites.apis.length + sites.seasonApis.length > 0;
+    if (settings.signIn === "jellyfin" && settings.jellyfin === undefined) {
+      throw new AppError(
+        "bad_request",
+        "Signing in with Jellyfin needs a Jellyfin server: connect one, or sign in with the server's own administrator",
+      );
+    }
     if (settings.signIn === "local" && this.admin === null) {
       throw new AppError(
         "bad_request",
@@ -265,4 +280,16 @@ export class ServerSetup implements SettingsRoutes {
 
 async function toAccount(body: LocalAdminBody): Promise<LocalAdmin> {
   return { username: body.username, passwordHash: await hashPassword(body.password) };
+}
+
+/**
+ * Settings saved before Jellyfin was optional kept the series folder inside `jellyfin`: it moves
+ * out, where it is now whether or not there is a Jellyfin.
+ */
+export function upgradeSettings(saved: unknown): unknown {
+  if (typeof saved !== "object" || saved === null) return saved;
+  const settings = saved as { mediaRoot?: unknown; jellyfin?: { mediaRoot?: unknown } };
+  if (settings.mediaRoot !== undefined || settings.jellyfin?.mediaRoot === undefined) return saved;
+  const { mediaRoot, ...jellyfin } = settings.jellyfin;
+  return { ...settings, mediaRoot, jellyfin };
 }

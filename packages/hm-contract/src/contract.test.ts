@@ -394,10 +394,10 @@ describe("seasons in parts", () => {
 
 describe("Settings", () => {
   const valid = {
+    mediaRoot: "/media/tv",
     jellyfin: {
       url: "http://jellyfin:8096/",
       apiKey: "key",
-      mediaRoot: "/media/tv",
       jellyfinMediaRoot: "/media/tv",
     },
     downloads: {
@@ -422,7 +422,11 @@ describe("Settings", () => {
 
   it("strips the trailing slash from the Jellyfin url and lower-cases the skipped hosts", () => {
     const settings = Settings.parse(valid);
-    expect(settings.jellyfin.url).toBe("http://jellyfin:8096");
+    expect(settings.jellyfin?.url).toBe("http://jellyfin:8096");
+    // Signed in with Jellyfin unless it says otherwise, and Jellyfin itself is optional.
+    expect(settings.signIn).toBe("jellyfin");
+    const { jellyfin: _, ...alone } = valid;
+    expect(Settings.parse(alone).jellyfin).toBeUndefined();
     expect(settings.downloads.skipPlayers).toEqual(["player.example", "other.example"]);
   });
 

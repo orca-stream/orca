@@ -166,20 +166,22 @@ export async function startRuntime(
     library,
     images: new FetchImageFetcher({ userAgent: agent }),
     authenticator:
-      config.signIn === "local"
-        ? new LocalAdminAuthenticator(shared.localAdmin)
-        : new JellyfinAuthenticator({
+      config.signIn === "jellyfin" && config.jellyfin
+        ? new JellyfinAuthenticator({
             jellyfin,
-            serverUrl: config.jellyfinUrl,
-            apiKey: config.jellyfinApiKey,
-          }),
-    mediaServer: new JellyfinMediaServer({
-      jellyfin,
-      serverUrl: config.jellyfinUrl,
-      apiKey: config.jellyfinApiKey,
-      mediaRoot,
-      jellyfinMediaRoot: config.jellyfinMediaRoot,
-    }),
+            serverUrl: config.jellyfin.url,
+            apiKey: config.jellyfin.apiKey,
+          })
+        : new LocalAdminAuthenticator(shared.localAdmin),
+    mediaServer: config.jellyfin
+      ? new JellyfinMediaServer({
+          jellyfin,
+          serverUrl: config.jellyfin.url,
+          apiKey: config.jellyfin.apiKey,
+          mediaRoot,
+          jellyfinMediaRoot: config.jellyfin.mediaRoot,
+        })
+      : null,
     episodeGuide: config.tmdbApiKey
       ? new TmdbEpisodeGuide({
           apiKey: config.tmdbApiKey,

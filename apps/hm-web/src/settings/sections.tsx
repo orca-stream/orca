@@ -472,9 +472,20 @@ export function JellyfinSection({
     );
   }
 
+  // Signing in with Jellyfin needs one: the switch stays on, and says why.
+  const required = draft.signIn === "jellyfin";
+  const on = draft.jellyfinOn || required;
   return (
     <Group title={t.settings.jellyfin.title} description={t.settings.jellyfin.description}>
-      {!editing ? (
+      <ToggleRow
+        icon={Film01Icon}
+        label={t.settings.jellyfin.use}
+        checked={on}
+        disabled={required}
+        onChange={(jellyfinOn) => set({ jellyfinOn })}
+        {...(required ? { note: t.settings.jellyfin.neededToSignIn } : {})}
+      />
+      {!on ? null : !editing ? (
         <NoteRow
           icon={CheckmarkCircle02Icon}
           action={
@@ -575,6 +586,23 @@ export function LibrarySection({
   const locations = (libraries ?? []).flatMap((library) =>
     library.locations.map((location) => ({ library: library.name, location })),
   );
+  if (!(draft.jellyfinOn || draft.signIn === "jellyfin")) {
+    // No Jellyfin: the folder is only this server's, typed as it sees it.
+    return (
+      <Group title={t.settings.library.title} description={t.settings.library.descriptionAlone}>
+        <DraftRow
+          field="mediaRoot"
+          icon={Folder01Icon}
+          label={t.settings.library.jellyfinPath}
+          placeholder={t.settings.library.pathPlaceholder}
+          hint={t.settings.hints.mediaRoot}
+          draft={draft}
+          set={set}
+          errors={errors}
+        />
+      </Group>
+    );
+  }
   return (
     <Group title={t.settings.library.title} description={t.settings.library.description}>
       {libraries !== null && locations.length === 0 && (

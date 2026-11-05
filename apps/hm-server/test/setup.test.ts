@@ -4,15 +4,15 @@ import type { SettingsRepository } from "../src/application/ports.ts";
 import { ConfigError, type Config } from "../src/infrastructure/config.ts";
 import type { Extractors } from "../src/infrastructure/extractors-file.ts";
 import type { Runtime } from "../src/infrastructure/runtime.ts";
-import { ServerSetup } from "../src/infrastructure/setup.ts";
+import { ServerSetup, upgradeSettings } from "../src/infrastructure/setup.ts";
 import { createRootApp } from "../src/infrastructure/web/root.ts";
 
 const settings: Settings = {
   signIn: "jellyfin",
+  mediaRoot: "/tv",
   jellyfin: {
     url: "http://jellyfin.test:8096",
     apiKey: "key-1",
-    mediaRoot: "/tv",
     jellyfinMediaRoot: "/tv",
   },
   tmdbApiKey: "tmdb-1",
@@ -113,13 +113,13 @@ describe("a server with no settings", () => {
   it("is set up once, then keeps what it was given across a restart", async () => {
     await setup.setup({ settings: { ...settings, browser }, extractors: SITE });
     await expect(setup.setup({ settings })).rejects.toMatchObject({ code: "conflict" });
-    expect(setup.status()).toEqual({ configured: true, signIn: "jellyfin" });
+    expect(setup.status()).toEqual({ configured: true, signIn: "jellyfin", jellyfin: true });
 
     const again = newSetup();
     await again.boot();
     expect(again.configured).toBe(true);
     expect(await again.extractors()).toBe(SITE);
-    expect((await again.view()).jellyfin.url).toBe("http://jellyfin.test:8096");
+    expect((await again.view()).jellyfin?.url).toBe("http://jellyfin.test:8096");
   });
 
   it("keeps its own administrator, hashed, when that is who signs in", async () => {
@@ -131,7 +131,7 @@ describe("a server with no settings", () => {
     expect(setup.configured).toBe(false);
 
     await setup.setup({ settings: local, admin: { username: "admin", password: "long enough" } });
-    expect(setup.status()).toEqual({ configured: true, signIn: "local" });
+    expect(setup.status()).toEqual({ configured: true, signIn: "local", jellyfin: true });
     const stored = repo.values.get("admin")!;
     expect(stored).not.toContain("long enough");
     expect(JSON.parse(stored)).toMatchObject({ username: "admin" });
@@ -174,12 +174,12 @@ describe("a server with settings", () => {
     });
     expect(starts.log).toEqual(["start 1", "stop 1", "start 2"]);
     expect(starts.configs[1]).toMatchObject({
-      jellyfinApiKey: "key-1",
+      jellyfin: { apiKey: "key-1" },
       tmdbApiKey: undefined,
       downloadConnections: 8,
     });
     const saved = JSON.parse(repo.values.get("settings")!) as Settings;
-    expect(saved.jellyfin.apiKey).toBe("key-1");
+    expect(saved.jellyfin?.apiKey).toBe("key-1");
     expect(saved.tmdbApiKey).toBeUndefined();
   });
 
@@ -187,9 +187,30 @@ describe("a server with settings", () => {
     const { hasTmdbApiKey: _, ...view } = await setup.view();
     await setup.update({
       ...view,
-      jellyfin: { ...view.jellyfin, url: "http://b.test", apiKey: "k2" },
+      jellyfin: { jellyfinMediaRoot: "/tv", url: "http://b.test", apiKey: "k2" },
     });
-    expect(starts.configs[1]).toMatchObject({ jellyfinUrl: "http://b.test", jellyfinApiKey: "k2" });
+    expect(starts.configs[1]).toMatchObject({ jellyfin: { url: "http://b.test", apiKey: "k2" } });
+  });
+
+  it("leaves Jellyfin, only once someone else can sign in", async () => {
+    const { hasTmdbApiKey: _, jellyfin: __, ...view } = await setup.view();
+    await expect(setup.update(view)).rejects.toMatchObject({
+      code: "bad_request",
+      message: expect.stringMatching(/Jellyfin/),
+    });
+    await setup.saveLocalAdmin({ username: "admin", password: "long enough" });
+    await setup.update({ ...view, signIn: "local" });
+    expect(starts.configs.at(-1)).toMatchObject({ jellyfin: null, mediaRoot: "/tv" });
+    expect(setup.status()).toEqual({ configured: true, signIn: "local", jellyfin: false });
+    expect(await setup.view()).not.toHaveProperty("jellyfin");
+    // Back again, a server it has no key for is refused until it is connected.
+    await expect(
+      setup.update({
+        ...view,
+        signIn: "local",
+        jellyfin: { url: "http://c.test", jellyfinMediaRoot: "/tv" },
+      }),
+    ).rejects.toMatchObject({ code: "bad_request" });
   });
 
   it("goes back to what ran when a change cannot start, and saves nothing", async () => {
@@ -270,5 +291,22 @@ describe("the front door", () => {
     expect(await res.json()).toMatchObject({
       issues: [{ path: "settings.downloads.connections" }],
     });
+  });
+});
+
+describe("settings saved before Jellyfin was optional", () => {
+  it("move the series folder out of jellyfin", async () => {
+    const { mediaRoot, jellyfin, ...rest } = settings;
+    repo.values.set(
+      "settings",
+      JSON.stringify({ ...rest, jellyfin: { ...jellyfin, mediaRoot: "/old/tv" } }),
+    );
+    await setup.boot();
+    expect(starts.configs[0]).toMatchObject({
+      mediaRoot: "/old/tv",
+      jellyfin: { mediaRoot: "/tv" },
+    });
+    expect(upgradeSettings({ mediaRoot, jellyfin })).toEqual({ mediaRoot, jellyfin });
+    expect(mediaRoot).toBe("/tv");
   });
 });

@@ -119,9 +119,9 @@ function previewError(error: unknown, t: Messages): string {
 }
 
 function lookupError(error: unknown, t: Messages): string {
-  return error instanceof ApiError && error.status === 404
-    ? t.add.tmdbNotFound
-    : t.add.tmdbLookupFailed;
+  if (error instanceof ApiError && error.status === 404) return t.add.tmdbNotFound;
+  if (error instanceof ApiError && error.status === 503) return t.add.tmdbUnavailable;
+  return t.add.tmdbLookupFailed;
 }
 
 /** The reason in the panel's language, and the server's own detail when it said which clash. */

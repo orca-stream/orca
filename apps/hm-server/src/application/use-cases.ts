@@ -345,12 +345,14 @@ export function createUseCases(deps: Deps) {
             const wanted = new Set(
               episodes.map((episode) => `${episode.season}:${episode.episode}`),
             );
-            const show = showOf(series, await deps.mediaServer.listShows());
-            const files = show
-              ? (await deps.mediaServer.listEpisodeFiles(show.id)).filter((file) =>
-                  wanted.has(`${file.season}:${file.episode}`),
-                )
-              : [];
+            const media = deps.mediaServer;
+            const show = media ? showOf(series, await media.listShows()) : null;
+            const files =
+              media && show
+                ? (await media.listEpisodeFiles(show.id)).filter((file) =>
+                    wanted.has(`${file.season}:${file.episode}`),
+                  )
+                : [];
             const onDisk = new Map(
               (await deps.library.renameEpisodes(series, files)).map((file) => [
                 `${file.season}:${file.episode}`,
@@ -383,9 +385,9 @@ export function createUseCases(deps: Deps) {
       }
 
       if (body.jellyfinId !== undefined) {
-        const show = (await deps.mediaServer.listShows()).find(
-          (item) => item.id === body.jellyfinId,
-        );
+        const media = deps.mediaServer;
+        if (!media) throw new AppError("bad_request", "There is no Jellyfin to take a show from");
+        const show = (await media.listShows()).find((item) => item.id === body.jellyfinId);
         if (!show) throw new AppError("not_found", "Jellyfin has no such show");
         const folderName = show.folderName;
         if (folderName === null) {
@@ -424,7 +426,7 @@ export function createUseCases(deps: Deps) {
           // The show's own files take this server's names first, so the ones the address also lists
           // are known to be there and aren't downloaded again. Its nfo and images are left alone.
           // Renamed files stay renamed if saving then fails: they are the same files, better named.
-          const files = await deps.mediaServer.listEpisodeFiles(show.id);
+          const files = await media.listEpisodeFiles(show.id);
           const onDisk = new Map(
             (await deps.library.renameEpisodes(series, files)).map((file) => [
               `${file.season}:${file.episode}`,
@@ -545,10 +547,25 @@ export function createUseCases(deps: Deps) {
       );
     },
 
-    /** What TMDB calls the show, so the panel can fill in a new series from its id. */
-    async lookupShow(tmdbId: string, signal?: AbortSignal): Promise<ShowLookupDto> {
+    /**
+     * What TMDB calls the show, so the panel can fill in a new series from its id: through Jellyfin's
+     * own TMDB provider when there is a Jellyfin, else through this server's TMDB key, in `language`.
+     * Without either, the panel asks for the show's details by hand.
+     */
+    async lookupShow(
+      tmdbId: string,
+      signal?: AbortSignal,
+      language?: string,
+    ): Promise<ShowLookupDto> {
+      const find = deps.mediaServer
+        ? deps.mediaServer.findShowByTmdbId(tmdbId, signal)
+        : deps.episodeGuide
+          ? deps.episodeGuide.match(tmdbId, language, signal)
+          : Promise.reject(
+              new AppError("unavailable", "Looking a show up needs Jellyfin or a TMDB key"),
+            );
       const [show, guide] = await Promise.all([
-        deps.mediaServer.findShowByTmdbId(tmdbId, signal),
+        find,
         // Only with a TMDB key of our own, and only extras: without them the lookup still answers.
         deps.episodeGuide?.show(tmdbId, signal).catch((error: unknown) => {
           if (signal?.aborted) throw error;
@@ -600,6 +617,7 @@ export function createUseCases(deps: Deps) {
      * IMDb id. The panel offers the ones it doesn't have to add an address to.
      */
     async listLibraryShows(signal?: AbortSignal): Promise<LibraryShowDto[]> {
+      if (!deps.mediaServer) return [];
       const [shows, all] = await Promise.all([
         deps.mediaServer.listShows(signal),
         deps.series.list(),
@@ -626,6 +644,7 @@ export function createUseCases(deps: Deps) {
 
     /** The episodes a Jellyfin show has as files: adopting it keeps them rather than download them. */
     async listLibraryEpisodes(showId: string, signal?: AbortSignal): Promise<LibraryEpisodeDto[]> {
+      if (!deps.mediaServer) return [];
       const files = await deps.mediaServer.listEpisodeFiles(showId, signal);
       return files
         .map(({ season, episode }) => ({ season, episode }))

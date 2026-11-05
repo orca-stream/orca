@@ -20,7 +20,8 @@ const filled = (patch: Partial<Draft> = {}): Draft => ({
 const VIEW: SettingsView = {
   signIn: "jellyfin",
   localAdmin: null,
-  jellyfin: { url: "http://jf.test:8096", mediaRoot: "/mnt/tv", jellyfinMediaRoot: "/media/tv" },
+  mediaRoot: "/mnt/tv",
+  jellyfin: { url: "http://jf.test:8096", jellyfinMediaRoot: "/media/tv" },
   hasTmdbApiKey: true,
   contactEmail: "me@example.com",
   downloads: {
@@ -49,10 +50,10 @@ describe("settingsFromDraft", () => {
       ok: true,
       update: {
         signIn: "jellyfin",
+        mediaRoot: "/media/tv",
         jellyfin: {
           url: "http://jf.test:8096",
           apiKey: "made",
-          mediaRoot: "/media/tv",
           jellyfinMediaRoot: "/media/tv",
         },
         downloads: {
@@ -128,9 +129,9 @@ describe("settingsFromDraft", () => {
 
   it("writes to a mount of Jellyfin's folder when Jellyfin is elsewhere", () => {
     const result = settingsFromDraft(filled({ sameMachine: false, mediaRoot: "/mnt/tv" }));
-    expect(result.ok && result.update.jellyfin).toMatchObject({
+    expect(result.ok && result.update).toMatchObject({
       mediaRoot: "/mnt/tv",
-      jellyfinMediaRoot: "/media/tv",
+      jellyfin: { jellyfinMediaRoot: "/media/tv" },
     });
   });
 
@@ -173,6 +174,28 @@ describe("extractorNames", () => {
     expect(extractorNames("")).toEqual([]);
     expect(extractorNames("[1]")).toBeNull();
     expect(extractorNames("{")).toBeNull();
+  });
+});
+
+describe("without Jellyfin", () => {
+  it("takes only this server's folder, once someone else signs in", () => {
+    const alone = filled({ signIn: "local", jellyfinOn: false, mediaRoot: "" });
+    expect(settingsFromDraft(alone)).toEqual({ ok: false, errors: { mediaRoot: "required" } });
+    const result = settingsFromDraft({ ...alone, mediaRoot: " /srv/tv " });
+    expect(result).toMatchObject({ ok: true, update: { signIn: "local", mediaRoot: "/srv/tv" } });
+    expect(result.ok && result.update).not.toHaveProperty("jellyfin");
+    // Signing in with Jellyfin keeps it, whatever the switch says.
+    expect(settingsFromDraft({ ...alone, signIn: "jellyfin" })).toMatchObject({
+      ok: true,
+      update: { jellyfin: { url: "http://jf.test:8096" }, mediaRoot: "/media/tv" },
+    });
+  });
+
+  it("reads a server without one back the same", () => {
+    const { jellyfin: _, hasTmdbApiKey: __, localAdmin: ___, ...rest } = VIEW;
+    const draft = draftFromView({ ...VIEW, jellyfin: undefined, signIn: "local" });
+    expect(draft).toMatchObject({ jellyfinOn: false, jellyfinUrl: "", mediaRoot: "/mnt/tv" });
+    expect(settingsFromDraft(draft)).toEqual({ ok: true, update: { ...rest, signIn: "local" } });
   });
 });
 

@@ -94,10 +94,10 @@ describe("SetupScreen", () => {
     expect(setup).toMatchObject({
       extractors: SITES,
       settings: {
+        mediaRoot: "/media/anime",
         jellyfin: {
           url: "http://jf.test:8096",
           apiKey: "made-key",
-          mediaRoot: "/media/anime",
           jellyfinMediaRoot: "/media/anime",
         },
         downloads: { connections: 4, sequential: true },
@@ -164,6 +164,37 @@ describe("SetupScreen", () => {
       username: "admin",
       password: "long enough",
     });
+  });
+
+  it("sets up without Jellyfin, with only this server's folder", async () => {
+    const user = userEvent.setup();
+    const { requests, location } = renderApp(<SetupScreen />, { handler: server() });
+    // Signing in with Jellyfin needs one: the switch is held on until someone else signs in.
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText("Se entra al panel con Jellyfin, así que hace falta.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Atrás" }));
+
+    await user.click(screen.getByRole("combobox", { name: "Entrar con" }));
+    await user.click(await screen.findByRole("option", { name: "El administrador de H&M" }));
+    await user.type(screen.getByLabelText("Usuario"), "admin");
+    await user.type(screen.getByLabelText("Contraseña"), "long enough");
+    await user.type(screen.getByLabelText("Repite la contraseña"), "long enough");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    await user.click(screen.getByRole("switch", { name: /Usar Jellyfin/ }));
+    expect(screen.queryByLabelText("Dirección de Jellyfin")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    // The folder is still needed.
+    expect(screen.getByText("Paso 2 de 4")).toBeTruthy();
+    await user.type(screen.getByLabelText("Ruta de la carpeta"), "/srv/tv");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Terminar" }));
+
+    await waitFor(() => expect(location.history.at(-1)).toBe("/"));
+    const setup = (await bodyOf(requests, "/api/setup")) as { settings: Record<string, unknown> };
+    expect(setup.settings).toMatchObject({ signIn: "local", mediaRoot: "/srv/tv" });
+    expect(setup.settings).not.toHaveProperty("jellyfin");
   });
 
   it("says why Jellyfin refused", async () => {

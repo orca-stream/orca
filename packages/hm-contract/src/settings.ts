@@ -20,13 +20,12 @@ const Host = z
 const Language = z.string().regex(LANGUAGE_CODE_PATTERN, "ISO 639-2 codes such as eng, spa, jpn");
 const count = (max: number) => z.number().int().min(1).max(max);
 
+/** The Jellyfin server that shows the library, when there is one. */
 export const JellyfinSettings = z.object({
   /** Without a trailing slash. */
   url: z.url().transform((url) => url.replace(/\/+$/, "")),
   apiKey: z.string().min(1),
-  /** The series library folder as this server sees it. */
-  mediaRoot: z.string().min(1),
-  /** The same folder as Jellyfin sees it (the same path when both run on one machine). */
+  /** The series folder (`mediaRoot`) as Jellyfin sees it: the same path when both run on one machine. */
   jellyfinMediaRoot: z.string().min(1),
 });
 export type JellyfinSettings = z.infer<typeof JellyfinSettings>;
@@ -96,7 +95,10 @@ export type LocalAdminBody = z.infer<typeof LocalAdminBody>;
 
 export const Settings = z.object({
   signIn: SignIn.default("jellyfin"),
-  jellyfin: JellyfinSettings,
+  /** The series library folder as this server sees it: where the episodes go. */
+  mediaRoot: z.string().min(1),
+  /** Absent: no Jellyfin. The library is still written for any player that reads nfo files. */
+  jellyfin: JellyfinSettings.optional(),
   /** A TMDB v3 key or v4 read token: lists a show's seasons and episodes. */
   tmdbApiKey: z.string().trim().min(1).optional(),
   /** Who sites can write to about this server's requests (goes in the User-Agent). */
@@ -113,7 +115,7 @@ export type Settings = z.infer<typeof Settings>;
 
 /** The settings as the panel reads them: the keys are never sent back, only whether there is one. */
 export const SettingsView = Settings.omit({ tmdbApiKey: true }).extend({
-  jellyfin: JellyfinSettings.omit({ apiKey: true }),
+  jellyfin: JellyfinSettings.omit({ apiKey: true }).optional(),
   hasTmdbApiKey: z.boolean(),
   /** The server's own administrator, by name; null until there is one. */
   localAdmin: z.object({ username: z.string() }).nullable(),
@@ -122,10 +124,11 @@ export type SettingsView = z.infer<typeof SettingsView>;
 
 /**
  * What the panel sends to change them. A key left out keeps the stored one; `tmdbApiKey: null`
- * removes it. A new Jellyfin server comes with the key `POST /api/settings/jellyfin` made for it.
+ * removes it. A new Jellyfin server comes with the key `POST /api/settings/jellyfin` made for it;
+ * `jellyfin` left out leaves Jellyfin.
  */
 export const SettingsUpdate = Settings.omit({ tmdbApiKey: true }).extend({
-  jellyfin: JellyfinSettings.extend({ apiKey: z.string().min(1).optional() }),
+  jellyfin: JellyfinSettings.extend({ apiKey: z.string().min(1).optional() }).optional(),
   tmdbApiKey: z.string().trim().min(1).nullable().optional(),
 });
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
@@ -148,8 +151,15 @@ export const JellyfinConnection = z.object({
 });
 export type JellyfinConnection = z.infer<typeof JellyfinConnection>;
 
-/** `GET /api/setup`: whether the server still has to be set up, and once it is, who signs in. */
-export const SetupStatus = z.object({ configured: z.boolean(), signIn: SignIn.optional() });
+/**
+ * `GET /api/setup`: whether the server still has to be set up, and once it is, who signs in and
+ * whether there is a Jellyfin.
+ */
+export const SetupStatus = z.object({
+  configured: z.boolean(),
+  signIn: SignIn.optional(),
+  jellyfin: z.boolean().optional(),
+});
 export type SetupStatus = z.infer<typeof SetupStatus>;
 
 /** `POST /api/setup`: the first settings, and the administrator when the server keeps its own. */
