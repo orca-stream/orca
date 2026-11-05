@@ -31,23 +31,3 @@ export function loadEnvFile(appRoot: string, fs: EnvFileFs = nodeFs): boolean {
   fs.load(file);
   return true;
 }
-
-/** What `pnpm setup:hm` asks for: the only things the server needs before its panel takes over. */
-export interface EnvFileValues {
-  dbFile: string;
-  host: string;
-  port: number;
-}
-
-/** The text of the env file, laid out as `.env.example` is. */
-export function envFileText(values: EnvFileValues): string {
-  return [
-    "# Orca'H&M server, written by `pnpm setup:hm`. Everything else is set from the panel.",
-    "",
-    "# --- required",
-    `DB_FILE=${values.dbFile}`,
-    `HOST=${values.host}`,
-    `PORT=${values.port}`,
-    "",
-  ].join("\n");
-}

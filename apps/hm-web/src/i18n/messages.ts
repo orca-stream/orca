@@ -673,13 +673,6 @@ const es = {
     finish: "Terminar",
     failed: "No se pudo terminar la configuración.",
     extras: "Extras",
-    code: {
-      title: "Código de configuración",
-      description:
-        "Abres el panel desde otro equipo: escribe el código que el servidor mostró en su consola.",
-      label: "Código",
-      wrong: "Ese código no es. Míralo en la consola del servidor.",
-    },
   },
   errors: {
     generic: "Algo salió mal.",
@@ -1356,13 +1349,6 @@ const en: typeof es = {
     finish: "Finish",
     failed: "Could not finish the setup.",
     extras: "Extras",
-    code: {
-      title: "Setup code",
-      description:
-        "You are opening the panel from another device: type the code the server printed in its console.",
-      label: "Code",
-      wrong: "That is not the code. Look for it in the server's console.",
-    },
   },
   errors: {
     generic: "Something went wrong.",

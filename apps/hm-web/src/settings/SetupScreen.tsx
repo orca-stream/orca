@@ -1,9 +1,8 @@
-import { useState, type FormEvent } from "react";
-import { ArrowRight01Icon, ConnectIcon, Key01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { useState } from "react";
+import { ArrowRight01Icon, ConnectIcon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useLocation } from "wouter";
 import { ApiError } from "@/api/client";
-import { useApi } from "@/api/context";
 import type { JellyfinConnection, Settings } from "@/api/types";
 import logotype from "@/assets/logotype.svg";
 import { useLogin } from "@/auth/session";
@@ -29,9 +28,9 @@ import {
   ServerIssues,
   TracksSection,
 } from "./sections";
-import { FieldRow, FooterRow, Group, Panel, PanelButton, PRIMARY_BUTTON } from "./rows";
+import { FooterRow, Panel, PanelButton, PRIMARY_BUTTON } from "./rows";
 
-type Step = "code" | "jellyfin" | "extras" | "downloads";
+type Step = "jellyfin" | "extras" | "downloads";
 
 /** The sign-in's form, submitted by the step's one button. */
 const JELLYFIN_FORM = "setup-jellyfin";
@@ -44,65 +43,18 @@ const STEP_OF: Partial<Record<DraftField, Step>> = {
   tmdbApiKey: "extras",
 };
 
-/** The code the server printed, asked for only when the panel is opened from another device. */
-function CodeStep({ onValid }: { onValid: (code: string) => void }) {
-  const t = useT();
-  const api = useApi();
-  const [code, setCode] = useState("");
-  const [state, setState] = useState<"idle" | "checking" | "wrong">("idle");
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setState("checking");
-    try {
-      await api.post("/setup/code", { code }, { expectUnauthorized: true });
-      onValid(code);
-    } catch {
-      setState("wrong");
-    }
-  }
-
-  return (
-    <form onSubmit={(event) => void submit(event)}>
-      <Group title={t.setup.code.title} description={t.setup.code.description}>
-        <FieldRow
-          icon={Key01Icon}
-          label={t.setup.code.label}
-          autoComplete="off"
-          autoFocus
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          error={state === "wrong" ? t.setup.code.wrong : undefined}
-        />
-      </Group>
-      <FooterRow className="justify-end">
-        <PanelButton type="submit" disabled={code.trim() === ""} pending={state === "checking"}>
-          {t.setup.next}
-          <HugeiconsIcon icon={ArrowRight01Icon} className="size-5" />
-        </PanelButton>
-      </FooterRow>
-    </form>
-  );
-}
-
 /**
- * The first run: the server has no settings yet, so every screen is this one. A few steps (the code
- * when away from the server's machine, Jellyfin and its folder, the extras, the downloads) and the
- * person is signed in with the administrator account that set Jellyfin up.
+ * The first run: the server has no settings yet, so every screen is this one. A few steps (Jellyfin
+ * and its folder, the extras, the downloads) and the person is signed in with the administrator
+ * account that set Jellyfin up.
  */
-export function SetupScreen({ needsCode }: { needsCode: boolean }) {
+export function SetupScreen() {
   const t = useT();
   const [, navigate] = useLocation();
   const finish = useFinishSetup();
   const login = useLogin();
-  const steps: Step[] = [
-    ...(needsCode ? (["code"] as const) : []),
-    "jellyfin",
-    "extras",
-    "downloads",
-  ];
+  const steps: Step[] = ["jellyfin", "extras", "downloads"];
   const [step, setStep] = useState<Step>(steps[0]!);
-  const [code, setCode] = useState<string | undefined>(undefined);
   const [draft, setDraft] = useState<Draft>(suggestedDraft);
   const [extractors, setExtractors] = useState("");
   const [libraries, setLibraries] = useState<JellyfinConnection["libraries"] | null>(null);
@@ -147,7 +99,6 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
       {
         settings,
         ...(extractors.trim() ? { extractors } : {}),
-        ...(code ? { code } : {}),
       },
       {
         onSuccess: () => {
@@ -184,21 +135,12 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
           </p>
         </header>
 
-        {step === "code" && (
-          <CodeStep
-            onValid={(valid) => {
-              setCode(valid);
-              setStep("jellyfin");
-            }}
-          />
-        )}
         {step === "jellyfin" && (
           <>
             <JellyfinSection
               draft={draft}
               set={set}
               during="setup"
-              {...(code ? { code } : {})}
               formId={JELLYFIN_FORM}
               onFormState={setJellyfinForm}
               onConnected={(connection, signIn) => {
@@ -234,43 +176,41 @@ export function SetupScreen({ needsCode }: { needsCode: boolean }) {
             <ServerIssues error={finish.error instanceof ApiError ? finish.error : null} />
           </div>
         )}
-        {step !== "code" && (
-          // Back's text, not its round, starts 16px in, as everything else does.
-          <FooterRow className="justify-between pl-0">
-            {index > 0 && steps[index - 1] !== "code" ? (
-              <Button
-                variant="ghost"
-                className={`${PRIMARY_BUTTON} px-4`}
-                onClick={() => setStep(steps[index - 1]!)}
-              >
-                {t.setup.back}
-              </Button>
-            ) : (
-              <span />
-            )}
-            {step === "downloads" ? (
-              <PanelButton onClick={submit} pending={finish.isPending || login.isPending}>
-                {t.setup.finish}
-                <HugeiconsIcon icon={Tick02Icon} className="size-5" />
-              </PanelButton>
-            ) : connecting ? (
-              <PanelButton
-                type="submit"
-                form={JELLYFIN_FORM}
-                disabled={!jellyfinForm.ready}
-                pending={jellyfinForm.pending}
-              >
-                <HugeiconsIcon icon={ConnectIcon} className="size-5" />
-                {t.settings.jellyfin.connect}
-              </PanelButton>
-            ) : (
-              <PanelButton onClick={goNext} disabled={step === "jellyfin" && !canLeaveJellyfin}>
-                {t.setup.next}
-                <HugeiconsIcon icon={ArrowRight01Icon} className="size-5" />
-              </PanelButton>
-            )}
-          </FooterRow>
-        )}
+        {/* Back's text, not its round, starts 16px in, as everything else does. */}
+        <FooterRow className="justify-between pl-0">
+          {index > 0 ? (
+            <Button
+              variant="ghost"
+              className={`${PRIMARY_BUTTON} px-4`}
+              onClick={() => setStep(steps[index - 1]!)}
+            >
+              {t.setup.back}
+            </Button>
+          ) : (
+            <span />
+          )}
+          {step === "downloads" ? (
+            <PanelButton onClick={submit} pending={finish.isPending || login.isPending}>
+              {t.setup.finish}
+              <HugeiconsIcon icon={Tick02Icon} className="size-5" />
+            </PanelButton>
+          ) : connecting ? (
+            <PanelButton
+              type="submit"
+              form={JELLYFIN_FORM}
+              disabled={!jellyfinForm.ready}
+              pending={jellyfinForm.pending}
+            >
+              <HugeiconsIcon icon={ConnectIcon} className="size-5" />
+              {t.settings.jellyfin.connect}
+            </PanelButton>
+          ) : (
+            <PanelButton onClick={goNext} disabled={step === "jellyfin" && !canLeaveJellyfin}>
+              {t.setup.next}
+              <HugeiconsIcon icon={ArrowRight01Icon} className="size-5" />
+            </PanelButton>
+          )}
+        </FooterRow>
       </Panel>
     </main>
   );

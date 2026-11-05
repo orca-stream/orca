@@ -25,15 +25,9 @@ const SITES = JSON.stringify({
   },
 });
 
-function server(code?: string): Handler {
+function server(): Handler {
   return async (request) => {
     const { pathname } = new URL(request.url);
-    if (pathname === "/api/setup/code") {
-      const body = (await request.json()) as { code: string };
-      return body.code === code
-        ? new Response(null, { status: 204 })
-        : jsonResponse({ error: "forbidden" }, 403);
-    }
     if (pathname === "/api/setup/jellyfin") return jsonResponse(CONNECTION);
     if (pathname === "/api/setup") return new Response(null, { status: 204 });
     if (pathname === "/api/auth/login" || pathname === "/api/auth/me") return jsonResponse(ME);
@@ -58,7 +52,7 @@ async function connect(user: ReturnType<typeof userEvent.setup>) {
 describe("SetupScreen", () => {
   it("connects to Jellyfin, takes the extractors and signs the person in when done", async () => {
     const user = userEvent.setup();
-    const { requests, location } = renderApp(<SetupScreen needsCode={false} />, {
+    const { requests, location } = renderApp(<SetupScreen />, {
       handler: server(),
     });
     expect(screen.getByText("Paso 1 de 3")).toBeTruthy();
@@ -114,7 +108,7 @@ describe("SetupScreen", () => {
     const user = userEvent.setup();
     const single = { ...CONNECTION, libraries: [{ name: "Series", locations: ["/media/tv"] }] };
     const base = server();
-    renderApp(<SetupScreen needsCode={false} />, {
+    renderApp(<SetupScreen />, {
       handler: (request) =>
         new URL(request.url).pathname === "/api/setup/jellyfin"
           ? jsonResponse(single)
@@ -129,29 +123,9 @@ describe("SetupScreen", () => {
     expect(screen.getByText("Paso 2 de 3")).toBeTruthy();
   });
 
-  it("asks for the console's code first when opened from another device", async () => {
-    const user = userEvent.setup();
-    const { requests } = renderApp(<SetupScreen needsCode />, { handler: server("ABCD-EFGH") });
-    expect(screen.getByText("Paso 1 de 4")).toBeTruthy();
-
-    await user.type(screen.getByLabelText("Código"), "nope");
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    expect(
-      await screen.findByText("Ese código no es. Míralo en la consola del servidor."),
-    ).toBeTruthy();
-
-    await user.clear(screen.getByLabelText("Código"));
-    await user.type(screen.getByLabelText("Código"), "ABCD-EFGH");
-    await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    await screen.findByText("Paso 2 de 4");
-
-    await connect(user);
-    expect(await bodyOf(requests, "/api/setup/jellyfin")).toMatchObject({ code: "ABCD-EFGH" });
-  });
-
   it("says why Jellyfin refused", async () => {
     const user = userEvent.setup();
-    renderApp(<SetupScreen needsCode={false} />, {
+    renderApp(<SetupScreen />, {
       handler: () => jsonResponse({ error: "forbidden" }, 403),
     });
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");

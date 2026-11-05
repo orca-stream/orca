@@ -1,4 +1,3 @@
-import { randomInt, timingSafeEqual } from "node:crypto";
 import {
   Settings,
   type JellyfinConnectBody,
@@ -18,17 +17,13 @@ const SETTINGS_KEY = "settings";
 const EXTRACTORS_KEY = "extractors";
 /** What an empty extractors file says: no site. */
 const NO_EXTRACTORS = "{}\n";
-/** Letters and digits that cannot be mistaken for one another when read off a terminal. */
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-/** Wrong codes before a new one replaces it, so it cannot be guessed. */
-const MAX_CODE_ATTEMPTS = 10;
 
 export interface ServerSetupOptions {
   settings: SettingsRepository;
   /** Starts what the settings describe; the setup stops the old one first. */
   start: (config: Config, sites: Extractors) => Promise<Runtime>;
   connect: (url: string, username: string, password: string) => Promise<JellyfinConnection>;
-  /** Shown in the console, where the person setting the server up reads the code. */
+  /** Where the server says it is waiting for its setup. */
   log?: (message: string) => void;
 }
 
@@ -43,8 +38,6 @@ export class ServerSetup implements SettingsRoutes {
   private readonly log: (message: string) => void;
   private runtime: Runtime | null = null;
   private current: { settings: Settings; extractors: string } | null = null;
-  private code = "";
-  private attempts = 0;
   /** One change at a time: two saves racing would start two queues on one database. */
   private changing: Promise<unknown> = Promise.resolve();
 
@@ -71,7 +64,7 @@ export class ServerSetup implements SettingsRoutes {
   async boot(): Promise<void> {
     const saved = await this.options.settings.get(SETTINGS_KEY);
     if (saved === null) {
-      this.newCode();
+      this.log("Not set up yet: open the panel to set it up.");
       return;
     }
     let settings: Settings;
@@ -87,32 +80,22 @@ export class ServerSetup implements SettingsRoutes {
     await this.apply(settings, extractors, { save: false });
   }
 
-  // --- before the server is set up
+  // --- before the server is set up: open to whoever opens the panel first, as Jellyfin's own is
 
-  /**
-   * Whether the code is needed: not when the panel is opened on this same machine, since whoever
-   * can do that could read the console anyway.
-   */
-  status(local: boolean): { configured: boolean; needsCode: boolean } {
-    return { configured: this.configured, needsCode: !this.configured && !local };
+  status(): { configured: boolean } {
+    return { configured: this.configured };
   }
 
-  /** Checks the code alone, so the panel can ask for it before anything else. */
-  checkCode(code: string | undefined, local: boolean): void {
-    this.assertSetupAllowed(code, local);
-  }
-
-  async setupConnect(body: JellyfinConnectBody, local: boolean): Promise<JellyfinConnection> {
-    this.assertSetupAllowed(body.code, local);
+  async setupConnect(body: JellyfinConnectBody): Promise<JellyfinConnection> {
+    this.assertNotConfigured();
     return this.options.connect(body.url, body.username, body.password);
   }
 
-  async setup(body: SetupBody, local: boolean): Promise<void> {
-    this.assertSetupAllowed(body.code, local);
+  async setup(body: SetupBody): Promise<void> {
+    this.assertNotConfigured();
     await this.serially(() =>
       this.apply(body.settings, body.extractors ?? NO_EXTRACTORS, { save: true }),
     );
-    this.code = "";
   }
 
   // --- once it is (SettingsRoutes: only a signed-in administrator reaches these)
@@ -216,23 +199,8 @@ export class ServerSetup implements SettingsRoutes {
     return this.current;
   }
 
-  private assertSetupAllowed(code: string | undefined, local: boolean): void {
+  private assertNotConfigured(): void {
     if (this.configured) throw new AppError("conflict", "The server is already set up");
-    if (local) return;
-    if (code !== undefined && sameCode(code, this.code)) return;
-    this.attempts += 1;
-    if (this.attempts >= MAX_CODE_ATTEMPTS) this.newCode();
-    throw new AppError("forbidden", "Wrong setup code: it is in the server's console");
-  }
-
-  private newCode(): void {
-    const part = () =>
-      Array.from({ length: 4 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join("");
-    this.code = `${part()}-${part()}`;
-    this.attempts = 0;
-    this.log(
-      `Not set up yet: open the panel to set it up. From another device it asks for this code: ${this.code}`,
-    );
   }
 
   private serially<T>(work: () => Promise<T>): Promise<T> {
@@ -240,12 +208,4 @@ export class ServerSetup implements SettingsRoutes {
     this.changing = next.catch(() => undefined);
     return next;
   }
-}
-
-/** Compares codes in constant time, ignoring case and the dash. */
-function sameCode(given: string, expected: string): boolean {
-  const normalize = (code: string) => Buffer.from(code.toUpperCase().replace(/[^A-Z0-9]/g, ""));
-  const a = normalize(given);
-  const b = normalize(expected);
-  return b.length > 0 && a.length === b.length && timingSafeEqual(a, b);
 }

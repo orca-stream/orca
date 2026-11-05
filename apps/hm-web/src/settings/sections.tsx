@@ -227,13 +227,11 @@ export function JellyfinSection({
   draft,
   set,
   during,
-  code,
   formId,
   onFormState,
   onConnected,
 }: Omit<SectionProps, "errors"> & {
   during: "setup" | "settings";
-  code?: string;
   /**
    * When the panel's own button connects (the setup's one button), the form's id for it, and how the
    * form stands so the button can say so. Without it, the section has its own Connect button.
@@ -271,7 +269,7 @@ export function JellyfinSection({
   function submit(event: FormEvent) {
     event.preventDefault();
     connect.mutate(
-      { url: url.trim(), username, password, ...(code ? { code } : {}) },
+      { url: url.trim(), username, password },
       {
         onSuccess: (connection) => {
           const known = connection.libraries.flatMap((library) => library.locations);

@@ -1,7 +1,6 @@
 import type { Settings } from "@orca/hm-contract";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import type { SettingsRepository } from "../src/application/ports.ts";
-import { AppError } from "../src/domain/errors.ts";
 import { ConfigError, type Config } from "../src/infrastructure/config.ts";
 import type { Extractors } from "../src/infrastructure/extractors-file.ts";
 import type { Runtime } from "../src/infrastructure/runtime.ts";
@@ -93,9 +92,6 @@ function newSetup() {
   });
 }
 
-/** The code the console showed. */
-const shownCode = () => /code: (\S+)/.exec(logged.at(-1) ?? "")?.[1] ?? "";
-
 beforeEach(() => {
   repo = new MemorySettings();
   starts = new Starts();
@@ -106,41 +102,17 @@ beforeEach(() => {
 describe("a server with no settings", () => {
   beforeEach(() => setup.boot());
 
-  it("starts nothing and prints a code for the panel", () => {
+  it("starts nothing and says it waits for the panel", () => {
     expect(setup.configured).toBe(false);
     expect(starts.log).toEqual([]);
-    expect(shownCode()).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-  });
-
-  it("asks for the code only away from this machine", () => {
-    expect(setup.status(true)).toEqual({ configured: false, needsCode: false });
-    expect(setup.status(false)).toEqual({ configured: false, needsCode: true });
-  });
-
-  it("refuses a wrong code, and takes the right one in any case and without the dash", async () => {
-    await expect(setup.setup({ code: "NOPE-NOPE", settings }, false)).rejects.toMatchObject({
-      code: "forbidden",
-    });
-    await expect(setup.setup({ settings }, false)).rejects.toMatchObject({ code: "forbidden" });
-    const code = shownCode().toLowerCase().replace("-", "");
-    await setup.setup({ code, settings }, false);
-    expect(setup.configured).toBe(true);
-    expect(starts.log).toEqual(["start 1"]);
-  });
-
-  it("changes the code after too many wrong ones", async () => {
-    const first = shownCode();
-    for (let i = 0; i < 10; i++) {
-      await setup.setup({ code: "XXXX-XXXX", settings }, false).catch(() => undefined);
-    }
-    expect(shownCode()).not.toBe(first);
-    await expect(setup.setup({ code: first, settings }, false)).rejects.toBeInstanceOf(AppError);
+    expect(logged.at(-1)).toMatch(/open the panel/);
+    expect(setup.status()).toEqual({ configured: false });
   });
 
   it("is set up once, then keeps what it was given across a restart", async () => {
-    await setup.setup({ settings: { ...settings, browser }, extractors: SITE }, true);
-    await expect(setup.setup({ settings }, true)).rejects.toMatchObject({ code: "conflict" });
-    expect(setup.status(false)).toEqual({ configured: true, needsCode: false });
+    await setup.setup({ settings: { ...settings, browser }, extractors: SITE });
+    await expect(setup.setup({ settings })).rejects.toMatchObject({ code: "conflict" });
+    expect(setup.status()).toEqual({ configured: true });
 
     const again = newSetup();
     await again.boot();
@@ -150,7 +122,7 @@ describe("a server with no settings", () => {
   });
 
   it("refuses sites without the browser their players need", async () => {
-    await expect(setup.setup({ settings, extractors: SITE }, true)).rejects.toMatchObject({
+    await expect(setup.setup({ settings, extractors: SITE })).rejects.toMatchObject({
       code: "bad_request",
       message: expect.stringMatching(/browser/),
     });
@@ -162,7 +134,7 @@ describe("a server with no settings", () => {
 describe("a server with settings", () => {
   beforeEach(async () => {
     await setup.boot();
-    await setup.setup({ settings: { ...settings, browser } }, true);
+    await setup.setup({ settings: { ...settings, browser } });
   });
 
   it("never shows its keys", async () => {
@@ -223,7 +195,6 @@ describe("a server with settings", () => {
 });
 
 describe("the front door", () => {
-  const local = { incoming: { socket: { remoteAddress: "127.0.0.1", remotePort: 1 } } };
   const lan = { incoming: { socket: { remoteAddress: "192.168.1.20", remotePort: 1 } } };
   const app = () => createRootApp({ setup });
   const postJson = (body: unknown, headers: Record<string, string> = {}) => ({
@@ -234,46 +205,20 @@ describe("the front door", () => {
 
   beforeEach(() => setup.boot());
 
-  it("says the API is not set up yet, and asks for a code away from this machine", async () => {
-    const res = await app().request("/api/series", {}, local);
+  it("says the API is not set up yet, to whoever asks", async () => {
+    const res = await app().request("/api/series", {}, lan);
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ error: "not_configured" });
-    const status = async (path: string, env: unknown, headers: Record<string, string> = {}) =>
-      (await app().request(path, { headers }, env)).json();
-    expect(await status("/api/setup", local, { host: "localhost:5173" })).toEqual({
+    expect(await (await app().request("/api/setup", {}, lan)).json()).toEqual({
       configured: false,
-      needsCode: false,
-    });
-    // The panel's development server proxies from here, but the browser that asked is on the LAN.
-    expect(await status("/api/setup", local, { host: "192.168.1.5:5173" })).toMatchObject({
-      needsCode: true,
-    });
-    expect(await status("/api/setup", lan, { host: "localhost:8787" })).toMatchObject({
-      needsCode: true,
     });
   });
 
-  it("checks the code on its own", async () => {
-    const check = (code: string) => app().request("/api/setup/code", postJson({ code }), lan);
-    expect((await check("NOPE")).status).toBe(403);
-    expect((await check(shownCode())).status).toBe(204);
-  });
-
-  it("sets the server up, then hands every request to what the settings started", async () => {
-    const away = await app().request("/api/setup", postJson({ settings }), lan);
-    expect(away.status).toBe(403);
-    const res = await app().request(
-      "/api/setup",
-      postJson({ settings }, { origin: "http://localhost:5173" }),
-      local,
-    );
+  it("sets the server up from any device, then hands every request to what the settings started", async () => {
+    const res = await app().request("/api/setup", postJson({ settings }), lan);
     expect(res.status).toBe(204);
-    expect(await (await app().request("/api/series", {}, local)).text()).toBe("runtime 1");
-    const again = await app().request(
-      "/api/setup",
-      postJson({ settings }, { origin: "http://localhost:5173" }),
-      local,
-    );
+    expect(await (await app().request("/api/series", {}, lan)).text()).toBe("runtime 1");
+    const again = await app().request("/api/setup", postJson({ settings }), lan);
     expect(again.status).toBe(409);
   });
 
@@ -283,7 +228,7 @@ describe("the front door", () => {
       postJson({
         settings: { ...settings, downloads: { ...settings.downloads, connections: 99 } },
       }),
-      local,
+      lan,
     );
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({

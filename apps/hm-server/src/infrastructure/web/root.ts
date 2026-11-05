@@ -1,15 +1,10 @@
-import {
-  JellyfinConnectBody,
-  SetupBody,
-  SetupCodeBody,
-  type ApiErrorBody,
-} from "@orca/hm-contract";
-import { Hono, type Context } from "hono";
+import { JellyfinConnectBody, SetupBody, type ApiErrorBody } from "@orca/hm-contract";
+import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
 import { secureHeaders } from "hono/secure-headers";
 import type { ServerSetup } from "../setup.ts";
-import { clientAddress, validate } from "./app.ts";
+import { validate } from "./app.ts";
 import { describeError } from "./errors.ts";
 import { serveWeb } from "./static.ts";
 
@@ -19,32 +14,6 @@ export interface RootDeps {
   setup: ServerSetup;
   /** Absolute path of the built panel, served before the server is set up too. */
   webRoot?: string;
-}
-
-const LOOPBACK_NAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
-
-function isLoopbackAddress(address: string): boolean {
-  return address === "::1" || address.startsWith("127.") || address.startsWith("::ffff:127.");
-}
-
-/**
- * A request from a browser on this same machine: the connection comes from here, and so does the
- * page that made it (its Origin, or the Host it asked for). The panel's development server proxies
- * from here too, but keeps the browser's Origin and Host, so a phone on the LAN still counts as away.
- */
-export function isLocalRequest(c: Context): boolean {
-  if (!isLoopbackAddress(clientAddress(c))) return false;
-  const origin = c.req.header("origin");
-  const host = origin ? safeHost(origin) : safeHost(`http://${c.req.header("host") ?? ""}`);
-  return host !== null && (LOOPBACK_NAMES.has(host) || host.startsWith("127."));
-}
-
-function safeHost(url: string): string | null {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -74,16 +43,12 @@ export function createRootApp(deps: RootDeps) {
   // As in the API: a cross-site request always carries an Origin, and is refused here.
   const checkOrigin = csrf();
   first.use((c, next) => (c.req.header("origin") ? checkOrigin(c, next) : next()));
-  first.get("/", (c) => c.json(setup.status(isLocalRequest(c))));
-  first.post("/code", validate("json", SetupCodeBody), (c) => {
-    setup.checkCode(c.req.valid("json").code, isLocalRequest(c));
-    return c.body(null, 204);
-  });
+  first.get("/", (c) => c.json(setup.status()));
   first.post("/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
-    c.json(await setup.setupConnect(c.req.valid("json"), isLocalRequest(c))),
+    c.json(await setup.setupConnect(c.req.valid("json"))),
   );
   first.post("/", validate("json", SetupBody), async (c) => {
-    await setup.setup(c.req.valid("json"), isLocalRequest(c));
+    await setup.setup(c.req.valid("json"));
     return c.body(null, 204);
   });
   app.route("/api/setup", first);

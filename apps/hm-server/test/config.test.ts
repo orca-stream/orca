@@ -1,14 +1,19 @@
+import { join } from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 import { Settings } from "@orca/hm-contract";
 import {
   ConfigError,
   configFrom,
+  DEFAULT_DB_FILE,
+  DEFAULT_HOST,
+  DEFAULT_PORT,
   loadBootConfig,
   userAgent,
 } from "../src/infrastructure/config.ts";
 import { ExtractorsFileError, parseExtractorsFile } from "../src/infrastructure/extractors-file.ts";
 
 const boot = { DB_FILE: "./data/hm.sqlite", HOST: "localhost", PORT: "8787" };
+const root = "/srv/hm";
 
 /** The least a server is set up with from the panel. */
 const minimal = Settings.parse({
@@ -40,7 +45,7 @@ const browser = {
 
 describe("the environment", () => {
   it("only says where the server listens and keeps its database", () => {
-    expect(loadBootConfig(boot)).toEqual({
+    expect(loadBootConfig(boot, root)).toEqual({
       dbFile: "./data/hm.sqlite",
       port: 8787,
       host: "localhost",
@@ -53,31 +58,36 @@ describe("the environment", () => {
 
   it("reads the deployment-only values", () => {
     expect(
-      loadBootConfig({
-        ...boot,
-        WEB_ROOT: "/app/web",
-        SECURE_COOKIES: "true",
-        DEVICE_ID: "nas-1",
-      }),
+      loadBootConfig(
+        {
+          ...boot,
+          WEB_ROOT: "/app/web",
+          SECURE_COOKIES: "true",
+          DEVICE_ID: "nas-1",
+        },
+        root,
+      ),
     ).toMatchObject({ webRoot: "/app/web", secureCookies: true, deviceId: "nas-1" });
   });
 
-  it.each(["HOST", "PORT", "DB_FILE"])("refuses to start without %s, and says so", (name) => {
-    const env: Record<string, string | undefined> = { ...boot };
-    delete env[name];
-    expect(() => loadBootConfig(env)).toThrow(new RegExp(name));
+  it("starts with nothing set: on the LAN, on its port, with its database in the app folder", () => {
+    expect(loadBootConfig({}, root)).toMatchObject({
+      host: DEFAULT_HOST,
+      port: DEFAULT_PORT,
+      dbFile: join(root, DEFAULT_DB_FILE),
+    });
   });
 
   it("explains every problem at once", () => {
     let message = "";
     try {
-      loadBootConfig({ PORT: "nope" });
+      loadBootConfig({ PORT: "nope", HOST: "" }, root);
     } catch (e) {
       expect(e).toBeInstanceOf(ConfigError);
       message = (e as ConfigError).message;
     }
     expect(message).toContain("PORT");
-    expect(message).toContain("DB_FILE");
+    expect(message).toContain("HOST");
   });
 });
 

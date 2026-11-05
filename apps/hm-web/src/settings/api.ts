@@ -13,8 +13,6 @@ export interface ConnectInput {
   url: string;
   username: string;
   password: string;
-  /** Before the server is set up, from another device. */
-  code?: string;
 }
 
 /** Whether the server still has to be set up. Asked once; the setup itself says when it is done. */
@@ -46,13 +44,8 @@ export function useFinishSetup() {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { settings: Settings; extractors?: string; code?: string }) =>
-      api.post("/setup", body),
-    onSuccess: () =>
-      queryClient.setQueryData<SetupStatus>(keys.setup, {
-        configured: true,
-        needsCode: false,
-      }),
+    mutationFn: (body: { settings: Settings; extractors?: string }) => api.post("/setup", body),
+    onSuccess: () => queryClient.setQueryData<SetupStatus>(keys.setup, { configured: true }),
   });
 }
 

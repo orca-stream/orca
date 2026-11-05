@@ -112,8 +112,6 @@ export const JellyfinConnectBody = z.object({
   url: z.url(),
   username: z.string().min(1).max(256),
   password: z.string().max(1024),
-  /** Before the server is set up, the code when one is needed (see SetupStatus). */
-  code: z.string().max(64).optional(),
 });
 export type JellyfinConnectBody = z.infer<typeof JellyfinConnectBody>;
 
@@ -127,21 +125,12 @@ export const JellyfinConnection = z.object({
 });
 export type JellyfinConnection = z.infer<typeof JellyfinConnection>;
 
-/** `GET /api/setup`: whether the server still has to be set up, and how. */
-export const SetupStatus = z.object({
-  configured: z.boolean(),
-  /** Asked for when the panel is not opened from this same machine: printed in the server's console. */
-  needsCode: z.boolean(),
-});
+/** `GET /api/setup`: whether the server still has to be set up. */
+export const SetupStatus = z.object({ configured: z.boolean() });
 export type SetupStatus = z.infer<typeof SetupStatus>;
 
-/** `POST /api/setup/code`: checks the code before the rest of the setup asks for it again. */
-export const SetupCodeBody = z.object({ code: z.string().max(64) });
-export type SetupCodeBody = z.infer<typeof SetupCodeBody>;
-
-/** `POST /api/setup`: the first settings, with the code when one is needed. */
+/** `POST /api/setup`: the first settings. */
 export const SetupBody = z.object({
-  code: z.string().max(64).optional(),
   settings: Settings,
   /** The extractors file's text, when there is one. */
   extractors: z

@@ -24,7 +24,7 @@ const { version } = JSON.parse(readFileSync(resolve(appRoot, "package.json"), "u
 };
 
 loadEnvFile(appRoot);
-const boot = loadBootConfig(process.env);
+const boot = loadBootConfig(process.env, appRoot);
 
 mkdirSync(dirname(resolve(boot.dbFile)), { recursive: true });
 const database = openDatabase({

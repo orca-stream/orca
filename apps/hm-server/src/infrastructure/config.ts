@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { ExtractorLimits } from "@orca/extractor-core";
 import type { Settings } from "@orca/hm-contract";
 import type { StreamPrefs } from "../application/ports.ts";
@@ -7,11 +8,21 @@ const bool = z
   .enum(["true", "false", "1", "0"])
   .transform((value) => value === "true" || value === "1");
 
+/*
+ * Where the server listens and keeps its database when the environment says nothing: it has to
+ * start before its panel can ask anything, so these are the only defaults it has. The LAN, so the
+ * panel opens from another device as Jellyfin's does; the database under the app's own folder.
+ */
+export const DEFAULT_HOST = "0.0.0.0";
+export const DEFAULT_PORT = 8787;
+/** Relative to the app root (`apps/hm-server`), not to wherever the server was started from. */
+export const DEFAULT_DB_FILE = "data/hm.sqlite";
+
 /** What the server needs before it can open its database: the only part left in the environment. */
 const BootEnv = z.object({
-  DB_FILE: z.string().min(1),
-  PORT: z.coerce.number().int().min(1).max(65535),
-  HOST: z.string().min(1),
+  DB_FILE: z.string().min(1).optional(),
+  PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_PORT),
+  HOST: z.string().min(1).default(DEFAULT_HOST),
   /** Where the built panel is, when this server serves it. */
   WEB_ROOT: z.string().min(1).optional(),
   /** `Secure` on the session cookie: only behind HTTPS. */
@@ -86,18 +97,24 @@ function issuesOf(error: z.ZodError): string {
     .join("\n");
 }
 
-/** Reads where to listen and where the database is, once, at boot, so a typo fails loudly and early. */
-export function loadBootConfig(env: Record<string, string | undefined>): BootConfig {
+/**
+ * Reads where to listen and where the database is, once, at boot, so a typo fails loudly and early.
+ * What the environment leaves out takes the defaults above; `appRoot` places the default database.
+ */
+export function loadBootConfig(
+  env: Record<string, string | undefined>,
+  appRoot: string,
+): BootConfig {
   const parsed = BootEnv.safeParse(env);
   if (!parsed.success) {
     throw new ConfigError(
-      `Invalid configuration (set these in the environment, or run \`pnpm setup:hm\` to write a profile):\n${issuesOf(parsed.error)}`,
+      `Invalid configuration (fix these in the environment or apps/hm-server/.env):\n${issuesOf(parsed.error)}`,
       { cause: parsed.error },
     );
   }
   const e = parsed.data;
   return {
-    dbFile: e.DB_FILE,
+    dbFile: e.DB_FILE ?? resolve(appRoot, DEFAULT_DB_FILE),
     port: e.PORT,
     host: e.HOST,
     webRoot: e.WEB_ROOT,

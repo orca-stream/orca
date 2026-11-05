@@ -61,7 +61,7 @@ function SetupGate({ children }: { children: ReactNode }) {
       </main>
     );
   }
-  if (!status.data.configured) return <SetupScreen needsCode={status.data.needsCode} />;
+  if (!status.data.configured) return <SetupScreen />;
   return children;
 }
 

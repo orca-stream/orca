@@ -8,7 +8,6 @@
   "scripts": {
     "dev": "vp -C apps/jp dev",
     "dev:hm": "pnpm --parallel --filter \"./apps/hm-*\" dev",
-    "setup:hm": "node apps/hm-server/src/setup-cli.ts",
     "preview": "vp -C apps/jp preview",
     "check": "vp check",
     "lint": "vp lint --deny-warnings",
