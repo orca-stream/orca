@@ -1,4 +1,7 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { episodeCode } from "../src/domain/series.ts";
 import { firstLanguage } from "../src/infrastructure/web/app.ts";
 import { addBevhill, BEVHILL_URL, createHarness, type Harness } from "./harness.ts";
 
@@ -72,5 +75,24 @@ describe("firstLanguage", () => {
     expect(firstLanguage("es")).toBe("es");
     expect(firstLanguage("*")).toBeUndefined();
     expect(firstLanguage(undefined)).toBeUndefined();
+  });
+});
+
+describe("a file already on disk", () => {
+  it("is the episode: never downloaded over, whoever put it there", async () => {
+    const { series } = await addBevhill(h);
+    const [first] = await h.useCases.listEpisodes(series.id);
+    const folder = join(h.root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(folder, { recursive: true });
+    const theirs = join(folder, `Hillbillies ${episodeCode(first!.season, first!.episode)}.mkv`);
+    await writeFile(theirs, "theirs");
+
+    await h.useCases.enqueue([first!.id]);
+    await h.queue.settle();
+
+    expect(h.downloader.calls).toEqual([]);
+    expect(await readFile(theirs, "utf8")).toBe("theirs");
+    const [after] = await h.useCases.listEpisodes(series.id);
+    expect(after).toMatchObject({ status: "available" });
   });
 });

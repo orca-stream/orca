@@ -286,13 +286,17 @@ export interface LibraryWriter {
   removeSeries(series: Series): Promise<void>;
   /** The poster image on disk, if the series has one. */
   posterPath(series: Series): Promise<string | null>;
-  /** Moves the staged file to its Jellyfin name and writes the episode .nfo. Returns the path under MEDIA_ROOT. */
+  /**
+   * Moves the staged file to its library name and writes the episode .nfo. Returns the path under
+   * MEDIA_ROOT. A file already at that name is never replaced: it is kept as the episode
+   * (`kept`), and what was staged is thrown away.
+   */
   commitEpisode(
     series: Series,
     episode: Episode,
     stagedPath: string,
     sidecars?: Sidecar[],
-  ): Promise<{ relativePath: string }>;
+  ): Promise<{ relativePath: string; kept?: boolean }>;
   /** Deletes everything staged for an episode: the file, its `.part` and any subtitle files. */
   discardStaged(episode: Episode): Promise<void>;
   /**

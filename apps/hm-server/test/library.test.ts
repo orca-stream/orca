@@ -178,6 +178,29 @@ describe("FsLibraryWriter", () => {
     expect(await readdir(dir)).toEqual(["The Beverly Hillbillies S01E02.mp4"]);
   });
 
+  it("never replaces a file already under the episode's name, and throws the download away", async () => {
+    const series = aSeries();
+    const episode = anEpisode({ season: 1, episode: 2 });
+    await writer.writeSeries(series);
+    const dir = join(root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "The Beverly Hillbillies S01E02.mp4"), "theirs");
+    await writeFile(join(dir, "The Beverly Hillbillies S01E02.nfo"), "their nfo");
+    const staged = writer.stagingPath(episode);
+    await mkdir(join(root, ".hm-staging"), { recursive: true });
+    await writeFile(staged, "ours");
+
+    expect(await writer.commitEpisode(series, episode, staged)).toEqual({
+      relativePath: "The Beverly Hillbillies (1962)/Season 01/The Beverly Hillbillies S01E02.mp4",
+      kept: true,
+    });
+    expect(await readFile(join(dir, "The Beverly Hillbillies S01E02.mp4"), "utf8")).toBe("theirs");
+    expect(await readFile(join(dir, "The Beverly Hillbillies S01E02.nfo"), "utf8")).toBe(
+      "their nfo",
+    );
+    expect(await readdir(join(root, ".hm-staging"))).toEqual([]);
+  });
+
   it("keeps the extension of the poster it was given", async () => {
     const series = aSeries();
     await writer.writeSeries(series);

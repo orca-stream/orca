@@ -194,12 +194,15 @@ export function createJobHandler(deps: Deps): JobHandler {
       }
     }
     // The downloader may have chosen another container than the staged name asked for.
-    const { relativePath } = await deps.library.commitEpisode(
+    const { relativePath, kept } = await deps.library.commitEpisode(
       now,
       episode,
       downloaded.path ?? staged,
       downloaded.sidecars,
     );
+    if (kept) {
+      console.warn(`${relativePath} was already there: kept, the download thrown away`);
+    }
     await deps.series.setEpisodeStatus(episode.id, "available", relativePath, null);
     // Earlier attempts at it that failed are settled now: they leave the failures.
     await deps.jobs.dropSettledFailures();
@@ -320,6 +323,16 @@ export function createJobHandler(deps: Deps): JobHandler {
     const series = await deps.series.get(episode.seriesId);
     if (!series) throw new PermanentError("The series was removed");
     if (episode.status === "available" && !fileOutdated(episode)) return;
+    // A video of its number already in its season folder that this server never wrote (put there by
+    // hand, or a library from before) is that episode: it is kept, never downloaded over.
+    if (episode.filePath === null) {
+      const onDisk = await deps.library.locateEpisode(series, episode);
+      if (onDisk !== null) {
+        await deps.series.setEpisodeStatus(episode.id, "available", onDisk, null);
+        deps.events.publish({ type: "series.updated", seriesId: series.id });
+        return;
+      }
+    }
 
     if (episode.source.kind === "mirrors" && !mirrorPayload) {
       return readMirrors(job, episode, episode.source.url, context.signal);

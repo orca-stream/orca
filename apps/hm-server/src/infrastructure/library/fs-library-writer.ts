@@ -132,13 +132,19 @@ export class FsLibraryWriter implements LibraryWriter {
     episode: Episode,
     stagedPath: string,
     sidecars: Sidecar[] = [],
-  ): Promise<{ relativePath: string }> {
+  ): Promise<{ relativePath: string; kept?: boolean }> {
     const extension = extname(stagedPath);
     const folder = join(this.seriesPath(series), seasonFolderName(episode.season));
     const destination = join(
       folder,
       episodeFileName(series.title, episode.season, episode.episode, extension),
     );
+    if (await exists(destination)) {
+      // Someone else's file under this name: it stays, with whatever is named after it.
+      await rm(stagedPath, { force: true });
+      await Promise.all(sidecars.map((sidecar) => rm(sidecar.path, { force: true })));
+      return { relativePath: relative(this.root, destination).split(sep).join("/"), kept: true };
+    }
     const base = destination.slice(0, destination.length - extension.length);
     // Every name is settled before anything moves: a bad subtitle must not leave a half-made episode.
     const { named, dropped } = nameSidecars(basename(base), sidecars);
