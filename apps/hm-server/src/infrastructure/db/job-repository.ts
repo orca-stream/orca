@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, lt, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, notInArray, sql } from "drizzle-orm";
 import type { ProgressDetail } from "@orca/hm-contract";
 import type {
   Clock,
@@ -412,11 +412,26 @@ export class DrizzleJobRepository implements JobRepository {
       .map(toJob);
   }
 
+  async dropFailures(episodeIds: string[]): Promise<number> {
+    if (episodeIds.length === 0) return 0;
+    return this.db
+      .delete(jobs)
+      .where(
+        and(
+          eq(jobs.kind, "download_episode"),
+          eq(jobs.status, "failed"),
+          inArray(jobs.episodeId, episodeIds),
+        ),
+      )
+      .run().changes;
+  }
+
   async dropSettledFailures(): Promise<number> {
     const available = this.db
       .select({ id: episodes.id })
       .from(episodes)
-      .where(eq(episodes.status, "available"));
+      // One whose source changed still has its old file: a failed replacement is worth seeing.
+      .where(and(eq(episodes.status, "available"), isNull(episodes.fileSourceId)));
     return this.db
       .delete(jobs)
       .where(

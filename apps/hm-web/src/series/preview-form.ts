@@ -249,13 +249,12 @@ export function nextOpenSeason(
   return after.find((season) => !complete(season.number, season.episodeCount))?.number ?? null;
 }
 
-/** The codes the chosen episodes would take that the series already has (or that repeat). */
-export function clashingCodes(
-  preview: PreviewDto,
-  form: PreviewForm,
-  existing: readonly Pick<EpisodeDto, "season" | "episode">[],
-): string[] {
-  const taken = new Set(existing.map((episode) => episodeCode(episode.season, episode.episode)));
+/**
+ * The codes two chosen episodes would both take. One the series already has is no clash: it takes
+ * its video from this address from now on.
+ */
+export function clashingCodes(preview: PreviewDto, form: PreviewForm): string[] {
+  const taken = new Set<string>();
   const number = numberer(preview, form);
   const chosen = new Set(form.included);
   const clashes = new Set<string>();

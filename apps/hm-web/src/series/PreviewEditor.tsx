@@ -96,7 +96,7 @@ export function PreviewEditor({
   const included = new Set(form.included);
   const allIncluded = form.included.length === preview.episodes.length;
   const target = seriesOptions.find((series) => series.id === form.addTo) ?? null;
-  const clashes = target ? clashingCodes(preview, form, targetEpisodes ?? []) : [];
+  const clashes = target ? clashingCodes(preview, form) : [];
   // Until the target's episodes are known, clashes can't be ruled out.
   const ok = canConfirm(form, clashes) && (!target || targetEpisodes !== undefined);
   const invalid = invalidFields(form);

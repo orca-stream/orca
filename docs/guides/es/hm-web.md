@@ -21,6 +21,22 @@ su candado resalta y la cabecera dice `1 abierta, pero la serie terminó`: no tr
 así que conviene cerrarla. En la lista de series, la píldora de fuentes abiertas de su tarjeta
 sale en ámbar, con un aviso en lugar del globo del sitio.
 
+Una serie puede tomar cada episodio de una fuente distinta. Para traer una temporada (o un episodio,
+o la serie entera) de un sitio con mejor vídeo, añade esa dirección a la serie: los episodios que
+lista y la serie ya tiene cambian de fuente, y el resto se añade. O, en la pantalla de la serie,
+selecciona los episodios y pulsa **Cambiar fuente** en la barra de selección: lista las fuentes de la
+serie, vuelve a leer en ese momento la que elijas y dice cuáles de los elegidos no tiene (solo lista las fuentes que pueden traer las temporadas de los elegidos, no una que solo trajo otras
+o está puesta en otra). Con dos o más fuentes, cada episodio lleva la marca de la fuente de la que toma su
+vídeo; al pasar el ratón dice el sitio, la dirección y lo que trajo esa fuente. No se
+descarga nada. Un episodio descargado conserva su archivo y muestra **Otra fuente**; selecciónalo y
+descárgalo para reemplazar ese archivo: el viejo se borra solo cuando el nuevo está completo, y se
+queda si la descarga falla. Volver a la fuente de la que vino el archivo quita la marca. **Descargar
+los que faltan** no los toca. Con dos o más fuentes, la cabecera de episodios tiene la **fuente
+preferida** de cada temporada (**Cualquier fuente** por defecto), entre las fuentes que pueden traer
+esa temporada: mientras esté abierta, los episodios nuevos de esa temporada que encuentre la búsqueda
+llegan solo de ella; cerrada, vuelven a traerlos las demás. No cambia nada de lo que ya tienes: para
+eso, **Cambiar fuente**.
+
 Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
 dirección. En una serie nueva, al escribir su id de TMDB se rellenan el título, el año y el id de IMDb:
 el servidor se lo pregunta al proveedor TMDB del propio Jellyfin (sin clave de TMDB nuestra), en el
@@ -62,7 +78,8 @@ una cuadrícula con una tarjeta por episodio. Cada tarjeta lleva una miniatura (
 donde quedará, si hay clave; si no, un marcador) y, encima, el código que tendrá (y el del sitio, si la
 numeración lo mueve), el servidor del que sale (un host, o «Espejos» cuando la página del episodio
 ofrece varios reproductores y se elige uno al descargar), qué le pasará («Se descargará», «Sin
-descargar», «Se omite», o «Ya la tienes» si la serie elegida ya tiene ese código, lo que impide añadir)
+descargar», «Se omite», o «Cambia de fuente» si la serie elegida ya tiene ese código: ese episodio
+pasa a tomar su vídeo de esta dirección y conserva su archivo hasta que lo vuelvas a descargar)
 y los avisos del sitio (inferido, hueco…). Debajo, el nombre de TMDB, la fecha de emisión, la duración
 y la sinopsis. El botón redondo de su esquina, o la tarjeta entera, incluye u omite el episodio;
 «Todos», en la cabecera de la cuadrícula, los cambia todos.

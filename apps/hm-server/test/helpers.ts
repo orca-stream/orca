@@ -43,6 +43,7 @@ export function aSeries(overrides: Partial<Series> = {}): Series {
     maxHeight: null,
     audioLangs: null,
     subtitleLangs: null,
+    preferredSources: {},
     createdAt: 1,
     ...overrides,
   };
@@ -92,6 +93,7 @@ export function anEpisode(overrides: Partial<Episode> = {}): Episode {
     format: "MPEG4",
     status: "missing",
     filePath: null,
+    fileSourceId: null,
     createdAt: 1,
     ...overrides,
   };

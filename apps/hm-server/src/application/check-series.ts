@@ -194,7 +194,8 @@ export function createCheckSeries(deps: Deps) {
     if (!series) return UNCHANGED;
 
     const reads: SourceRead[] = [];
-    for (const source of await deps.series.listSources([series.id])) {
+    const sources = await deps.series.listSources([series.id]);
+    for (const source of sources) {
       // A closed source was marked as bringing nothing new: reading it would only cost requests.
       if (source.closed) continue;
       const found = await read(source, signal);
@@ -210,6 +211,13 @@ export function createCheckSeries(deps: Deps) {
     const byRef = new Map(existing.map((episode) => [episode.sourceRef, episode]));
     const taken = new Set(existing.map((episode) => `${episode.season}:${episode.episode}`));
 
+    // The source a season prefers, while it is open: what others list for that season is left to it.
+    const open = new Set(sources.filter((source) => !source.closed).map((source) => source.id));
+    const preferredOf = (season: number): string | null => {
+      const id = series.preferredSources[String(season)];
+      return id !== undefined && open.has(id) ? id : null;
+    };
+
     const update: Episode[] = [];
     let add: Episode[] = [];
     const skippedRefs: string[] = [];
@@ -222,8 +230,12 @@ export function createCheckSeries(deps: Deps) {
       const learning = source.knownRefs === null;
       const known = new Set([...(source.knownRefs ?? []), ...byRef.keys()]);
       const skippedHere: string[] = [];
+      // Left to the season's preferred source: not known, so they come if the preference goes.
+      const deferred: string[] = [];
       for (const found of extraction.episodes) {
         const current = byRef.get(found.sourceRef);
+        // Another source's episode with the same key is not this one's to refresh.
+        if (current && current.sourceId !== null && current.sourceId !== source.id) continue;
         if (current) {
           update.push({
             ...current,
@@ -239,6 +251,11 @@ export function createCheckSeries(deps: Deps) {
         } else if (!learning && !known.has(found.sourceRef)) {
           const { season, episode } = numberOf(source, found);
           const number = `${season}:${episode}`;
+          const preferred = preferredOf(season);
+          if (preferred !== null && preferred !== source.id && !taken.has(number)) {
+            deferred.push(found.sourceRef);
+            continue;
+          }
           if (taken.has(number)) {
             skippedHere.push(found.sourceRef);
             continue;
@@ -262,7 +279,7 @@ export function createCheckSeries(deps: Deps) {
             ...(source.knownRefs ?? []),
             ...extraction.episodes.map((found) => found.sourceRef),
           ]),
-        ].filter((ref) => !skippedHere.includes(ref)),
+        ].filter((ref) => !skippedHere.includes(ref) && !deferred.includes(ref)),
       });
     }
     const skipped = skippedRefs.length;

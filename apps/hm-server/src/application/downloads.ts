@@ -1,6 +1,6 @@
 import { AppError } from "../domain/errors.ts";
 import type { Job, Resource } from "../domain/job.ts";
-import type { Source } from "../domain/series.ts";
+import { fileOutdated, type Source } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createJobEvents } from "./job-events.ts";
 
@@ -21,7 +21,10 @@ export function resourceFor(source: Source): Resource {
   }
 }
 
-/** Queues a download job for each episode that isn't in the library or already queued. */
+/**
+ * Queues a download job for each episode that isn't in the library or already queued. One whose
+ * file is from a source it left is downloaded again: the new file replaces it once it is complete.
+ */
 export function createEnqueueDownloads(deps: Deps) {
   const { publishJob } = createJobEvents(deps);
 
@@ -43,7 +46,7 @@ export function createEnqueueDownloads(deps: Deps) {
     // In the order they are watched: one episode at a time takes them as queued.
     episodes.sort((a, b) => a.season - b.season || a.episode - b.episode);
     for (const episode of episodes) {
-      if (episode.status === "available") continue;
+      if (episode.status === "available" && !fileOutdated(episode)) continue;
       const running = active.get(episode.id);
       if (running) {
         jobs.push(running);

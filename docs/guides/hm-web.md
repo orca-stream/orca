@@ -21,6 +21,21 @@ episodes. When TMDB says the show has ended or was canceled, a source still open
 will bring nothing new, so close it. Its card in the series list shows the open-sources pill in
 amber, with a warning in place of the site's globe.
 
+A series can take each episode from a different source. To get a season (or one episode, or the
+whole show) from a site with a better video, add that address to the series: the episodes it lists
+that the series has change source, and the rest are added. Or, on the series' screen, pick the
+episodes and press **Change source** in the selection's bar: it lists the series' sources, reads the
+one you choose again right then, and says which of the picked episodes it doesn't have (it lists only the sources that can bring the picked episodes' seasons, not one that brought only
+others or is set to another). With two or more sources, each episode shows the mark of the one it takes its video from;
+hovering it names the site, the address and what that source brought. Nothing is
+downloaded. A downloaded episode keeps its file and shows **Other source**; pick it and download it
+to replace that file — the old one is deleted only once the new one is complete, and stays if the
+download fails. Going back to the source the file came from clears the mark. **Download the missing
+ones** leaves those alone. With two or more sources, the episodes' header has each season's
+**preferred source** (**Any source** by default), among the sources that can bring that season:
+while it is open, new episodes of that season a search finds come only from it; closed, the others
+bring them again. It changes nothing you already have — for those, use **Change source**.
+
 When adding, leave "Add to" empty to make a new series, or pick one you have to add the address to it.
 For a new series, typing its TMDB id fills in the title, the year and the IMDb id: the server asks
 Jellyfin's own TMDB provider (no TMDB key of ours), in the server's preferred metadata language. It
@@ -61,7 +76,8 @@ card per episode. Each card has a frame (TMDB's, for where the episode lands, wh
 placeholder otherwise) and, over it, the code it will get (and the site's, when the numbering moves it),
 the server it comes from (a host, or "Mirrors" when the episode page lists several players and one is
 picked when it downloads), what happens to it ("Will download", "Not downloaded", "Left out", or
-"Already there" when the chosen series has that code, which blocks adding) and the site's warnings
+"Changes source" when the chosen series has that code: that episode takes its video from this
+address from now on, keeping its file until you download it again) and the site's warnings
 (inferred, gap…). Below it, TMDB's name, air date, length and synopsis. The round button in its corner,
 or the whole card, includes or leaves out the episode; "All" in the grid's header does every one.
 

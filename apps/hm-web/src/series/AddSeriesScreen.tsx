@@ -629,11 +629,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
       ? []
       : (showEpisodes.data ?? []).map((episode) => episodeCode(episode.season, episode.episode)),
   );
-  const clashes =
-    preview && form && targetSeriesId !== ""
-      ? clashingCodes(preview, form, targetEpisodes.data ?? [])
-      : [];
-  // Until the target's episodes are known, clashes can't be ruled out.
+  const clashes = preview && form ? clashingCodes(preview, form) : [];
+  // Until the target's episodes are known, what changes source can't be shown.
   const ready =
     form !== null &&
     canConfirm(form, clashes) &&

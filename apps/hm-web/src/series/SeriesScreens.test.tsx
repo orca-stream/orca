@@ -437,6 +437,78 @@ describe("SeriesDetailScreen", () => {
     expect(screen.queryByRole("toolbar")).toBeNull();
   });
 
+  it("moves the picked episodes to another source without downloading them, and sets a season's preferred one", async () => {
+    const user = userEvent.setup();
+    const other = {
+      id: "b",
+      extractorId: "site-b",
+      externalId: "b",
+      sourceUrl: "https://origin.example/show/b",
+      season: 1,
+      episodeOffset: 0,
+      adjustments: [],
+      closed: false,
+      nextUrl: null,
+    };
+    const series = makeSeries();
+    const withTwo = { ...series, sources: [...series.sources, other] };
+    const view = renderApp(
+      <Route path="/series/:id">
+        <SeriesDetailScreen />
+      </Route>,
+      {
+        path: "/series/s1",
+        handler: (request) => {
+          const url = new URL(request.url);
+          if (url.pathname === "/api/series/s1") return jsonResponse(withTwo);
+          if (url.pathname === "/api/series/s1/episodes")
+            return jsonResponse([
+              makeEpisode({ id: "e1", episode: 1, title: "Uno", status: "available" }),
+              makeEpisode({
+                id: "e2",
+                episode: 2,
+                title: "Dos",
+                fileOutdated: true,
+                status: "available",
+              }),
+            ]);
+          if (url.pathname === "/api/series/s1/episodes/source")
+            return jsonResponse({ switched: 1, notListed: ["S01E01"], busy: [] });
+          return detailHandler(request);
+        },
+      },
+    );
+    // Its file is the old source's until it is downloaded again.
+    const two = (await screen.findByText("Dos")).closest("article")!;
+    expect(within(two).getByText("Otra fuente")).toBeTruthy();
+    expect(
+      within(screen.getByText("Uno").closest("article")!).queryByText("Otra fuente"),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E01" }));
+    await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E02" }));
+    await user.click(screen.getByRole("button", { name: "Cambiar fuente" }));
+    await user.click(await screen.findByRole("button", { name: /origin\.example\/show\/b/ }));
+
+    const sent = () =>
+      view.requests.filter((r) => new URL(r.url).pathname === "/api/series/s1/episodes/source");
+    await waitFor(() => expect(sent()).toHaveLength(1));
+    expect(await sent()[0]!.json()).toEqual({ sourceId: "b", episodeIds: ["e1", "e2"] });
+    expect(
+      await screen.findByText(
+        "1 episodio toma su vídeo de la otra fuente. Esa fuente no tiene S01E01.",
+      ),
+    ).toBeTruthy();
+    // Nothing was queued: downloading is asked for apart.
+    expect(view.requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
+
+    await user.click(screen.getByRole("combobox", { name: "Fuente preferida de la temporada 1" }));
+    await user.click(await screen.findByRole("option", { name: /origin\.example\/show\/b/ }));
+    const patch = () => view.requests.find((r) => r.method === "PATCH");
+    await waitFor(() => expect(patch()).toBeTruthy());
+    expect(await patch()!.json()).toEqual({ preferredSources: { "1": "b" } });
+  });
+
   it("pauses the series' downloads at once, and shows a paused series as such", async () => {
     const user = userEvent.setup();
     let paused = false;

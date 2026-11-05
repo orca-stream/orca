@@ -37,6 +37,11 @@ export interface Series {
   maxHeight: number | null;
   audioLangs: string[] | null;
   subtitleLangs: string[] | null;
+  /**
+   * The source each season takes new episodes from, by season number: while it is open, what other
+   * sources list for that season is left to it.
+   */
+  preferredSources: Record<string, string>;
   createdAt: number;
 }
 
@@ -88,6 +93,12 @@ export interface Episode {
   status: EpisodeStatus;
   /** Path of the file under MEDIA_ROOT once it is in the library. */
   filePath: string | null;
+  /**
+   * The source its file came from, when that is not the one it takes its video from now (its source
+   * was changed after it was downloaded); null when the file is its own source's, or there is none.
+   * Such a file stays available, and downloading again replaces it once the new one is complete.
+   */
+  fileSourceId: string | null;
   createdAt: number;
 }
 
@@ -95,4 +106,9 @@ export interface Episode {
 export function episodeCode(season: number, episode: number): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `S${pad(season)}E${pad(episode)}`;
+}
+
+/** Its file is from another source than the one it takes its video from now. */
+export function fileOutdated(episode: Pick<Episode, "filePath" | "fileSourceId">): boolean {
+  return episode.filePath !== null && episode.fileSourceId !== null;
 }

@@ -11,6 +11,7 @@ import {
   PreviewRequest,
   SeriesPatch,
   SourcePatch,
+  SwitchSourceBody,
   ShowLookupParams,
   GuideEpisodesParams,
   GuideQuery,
@@ -270,6 +271,12 @@ export function createApp(deps: AppDeps) {
   api.get("/series/:id/episodes", async (c) =>
     c.json(await useCases.listEpisodes(c.req.param("id"))),
   );
+
+  // Nothing is downloaded: the episodes only take their video from that source from now on.
+  api.post("/series/:id/episodes/source", validate("json", SwitchSourceBody), async (c) => {
+    const body = c.req.valid("json");
+    return c.json(await useCases.switchSource(c.req.param("id"), body, c.req.raw.signal));
+  });
 
   // The episode stays in the series, not downloaded: only its file goes.
   api.delete("/series/:id/episodes/:episodeId/file", async (c) => {

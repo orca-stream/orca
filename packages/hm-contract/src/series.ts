@@ -239,6 +239,13 @@ export const LanguageCode = z
 
 const MAX_LANGUAGES = 10;
 
+/** A season's number as a key (`"2"`, `"0"` for the specials) and the id of a source of the series. */
+export const PreferredSources = z.record(
+  z.string().regex(/^\d{1,3}$/, "A season is a number"),
+  z.string().min(1),
+);
+export type PreferredSources = z.infer<typeof PreferredSources>;
+
 export const SeriesPatch = z.object({
   title: Title.optional(),
   year: Year.optional(),
@@ -259,6 +266,11 @@ export const SeriesPatch = z.object({
   audioLangs: z.array(LanguageCode).min(1).max(MAX_LANGUAGES).nullable().optional(),
   /** Subtitle languages to keep; empty means none. `null`: the server's default (every text track). */
   subtitleLangs: z.array(LanguageCode).max(MAX_LANGUAGES).nullable().optional(),
+  /**
+   * The source each season takes new episodes from, by season number: while it is open, the
+   * episodes other sources list for that season are left to it. Replaces the whole map.
+   */
+  preferredSources: PreferredSources.optional(),
 });
 export type SeriesPatch = z.infer<typeof SeriesPatch>;
 
@@ -306,6 +318,8 @@ export const SeriesDto = z.object({
   maxHeight: z.number().int().nullable(),
   audioLangs: z.array(z.string()).nullable(),
   subtitleLangs: z.array(z.string()).nullable(),
+  /** The source each season prefers for its new episodes (see `SeriesPatch.preferredSources`). */
+  preferredSources: PreferredSources,
   hasPoster: z.boolean(),
   episodeCount: z.number().int(),
   availableCount: z.number().int(),
@@ -332,6 +346,11 @@ export const EpisodeDto = z.object({
   sizeBytes: z.number().nullable(),
   format: z.string().nullable(),
   status: EpisodeStatus,
+  /**
+   * Its source was changed after it was downloaded: the file is still the old source's, and
+   * downloading it again replaces that file once the new one is complete.
+   */
+  fileOutdated: z.boolean(),
   /** 0..1 while downloading, when the total size is known. */
   progress: z.number().nullable(),
   /** Bytes so far, total, speed and ETA of the download in progress. */
@@ -340,3 +359,20 @@ export const EpisodeDto = z.object({
   player: z.string().nullable(),
 });
 export type EpisodeDto = z.infer<typeof EpisodeDto>;
+
+/** Moves episodes of a series to another of its sources; nothing is downloaded. */
+export const SwitchSourceBody = z.object({
+  sourceId: z.string().min(1),
+  episodeIds: z.array(z.string().min(1)).min(1).max(2000),
+});
+export type SwitchSourceBody = z.infer<typeof SwitchSourceBody>;
+
+export const SwitchSourceResult = z.object({
+  /** How many episodes take their video from that source now. */
+  switched: z.number().int(),
+  /** Episodes that source doesn't list (as `S01E02`), left as they were. */
+  notListed: z.array(z.string()),
+  /** Episodes being downloaded right now, left as they were. */
+  busy: z.array(z.string()),
+});
+export type SwitchSourceResult = z.infer<typeof SwitchSourceResult>;

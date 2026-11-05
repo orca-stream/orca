@@ -91,14 +91,27 @@ describe("a season in parts", () => {
     expect(await codes((await add("plain", { title: "Plain" })).id)).toEqual(["S01E04", "S01E05"]);
   });
 
-  it("refuses a part whose episodes would land on ones the series has", async () => {
-    site.season("p1", "Show", range(1, 3)).season("p2", "Show", range(1, 3));
+  it("moves the episodes the series has to an address that lists them too, and adds the rest", async () => {
+    site.season("p1", "Show", range(1, 3)).season("p2", "Show", range(2, 4));
     const first = await add("p1", { title: "Show" });
-    await expect(add("p2", { seriesId: first.id })).rejects.toMatchObject({
-      code: "conflict",
-      message: expect.stringContaining("S01E01, S01E02, S01E03"),
-    });
-    expect((await h.useCases.getSeries(first.id)).sources).toHaveLength(1);
+    const one = (await h.series.listEpisodes(first.id)).find((e) => e.episode === 2)!;
+    await h.series.setEpisodeStatus(one.id, "available", "Show/Season 01/Show S01E02.mp4");
+
+    const after = await add("p2", { seriesId: first.id });
+
+    const [, second] = after.sources;
+    const episodes = await h.series.listEpisodes(first.id);
+    expect(episodes.map((e) => [e.episode, e.sourceId === second!.id, e.status])).toEqual([
+      [1, false, "missing"],
+      [2, true, "available"],
+      [3, true, "missing"],
+      [4, true, "missing"],
+    ]);
+    // Its file is the first address's still: downloading it again replaces it.
+    const moved = episodes.find((e) => e.episode === 2)!;
+    expect(moved.id).toBe(one.id);
+    expect(moved.fileSourceId).toBe(first.sources[0]!.id);
+    expect(moved.filePath).toBe("Show/Season 01/Show S01E02.mp4");
   });
 
   it("refuses the same address twice, naming the series that has it", async () => {

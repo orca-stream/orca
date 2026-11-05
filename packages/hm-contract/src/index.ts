@@ -17,6 +17,7 @@ export {
   LibraryShowDto,
   LicenseDto,
   MAX_TITLE_LENGTH,
+  PreferredSources,
   PreviewDto,
   PreviewEpisode,
   PreviewRequest,
@@ -28,6 +29,8 @@ export {
   ShowLookupParams,
   SourceDto,
   SourcePatch,
+  SwitchSourceBody,
+  SwitchSourceResult,
   TmdbId,
 } from "./series.ts";
 export { EnqueueBody, JobDto, JobKind, JobStatus, ListJobsQuery, ProgressDetail } from "./jobs.ts";

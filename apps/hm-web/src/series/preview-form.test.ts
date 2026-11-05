@@ -323,16 +323,19 @@ describe("numbering", () => {
     expect(parseImdbId("")).toBeNull();
   });
 
-  it("finds the chosen episodes that would land on ones the series has", () => {
-    const form = { ...initialForm(preview), addTo: "s9", firstEpisode: "12" };
-    const existing = [
-      { season: 1, episode: 12 },
-      { season: 1, episode: 13 },
-    ];
-    expect(clashingCodes(preview, form, existing)).toEqual(["S01E12", "S01E13"]);
-    expect(canConfirm(form, ["S01E12"])).toBe(false);
-    // Leaving the clashing episodes out clears it.
-    expect(clashingCodes(preview, { ...form, included: ["e4"] }, existing)).toEqual([]);
+  it("finds two chosen episodes that would land on the same number, not ones the series has", () => {
+    // What the series has is no clash: it takes its video from this address.
+    const form = { ...initialForm(preview), addTo: "s9" };
+    expect(clashingCodes(preview, form)).toEqual([]);
+    // Episode 4 numbered as 2 lands on episode 2.
+    const twice = {
+      ...form,
+      adjustments: [{ season: 1, episode: 4, kind: "renumber" as const, number: 2 }],
+    };
+    expect(clashingCodes(preview, twice)).toEqual(["S01E02"]);
+    expect(canConfirm(twice, ["S01E02"])).toBe(false);
+    // Leaving one out clears it.
+    expect(clashingCodes(preview, { ...twice, included: ["e1", "e4"] })).toEqual([]);
   });
 
   it("finds the episode after the last one a season has, and none for a season it lacks", () => {

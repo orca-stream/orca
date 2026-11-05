@@ -32,6 +32,8 @@ import { absentSeasons } from "./tmdb-match";
 import { AiringChip } from "./AiringChip";
 import { airingHint } from "./airing";
 import { SeriesEpisodes } from "./SeriesEpisodes";
+import { EpisodeSourceMark, PreferredSourceSelect, SwitchSourceButton } from "./SourcePicker";
+import { sourcesFor } from "./source-spans";
 import { addSourceHref } from "./add-source";
 import { SeriesSettings } from "./SeriesSettings";
 import { ShowBackdrop } from "./ShowBackdrop";
@@ -204,6 +206,9 @@ export function SeriesDetailScreen() {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   // Which of the two bulk buttons is waiting on the server, so only that one shows busy.
   const [bulk, setBulk] = useState<"selected" | "missing" | null>(null);
+  // What the last change of source did; a pick or a failure of its own replaces it.
+  const [notice, setNotice] = useState<string | null>(null);
+  const [sourceFailed, setSourceFailed] = useState(false);
   const [panelRef, panelHeight] = useElementHeight<HTMLDivElement>();
 
   // What TMDB says of the show, once it has an id: its picture behind the glass, its seasons, and
@@ -278,6 +283,9 @@ export function SeriesDetailScreen() {
     .flatMap((g) => g.episodes)
     .filter((e) => selection.has(e.id))
     .map((e) => e.id);
+  const pickedSeasons = [
+    ...new Set(episodes.filter((e) => selection.has(e.id)).map((e) => e.season)),
+  ];
   const seasonCount = guide.isSuccess
     ? guide.data.filter((season) => season.number > 0).length || null
     : groups.filter((group) => group.season > 0).length || null;
@@ -320,10 +328,48 @@ export function SeriesDetailScreen() {
         absentSeasons={absent}
         missingCount={missing.length}
         busy={bulk}
-        failed={enqueue.isError || deleteEpisodeFile.isError}
+        failed={enqueue.isError || deleteEpisodeFile.isError || sourceFailed}
+        notice={notice}
         onToggle={(episodeId) => setPicked(() => toggleSelected(selection, episodes, episodeId))}
         onToggleSeason={(season, on) => setPicked(() => setSeason(selection, episodes, season, on))}
-        onClear={() => setPicked(new Set())}
+        onClear={() => {
+          setPicked(new Set());
+          setNotice(null);
+        }}
+        sourceMark={(episode) =>
+          data.sources.length > 1 && (
+            <EpisodeSourceMark series={data} episodes={episodes} episode={episode} />
+          )
+        }
+        seasonTools={(season) =>
+          // A preference needs two sources that can bring the season.
+          sourcesFor(data, episodes, [season]).length > 1 && (
+            <PreferredSourceSelect
+              series={data}
+              episodes={episodes}
+              season={season}
+              onFailed={() => setSourceFailed(true)}
+            />
+          )
+        }
+        selectionTools={
+          sourcesFor(data, episodes, pickedSeasons).length > 1 && (
+            <SwitchSourceButton
+              series={data}
+              episodes={episodes}
+              selection={selection}
+              disabled={bulk !== null}
+              onDone={(message) => {
+                setSourceFailed(false);
+                setNotice(message);
+              }}
+              onFailed={() => {
+                setNotice(null);
+                setSourceFailed(true);
+              }}
+            />
+          )
+        }
         onDownloadSelected={() => {
           setBulk("selected");
           enqueue.mutate(orderedSelection, {

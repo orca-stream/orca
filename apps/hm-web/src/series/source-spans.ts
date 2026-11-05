@@ -1,4 +1,4 @@
-import type { EpisodeDto } from "@orca/hm-contract";
+import type { EpisodeDto, SeriesDto } from "@orca/hm-contract";
 
 /** The episodes one source brought to one season: from the first number to the last. */
 export interface SourceSpan {
@@ -52,4 +52,30 @@ export function sortBySpan<S extends { id: string; season: number | null }>(
     const [seasonB, fromB] = starts.get(b.id) ?? [0, 0];
     return seasonA - seasonB || fromA - fromB;
   });
+}
+
+/**
+ * Whether a source can bring episodes of `season`: it brought some already, it is set to that
+ * season, or it has brought nothing yet and keeps the site's seasons (it can't be ruled out).
+ */
+export function offersSeason(
+  source: Pick<SeriesDto["sources"][number], "id" | "season">,
+  episodes: readonly EpisodeDto[],
+  season: number,
+): boolean {
+  const spans = sourceSpans(episodes, source.id);
+  if (spans.some((span) => span.season === season)) return true;
+  if (source.season !== null) return source.season === season;
+  return spans.length === 0;
+}
+
+/** The sources that can bring an episode of one of these seasons. */
+export function sourcesFor(
+  series: SeriesDto,
+  episodes: readonly EpisodeDto[],
+  seasons: readonly number[],
+): SeriesDto["sources"] {
+  return series.sources.filter((source) =>
+    seasons.some((season) => offersSeason(source, episodes, season)),
+  );
 }

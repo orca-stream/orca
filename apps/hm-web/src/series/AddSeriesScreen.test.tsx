@@ -704,14 +704,14 @@ describe("AddSeriesScreen", () => {
       expect(screen.getByLabelText<HTMLInputElement>("Primer episodio").value).toBe("13"),
     );
     expect(screen.getByTitle("en el sitio S01E01").textContent).toContain("S01E13");
-    expect(screen.queryByText("Ya la tienes")).toBeNull();
+    expect(screen.queryByText("Cambia de fuente")).toBeNull();
 
-    // Numbered by hand as the site does, it would land on what the series has.
+    // Numbered by hand as the site does, it lands on what the series has: those take their video
+    // from this address, which doesn't stop it from being added.
     await user.clear(screen.getByLabelText("Primer episodio"));
     await user.type(screen.getByLabelText("Primer episodio"), "1");
-    expect(await screen.findByText(/S01E01, S01E02, S01E04/)).toBeTruthy();
-    expect(screen.getAllByText("Ya la tienes")).toHaveLength(3);
-    expect(confirmButton()).toHaveProperty("disabled", true);
+    expect(await screen.findAllByText("Cambia de fuente")).toHaveLength(3);
+    expect(confirmButton()).toHaveProperty("disabled", false);
 
     await user.clear(screen.getByLabelText("Primer episodio"));
     await user.type(screen.getByLabelText("Primer episodio"), "13");
@@ -757,7 +757,7 @@ describe("AddSeriesScreen", () => {
     const season = await screen.findByRole("combobox", { name: "Temporada" }, { timeout: 2000 });
     await waitFor(() => expect(season.textContent).toContain("Temporada 2"));
     expect(screen.getByTitle("en el sitio S01E01").textContent).toContain("S02E01");
-    expect(screen.queryByText("Ya la tienes")).toBeNull();
+    expect(screen.queryByText("Cambia de fuente")).toBeNull();
 
     await user.click(confirmButton());
     await waitFor(() =>
@@ -798,7 +798,7 @@ describe("AddSeriesScreen", () => {
     await user.click(screen.getByRole("combobox", { name: "Añadir a" }));
     await user.click(await screen.findByRole("option", { name: /^Show/ }));
     await waitFor(() => expect(screen.getAllByText("Ya en Jellyfin")).toHaveLength(2));
-    expect(screen.queryByText("Ya la tienes")).toBeNull();
+    expect(screen.queryByText("Cambia de fuente")).toBeNull();
     expect(confirmButton()).toHaveProperty("disabled", false);
   });
 

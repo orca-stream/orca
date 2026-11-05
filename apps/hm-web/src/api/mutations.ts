@@ -9,6 +9,8 @@ import type {
   SeriesDto,
   SeriesPatch,
   SourcePatch,
+  SwitchSourceBody,
+  SwitchSourceResult,
 } from "./types";
 
 const id = encodeURIComponent;
@@ -65,6 +67,12 @@ export function useMutations() {
     deleteEpisodeFile: useMutation({
       mutationFn: ({ seriesId, episodeId }: { seriesId: string; episodeId: string }) =>
         api.delete<EpisodeDto>(`/series/${id(seriesId)}/episodes/${id(episodeId)}/file`),
+      onSettled: refreshAll,
+    }),
+    /** The episodes take their video from that source from now on; nothing is downloaded. */
+    switchSource: useMutation({
+      mutationFn: ({ seriesId, body }: { seriesId: string; body: SwitchSourceBody }) =>
+        api.post<SwitchSourceResult>(`/series/${id(seriesId)}/episodes/source`, body),
       onSettled: refreshAll,
     }),
     downloadSeries: useMutation({

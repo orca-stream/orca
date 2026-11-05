@@ -20,6 +20,10 @@ export const series = sqliteTable(
     maxHeight: integer("max_height"),
     audioLangs: text("audio_langs", { mode: "json" }).$type<string[]>(),
     subtitleLangs: text("subtitle_langs", { mode: "json" }).$type<string[]>(),
+    preferredSources: text("preferred_sources", { mode: "json" })
+      .$type<Record<string, string>>()
+      .notNull()
+      .default(sql`'{}'`),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [uniqueIndex("series_folder").on(t.folderName)],
@@ -73,6 +77,7 @@ export const episodes = sqliteTable(
     format: text("format"),
     status: text("status").notNull().default("missing"),
     filePath: text("file_path"),
+    fileSourceId: text("file_source_id"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [

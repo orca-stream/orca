@@ -7,6 +7,7 @@ import type {
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
+  RefreshIcon,
   CheckmarkCircle02Icon,
   Clock01Icon,
   Download04Icon,
@@ -49,7 +50,7 @@ const FATE_STYLE: Record<Fate, string> = {
   download: "bg-primary text-primary-foreground",
   wait: "bg-white/90 text-foreground",
   "left-out": "bg-black/45 text-white/85",
-  taken: "bg-warning text-white",
+  taken: "bg-info text-white",
   kept: "bg-white/90 text-foreground",
 };
 
@@ -374,7 +375,7 @@ function EpisodeCard({
     download: { label: t.add.willDownload, hint: t.add.downloadHint, icon: Download04Icon },
     wait: { label: t.add.willWait, hint: t.add.waitHint, icon: Tick02Icon },
     "left-out": { label: t.add.leftOut, hint: t.add.leftOutHint, icon: null },
-    taken: { label: t.add.alreadyThere, hint: t.add.alreadyThereHint(code), icon: Alert02Icon },
+    taken: { label: t.add.alreadyThere, hint: t.add.alreadyThereHint(code), icon: RefreshIcon },
     kept: {
       label: t.add.keptInJellyfin,
       hint: t.add.keptInJellyfinHint(code),

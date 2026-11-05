@@ -2,7 +2,13 @@ import * as z from "zod";
 import { backoffMs } from "../domain/backoff.ts";
 import { AbortedError, PermanentError, RerouteError } from "../domain/errors.ts";
 import { hostLane, type HostLane, type Job } from "../domain/job.ts";
-import { episodeCode, type Episode, type Series, type Source } from "../domain/series.ts";
+import {
+  episodeCode,
+  fileOutdated,
+  type Episode,
+  type Series,
+  type Source,
+} from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
 import { createCheckSeries, toJobError } from "./check-series.ts";
 import { createEnqueueRefresh, resourceFor } from "./downloads.ts";
@@ -176,6 +182,17 @@ export function createJobHandler(deps: Deps): JobHandler {
     // Renamed while it downloaded: it lands under the name the series has now.
     const now = (await deps.series.get(series.id)) ?? series;
     await deps.library.writeSeries(now);
+    // A file from the source it left goes only now that the new one is complete, together with what
+    // is named after it (subtitles, nfo, trickplay), which belongs to the old video.
+    const current = (await deps.series.getEpisode(episode.id)) ?? episode;
+    if (current.filePath !== null) {
+      const result = await deps.library.deleteEpisode(now, current);
+      if (result === "outside") {
+        console.warn(
+          `the old file of ${episodeCode(episode.season, episode.episode)} is outside “${now.title}”'s folder: left in place`,
+        );
+      }
+    }
     // The downloader may have chosen another container than the staged name asked for.
     const { relativePath } = await deps.library.commitEpisode(
       now,
@@ -183,7 +200,7 @@ export function createJobHandler(deps: Deps): JobHandler {
       downloaded.path ?? staged,
       downloaded.sidecars,
     );
-    await deps.series.setEpisodeStatus(episode.id, "available", relativePath);
+    await deps.series.setEpisodeStatus(episode.id, "available", relativePath, null);
     // Earlier attempts at it that failed are settled now: they leave the failures.
     await deps.jobs.dropSettledFailures();
     deps.events.publish({ type: "series.updated", seriesId: series.id });
@@ -302,7 +319,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     if (!episode) throw new PermanentError("The episode was removed");
     const series = await deps.series.get(episode.seriesId);
     if (!series) throw new PermanentError("The series was removed");
-    if (episode.status === "available") return;
+    if (episode.status === "available" && !fileOutdated(episode)) return;
 
     if (episode.source.kind === "mirrors" && !mirrorPayload) {
       return readMirrors(job, episode, episode.source.url, context.signal);
@@ -451,8 +468,16 @@ export function createJobHandler(deps: Deps): JobHandler {
       const episode = await deps.series.getEpisode(job.episodeId);
       if (!episode || episode.status === "available") return;
       if (outcome === "cancelled") await deps.library.discardStaged(episode);
+      // Replacing a file that is still there: it stays watchable whatever became of the new one.
+      const kept = fileOutdated(episode);
       const status =
-        outcome === "failed" ? "failed" : outcome === "requeued" ? "queued" : "missing";
+        outcome === "requeued"
+          ? "queued"
+          : kept
+            ? "available"
+            : outcome === "failed"
+              ? "failed"
+              : "missing";
       await deps.series.setEpisodeStatus(episode.id, status);
       deps.events.publish({ type: "series.updated", seriesId: episode.seriesId });
     },

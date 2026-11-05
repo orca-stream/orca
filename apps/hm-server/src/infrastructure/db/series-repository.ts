@@ -1,7 +1,11 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { AppError } from "../../domain/errors.ts";
 import type { EpisodeStatus } from "@orca/hm-contract";
-import type { SeriesRepository, SeriesWithCounts } from "../../application/ports.ts";
+import type {
+  EpisodeSourceSwitch,
+  SeriesRepository,
+  SeriesWithCounts,
+} from "../../application/ports.ts";
 import type { Episode, Series, SeriesSource, Source } from "../../domain/series.ts";
 import type { Db } from "./client.ts";
 import { episodes, series, seriesSources } from "./schema.ts";
@@ -55,10 +59,17 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     }
   }
 
-  async addSource(source: SeriesSource, list: Episode[]): Promise<void> {
+  async addSource(
+    source: SeriesSource,
+    list: Episode[],
+    switches: EpisodeSourceSwitch[] = [],
+  ): Promise<void> {
     try {
       this.db.transaction((tx) => {
         tx.insert(seriesSources).values(source).run();
+        for (const { id, ...change } of switches) {
+          tx.update(episodes).set(change).where(eq(episodes.id, id)).run();
+        }
         for (const episode of list) tx.insert(episodes).values(episode).run();
       });
     } catch (error) {
@@ -213,12 +224,29 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     id: string,
     status: EpisodeStatus,
     filePath?: string | null,
+    fileSourceId?: string | null,
   ): Promise<void> {
     this.db
       .update(episodes)
-      .set(filePath === undefined ? { status } : { status, filePath })
+      .set({
+        status,
+        ...(filePath !== undefined ? { filePath } : {}),
+        ...(fileSourceId !== undefined ? { fileSourceId } : {}),
+      })
       .where(eq(episodes.id, id))
       .run();
+  }
+
+  async switchEpisodeSources(changes: EpisodeSourceSwitch[]): Promise<void> {
+    try {
+      this.db.transaction((tx) => {
+        for (const { id, ...change } of changes) {
+          tx.update(episodes).set(change).where(eq(episodes.id, id)).run();
+        }
+      });
+    } catch (error) {
+      rethrowConflict(error);
+    }
   }
 
   async seriesTitles(ids: string[]): Promise<Map<string, string>> {

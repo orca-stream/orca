@@ -20,11 +20,31 @@ export interface SeriesWithCounts extends Series {
   availableCount: number;
 }
 
+export type EpisodeSourceSwitch = Pick<
+  Episode,
+  | "id"
+  | "sourceId"
+  | "sourceRef"
+  | "source"
+  | "durationSec"
+  | "sizeBytes"
+  | "format"
+  | "fileSourceId"
+  | "status"
+>;
+
 export interface SeriesRepository {
   /** Persists a series, its first source and its episodes together, or none of them. */
   create(series: Series, source: SeriesSource, episodes: Episode[]): Promise<void>;
-  /** Persists another source of an existing series and its episodes together, or neither. */
-  addSource(source: SeriesSource, episodes: Episode[]): Promise<void>;
+  /**
+   * Persists another source of an existing series and its episodes together, or neither; `switches`
+   * moves episodes the series has to it in the same go (see `switchEpisodeSources`).
+   */
+  addSource(
+    source: SeriesSource,
+    episodes: Episode[],
+    switches?: EpisodeSourceSwitch[],
+  ): Promise<void>;
   get(id: string): Promise<Series | null>;
   findByFolder(folderName: string): Promise<Series | null>;
   /** The series with that TMDB id, else the one with that IMDb id; null ids match nothing. */
@@ -56,6 +76,7 @@ export interface SeriesRepository {
         | "maxHeight"
         | "audioLangs"
         | "subtitleLangs"
+        | "preferredSources"
       >
     >,
   ): Promise<Series | null>;
@@ -69,7 +90,19 @@ export interface SeriesRepository {
   listEpisodes(seriesId: string): Promise<Episode[]>;
   getEpisode(id: string): Promise<Episode | null>;
   getEpisodes(ids: string[]): Promise<Episode[]>;
-  setEpisodeStatus(id: string, status: EpisodeStatus, filePath?: string | null): Promise<void>;
+  /** `fileSourceId`, when given, is the source its file came from (see `Episode.fileSourceId`). */
+  setEpisodeStatus(
+    id: string,
+    status: EpisodeStatus,
+    filePath?: string | null,
+    fileSourceId?: string | null,
+  ): Promise<void>;
+  /**
+   * Points episodes at another source of their series, together: where their video comes from now
+   * and their key on it. Their number and file stay; `fileSourceId` says which source the file
+   * is from when it is not the new one.
+   */
+  switchEpisodeSources(changes: EpisodeSourceSwitch[]): Promise<void>;
   /** Titles by series id, to label jobs. */
   seriesTitles(ids: string[]): Promise<Map<string, string>>;
 }
@@ -158,6 +191,8 @@ export interface JobRepository {
    * nothing is left to retry, and retrying them is refused. Returns how many went.
    */
   dropSettledFailures(): Promise<number>;
+  /** Deletes the failed downloads of these episodes (moved to another source: retrying would fetch from the old one). */
+  dropFailures(episodeIds: string[]): Promise<number>;
 }
 
 export interface SessionRecord {

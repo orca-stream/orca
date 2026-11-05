@@ -26,6 +26,8 @@ export type {
   SeriesPatch,
   ShowLookupDto,
   SourcePatch,
+  SwitchSourceBody,
+  SwitchSourceResult,
   JellyfinConnection,
   Settings,
   SettingsUpdate,

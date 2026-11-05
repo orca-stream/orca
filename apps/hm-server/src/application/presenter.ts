@@ -10,7 +10,13 @@ import type {
 } from "@orca/hm-contract";
 import type { Notification } from "../domain/notification.ts";
 import { HOST_LANE_PREFIX, isHostLane, type Job } from "../domain/job.ts";
-import { episodeCode, type Episode, type Series, type SeriesSource } from "../domain/series.ts";
+import {
+  episodeCode,
+  fileOutdated,
+  type Episode,
+  type Series,
+  type SeriesSource,
+} from "../domain/series.ts";
 import type { SeriesWithCounts } from "./ports.ts";
 
 const WARNING_KIND: Record<ExtractionWarning["code"], PreviewWarning["kind"]> = {
@@ -143,6 +149,7 @@ export function toSeriesDto(
     maxHeight: series.maxHeight,
     audioLangs: series.audioLangs,
     subtitleLangs: series.subtitleLangs,
+    preferredSources: series.preferredSources,
     hasPoster: series.hasPoster,
     episodeCount: c.episodeCount,
     availableCount: c.availableCount,
@@ -168,6 +175,7 @@ export function toEpisodeDto(episode: Episode, job: Job | null = null): EpisodeD
     sizeBytes: episode.sizeBytes,
     format: episode.format,
     status: episode.status,
+    fileOutdated: fileOutdated(episode),
     progress: job?.status === "running" ? job.progress : null,
     progressDetail: job?.status === "running" ? job.progressDetail : null,
     player: job && isHostLane(job.resource) ? job.resource.slice(HOST_LANE_PREFIX.length) : null,

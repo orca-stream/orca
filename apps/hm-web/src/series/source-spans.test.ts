@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { makeEpisode } from "@/test/fixtures";
-import { sortBySpan, sourceSpans } from "./source-spans";
+import { offersSeason, sortBySpan, sourceSpans } from "./source-spans";
 
 describe("sourceSpans", () => {
   it("gives each season of a source its first and last episode, in season order", () => {
@@ -50,5 +50,24 @@ describe("sortBySpan", () => {
       "s2",
       "empty",
     ]);
+  });
+});
+
+describe("offersSeason", () => {
+  // As the series in the report: one source of season 1 by the site's numbers, one that brought
+  // season 2, and one set to season 2 that has brought nothing yet.
+  const episodes = [
+    makeEpisode({ id: "a", sourceId: "s1", season: 1, episode: 1 }),
+    makeEpisode({ id: "b", sourceId: "s2", season: 2, episode: 1 }),
+  ];
+
+  it("offers a season only from a source that brought it, is set to it, or can't be ruled out", () => {
+    expect(offersSeason({ id: "s1", season: null }, episodes, 2)).toBe(false);
+    expect(offersSeason({ id: "s1", season: null }, episodes, 1)).toBe(true);
+    expect(offersSeason({ id: "s2", season: 2 }, episodes, 2)).toBe(true);
+    expect(offersSeason({ id: "s3", season: 2 }, episodes, 2)).toBe(true);
+    expect(offersSeason({ id: "s3", season: 2 }, episodes, 1)).toBe(false);
+    // Nothing brought and the site's own seasons: it might have any.
+    expect(offersSeason({ id: "s4", season: null }, episodes, 5)).toBe(true);
   });
 });

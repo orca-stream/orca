@@ -17,6 +17,8 @@ import {
   type SeriesPatch,
   type ShowLookupDto,
   type SourcePatch,
+  type SwitchSourceBody,
+  type SwitchSourceResult,
   type GuideEpisodeDto,
   type GuideSeasonDto,
 } from "@orca/hm-contract";
@@ -27,11 +29,13 @@ import { episodeCode, type Episode, type Series, type SeriesSource } from "../do
 import { seriesFolderName } from "../domain/naming.ts";
 import type { Deps } from "./deps.ts";
 import { trustedPosterUrl } from "./poster-url.ts";
-import type { FetchedImage, LibraryShow } from "./ports.ts";
+import type { EpisodeSourceSwitch, FetchedImage, LibraryShow } from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
 import {
   closeFinishedSources,
+  type ExtractedEpisode,
+  sourceOf,
   newEpisode,
   normalizeSeries,
   numberOf,
@@ -46,6 +50,35 @@ import {
   toSeriesDto,
   downloadsBySeries,
 } from "./presenter.ts";
+
+/**
+ * What an episode's file is said to come from when its source is unknown (it was removed): never a
+ * source id, so the file counts as another source's.
+ */
+const UNKNOWN_SOURCE = "unknown";
+
+/** What an episode keeps and what it takes when it moves to `source`, which lists it as `found`. */
+function switchTo(
+  source: SeriesSource,
+  episode: Episode,
+  found: ExtractedEpisode,
+): EpisodeSourceSwitch {
+  // The file is the old source's, unless it is going back to the source it came from.
+  const fileFrom =
+    episode.filePath === null ? null : (episode.fileSourceId ?? episode.sourceId ?? UNKNOWN_SOURCE);
+  return {
+    id: episode.id,
+    sourceId: source.id,
+    sourceRef: found.sourceRef,
+    source: sourceOf(found),
+    durationSec: found.media.durationSec ?? null,
+    sizeBytes: found.media.sizeBytes ?? null,
+    format: found.media.format ?? null,
+    fileSourceId: fileFrom === source.id ? null : fileFrom,
+    // What failed, failed on the old source: on this one it is simply not downloaded yet.
+    status: episode.status === "failed" ? "missing" : episode.status,
+  };
+}
 
 /** Sessions are stored by the SHA-256 of their id: the cookie is the only copy of the secret. */
 const hashSessionId = (id: string): string => createHash("sha256").update(id).digest("hex");
@@ -271,56 +304,81 @@ export function createUseCases(deps: Deps) {
 
       if (body.seriesId !== undefined) {
         const seriesId = body.seriesId;
-        const { series, episodes } = await withFolderLock(`series:${seriesId}`, async () => {
-          const series = await deps.series.get(seriesId);
-          if (!series) throw new AppError("not_found", "No such series");
-          await assertNewAddress();
-          const source = sourceFor(series.id);
-          const episodes = chosen.map((episode) => newEpisode(source, episode, now));
-          const existing = await deps.series.listEpisodes(series.id);
-          const taken = new Set(existing.map((episode) => `${episode.season}:${episode.episode}`));
-          const clashes = episodes.filter((episode) =>
-            taken.has(`${episode.season}:${episode.episode}`),
-          );
-          if (clashes.length > 0) {
-            throw new AppError(
-              "conflict",
-              `The series already has ${clashes.map((e) => episodeCode(e.season, e.episode)).join(", ")}: change the season or the first episode`,
+        const { series, episodes, switched } = await withFolderLock(
+          `series:${seriesId}`,
+          async () => {
+            const series = await deps.series.get(seriesId);
+            if (!series) throw new AppError("not_found", "No such series");
+            await assertNewAddress();
+            const source = sourceFor(series.id);
+            const existing = await deps.series.listEpisodes(series.id);
+            const atNumber = new Map(
+              existing.map((episode) => [`${episode.season}:${episode.episode}`, episode]),
             );
-          }
-          // Files its folder has that no row of this server's knows of (a library from before, a
-          // season added by hand) are those episodes: they take this server's names and aren't
-          // downloaded again, as when a Jellyfin show is taken over.
-          const wanted = new Set(episodes.map((episode) => `${episode.season}:${episode.episode}`));
-          const show = showOf(series, await deps.mediaServer.listShows());
-          const files = show
-            ? (await deps.mediaServer.listEpisodeFiles(show.id)).filter((file) =>
-                wanted.has(`${file.season}:${file.episode}`),
-              )
-            : [];
-          const onDisk = new Map(
-            (await deps.library.renameEpisodes(series, files)).map((file) => [
-              `${file.season}:${file.episode}`,
-              file.relativePath,
-            ]),
-          );
-          const placed = await placeOnDisk(
-            deps.library,
-            series,
-            episodes.map((episode): Episode => {
-              const filePath = onDisk.get(`${episode.season}:${episode.episode}`);
-              return filePath ? { ...episode, status: "available", filePath } : episode;
-            }),
-          );
-          await deps.series.addSource(source, placed);
-          await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
-          return { series, episodes: placed };
-        });
+            // A chosen episode the series already has takes its video from this address from now on,
+            // as "change the source" does; the others are new.
+            const episodes: Episode[] = [];
+            const replaced: { current: Episode; found: ExtractedEpisode }[] = [];
+            for (const found of chosen) {
+              const { season, episode } = numberOf(mapping, found);
+              const current = atNumber.get(`${season}:${episode}`);
+              if (current) replaced.push({ current, found });
+              else episodes.push(newEpisode(source, found, now));
+            }
+            const downloading = new Set(
+              (await deps.jobs.activeDownloadJobs(replaced.map(({ current }) => current.id))).map(
+                (job) => job.episodeId,
+              ),
+            );
+            const busy = replaced.filter(({ current }) => downloading.has(current.id));
+            if (busy.length > 0) {
+              const codes = busy.map(({ current }) => episodeCode(current.season, current.episode));
+              throw new AppError(
+                "conflict",
+                `${codes.join(", ")} ${codes.length === 1 ? "is" : "are"} being downloaded: wait for it, or leave ${codes.length === 1 ? "it" : "them"} out`,
+              );
+            }
+            const switches = replaced.map(({ current, found }) => switchTo(source, current, found));
+            // Files its folder has that no row of this server's knows of (a library from before, a
+            // season added by hand) are those episodes: they take this server's names and aren't
+            // downloaded again, as when a Jellyfin show is taken over.
+            const wanted = new Set(
+              episodes.map((episode) => `${episode.season}:${episode.episode}`),
+            );
+            const show = showOf(series, await deps.mediaServer.listShows());
+            const files = show
+              ? (await deps.mediaServer.listEpisodeFiles(show.id)).filter((file) =>
+                  wanted.has(`${file.season}:${file.episode}`),
+                )
+              : [];
+            const onDisk = new Map(
+              (await deps.library.renameEpisodes(series, files)).map((file) => [
+                `${file.season}:${file.episode}`,
+                file.relativePath,
+              ]),
+            );
+            const placed = await placeOnDisk(
+              deps.library,
+              series,
+              episodes.map((episode): Episode => {
+                const filePath = onDisk.get(`${episode.season}:${episode.episode}`);
+                return filePath ? { ...episode, status: "available", filePath } : episode;
+              }),
+            );
+            await deps.series.addSource(source, placed, switches);
+            await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
+            return { series, episodes: placed, switched: switches.map((change) => change.id) };
+          },
+        );
+        await deps.jobs.dropFailures(switched);
         const found = episodes.filter((episode) => episode.status === "available");
         if (found.length > 0) await enqueueRefresh(series.id);
         deps.events.publish({ type: "series.updated", seriesId: series.id });
         const missing = episodes.filter((episode) => episode.status !== "available");
-        if (body.downloadNow) await enqueueDownloads(missing.map((episode) => episode.id));
+        // Asked for: what changed source is downloaded again too (a file it has is replaced).
+        if (body.downloadNow) {
+          await enqueueDownloads([...missing.map((episode) => episode.id), ...switched]);
+        }
         return this.getSeries(series.id);
       }
 
@@ -359,6 +417,7 @@ export function createUseCases(deps: Deps) {
             maxHeight: null,
             audioLangs: null,
             subtitleLangs: null,
+            preferredSources: {},
             createdAt: now,
           };
           series.hasPoster = (await deps.library.posterPath(series)) !== null;
@@ -423,6 +482,7 @@ export function createUseCases(deps: Deps) {
           maxHeight: null,
           audioLangs: null,
           subtitleLangs: null,
+          preferredSources: {},
           createdAt: now,
         };
         const source = sourceFor(series.id);
@@ -586,6 +646,13 @@ export function createUseCases(deps: Deps) {
     async patchSeries(id: string, patch: SeriesPatch): Promise<SeriesDto> {
       const current = await deps.series.get(id);
       if (!current) throw new AppError("not_found", "No such series");
+      if (patch.preferredSources !== undefined) {
+        const own = new Set((await deps.series.listSources([id])).map((source) => source.id));
+        const foreign = Object.values(patch.preferredSources).filter((s) => !own.has(s));
+        if (foreign.length > 0) {
+          throw new AppError("bad_request", "A preferred source must be one of the series'");
+        }
+      }
       const updated = await deps.series.update(id, patch);
       if (patch.paused === true && !current.paused) {
         // What is downloading stops now and waits in the queue with what it has fetched.
@@ -625,6 +692,89 @@ export function createUseCases(deps: Deps) {
       await deps.series.updateSource(sourceId, { closed: patch.closed });
       deps.events.publish({ type: "series.updated", seriesId });
       return this.getSeries(seriesId);
+    },
+
+    /**
+     * Moves episodes to another source of their series, read again now (what it lists may have
+     * changed since it was added). Each takes its video from there from now on; nothing is
+     * downloaded: one with a file keeps it until it is downloaded again by hand. Those the source
+     * doesn't list, and those being downloaded, stay as they are.
+     */
+    async switchSource(
+      seriesId: string,
+      body: SwitchSourceBody,
+      signal?: AbortSignal,
+    ): Promise<SwitchSourceResult> {
+      if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
+      const source = (await deps.series.listSources([seriesId])).find(
+        (s) => s.id === body.sourceId,
+      );
+      if (!source) throw new AppError("not_found", "No such source");
+      const extractor = deps.extractors.get(source.extractorId);
+      if (!extractor) {
+        throw new AppError(
+          "conflict",
+          `The “${source.extractorId}” extractor is no longer installed: that source can't be read`,
+        );
+      }
+      const extraction = await extractor.extract(source.sourceUrl, signal ? { signal } : undefined);
+      // Where the source puts what it lists; the first of two at the same number, as a preview shows.
+      const listed = new Map<string, ExtractedEpisode>();
+      for (const found of extraction.episodes) {
+        const { season, episode } = numberOf(source, found);
+        const key = `${season}:${episode}`;
+        if (!listed.has(key)) listed.set(key, found);
+      }
+
+      const result = await withFolderLock(`series:${seriesId}`, async () => {
+        const episodes = await deps.series.listEpisodes(seriesId);
+        const wanted = new Set(body.episodeIds);
+        const chosen = episodes.filter((episode) => wanted.has(episode.id));
+        if (chosen.length !== wanted.size) {
+          const known = new Set(chosen.map((episode) => episode.id));
+          const unknown = [...wanted].filter((id) => !known.has(id));
+          throw new AppError("not_found", `Unknown episodes: ${unknown.join(", ")}`);
+        }
+        const downloading = new Set(
+          (await deps.jobs.activeDownloadJobs([...wanted])).map((job) => job.episodeId),
+        );
+        const refOwner = new Map(episodes.map((episode) => [episode.sourceRef, episode.id]));
+        const switches: EpisodeSourceSwitch[] = [];
+        const notListed: string[] = [];
+        const busy: string[] = [];
+        for (const episode of chosen) {
+          const code = episodeCode(episode.season, episode.episode);
+          if (downloading.has(episode.id)) {
+            busy.push(code);
+            continue;
+          }
+          const found = listed.get(`${episode.season}:${episode.episode}`);
+          // Two episodes of a series can't share a key: one the series has as another episode is
+          // not this one.
+          const owner = found ? refOwner.get(found.sourceRef) : undefined;
+          if (!found || (owner !== undefined && owner !== episode.id)) {
+            notListed.push(code);
+            continue;
+          }
+          switches.push(switchTo(source, episode, found));
+        }
+        await deps.series.switchEpisodeSources(switches);
+        // Nothing else knows these keys: a check of the source must not add them again.
+        const refs = new Set(source.knownRefs ?? []);
+        for (const change of switches) refs.add(change.sourceRef);
+        if (source.knownRefs !== null)
+          await deps.series.updateSource(source.id, { knownRefs: [...refs] });
+        return {
+          switched: switches.length,
+          notListed,
+          busy,
+          switchedIds: switches.map((c) => c.id),
+        };
+      });
+      // Failures on the old source are settled: retrying one would fetch from there.
+      await deps.jobs.dropFailures(result.switchedIds);
+      deps.events.publish({ type: "series.updated", seriesId });
+      return { switched: result.switched, notListed: result.notListed, busy: result.busy };
     },
 
     /** "Check now": queues the same job the scheduler does, so it shares its dedupe and its limits. */
@@ -673,7 +823,7 @@ export function createUseCases(deps: Deps) {
             "That episode's file is outside the series' folder: delete it from Jellyfin",
           );
         }
-        await deps.series.setEpisodeStatus(episodeId, "missing", null);
+        await deps.series.setEpisodeStatus(episodeId, "missing", null, null);
       });
       deps.events.publish({ type: "series.updated", seriesId });
       await enqueueRefresh(seriesId);

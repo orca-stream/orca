@@ -3,6 +3,7 @@ import { useState } from "react";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Alert02Icon,
+  ArrowDataTransferHorizontalIcon,
   Clock01Icon,
   CloudOffIcon,
   Delete02Icon,
@@ -98,6 +99,14 @@ interface SeriesEpisodesProps {
   /** Deletes a downloaded episode's file, so it can be downloaded again. */
   onDelete?: (episodeId: string) => void;
   deletingId?: string | null;
+  /** What a change of source did, said under the header until the next one. */
+  notice?: string | null;
+  /** More for the header, about the season shown (its preferred source). */
+  seasonTools?: (season: number) => React.ReactNode;
+  /** More for the selection's bar, before its download button (change the source). */
+  selectionTools?: React.ReactNode;
+  /** The mark of the source an episode takes its video from, over its frame. */
+  sourceMark?: (episode: EpisodeDto) => React.ReactNode;
 }
 
 /**
@@ -125,6 +134,10 @@ export function SeriesEpisodes({
   retryingId,
   onDelete,
   deletingId = null,
+  notice = null,
+  seasonTools,
+  selectionTools,
+  sourceMark,
 }: SeriesEpisodesProps) {
   const t = useT();
   const [chosen, setChosen] = useState<number | null>(null);
@@ -217,6 +230,7 @@ export function SeriesEpisodes({
         {(absent.length > 0 || absentSeasons.length > 0) && (
           <Gaps matches={absent} seasons={absentSeasons} onPick={(season) => setChosen(season)} />
         )}
+        {group && seasonTools?.(group.season)}
         <button
           type="button"
           disabled={missingCount === 0 || busy !== null}
@@ -235,6 +249,11 @@ export function SeriesEpisodes({
       {failed && (
         <p role="alert" className="px-4 pt-4 text-sm text-warning">
           {t.series.actionFailed}
+        </p>
+      )}
+      {notice && !failed && (
+        <p role="status" className="px-4 pt-4 text-sm text-muted-foreground">
+          {notice}
         </p>
       )}
 
@@ -269,6 +288,7 @@ export function SeriesEpisodes({
                     retrying={retryingId === episode.id}
                     {...(onDelete ? { onDelete: () => onDelete(episode.id) } : {})}
                     deleting={deletingId === episode.id}
+                    source={sourceMark?.(episode)}
                   />
                 </li>
               );
@@ -299,6 +319,7 @@ export function SeriesEpisodes({
           <button type="button" onClick={onClear} className={cn(PILL_BUTTON, SECONDARY)}>
             {t.series.clearSelection}
           </button>
+          {selectionTools}
           <button
             type="button"
             disabled={busy !== null}
@@ -447,7 +468,9 @@ function EpisodeCard({
   retrying,
   onDelete,
   deleting = false,
+  source,
 }: {
+  source?: React.ReactNode;
   episode: EpisodeDto;
   picked: boolean;
   paused: boolean;
@@ -526,10 +549,17 @@ function EpisodeCard({
         />
 
         <div className="absolute top-2 right-13 left-2 flex items-start gap-1.5">
+          {source}
           <span className={cn(CHIP, "bg-black/45 font-mono text-white")}>{code}</span>
           {episode.inferred && (
             <span title={t.add.inferredHint} className={cn(CHIP, "bg-warning/90 text-white")}>
               {t.series.inferred}
+            </span>
+          )}
+          {episode.fileOutdated && (
+            <span title={t.series.fileOutdatedHint} className={cn(CHIP, "bg-info/90 text-white")}>
+              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3.5" />
+              {t.series.fileOutdated}
             </span>
           )}
         </div>

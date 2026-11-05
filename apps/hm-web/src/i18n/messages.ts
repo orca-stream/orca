@@ -199,6 +199,33 @@ const es = {
     downloadSelected: (n: number) => `Descargar (${n})`,
     downloadMissing: "Descargar los que faltan",
     nothingToDownload: "No hay nada pendiente.",
+    switchSource: "Cambiar fuente",
+    switchSourceTitle: (n: number) =>
+      n === 1 ? "Tomar el episodio de…" : `Tomar los ${n} episodios de…`,
+    switchSourceHint:
+      "La fuente se lee ahora. No se descarga nada: lo que ya tienes se conserva hasta que lo vuelvas a descargar.",
+    switchSourceCurrent: "Actual",
+    episodeSource: (name: string) => `Fuente: ${name}`,
+    unknownExtractor: "Extractor que ya no está instalado",
+    switchSourceDone: (switched: number, notListed: string, busy: string) =>
+      [
+        switched === 1
+          ? "1 episodio toma su vídeo de la otra fuente."
+          : `${switched} episodios toman su vídeo de la otra fuente.`,
+        notListed && `Esa fuente no tiene ${notListed}.`,
+        busy && `${busy} se está descargando: no se cambió.`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    fileOutdated: "Otra fuente",
+    fileOutdatedHint:
+      "El archivo es de la fuente anterior. Descárgalo para reemplazarlo: el actual se conserva hasta que el nuevo termine.",
+    preferredSource: (season: number) => `Fuente preferida de la temporada ${season}`,
+    preferredAny: "Cualquier fuente",
+    preferredExplain: (season: number) =>
+      `Solo cuenta para los episodios nuevos de la temporada ${season} que encuentre la búsqueda: los que ya tienes no cambian (para eso, selecciónalos y usa «Cambiar fuente»).`,
+    preferredHint: (season: number) =>
+      `Los episodios nuevos de la temporada ${season} llegan solo de esta fuente mientras esté abierta.`,
     retryEpisode: "Reintentar",
     deleteEpisode: (code: string) => `Borrar el archivo de ${code}`,
     deleteEpisodeConfirm: "Borrar",
@@ -388,7 +415,7 @@ const es = {
       increase: "Uno más",
     },
     clashes: (codes: string) =>
-      `La serie ya tiene ${codes}: cambia la temporada o el primer episodio.`,
+      `Dos episodios quedarían como ${codes}: cambia la numeración o quita uno.`,
     createFailed: "No se pudo añadir la serie.",
     fieldTitle: "Título",
     fieldYear: "Año",
@@ -454,12 +481,12 @@ const es = {
     willDownload: "Se descargará",
     willWait: "Sin descargar",
     leftOut: "Se omite",
-    alreadyThere: "Ya la tienes",
+    alreadyThere: "Cambia de fuente",
     downloadHint: "Se añade y se descarga en cuanto lo confirmes.",
     waitHint: "Se añade a la serie, pero no se descarga hasta que lo pidas.",
     leftOutHint: "No se añade. Púlsalo para incluirlo.",
     alreadyThereHint: (code: string) =>
-      `La serie ya tiene ${code}: cambia la numeración o quítalo.`,
+      `La serie ya tiene ${code}: pasa a tomar su vídeo de esta dirección. Su archivo se conserva hasta que lo vuelvas a descargar.`,
     keptInJellyfin: "Ya en Jellyfin",
     keptInJellyfinHint: (code: string) =>
       `Jellyfin ya tiene ${code}: se conserva su archivo (con el nombre de H&M) y no se vuelve a descargar.`,
@@ -852,6 +879,33 @@ const en: typeof es = {
     downloadSelected: (n: number) => `Download (${n})`,
     downloadMissing: "Download the missing ones",
     nothingToDownload: "Nothing is pending.",
+    switchSource: "Change source",
+    switchSourceTitle: (n: number) =>
+      n === 1 ? "Take the episode from…" : `Take the ${n} episodes from…`,
+    switchSourceHint:
+      "The source is read now. Nothing is downloaded: what you have stays until you download it again.",
+    switchSourceCurrent: "Current",
+    episodeSource: (name: string) => `Source: ${name}`,
+    unknownExtractor: "An extractor that is no longer installed",
+    switchSourceDone: (switched: number, notListed: string, busy: string) =>
+      [
+        switched === 1
+          ? "1 episode takes its video from the other source."
+          : `${switched} episodes take their video from the other source.`,
+        notListed && `That source doesn't have ${notListed}.`,
+        busy && `${busy} is downloading: left as it was.`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    fileOutdated: "Other source",
+    fileOutdatedHint:
+      "The file is from the previous source. Download it to replace it: this one stays until the new one is done.",
+    preferredSource: (season: number) => `Preferred source of season ${season}`,
+    preferredAny: "Any source",
+    preferredExplain: (season: number) =>
+      `Only for new episodes of season ${season} a search finds: the ones you have don't change (for those, pick them and use "Change source").`,
+    preferredHint: (season: number) =>
+      `New episodes of season ${season} come only from this source while it is open.`,
     retryEpisode: "Retry",
     deleteEpisode: (code: string) => `Delete the file of ${code}`,
     deleteEpisodeConfirm: "Delete",
@@ -1040,7 +1094,7 @@ const en: typeof es = {
       increase: "One more",
     },
     clashes: (codes: string) =>
-      `The series already has ${codes}: change the season or the first episode.`,
+      `Two episodes would both be ${codes}: change the numbering or leave one out.`,
     createFailed: "The series could not be added.",
     fieldTitle: "Title",
     fieldYear: "Year",
@@ -1106,12 +1160,12 @@ const en: typeof es = {
     willDownload: "Will download",
     willWait: "Not downloaded",
     leftOut: "Left out",
-    alreadyThere: "Already there",
+    alreadyThere: "Changes source",
     downloadHint: "Added and downloaded as soon as you confirm.",
     waitHint: "Added to the series, but not downloaded until you ask.",
     leftOutHint: "Not added. Press it to include it.",
     alreadyThereHint: (code: string) =>
-      `The series already has ${code}: change the numbering or leave it out.`,
+      `The series already has ${code}: it takes its video from this address from now on. Its file stays until you download it again.`,
     keptInJellyfin: "In Jellyfin",
     keptInJellyfinHint: (code: string) =>
       `Jellyfin already has ${code}: its file is kept (under H&M's name) and not downloaded again.`,

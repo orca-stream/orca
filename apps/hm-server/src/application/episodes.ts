@@ -61,6 +61,7 @@ export function newEpisode(
     format: extracted.media.format ?? null,
     status: "missing",
     filePath: null,
+    fileSourceId: null,
     createdAt: now,
   };
 }
