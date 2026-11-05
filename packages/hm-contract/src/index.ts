@@ -63,10 +63,12 @@ export {
   JellyfinConnectBody,
   JellyfinConnection,
   JellyfinSettings,
+  LocalAdminBody,
   SetupBody,
   SetupStatus,
   Settings,
   SettingsUpdate,
   SettingsView,
+  SignIn,
   TrackSettings,
 } from "./settings.ts";

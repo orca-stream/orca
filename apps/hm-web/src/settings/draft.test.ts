@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { SettingsView } from "@/api/types";
 import {
+  adminFromDraft,
   draftFromView,
   extractorNames,
   settingsFromDraft,
@@ -17,6 +18,8 @@ const filled = (patch: Partial<Draft> = {}): Draft => ({
 });
 
 const VIEW: SettingsView = {
+  signIn: "jellyfin",
+  localAdmin: null,
   jellyfin: { url: "http://jf.test:8096", mediaRoot: "/mnt/tv", jellyfinMediaRoot: "/media/tv" },
   hasTmdbApiKey: true,
   contactEmail: "me@example.com",
@@ -45,6 +48,7 @@ describe("settingsFromDraft", () => {
     expect(result).toEqual({
       ok: true,
       update: {
+        signIn: "jellyfin",
         jellyfin: {
           url: "http://jf.test:8096",
           apiKey: "made",
@@ -158,7 +162,7 @@ describe("draftFromView", () => {
       timeoutSec: "45",
     });
     const back = settingsFromDraft(draft);
-    const { hasTmdbApiKey: _, ...settings } = VIEW;
+    const { hasTmdbApiKey: _, localAdmin: __, ...settings } = VIEW;
     expect(back).toEqual({ ok: true, update: settings });
   });
 });
@@ -169,5 +173,21 @@ describe("extractorNames", () => {
     expect(extractorNames("")).toEqual([]);
     expect(extractorNames("[1]")).toBeNull();
     expect(extractorNames("{")).toBeNull();
+  });
+});
+
+describe("adminFromDraft", () => {
+  it("takes a name and a long enough password typed twice the same", () => {
+    expect(
+      adminFromDraft({ username: " admin ", password: "long enough", confirm: "long enough" }),
+    ).toEqual({ ok: true, admin: { username: "admin", password: "long enough" } });
+    expect(adminFromDraft({ username: "", password: "short", confirm: "other" })).toEqual({
+      ok: false,
+      errors: { username: "required", password: "short", confirm: "mismatch" },
+    });
+    expect(adminFromDraft({ username: "a", password: "", confirm: "" })).toEqual({
+      ok: false,
+      errors: { password: "required" },
+    });
   });
 });

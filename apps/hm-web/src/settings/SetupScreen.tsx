@@ -11,14 +11,19 @@ import { useT } from "@/i18n/locale";
 import { Backdrop } from "@/shell/Shell";
 import { useFinishSetup } from "./api";
 import {
+  adminFromDraft,
+  emptyAdmin,
   extractorNames,
   settingsFromDraft,
   suggestedDraft,
+  type AdminDraft,
+  type AdminErrors,
   type Draft,
   type DraftErrors,
   type DraftField,
 } from "./draft";
 import {
+  AccessSection,
   BrowserSection,
   DownloadsSection,
   ExtractorsSection,
@@ -30,13 +35,14 @@ import {
 } from "./sections";
 import { FooterRow, Panel, PanelButton, PRIMARY_BUTTON } from "./rows";
 
-type Step = "jellyfin" | "extras" | "downloads";
+type Step = "access" | "jellyfin" | "extras" | "downloads";
 
 /** The sign-in's form, submitted by the step's one button. */
 const JELLYFIN_FORM = "setup-jellyfin";
 
 /** Which step each field is asked in, to go back to the first one that is wrong. */
 const STEP_OF: Partial<Record<DraftField, Step>> = {
+  signIn: "access",
   jellyfinUrl: "jellyfin",
   jellyfinMediaRoot: "jellyfin",
   mediaRoot: "jellyfin",
@@ -44,16 +50,16 @@ const STEP_OF: Partial<Record<DraftField, Step>> = {
 };
 
 /**
- * The first run: the server has no settings yet, so every screen is this one. A few steps (Jellyfin
- * and its folder, the extras, the downloads) and the person is signed in with the administrator
- * account that set Jellyfin up.
+ * The first run: the server has no settings yet, so every screen is this one. A few steps (who signs
+ * in, Jellyfin and its folder, the extras, the downloads) and the person is signed in: as the
+ * administrator made here, or with the Jellyfin account that set Jellyfin up.
  */
 export function SetupScreen() {
   const t = useT();
   const [, navigate] = useLocation();
   const finish = useFinishSetup();
   const login = useLogin();
-  const steps: Step[] = ["jellyfin", "extras", "downloads"];
+  const steps: Step[] = ["access", "jellyfin", "extras", "downloads"];
   const [step, setStep] = useState<Step>(steps[0]!);
   const [draft, setDraft] = useState<Draft>(suggestedDraft);
   const [extractors, setExtractors] = useState("");
@@ -62,6 +68,8 @@ export function SetupScreen() {
     null,
   );
   const [errors, setErrors] = useState<DraftErrors>({});
+  const [admin, setAdmin] = useState<AdminDraft>(() => emptyAdmin());
+  const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
   const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
   const neededBySites = (extractorNames(extractors)?.length ?? 0) > 0;
   const index = steps.indexOf(step);
@@ -71,7 +79,15 @@ export function SetupScreen() {
     return result.ok ? {} : result.errors;
   }
 
+  /** The administrator to make, when the server keeps its own; null when it is wrong (and says so). */
+  function checkAdmin(): { username: string; password: string } | null {
+    const result = adminFromDraft(admin);
+    setAdminErrors(result.ok ? {} : result.errors);
+    return result.ok ? result.admin : null;
+  }
+
   function goNext() {
+    if (step === "access" && draft.signIn === "local" && !checkAdmin()) return;
     const found = checkDraft(draft);
     const here = Object.keys(found).filter(
       (field) => (STEP_OF[field as DraftField] ?? "downloads") === step,
@@ -82,6 +98,8 @@ export function SetupScreen() {
   }
 
   function submit() {
+    const local = draft.signIn === "local" ? checkAdmin() : null;
+    if (draft.signIn === "local" && !local) return setStep("access");
     const result = settingsFromDraft({ ...draft, browserOn: draft.browserOn || neededBySites });
     if (!result.ok) {
       setErrors(result.errors);
@@ -99,11 +117,14 @@ export function SetupScreen() {
       {
         settings,
         ...(extractors.trim() ? { extractors } : {}),
+        ...(local ? { admin: local } : {}),
       },
       {
         onSuccess: () => {
-          if (!credentials) return navigate("/login", { replace: true });
-          login.mutate(credentials, {
+          // Signed in as whoever signs in from now on.
+          const signIn = local ?? credentials;
+          if (!signIn) return navigate("/login", { replace: true });
+          login.mutate(signIn, {
             onSuccess: () => navigate("/", { replace: true }),
             onError: () => navigate("/login", { replace: true }),
           });
@@ -135,6 +156,14 @@ export function SetupScreen() {
           </p>
         </header>
 
+        {step === "access" && (
+          <AccessSection
+            draft={draft}
+            set={set}
+            errors={errors}
+            setup={{ admin, onAdmin: setAdmin, errors: adminErrors }}
+          />
+        )}
         {step === "jellyfin" && (
           <>
             <JellyfinSection

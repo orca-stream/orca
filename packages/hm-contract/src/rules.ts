@@ -29,6 +29,9 @@ export const SETTING_LIMITS = {
   minProbeSec: 1,
 } as const;
 
+/** The shortest password the local administrator can have. */
+export const MIN_PASSWORD_LENGTH = 8;
+
 /** An ISO 639-2 language code: three lower-case letters (`eng`, `spa`, `jpn`). */
 export const LANGUAGE_CODE_PATTERN = /^[a-z]{3}$/;
 

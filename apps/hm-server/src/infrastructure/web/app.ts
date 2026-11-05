@@ -4,6 +4,7 @@ import {
   EnqueueBody,
   ExtractorsBody,
   JellyfinConnectBody,
+  LocalAdminBody,
   SettingsUpdate,
   ListJobsQuery,
   LoginBody,
@@ -57,6 +58,8 @@ export interface SettingsRoutes {
   update(input: SettingsUpdate): Promise<SettingsView>;
   /** Signs in to a Jellyfin server as an administrator and makes this server a key there. */
   connectJellyfin(body: JellyfinConnectBody): Promise<JellyfinConnection>;
+  /** Makes, or changes, the server's own administrator. */
+  saveLocalAdmin(body: LocalAdminBody): Promise<void>;
   /** The extractors file's text, as it was saved. */
   extractors(): Promise<string>;
   saveExtractors(text: string): Promise<void>;
@@ -352,9 +355,21 @@ export function createApp(deps: AppDeps) {
 
   // --- settings
   api.get("/settings", async (c) => c.json(await deps.settings.view()));
-  api.put("/settings", validate("json", SettingsUpdate), async (c) =>
-    c.json(await deps.settings.update(c.req.valid("json"))),
-  );
+  api.put("/settings", validate("json", SettingsUpdate), async (c) => {
+    const before = (await deps.settings.view()).signIn;
+    const view = await deps.settings.update(c.req.valid("json"));
+    // Someone else signs in now: no session made the old way stays, this one included.
+    if (view.signIn !== before) await useCases.endSessions(null);
+    return c.json(view);
+  });
+  api.put("/settings/admin", validate("json", LocalAdminBody), async (c) => {
+    await deps.settings.saveLocalAdmin(c.req.valid("json"));
+    // A new password ends the administrator's other sessions; whoever changed it stays in.
+    if ((await deps.settings.view()).signIn === "local") {
+      await useCases.endSessions(getCookie(c, SESSION_COOKIE) ?? null);
+    }
+    return c.body(null, 204);
+  });
   api.post("/settings/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
     c.json(await deps.settings.connectJellyfin(c.req.valid("json"))),
   );

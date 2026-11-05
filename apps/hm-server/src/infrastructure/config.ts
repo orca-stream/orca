@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import type { ExtractorLimits } from "@orca/extractor-core";
-import type { Settings } from "@orca/hm-contract";
+import type { Settings, SignIn } from "@orca/hm-contract";
 import type { StreamPrefs } from "../application/ports.ts";
 import * as z from "zod";
 
@@ -54,6 +54,8 @@ export interface BootConfig {
 
 /** What the server runs with, made from the settings in its database (see `configFrom`). */
 export interface Config {
+  /** Who signs in to the panel: Jellyfin's administrators, or this server's own one. */
+  signIn: SignIn;
   /** What a series without its own track choices gets; empty means the best quality and every track. */
   streamDefaults: StreamPrefs;
   /** Write text subtitles as files beside the video instead of inside it. */
@@ -131,6 +133,7 @@ export function configFrom(settings: Settings, hasSites: boolean): Config {
   const { jellyfin, downloads, tracks, browser } = settings;
   const detectorOn = browser !== undefined && (browser.genericDetector || hasSites);
   return {
+    signIn: settings.signIn,
     streamDefaults: {
       ...(tracks.maxHeight !== undefined ? { maxHeight: tracks.maxHeight } : {}),
       ...(tracks.audioLangs !== undefined ? { audioLangs: tracks.audioLangs } : {}),

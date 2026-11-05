@@ -1,5 +1,11 @@
 import * as z from "zod";
-import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT, SETTING_LIMITS } from "./rules.ts";
+import {
+  LANGUAGE_CODE_PATTERN,
+  MAX_MAX_HEIGHT,
+  MIN_MAX_HEIGHT,
+  MIN_PASSWORD_LENGTH,
+  SETTING_LIMITS,
+} from "./rules.ts";
 
 /*
  * What the server does, kept in its database and changed from the panel. Only what it needs to start
@@ -74,7 +80,22 @@ export const BrowserSettings = z.object({
 });
 export type BrowserSettings = z.infer<typeof BrowserSettings>;
 
+/**
+ * Who signs in to the panel: Jellyfin's administrators, or the one administrator this server keeps
+ * itself (see LocalAdminBody). Settings saved before there was a choice are Jellyfin's.
+ */
+export const SignIn = z.enum(["jellyfin", "local"]);
+export type SignIn = z.infer<typeof SignIn>;
+
+/** The server's own administrator: its name and password, which the server keeps hashed. */
+export const LocalAdminBody = z.object({
+  username: z.string().trim().min(1).max(256),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(1024),
+});
+export type LocalAdminBody = z.infer<typeof LocalAdminBody>;
+
 export const Settings = z.object({
+  signIn: SignIn.default("jellyfin"),
   jellyfin: JellyfinSettings,
   /** A TMDB v3 key or v4 read token: lists a show's seasons and episodes. */
   tmdbApiKey: z.string().trim().min(1).optional(),
@@ -94,6 +115,8 @@ export type Settings = z.infer<typeof Settings>;
 export const SettingsView = Settings.omit({ tmdbApiKey: true }).extend({
   jellyfin: JellyfinSettings.omit({ apiKey: true }),
   hasTmdbApiKey: z.boolean(),
+  /** The server's own administrator, by name; null until there is one. */
+  localAdmin: z.object({ username: z.string() }).nullable(),
 });
 export type SettingsView = z.infer<typeof SettingsView>;
 
@@ -125,13 +148,14 @@ export const JellyfinConnection = z.object({
 });
 export type JellyfinConnection = z.infer<typeof JellyfinConnection>;
 
-/** `GET /api/setup`: whether the server still has to be set up. */
-export const SetupStatus = z.object({ configured: z.boolean() });
+/** `GET /api/setup`: whether the server still has to be set up, and once it is, who signs in. */
+export const SetupStatus = z.object({ configured: z.boolean(), signIn: SignIn.optional() });
 export type SetupStatus = z.infer<typeof SetupStatus>;
 
-/** `POST /api/setup`: the first settings. */
+/** `POST /api/setup`: the first settings, and the administrator when the server keeps its own. */
 export const SetupBody = z.object({
   settings: Settings,
+  admin: LocalAdminBody.optional(),
   /** The extractors file's text, when there is one. */
   extractors: z
     .string()

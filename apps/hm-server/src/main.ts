@@ -43,7 +43,19 @@ const events = new InMemoryEventBus();
 const setup: ServerSetup = new ServerSetup({
   settings: settingsRepository,
   start: (config, sites) =>
-    startRuntime({ boot, version, database, jellyfin, events, settings: setup }, config, sites),
+    startRuntime(
+      {
+        boot,
+        version,
+        database,
+        jellyfin,
+        events,
+        settings: setup,
+        localAdmin: () => setup.localAdmin,
+      },
+      config,
+      sites,
+    ),
   connect: (url, username, password) =>
     new JellyfinKeyMaker({ jellyfin, appName: `Orca'H&M (${hostname()})` }).connect(
       url,

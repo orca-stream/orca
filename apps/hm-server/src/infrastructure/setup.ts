@@ -2,19 +2,23 @@ import {
   Settings,
   type JellyfinConnectBody,
   type JellyfinConnection,
+  type LocalAdminBody,
   type SettingsUpdate,
   type SettingsView,
   type SetupBody,
+  type SignIn,
 } from "@orca/hm-contract";
 import type { SettingsRepository } from "../application/ports.ts";
 import { AppError } from "../domain/errors.ts";
 import { ConfigError, configFrom, type Config } from "./config.ts";
 import { type Extractors, ExtractorsFileError, parseExtractorsFile } from "./extractors-file.ts";
+import { hashPassword, LocalAdmin } from "./local-admin.ts";
 import type { Runtime } from "./runtime.ts";
 import type { SettingsRoutes } from "./web/app.ts";
 
 const SETTINGS_KEY = "settings";
 const EXTRACTORS_KEY = "extractors";
+const ADMIN_KEY = "admin";
 /** What an empty extractors file says: no site. */
 const NO_EXTRACTORS = "{}\n";
 
@@ -38,6 +42,7 @@ export class ServerSetup implements SettingsRoutes {
   private readonly log: (message: string) => void;
   private runtime: Runtime | null = null;
   private current: { settings: Settings; extractors: string } | null = null;
+  private admin: LocalAdmin | null = null;
   /** One change at a time: two saves racing would start two queues on one database. */
   private changing: Promise<unknown> = Promise.resolve();
 
@@ -55,6 +60,11 @@ export class ServerSetup implements SettingsRoutes {
     return this.runtime;
   }
 
+  /** The server's own administrator, when it has one. */
+  get localAdmin(): LocalAdmin | null {
+    return this.admin;
+  }
+
   /** Whether the database holds settings yet. */
   async hasSaved(): Promise<boolean> {
     return (await this.options.settings.get(SETTINGS_KEY)) !== null;
@@ -62,6 +72,17 @@ export class ServerSetup implements SettingsRoutes {
 
   /** Starts from the saved settings, or waits for the panel's setup when there are none. */
   async boot(): Promise<void> {
+    const admin = await this.options.settings.get(ADMIN_KEY);
+    if (admin !== null) {
+      try {
+        this.admin = LocalAdmin.parse(JSON.parse(admin));
+      } catch (error) {
+        throw new ConfigError(
+          "The administrator in the database is not valid; fix it or start from an empty database",
+          { cause: error },
+        );
+      }
+    }
     const saved = await this.options.settings.get(SETTINGS_KEY);
     if (saved === null) {
       this.log("Not set up yet: open the panel to set it up.");
@@ -82,8 +103,10 @@ export class ServerSetup implements SettingsRoutes {
 
   // --- before the server is set up: open to whoever opens the panel first, as Jellyfin's own is
 
-  status(): { configured: boolean } {
-    return { configured: this.configured };
+  status(): { configured: boolean; signIn?: SignIn } {
+    return this.current
+      ? { configured: this.configured, signIn: this.current.settings.signIn }
+      : { configured: this.configured };
   }
 
   async setupConnect(body: JellyfinConnectBody): Promise<JellyfinConnection> {
@@ -93,9 +116,19 @@ export class ServerSetup implements SettingsRoutes {
 
   async setup(body: SetupBody): Promise<void> {
     this.assertNotConfigured();
-    await this.serially(() =>
-      this.apply(body.settings, body.extractors ?? NO_EXTRACTORS, { save: true }),
-    );
+    const admin = body.admin ? await toAccount(body.admin) : null;
+    await this.serially(async () => {
+      // The account is there for the runtime to sign in with, and is kept only once it runs.
+      const before = this.admin;
+      if (admin) this.admin = admin;
+      try {
+        await this.apply(body.settings, body.extractors ?? NO_EXTRACTORS, { save: true });
+      } catch (error) {
+        this.admin = before;
+        throw error;
+      }
+      if (admin) await this.options.settings.set(ADMIN_KEY, JSON.stringify(admin));
+    });
   }
 
   // --- once it is (SettingsRoutes: only a signed-in administrator reaches these)
@@ -104,7 +137,12 @@ export class ServerSetup implements SettingsRoutes {
     const { settings } = this.requireCurrent();
     const { tmdbApiKey, jellyfin, ...rest } = settings;
     const { apiKey: _, ...shownJellyfin } = jellyfin;
-    return { ...rest, jellyfin: shownJellyfin, hasTmdbApiKey: tmdbApiKey !== undefined };
+    return {
+      ...rest,
+      jellyfin: shownJellyfin,
+      hasTmdbApiKey: tmdbApiKey !== undefined,
+      localAdmin: this.admin ? { username: this.admin.username } : null,
+    };
   }
 
   async update(input: SettingsUpdate): Promise<SettingsView> {
@@ -121,6 +159,15 @@ export class ServerSetup implements SettingsRoutes {
 
   connectJellyfin(body: JellyfinConnectBody): Promise<JellyfinConnection> {
     return this.options.connect(body.url, body.username, body.password);
+  }
+
+  async saveLocalAdmin(body: LocalAdminBody): Promise<void> {
+    this.requireCurrent();
+    const admin = await toAccount(body);
+    await this.serially(async () => {
+      await this.options.settings.set(ADMIN_KEY, JSON.stringify(admin));
+      this.admin = admin;
+    });
   }
 
   async extractors(): Promise<string> {
@@ -159,6 +206,12 @@ export class ServerSetup implements SettingsRoutes {
       throw error;
     }
     const hasSites = sites.pages.length + sites.apis.length + sites.seasonApis.length > 0;
+    if (settings.signIn === "local" && this.admin === null) {
+      throw new AppError(
+        "bad_request",
+        "Signing in with the server's own administrator needs that administrator: create it first",
+      );
+    }
     if (hasSites && settings.browser === undefined) {
       throw new AppError(
         "bad_request",
@@ -208,4 +261,8 @@ export class ServerSetup implements SettingsRoutes {
     this.changing = next.catch(() => undefined);
     return next;
   }
+}
+
+async function toAccount(body: LocalAdminBody): Promise<LocalAdmin> {
+  return { username: body.username, passwordHash: await hashPassword(body.password) };
 }

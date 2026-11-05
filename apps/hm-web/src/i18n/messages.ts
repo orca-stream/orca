@@ -1,3 +1,5 @@
+import { MIN_PASSWORD_LENGTH } from "@orca/hm-contract/rules";
+
 export const LOCALES = ["es", "en"] as const;
 export type Locale = (typeof LOCALES)[number];
 
@@ -60,6 +62,10 @@ const es = {
     failed: "No se pudo iniciar sesión.",
     tooManyAttempts: "Demasiados intentos. Espera un momento e inténtalo de nuevo.",
     tooManyAttemptsWait: (wait: string) => `Demasiados intentos. Vuelve a intentarlo en ${wait}.`,
+    with: {
+      jellyfin: "Con tu cuenta de administrador de Jellyfin.",
+      local: "Con el administrador de H&M.",
+    },
   },
   home: {
     seriesCount: (n: number) => (n === 1 ? "1 serie" : `${n} series`),
@@ -542,6 +548,25 @@ const es = {
     saveFailed: "No se pudo guardar.",
     unsaved: "Cambios sin guardar",
     loadFailed: "No se pudieron cargar los ajustes.",
+    access: {
+      title: "Acceso al panel",
+      description: "Con qué cuenta se entra a H&M.",
+      mode: "Entrar con",
+      jellyfin: "Un administrador de Jellyfin",
+      local: "El administrador de H&M",
+      switchNote:
+        "Al guardar se cierran las sesiones abiertas, esta también: vuelves a entrar con la otra cuenta.",
+      username: "Usuario",
+      password: "Contraseña",
+      newPassword: "Contraseña nueva",
+      confirm: "Repite la contraseña",
+      current: (name: string) => `Administrador de H&M: ${name}.`,
+      change: "Cambiar contraseña",
+      create: "Crear administrador",
+      save: "Guardar administrador",
+      saved: "Administrador guardado.",
+      saveFailed: "No se pudo guardar el administrador.",
+    },
     jellyfin: {
       title: "Jellyfin",
       description: "El servidor donde viven tus series.",
@@ -662,6 +687,9 @@ const es = {
       email: "No es un correo.",
       languages: "Códigos de tres letras: spa, eng, jpn.",
       hosts: "Solo nombres de host, sin http:// ni rutas.",
+      short: `Al menos ${MIN_PASSWORD_LENGTH} caracteres.`,
+      mismatch: "Las contraseñas no coinciden.",
+      admin: "Crea antes el administrador de H&M.",
       server: "El servidor no aceptó estos ajustes:",
     },
   },
@@ -740,6 +768,10 @@ const en: typeof es = {
     failed: "Could not sign in.",
     tooManyAttempts: "Too many attempts. Wait a moment and try again.",
     tooManyAttemptsWait: (wait: string) => `Too many attempts. Try again in ${wait}.`,
+    with: {
+      jellyfin: "With your Jellyfin administrator account.",
+      local: "With H&M's administrator.",
+    },
   },
   home: {
     seriesCount: (n: number) => (n === 1 ? "1 series" : `${n} series`),
@@ -1219,6 +1251,25 @@ const en: typeof es = {
     saveFailed: "Could not save.",
     unsaved: "Unsaved changes",
     loadFailed: "Could not load the settings.",
+    access: {
+      title: "Panel access",
+      description: "Which account signs in to H&M.",
+      mode: "Sign in with",
+      jellyfin: "A Jellyfin administrator",
+      local: "H&M's administrator",
+      switchNote:
+        "Saving ends every open session, this one too: you sign in again with the other account.",
+      username: "Username",
+      password: "Password",
+      newPassword: "New password",
+      confirm: "Repeat the password",
+      current: (name: string) => `H&M's administrator: ${name}.`,
+      change: "Change password",
+      create: "Create administrator",
+      save: "Save administrator",
+      saved: "Administrator saved.",
+      saveFailed: "Could not save the administrator.",
+    },
     jellyfin: {
       title: "Jellyfin",
       description: "The server your shows live on.",
@@ -1338,6 +1389,9 @@ const en: typeof es = {
       email: "Not an email.",
       languages: "Three-letter codes: spa, eng, jpn.",
       hosts: "Host names only, without http:// or paths.",
+      short: `At least ${MIN_PASSWORD_LENGTH} characters.`,
+      mismatch: "The passwords don't match.",
+      admin: "Create H&M's administrator first.",
       server: "The server did not take these settings:",
     },
   },

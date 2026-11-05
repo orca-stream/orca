@@ -270,6 +270,36 @@ describe("settings routes", () => {
     expect(settings.extractorsText).toBe('{"a":1}');
   });
 
+  it("ends every session when who signs in changes", async () => {
+    const { hasTmdbApiKey: _, ...view } = (await (
+      await get("/api/settings")
+    ).json()) as SettingsView;
+    expect((await put("/api/settings", { ...view, signIn: "jellyfin" })).status).toBe(200);
+    expect((await get("/api/auth/me")).status).toBe(200);
+    expect((await put("/api/settings", { ...view, signIn: "local" })).status).toBe(200);
+    expect((await get("/api/auth/me")).status).toBe(401);
+  });
+
+  it("keeps whoever changes the administrator's password, and ends the other sessions", async () => {
+    const other = await app.request(
+      "/api/auth/login",
+      json({ username: "sam", password: "secret" }),
+    );
+    const otherCookie = other.headers.get("set-cookie")!.split(";")[0]!;
+    settings.signIn = "local";
+    expect(
+      (await put("/api/settings/admin", { username: "admin", password: "short" })).status,
+    ).toBe(400);
+    expect(
+      (await put("/api/settings/admin", { username: " admin ", password: "long enough" })).status,
+    ).toBe(204);
+    expect(settings.admins).toEqual([{ username: "admin", password: "long enough" }]);
+    expect((await get("/api/auth/me")).status).toBe(200);
+    expect((await app.request("/api/auth/me", { headers: { cookie: otherCookie } })).status).toBe(
+      401,
+    );
+  });
+
   it("connects to a Jellyfin server for a new key", async () => {
     const res = await post("/api/settings/jellyfin", {
       url: "http://other.test:8096",

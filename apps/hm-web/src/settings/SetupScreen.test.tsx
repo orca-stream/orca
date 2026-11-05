@@ -41,6 +41,12 @@ const bodyOf = async (requests: Request[], path: string) =>
     ?.clone()
     .json();
 
+/** The first step: who signs in. Left as it is, Jellyfin's administrators. */
+async function pastAccess(user: ReturnType<typeof userEvent.setup>) {
+  expect(screen.getByText("Paso 1 de 4")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Siguiente" }));
+}
+
 async function connect(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
   await user.type(screen.getByLabelText("Usuario administrador"), "sam");
@@ -55,7 +61,8 @@ describe("SetupScreen", () => {
     const { requests, location } = renderApp(<SetupScreen />, {
       handler: server(),
     });
-    expect(screen.getByText("Paso 1 de 3")).toBeTruthy();
+    await pastAccess(user);
+    expect(screen.getByText("Paso 2 de 4")).toBeTruthy();
     // One button: it connects first, and only once there is an address and a user.
     expect(screen.getByRole("button", { name: "Conectar" }).hasAttribute("disabled")).toBe(true);
 
@@ -69,7 +76,7 @@ describe("SetupScreen", () => {
     await user.click(await screen.findByRole("option", { name: /\/media\/anime/ }));
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    expect(screen.getByText("Paso 2 de 3")).toBeTruthy();
+    expect(screen.getByText("Paso 3 de 4")).toBeTruthy();
     await user.upload(
       screen.getByLabelText("Subir extractors.json"),
       new File([SITES], "extractors.json", { type: "application/json" }),
@@ -77,7 +84,7 @@ describe("SetupScreen", () => {
     expect(await screen.findByText("Sitios: My site.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
 
-    expect(screen.getByText("Paso 3 de 3")).toBeTruthy();
+    expect(screen.getByText("Paso 4 de 4")).toBeTruthy();
     // The sites' players need the browser, so it cannot be turned off.
     expect(screen.getByText("Los extractores lo necesitan.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Terminar" }));
@@ -114,13 +121,49 @@ describe("SetupScreen", () => {
           ? jsonResponse(single)
           : base(request),
     });
+    await pastAccess(user);
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "sam");
     await user.click(screen.getByRole("button", { name: "Conectar" }));
     expect(await screen.findByDisplayValue("/media/tv")).toBeTruthy();
-    expect(screen.getByText("Paso 1 de 3")).toBeTruthy();
+    expect(screen.getByText("Paso 2 de 4")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
-    expect(screen.getByText("Paso 2 de 3")).toBeTruthy();
+    expect(screen.getByText("Paso 3 de 4")).toBeTruthy();
+  });
+
+  it("makes H&M's own administrator, and signs in as it when done", async () => {
+    const user = userEvent.setup();
+    const { requests, location } = renderApp(<SetupScreen />, { handler: server() });
+    await user.click(screen.getByRole("combobox", { name: "Entrar con" }));
+    await user.click(await screen.findByRole("option", { name: "El administrador de H&M" }));
+    await user.type(screen.getByLabelText("Usuario"), "admin");
+    await user.type(screen.getByLabelText("Contraseña"), "short");
+    await user.type(screen.getByLabelText("Repite la contraseña"), "other");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    // Still on the first step, the problems said by the rows' icons.
+    expect(screen.getByText("Paso 1 de 4")).toBeTruthy();
+    expect(screen.getByLabelText("Contraseña").getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByLabelText("Repite la contraseña").getAttribute("aria-invalid")).toBe("true");
+
+    await user.clear(screen.getByLabelText("Contraseña"));
+    await user.type(screen.getByLabelText("Contraseña"), "long enough");
+    await user.clear(screen.getByLabelText("Repite la contraseña"));
+    await user.type(screen.getByLabelText("Repite la contraseña"), "long enough");
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await connect(user);
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    await user.click(screen.getByRole("button", { name: "Terminar" }));
+
+    await waitFor(() => expect(location.history.at(-1)).toBe("/"));
+    expect(await bodyOf(requests, "/api/setup")).toMatchObject({
+      settings: { signIn: "local" },
+      admin: { username: "admin", password: "long enough" },
+    });
+    expect(await bodyOf(requests, "/api/auth/login")).toEqual({
+      username: "admin",
+      password: "long enough",
+    });
   });
 
   it("says why Jellyfin refused", async () => {
@@ -128,6 +171,7 @@ describe("SetupScreen", () => {
     renderApp(<SetupScreen />, {
       handler: () => jsonResponse({ error: "forbidden" }, 403),
     });
+    await pastAccess(user);
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "kid");
     await user.click(screen.getByRole("button", { name: "Conectar" }));

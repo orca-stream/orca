@@ -210,6 +210,8 @@ export interface SessionRepository {
   touch(id: string, checkedAt: number): Promise<void>;
   delete(id: string): Promise<void>;
   deleteExpired(now: number): Promise<void>;
+  /** Every session but `keepId` (none when null): who signs in, or their password, changed. */
+  deleteAllExcept(keepId: string | null): Promise<void>;
 }
 
 export interface SettingsRepository {
@@ -434,7 +436,7 @@ export interface Authenticated {
 }
 
 export interface Authenticator {
-  /** Signs in against Jellyfin and requires an administrator. Throws AppError unauthorized / forbidden. */
+  /** Signs an administrator in (Jellyfin's, or this server's own). Throws AppError unauthorized / forbidden. */
   authenticate(username: string, password: string): Promise<Authenticated>;
   isStillAdmin(userId: string): Promise<boolean>;
 }

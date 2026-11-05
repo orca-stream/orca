@@ -29,8 +29,10 @@ export type {
   SwitchSourceBody,
   SwitchSourceResult,
   JellyfinConnection,
+  LocalAdminBody,
   Settings,
   SettingsUpdate,
   SettingsView,
   SetupStatus,
+  SignIn,
 } from "@orca/hm-contract";

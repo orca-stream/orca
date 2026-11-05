@@ -8,6 +8,7 @@ import { ServerSetup } from "../src/infrastructure/setup.ts";
 import { createRootApp } from "../src/infrastructure/web/root.ts";
 
 const settings: Settings = {
+  signIn: "jellyfin",
   jellyfin: {
     url: "http://jellyfin.test:8096",
     apiKey: "key-1",
@@ -112,13 +113,33 @@ describe("a server with no settings", () => {
   it("is set up once, then keeps what it was given across a restart", async () => {
     await setup.setup({ settings: { ...settings, browser }, extractors: SITE });
     await expect(setup.setup({ settings })).rejects.toMatchObject({ code: "conflict" });
-    expect(setup.status()).toEqual({ configured: true });
+    expect(setup.status()).toEqual({ configured: true, signIn: "jellyfin" });
 
     const again = newSetup();
     await again.boot();
     expect(again.configured).toBe(true);
     expect(await again.extractors()).toBe(SITE);
     expect((await again.view()).jellyfin.url).toBe("http://jellyfin.test:8096");
+  });
+
+  it("keeps its own administrator, hashed, when that is who signs in", async () => {
+    const local = { ...settings, signIn: "local" as const };
+    await expect(setup.setup({ settings: local })).rejects.toMatchObject({
+      code: "bad_request",
+      message: expect.stringMatching(/administrator/),
+    });
+    expect(setup.configured).toBe(false);
+
+    await setup.setup({ settings: local, admin: { username: "admin", password: "long enough" } });
+    expect(setup.status()).toEqual({ configured: true, signIn: "local" });
+    const stored = repo.values.get("admin")!;
+    expect(stored).not.toContain("long enough");
+    expect(JSON.parse(stored)).toMatchObject({ username: "admin" });
+    expect(await setup.view()).toMatchObject({ localAdmin: { username: "admin" } });
+
+    const again = newSetup();
+    await again.boot();
+    expect(again.localAdmin?.username).toBe("admin");
   });
 
   it("refuses sites without the browser their players need", async () => {
@@ -181,6 +202,21 @@ describe("a server with settings", () => {
     expect(starts.log).toEqual(["start 1", "stop 1", "start 2"]);
     expect(setup.configured).toBe(true);
     expect(repo.values.get("settings")).toBe(before);
+  });
+
+  it("switches to its own administrator only once it has one", async () => {
+    const { hasTmdbApiKey: _, localAdmin, ...view } = await setup.view();
+    expect(localAdmin).toBeNull();
+    await expect(setup.update({ ...view, signIn: "local" })).rejects.toMatchObject({
+      code: "bad_request",
+    });
+    await setup.saveLocalAdmin({ username: "admin", password: "long enough" });
+    await setup.update({ ...view, signIn: "local" });
+    expect(starts.configs.at(-1)).toMatchObject({ signIn: "local" });
+    expect(await setup.view()).toMatchObject({
+      signIn: "local",
+      localAdmin: { username: "admin" },
+    });
   });
 
   it("checks an extractors file before it replaces the old one", async () => {

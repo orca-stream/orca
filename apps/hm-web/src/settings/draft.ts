@@ -1,5 +1,10 @@
-import { LANGUAGE_CODE_PATTERN, MAX_MAX_HEIGHT, MIN_MAX_HEIGHT } from "@orca/hm-contract/rules";
-import type { SettingsUpdate, SettingsView } from "@/api/types";
+import {
+  LANGUAGE_CODE_PATTERN,
+  MAX_MAX_HEIGHT,
+  MIN_MAX_HEIGHT,
+  MIN_PASSWORD_LENGTH,
+} from "@orca/hm-contract/rules";
+import type { LocalAdminBody, SettingsUpdate, SettingsView, SignIn } from "@/api/types";
 
 /** Which subtitles a series without its own choice keeps. */
 export type SubtitleMode = "all" | "none" | "some";
@@ -11,6 +16,8 @@ export type AudioMode = "all" | "some";
  * is not lost), seconds where the server counts milliseconds.
  */
 export interface Draft {
+  /** Who signs in to the panel. */
+  signIn: SignIn;
   jellyfinUrl: string;
   /** The key `POST /settings/jellyfin` made; empty keeps the one the server has. */
   apiKey: string;
@@ -53,12 +60,22 @@ export interface Draft {
 }
 
 export type DraftField = keyof Draft;
-export type DraftProblem = "required" | "number" | "url" | "email" | "languages" | "hosts";
+export type DraftProblem =
+  | "required"
+  | "number"
+  | "url"
+  | "email"
+  | "languages"
+  | "hosts"
+  | "short"
+  | "mismatch"
+  | "admin";
 export type DraftErrors = Partial<Record<DraftField, DraftProblem>>;
 
 /** What a fresh server starts the form with: only tuning, never a path, host or key. */
 export function suggestedDraft(): Draft {
   return {
+    signIn: "jellyfin",
     jellyfinUrl: "",
     apiKey: "",
     jellyfinMediaRoot: "",
@@ -103,6 +120,7 @@ export function draftFromView(view: SettingsView): Draft {
   const suggested = suggestedDraft();
   return {
     ...suggested,
+    signIn: view.signIn,
     jellyfinUrl: jellyfin.url,
     jellyfinMediaRoot: jellyfin.jellyfinMediaRoot,
     sameMachine: jellyfin.mediaRoot === jellyfin.jellyfinMediaRoot,
@@ -205,6 +223,7 @@ export function settingsFromDraft(
 
   const concurrency = number("concurrency") ?? 0;
   const update: SettingsUpdate = {
+    signIn: draft.signIn,
     jellyfin: {
       url,
       mediaRoot,
@@ -268,4 +287,29 @@ export function extractorNames(textValue: string): string[] | null {
   } catch {
     return null;
   }
+}
+
+/** The server's own administrator as the form holds it: the password typed twice. */
+export interface AdminDraft {
+  username: string;
+  password: string;
+  confirm: string;
+}
+export type AdminErrors = Partial<Record<keyof AdminDraft, DraftProblem>>;
+
+export const emptyAdmin = (username = ""): AdminDraft => ({ username, password: "", confirm: "" });
+
+/** The administrator to send, or what is wrong with each field. */
+export function adminFromDraft(
+  draft: AdminDraft,
+): { ok: true; admin: LocalAdminBody } | { ok: false; errors: AdminErrors } {
+  const errors: AdminErrors = {};
+  const username = draft.username.trim();
+  if (username === "") errors.username = "required";
+  if (draft.password === "") errors.password = "required";
+  else if (draft.password.length < MIN_PASSWORD_LENGTH) errors.password = "short";
+  if (draft.confirm !== draft.password) errors.confirm = "mismatch";
+  return Object.keys(errors).length > 0
+    ? { ok: false, errors }
+    : { ok: true, admin: { username, password: draft.password } };
 }

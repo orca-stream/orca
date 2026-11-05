@@ -937,6 +937,11 @@ export function createUseCases(deps: Deps) {
       await deps.sessions.delete(hashSessionId(sessionId));
     },
 
+    /** Ends every session but the one behind `keepCookie` (every one when null). */
+    async endSessions(keepCookie: string | null): Promise<void> {
+      await deps.sessions.deleteAllExcept(keepCookie === null ? null : hashSessionId(keepCookie));
+    },
+
     /** The user behind a session cookie, or null. Re-confirms they are still an administrator hourly. */
     async resolveSession(cookieValue: string): Promise<Me | null> {
       const sessionId = hashSessionId(cookieValue);

@@ -18,6 +18,7 @@ import {
   type DraftErrors,
 } from "./draft";
 import {
+  AccessSection,
   BrowserSection,
   DownloadsSection,
   ExtractorsSection,
@@ -97,6 +98,10 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
       setErrors(result.errors);
       return;
     }
+    if (draft.signIn === "local" && view.localAdmin === null) {
+      setErrors({ signIn: "admin" });
+      return;
+    }
     setErrors({});
     save.mutate(result.update, {
       // What was saved is what is shown: new keys are kept on the server, not in the form.
@@ -116,6 +121,12 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
   const showBar = changed || save.isPending || save.isError || save.isSuccess;
   return (
     <>
+      <AccessSection
+        draft={draft}
+        set={set}
+        errors={errors}
+        saved={{ signIn: view.signIn, localAdmin: view.localAdmin }}
+      />
       <JellyfinSection
         draft={draft}
         set={set}

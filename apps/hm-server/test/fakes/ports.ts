@@ -3,8 +3,10 @@ import { dirname } from "node:path";
 import type {
   JellyfinConnectBody,
   JellyfinConnection,
+  LocalAdminBody,
   SettingsUpdate,
   SettingsView,
+  SignIn,
 } from "@orca/hm-contract";
 import type { SettingsRoutes } from "../../src/infrastructure/web/app.ts";
 import type {
@@ -228,10 +230,14 @@ export class RecordingNotifier implements Notifier {
 /** The settings routes of an app under test: what they were asked, with canned answers. */
 export class FakeSettingsRoutes implements SettingsRoutes {
   readonly updates: SettingsUpdate[] = [];
+  readonly admins: LocalAdminBody[] = [];
   extractorsText = "{}\n";
+  signIn: SignIn = "jellyfin";
 
   async view(): Promise<SettingsView> {
     return {
+      signIn: this.signIn,
+      localAdmin: this.admins.length > 0 ? { username: this.admins.at(-1)!.username } : null,
       jellyfin: { url: "http://jellyfin.test", mediaRoot: "/tv", jellyfinMediaRoot: "/tv" },
       hasTmdbApiKey: false,
       downloads: {
@@ -249,7 +255,12 @@ export class FakeSettingsRoutes implements SettingsRoutes {
 
   async update(input: SettingsUpdate): Promise<SettingsView> {
     this.updates.push(input);
+    this.signIn = input.signIn;
     return this.view();
+  }
+
+  async saveLocalAdmin(body: LocalAdminBody): Promise<void> {
+    this.admins.push(body);
   }
 
   async connectJellyfin(body: JellyfinConnectBody): Promise<JellyfinConnection> {

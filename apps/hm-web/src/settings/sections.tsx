@@ -38,9 +38,18 @@ import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import { BarField } from "@/series/bar";
 import { COMMON_HEIGHTS, COMMON_LANGUAGES } from "@/series/settings-form";
-import { useConnectJellyfin } from "./api";
+import { useConnectJellyfin, useSaveLocalAdmin } from "./api";
 import type { ExtractorsFileProblem } from "@orca/hm-contract/extractors-file";
-import { extractorNames, type Draft, type DraftErrors, type DraftField } from "./draft";
+import {
+  adminFromDraft,
+  emptyAdmin,
+  extractorNames,
+  type AdminDraft,
+  type AdminErrors,
+  type Draft,
+  type DraftErrors,
+  type DraftField,
+} from "./draft";
 import {
   AdvancedRows,
   ChipsRow,
@@ -217,6 +226,180 @@ function connectError(error: unknown, t: Messages): string {
     if (error.status === 502) return t.settings.jellyfin.upstream;
   }
   return t.settings.jellyfin.failed;
+}
+
+/** The server's own administrator: a name and a password typed twice. */
+export function AdminRows({
+  admin,
+  onAdmin,
+  errors,
+  newPassword = false,
+}: {
+  admin: AdminDraft;
+  onAdmin: (admin: AdminDraft) => void;
+  errors: AdminErrors;
+  /** Changing the password of one there is already: the name is kept unless typed over. */
+  newPassword?: boolean;
+}) {
+  const t = useT();
+  const error = (field: keyof AdminDraft) => {
+    const problem = errors[field];
+    return problem ? t.settings.errors[problem] : undefined;
+  };
+  return (
+    <>
+      <FieldRow
+        icon={UserIcon}
+        label={t.settings.access.username}
+        autoComplete="username"
+        value={admin.username}
+        onChange={(event) => onAdmin({ ...admin, username: event.target.value })}
+        error={error("username")}
+      />
+      <FieldRow
+        icon={LockPasswordIcon}
+        label={newPassword ? t.settings.access.newPassword : t.settings.access.password}
+        type="password"
+        autoComplete="new-password"
+        value={admin.password}
+        onChange={(event) => onAdmin({ ...admin, password: event.target.value })}
+        error={error("password")}
+      />
+      <FieldRow
+        icon={LockPasswordIcon}
+        label={t.settings.access.confirm}
+        type="password"
+        autoComplete="new-password"
+        value={admin.confirm}
+        onChange={(event) => onAdmin({ ...admin, confirm: event.target.value })}
+        error={error("confirm")}
+      />
+    </>
+  );
+}
+
+/**
+ * In the settings: the administrator there is, and the way to change its password, or the form that
+ * creates it. Saved on its own, at once: a password is never left in the settings' draft.
+ */
+function LocalAdminRows({ current }: { current: { username: string } | null }) {
+  const t = useT();
+  const save = useSaveLocalAdmin();
+  const [editing, setEditing] = useState(current === null);
+  const [admin, setAdmin] = useState<AdminDraft>(() => emptyAdmin(current?.username));
+  const [errors, setErrors] = useState<AdminErrors>({});
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const result = adminFromDraft(admin);
+    if (!result.ok) return setErrors(result.errors);
+    setErrors({});
+    save.mutate(result.admin, {
+      onSuccess: () => {
+        setAdmin(emptyAdmin(result.admin.username));
+        setEditing(false);
+      },
+    });
+  }
+
+  if (!editing && current) {
+    return (
+      <NoteRow
+        icon={CheckmarkCircle02Icon}
+        action={
+          <Button variant="outline" className={PRIMARY_BUTTON} onClick={() => setEditing(true)}>
+            {t.settings.access.change}
+          </Button>
+        }
+      >
+        <p role="status">
+          {save.isSuccess ? t.settings.access.saved : t.settings.access.current(current.username)}
+        </p>
+      </NoteRow>
+    );
+  }
+  return (
+    <form onSubmit={submit} className={ROWS}>
+      <AdminRows admin={admin} onAdmin={setAdmin} errors={errors} newPassword={current !== null} />
+      <NoteRow
+        icon={save.isError ? Alert02Icon : Shield01Icon}
+        tone={save.isError ? "warning" : undefined}
+        action={
+          <>
+            {current && (
+              <Button
+                variant="outline"
+                className={PRIMARY_BUTTON}
+                disabled={save.isPending}
+                onClick={() => {
+                  setAdmin(emptyAdmin(current.username));
+                  setErrors({});
+                  save.reset();
+                  setEditing(false);
+                }}
+              >
+                {t.common.cancel}
+              </Button>
+            )}
+            <PanelButton type="submit" pending={save.isPending}>
+              {current ? t.settings.access.save : t.settings.access.create}
+            </PanelButton>
+          </>
+        }
+      >
+        {save.isError && (
+          <>
+            <p role="alert">{t.settings.access.saveFailed}</p>
+            <ServerIssues error={save.error} />
+          </>
+        )}
+      </NoteRow>
+    </form>
+  );
+}
+
+/**
+ * Who signs in to the panel: Jellyfin's administrators, or the one this server keeps. The setup holds
+ * that administrator until it is done (`admin`); the settings save it on their own (`localAdmin`).
+ */
+export function AccessSection({
+  draft,
+  set,
+  errors,
+  setup,
+  saved,
+}: SectionProps & {
+  setup?: { admin: AdminDraft; onAdmin: (admin: AdminDraft) => void; errors: AdminErrors };
+  saved?: { signIn: Draft["signIn"]; localAdmin: { username: string } | null };
+}) {
+  const t = useT();
+  const problem = errors.signIn;
+  return (
+    <Group title={t.settings.access.title} description={t.settings.access.description}>
+      <SelectRow
+        icon={Shield01Icon}
+        label={t.settings.access.mode}
+        value={draft.signIn}
+        onChange={(signIn) => set({ signIn: signIn as Draft["signIn"] })}
+        options={[
+          { value: "jellyfin", label: t.settings.access.jellyfin },
+          { value: "local", label: t.settings.access.local },
+        ]}
+        error={problem ? t.settings.errors[problem] : undefined}
+      />
+      {saved && saved.signIn !== draft.signIn && (
+        <NoteRow icon={Alert02Icon} tone="warning">
+          {t.settings.access.switchNote}
+        </NoteRow>
+      )}
+      {draft.signIn === "local" &&
+        (setup ? (
+          <AdminRows admin={setup.admin} onAdmin={setup.onAdmin} errors={setup.errors} />
+        ) : saved ? (
+          <LocalAdminRows current={saved.localAdmin} />
+        ) : null)}
+    </Group>
+  );
 }
 
 /**

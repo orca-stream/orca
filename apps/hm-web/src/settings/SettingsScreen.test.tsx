@@ -6,6 +6,8 @@ import { jsonResponse, renderApp, type Handler } from "@/test/render";
 import { SettingsScreen } from "./SettingsScreen";
 
 const VIEW: SettingsView = {
+  signIn: "jellyfin",
+  localAdmin: null,
   jellyfin: { url: "http://jf.test:8096", mediaRoot: "/media/tv", jellyfinMediaRoot: "/media/tv" },
   hasTmdbApiKey: true,
   downloads: {
@@ -38,6 +40,9 @@ function server(options: { refuse?: boolean } = {}): Handler {
       }
       const body = (await request.json()) as SettingsView;
       return jsonResponse({ ...VIEW, downloads: body.downloads });
+    }
+    if (pathname === "/api/settings/admin" && request.method === "PUT") {
+      return new Response(null, { status: 204 });
     }
     if (pathname === "/api/settings/extractors" && request.method === "GET") {
       return jsonResponse(extractors);
@@ -75,6 +80,32 @@ describe("SettingsScreen", () => {
     expect(body).not.toHaveProperty("tmdbApiKey");
     expect(body["jellyfin"]).not.toHaveProperty("apiKey");
     expect(body).not.toHaveProperty("browser");
+  });
+
+  it("switches to H&M's own administrator only once it is made", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderApp(<SettingsScreen />, { handler: server(), path: "/settings" });
+    await user.click(await screen.findByRole("combobox", { name: "Entrar con" }));
+    await user.click(await screen.findByRole("option", { name: "El administrador de H&M" }));
+    expect(screen.getByText(/se cierran las sesiones abiertas/)).toBeTruthy();
+
+    // Not made yet: the switch is held back, and says why.
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(put(requests, "/api/settings")).toHaveLength(0);
+
+    await user.type(screen.getByLabelText("Usuario"), "admin");
+    await user.type(screen.getByLabelText("Contraseña"), "long enough");
+    await user.type(screen.getByLabelText("Repite la contraseña"), "long enough");
+    await user.click(screen.getByRole("button", { name: "Crear administrador" }));
+    expect(await screen.findByText("Administrador guardado.")).toBeTruthy();
+    expect(await put(requests, "/api/settings/admin")[0]!.json()).toEqual({
+      username: "admin",
+      password: "long enough",
+    });
+
+    await user.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    await waitFor(() => expect(put(requests, "/api/settings")).toHaveLength(1));
+    expect(await put(requests, "/api/settings")[0]!.json()).toMatchObject({ signIn: "local" });
   });
 
   it("does not send a form with a mistake, and shows what the server refused", async () => {

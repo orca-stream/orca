@@ -7,6 +7,9 @@ import logotype from "@/assets/logotype.svg";
 import { formatDuration } from "@/i18n/format";
 import { useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
+import { useQueryClient } from "@tanstack/react-query";
+import { keys } from "@/api/keys";
+import type { SetupStatus } from "@/api/types";
 import { FieldRow, FooterRow, Panel, PanelButton, ROWS } from "@/settings/rows";
 import { Backdrop } from "@/shell/Shell";
 import { safeNext } from "./next";
@@ -32,6 +35,8 @@ export function LoginScreen() {
   const [params] = useSearchParams();
   const [, navigate] = useLocation();
   const login = useLogin();
+  // Asked by the setup gate before any screen shows: read, never fetched again from here.
+  const signIn = useQueryClient().getQueryData<SetupStatus>(keys.setup)?.signIn;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -59,6 +64,9 @@ export function LoginScreen() {
                 {t.login.title}
                 <img src={logotype} alt={t.brand} className="h-7 w-auto" />
               </h1>
+              {signIn && (
+                <p className="mt-1 text-sm text-muted-foreground">{t.login.with[signIn]}</p>
+              )}
             </header>
             <div className={ROWS}>
               <FieldRow

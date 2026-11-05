@@ -39,6 +39,7 @@ import { connectionsFor, HostLimiter, hostLimitsFor } from "./host-limiter.ts";
 import { FetchHttpClient } from "./http-client.ts";
 import { FetchImageFetcher } from "./image-fetcher.ts";
 import { JellyfinAuthenticator } from "./jellyfin/authenticator.ts";
+import { type LocalAdmin, LocalAdminAuthenticator } from "./local-admin.ts";
 import { JellyfinMediaServer } from "./jellyfin/media-server.ts";
 import { FsLibraryWriter } from "./library/fs-library-writer.ts";
 import { AddressGuard, isBlockedAddress } from "./net/address-guard.ts";
@@ -71,6 +72,8 @@ export interface Shared {
   jellyfin: Jellyfin;
   events: InMemoryEventBus;
   settings: SettingsRoutes;
+  /** The server's own administrator, read at each sign-in so a new password needs no restart. */
+  localAdmin: () => LocalAdmin | null;
 }
 
 /** Everything the settings decide, running: replaced as a whole when they change. */
@@ -162,11 +165,14 @@ export async function startRuntime(
     previews: new InMemoryPreviewStore(systemClock),
     library,
     images: new FetchImageFetcher({ userAgent: agent }),
-    authenticator: new JellyfinAuthenticator({
-      jellyfin,
-      serverUrl: config.jellyfinUrl,
-      apiKey: config.jellyfinApiKey,
-    }),
+    authenticator:
+      config.signIn === "local"
+        ? new LocalAdminAuthenticator(shared.localAdmin)
+        : new JellyfinAuthenticator({
+            jellyfin,
+            serverUrl: config.jellyfinUrl,
+            apiKey: config.jellyfinApiKey,
+          }),
     mediaServer: new JellyfinMediaServer({
       jellyfin,
       serverUrl: config.jellyfinUrl,

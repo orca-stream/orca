@@ -1,4 +1,4 @@
-import { eq, lt } from "drizzle-orm";
+import { eq, lt, ne } from "drizzle-orm";
 import type { SessionRecord, SessionRepository } from "../../application/ports.ts";
 import type { Db } from "./client.ts";
 import { sessions } from "./schema.ts";
@@ -28,5 +28,10 @@ export class DrizzleSessionRepository implements SessionRepository {
 
   async deleteExpired(now: number): Promise<void> {
     this.db.delete(sessions).where(lt(sessions.expiresAt, now)).run();
+  }
+
+  async deleteAllExcept(keepId: string | null): Promise<void> {
+    if (keepId === null) this.db.delete(sessions).run();
+    else this.db.delete(sessions).where(ne(sessions.id, keepId)).run();
   }
 }

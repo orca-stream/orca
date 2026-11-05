@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/api/context";
 import { keys } from "@/api/keys";
+import { dropSession } from "@/auth/session";
 import type {
   JellyfinConnection,
+  LocalAdminBody,
   Settings,
   SettingsUpdate,
   SettingsView,
@@ -44,8 +46,13 @@ export function useFinishSetup() {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { settings: Settings; extractors?: string }) => api.post("/setup", body),
-    onSuccess: () => queryClient.setQueryData<SetupStatus>(keys.setup, { configured: true }),
+    mutationFn: (body: { settings: Settings; extractors?: string; admin?: LocalAdminBody }) =>
+      api.post("/setup", body),
+    onSuccess: (_, body) =>
+      queryClient.setQueryData<SetupStatus>(keys.setup, {
+        configured: true,
+        signIn: body.settings.signIn,
+      }),
   });
 }
 
@@ -63,11 +70,28 @@ export function useSaveSettings() {
   return useMutation({
     mutationFn: (update: SettingsUpdate) => api.put<SettingsView>("/settings", update),
     onSuccess: (view) => {
+      const before = queryClient.getQueryData<SettingsView>(keys.settings)?.signIn;
       queryClient.setQueryData(keys.settings, view);
+      queryClient.setQueryData<SetupStatus>(keys.setup, { configured: true, signIn: view.signIn });
+      // Someone else signs in now: the server ended every session, this one included.
+      if (before !== undefined && before !== view.signIn) dropSession(queryClient);
       // The extractors and the TMDB guide may have changed with them.
       void queryClient.invalidateQueries({ queryKey: keys.extractors });
       void queryClient.invalidateQueries({ queryKey: ["lookup"] });
     },
+  });
+}
+
+/** Makes, or changes, the server's own administrator. */
+export function useSaveLocalAdmin() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: LocalAdminBody) => api.put("/settings/admin", body),
+    onSuccess: (_, body) =>
+      queryClient.setQueryData<SettingsView>(keys.settings, (view) =>
+        view ? { ...view, localAdmin: { username: body.username } } : view,
+      ),
   });
 }
 
