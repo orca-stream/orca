@@ -52,6 +52,68 @@ interface LocalPlaylist {
   path: string;
   text: string;
   files: RemoteFile[];
+  /** A subtitle rendition: its WebVTT segments are aligned to the video once fetched. */
+  subtitles?: boolean;
+}
+
+/** MPEG-TS timestamps tick at 90 kHz. */
+const MPEGTS_CLOCK = 90_000;
+const WEBVTT_TIMESTAMP = /(?:(\d+):)?(\d{2}):(\d{2})\.(\d{3})/;
+const CUE_TIMING = /^(\S+)([ \t]+-->[ \t]+)(\S+)(.*)$/;
+const INLINE_TIMESTAMP = /<((?:\d+:)?\d{2}:\d{2}\.\d{3})>/g;
+
+function webVttSeconds(stamp: string): number | undefined {
+  const match = WEBVTT_TIMESTAMP.exec(stamp);
+  if (!match || match[0] !== stamp) return undefined;
+  const [, hours, minutes, seconds, millis] = match;
+  return Number(hours ?? 0) * 3600 + Number(minutes) * 60 + Number(seconds) + Number(millis) / 1000;
+}
+
+function webVttStamp(seconds: number): string {
+  const millis = Math.max(0, Math.round(seconds * 1000));
+  const pad = (value: number, width = 2) => String(value).padStart(width, "0");
+  const hours = Math.floor(millis / 3_600_000);
+  const minutes = Math.floor(millis / 60_000) % 60;
+  const secs = Math.floor(millis / 1000) % 60;
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}.${pad(millis % 1000, 3)}`;
+}
+
+/**
+ * A WebVTT segment of an HLS stream with its cues moved onto the video's clock. Its
+ * `X-TIMESTAMP-MAP=MPEGTS:<pts>,LOCAL:<time>` says which video timestamp the cue time LOCAL is; a
+ * player applies it, ffmpeg (8.0) does not: it reads the cues as if 0 were the video's first frame
+ * and writes subtitles that come early by the stream's start (1.5 s on a real one). With the cues
+ * shifted and the header gone, ffmpeg moves them to the file's start exactly as it moves the video.
+ * Text without the header (or already aligned) comes back as it was.
+ */
+export function alignWebVtt(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const header = lines.findIndex((line) => line.trim() === "");
+  const end = header === -1 ? lines.length : header;
+  const index = lines.slice(0, end).findIndex((line) => line.startsWith("X-TIMESTAMP-MAP="));
+  if (index === -1) return text;
+  const attributes = new Map<string, string>();
+  for (const pair of (lines[index] as string).slice("X-TIMESTAMP-MAP=".length).split(",")) {
+    const at = pair.indexOf(":");
+    if (at > 0) attributes.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+  }
+  const pts = Number(attributes.get("MPEGTS"));
+  const local = webVttSeconds(attributes.get("LOCAL") ?? "");
+  if (!Number.isFinite(pts) || local === undefined) return text;
+  const shift = pts / MPEGTS_CLOCK - local;
+  const move = (stamp: string) => {
+    const seconds = webVttSeconds(stamp);
+    return seconds === undefined ? stamp : webVttStamp(seconds + shift);
+  };
+  const out = lines.flatMap((line, i) => {
+    if (i === index) return [];
+    const timing = CUE_TIMING.exec(line);
+    if (timing && webVttSeconds(timing[1] as string) !== undefined) {
+      return [`${move(timing[1] as string)}${timing[2]}${move(timing[3] as string)}${timing[4]}`];
+    }
+    return [line.replace(INLINE_TIMESTAMP, (_, stamp: string) => `<${move(stamp)}>`)];
+  });
+  return out.join("\n");
 }
 
 /** `KEY=value,KEY="quoted, value"`, as a map. */
@@ -283,7 +345,7 @@ export class HlsCopier {
           type === "SUBTITLES" ? ".vtt" : ".ts",
         );
         if (!local) return null;
-        playlists.push(local);
+        playlists.push(type === "SUBTITLES" ? { ...local, subtitles: true } : local);
         master.push(withUri(line, `${name}/index.m3u8`));
       }
       const fetched = await this.playlist(variant.url, headers, signal);
@@ -307,7 +369,21 @@ export class HlsCopier {
       headers,
       context,
     );
+    await this.alignSubtitles(playlists);
     return entry;
+  }
+
+  /** Every WebVTT segment rewritten onto the video's clock (see `alignWebVtt`); idempotent. */
+  private async alignSubtitles(playlists: LocalPlaylist[]): Promise<void> {
+    for (const playlist of playlists) {
+      if (!playlist.subtitles) continue;
+      for (const file of playlist.files) {
+        if (extname(file.path) !== ".vtt") continue;
+        const text = await readFile(file.path, "utf8");
+        const aligned = alignWebVtt(text);
+        if (aligned !== text) await writeFile(file.path, aligned);
+      }
+    }
   }
 
   /**

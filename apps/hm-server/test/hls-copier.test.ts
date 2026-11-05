@@ -5,6 +5,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { UrlGuard } from "../src/application/ports.ts";
 import { PermanentError } from "../src/domain/errors.ts";
 import {
+  alignWebVtt,
   HlsCopier,
   localMediaPlaylist,
   parseAttributes,
@@ -173,6 +174,50 @@ describe("HLS playlists", () => {
   });
 });
 
+describe("WebVTT alignment", () => {
+  // Measured on a real stream: the video's first frame at PTS 137261 (1.525 s), every cue 1.5 s
+  // early in the .srt ffmpeg wrote, because it ignores this header.
+  const segment = [
+    "WEBVTT",
+    "X-TIMESTAMP-MAP=MPEGTS:137261,LOCAL:00:00:00.000",
+    "",
+    "00:32.689 --> 00:34.010",
+    "Two minutes left.",
+    "",
+    "19:29.180 --> 19:30.020 align:middle line:90%",
+    "What?",
+    "",
+    "1:02:03.000 --> 1:02:04.500",
+    "<00:01.000>karaoke",
+    "",
+  ].join("\n");
+
+  it("moves every cue onto the video's clock and drops the header ffmpeg cannot read", () => {
+    const aligned = alignWebVtt(segment);
+    expect(aligned).not.toContain("X-TIMESTAMP-MAP");
+    expect(aligned).toContain("00:00:34.214 --> 00:00:35.535\nTwo minutes left.");
+    // Cue settings stay as they were.
+    expect(aligned).toContain("00:19:30.705 --> 00:19:31.545 align:middle line:90%\nWhat?");
+    expect(aligned).toContain("01:02:04.525 --> 01:02:06.025");
+    expect(aligned).toContain("<00:00:02.525>karaoke");
+  });
+
+  it("counts LOCAL against MPEGTS, and leaves alone what has no map", () => {
+    const later = segment.replace("LOCAL:00:00:00.000", "LOCAL:00:00:10.000");
+    expect(alignWebVtt(later)).toContain("00:00:24.214 --> 00:00:25.535");
+    const plain = "WEBVTT\n\n00:01.000 --> 00:02.000\nHi\n";
+    expect(alignWebVtt(plain)).toBe(plain);
+    // Aligning twice is aligning once: a resumed copy rewrites nothing.
+    expect(alignWebVtt(alignWebVtt(segment))).toBe(alignWebVtt(segment));
+  });
+
+  it("does not take a map that only appears in a cue's text", () => {
+    const inCue =
+      "WEBVTT\n\n00:01.000 --> 00:02.000\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00.000\n";
+    expect(alignWebVtt(inCue)).toBe(inCue);
+  });
+});
+
 describe("HlsCopier", () => {
   it("copies the tallest variant that fits, its audio and subtitles, and writes playlists that read them", async () => {
     await withDir(async (dir) => {
@@ -198,6 +243,23 @@ describe("HlsCopier", () => {
       // The other variants and the other group's audio are never fetched.
       expect(cdn.asked.filter((key) => /v480|v1080|afr/.test(key))).toEqual([]);
       expect(ctx.progress.at(-1)?.fraction).toBe(1);
+    });
+  });
+
+  it("aligns the subtitle segments it copied to the video", async () => {
+    await withDir(async (dir) => {
+      const cdn = fakeCdn({
+        ...library,
+        "ses-0.vtt":
+          "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00:00.000\n\n00:01.000 --> 00:02.000\nHi\n",
+      });
+      const copier = new HlsCopier({ userAgent: "x", guard: allowAll, fetch: cdn.fetchImpl });
+      await copier.copy(source, dir, context(720));
+      expect(await readFile(join(dir, "r2", "00000.vtt"), "utf8")).toBe(
+        "WEBVTT\n\n00:00:11.000 --> 00:00:12.000\nHi\n",
+      );
+      // Audio and video segments are never read as subtitles.
+      expect(await readFile(join(dir, "r1", "00002.aac"), "utf8")).toBe("aen2");
     });
   });
 
