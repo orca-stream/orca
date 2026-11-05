@@ -2,7 +2,7 @@ import type { JobDto } from "@orca/hm-contract";
 import {
   Cancel01Icon,
   CheckmarkCircle02Icon,
-  Download04Icon,
+  Activity01Icon,
   RepeatIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -124,17 +124,17 @@ export function DownloadsPanel() {
     <div className="flex flex-col gap-2">
       <header className="flex items-center gap-3 px-2 pt-1">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <HugeiconsIcon icon={Download04Icon} className="size-5" />
+          <HugeiconsIcon icon={Activity01Icon} className="size-5" />
         </span>
         <div className="min-w-0 leading-tight">
-          <h2 className="font-semibold">{t.dashboard.title}</h2>
+          <h2 className="font-semibold">{t.dashboard.activityTitle}</h2>
           <p className="text-xs text-muted-foreground">
             {[
               running.length > 0 ? `${running.length} ${t.dashboard.running.toLowerCase()}` : null,
               queued.length > 0 ? `${queued.length} ${t.dashboard.waiting.toLowerCase()}` : null,
             ]
               .filter(Boolean)
-              .join(" · ") || t.dashboard.empty}
+              .join(" · ") || t.dashboard.idle}
           </p>
         </div>
       </header>
@@ -159,8 +159,8 @@ export function DownloadsPanel() {
       {nothing && failures.length === 0 && (
         <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
           <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-8 text-success" />
-          <p className="font-medium">{t.dashboard.empty}</p>
-          <p className="max-w-64 text-xs text-muted-foreground">{t.dashboard.emptyHint}</p>
+          <p className="font-medium">{t.dashboard.idle}</p>
+          <p className="max-w-64 text-xs text-muted-foreground">{t.dashboard.idleHint}</p>
         </div>
       )}
 

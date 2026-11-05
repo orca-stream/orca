@@ -1,6 +1,6 @@
 import {
   Add01Icon,
-  Download04Icon,
+  Activity01Icon,
   Home01Icon,
   Settings01Icon,
   Tv01Icon,
@@ -377,7 +377,7 @@ function DockDownloads() {
 
   useEffect(() => () => hold(false), [hold]);
 
-  const label = t.nav.downloadsActive(count);
+  const label = t.nav.activity(count);
   return (
     <Popover open={open} onOpenChange={toggle}>
       <Tooltip disabled={open}>
@@ -403,10 +403,7 @@ function DockDownloads() {
               )}
             />
           )}
-          <HugeiconsIcon
-            icon={Download04Icon}
-            className={cn("size-5.5", running > 0 && "motion-safe:animate-download-arrow")}
-          />
+          <HugeiconsIcon icon={Activity01Icon} className="size-5.5" />
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10}>
           {label}
@@ -415,7 +412,7 @@ function DockDownloads() {
       <PopoverContent
         side="top"
         sideOffset={20}
-        aria-label={t.dashboard.title}
+        aria-label={t.dashboard.activityTitle}
         className={cn(
           BAR_POPUP,
           "max-h-[min(40rem,var(--available-height))] w-[min(28rem,var(--available-width))] gap-0 overflow-y-auto overscroll-contain p-2 [scrollbar-width:thin]",

@@ -209,12 +209,12 @@ describe("DownloadsPanel", () => {
     expect(screen.queryByText("Terminadas")).toBeNull();
   });
 
-  it("says nothing is downloading when the queue and the failures are empty", async () => {
+  it("says nothing is running when the queue and the failures are empty", async () => {
     renderApp(<DownloadsPanel />, {
       handler: handlerFor({ active: [], failed: [], history: [[]] }),
     });
-    expect(await screen.findByText(/aparecen aquí con su progreso/)).toBeTruthy();
-    expect(screen.getAllByText("Nada descargándose")).toHaveLength(2);
+    expect(await screen.findByText(/búsquedas de episodios nuevos/)).toBeTruthy();
+    expect(screen.getAllByText("Nada en marcha")).toHaveLength(2);
   });
 
   it("says so when cancelling is refused (409), instead of failing silently", async () => {
@@ -272,8 +272,8 @@ describe("the dock's downloads", () => {
       </Dock>,
       { handler: handlerFor({ active: [WAITING, RUNNING], failed: [], history: [[]] }) },
     );
-    await user.click(await screen.findByRole("button", { name: "Descargas" }));
-    const panel = await screen.findByRole("dialog", { name: "Descargas" });
+    await user.click(await screen.findByRole("button", { name: "Actividad" }));
+    const panel = await screen.findByRole("dialog", { name: "Actividad" });
     expect(within(panel).getByRole("progressbar").getAttribute("aria-valuenow")).toBe("42");
   });
 });
