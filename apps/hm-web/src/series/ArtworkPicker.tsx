@@ -183,7 +183,6 @@ export function ArtworkPicker({
 
   const busy = pending !== null;
   const own = series[OWN[kind]];
-  const tmdbDefault = fileOf(tmdb?.[TMDB_DEFAULT[kind]]);
   const backdrop = currentArtwork(series, tmdb, "backdrop");
   const list = options.data?.[kind] ?? [];
   const noTmdb =
@@ -192,6 +191,19 @@ export function ArtworkPicker({
       : options.error instanceof ApiError && options.error.status === 503
         ? t.series.artwork.noTmdbKey
         : null;
+  // A word under the list only when there is nothing (yet) to pick from.
+  const note =
+    noTmdb ??
+    (options.isPending && series.tmdbId !== null ? (
+      <span className="flex items-center gap-2">
+        <Spinner className="size-4" />
+        {t.series.artwork.loading}
+      </span>
+    ) : options.isError ? (
+      t.series.artwork.tmdbFailed
+    ) : list.length === 0 ? (
+      t.series.artwork.none
+    ) : null);
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -336,22 +348,8 @@ export function ArtworkPicker({
                     />
                   ))}
                 </div>
-                {k === kind && (
-                  <p className="px-2 pt-4 text-sm text-muted-foreground">
-                    {noTmdb ??
-                      (options.isPending && series.tmdbId !== null ? (
-                        <span className="flex items-center gap-2">
-                          <Spinner className="size-4" />
-                          {t.series.artwork.loading}
-                        </span>
-                      ) : options.isError ? (
-                        t.series.artwork.tmdbFailed
-                      ) : list.length === 0 ? (
-                        t.series.artwork.none
-                      ) : own || tmdbDefault === null ? null : (
-                        t.series.artwork.tmdbChoice
-                      ))}
-                  </p>
+                {k === kind && note !== null && (
+                  <p className="px-2 pt-4 text-sm text-muted-foreground">{note}</p>
                 )}
               </TabsPanel>
             );
