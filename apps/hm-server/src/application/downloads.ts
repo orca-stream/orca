@@ -80,26 +80,32 @@ export function createEnqueueDownloads(deps: Deps) {
  * Asks for a library refresh of a series, a little later: every episode that lands in the next
  * `refreshDebounceMs` pushes the refresh back, so twenty episodes cost one scan. With
  * `replaceMetadata` (the series was renamed or got other ids) Jellyfin rereads it from scratch: a
- * plain refresh keeps the name it already has, whatever the nfo says now. It is a job of its own, so
- * a pending plain refresh can't swallow it.
+ * plain refresh keeps the name it already has, whatever the nfo says now. With `replaceImages` (its
+ * artwork changed) Jellyfin reads its images again, the ones in its folder first. Each is a job of
+ * its own, so a pending plain refresh can't swallow it.
  */
 export function createEnqueueRefresh(deps: Deps) {
   return async function enqueueRefresh(
     seriesId: string,
-    options: { replaceMetadata?: boolean } = {},
+    options: { replaceMetadata?: boolean; replaceImages?: boolean } = {},
   ): Promise<void> {
     // Nobody to tell: whatever plays the library finds the files on its own.
     if (!deps.mediaServer) return;
     const runAfter = deps.clock.now() + deps.refreshDebounceMs;
     const replace = options.replaceMetadata === true;
+    const images = !replace && options.replaceImages === true;
     const request = {
       kind: "refresh_library" as const,
-      payload: replace ? { seriesId, replaceMetadata: true } : { seriesId },
+      payload: replace
+        ? { seriesId, replaceMetadata: true }
+        : images
+          ? { seriesId, replaceImages: true }
+          : { seriesId },
       seriesId,
       resource: "none" as const,
       runAfter,
     };
-    const prefix = replace ? "rename" : "refresh";
+    const prefix = replace ? "rename" : images ? "images" : "refresh";
     const { job, created } = await deps.jobs.enqueue({
       ...request,
       dedupeKey: `${prefix}:${seriesId}`,

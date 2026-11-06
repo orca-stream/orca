@@ -90,6 +90,56 @@ describe("TmdbEpisodeGuide", () => {
     expect(await tmdb.show("404")).toBeNull();
   });
 
+  it("ranks the images in the language asked for first, backdrops without text before", async () => {
+    const img = (file_path: string, iso_639_1: string | null, vote_average = 0, width = 100) => ({
+      file_path,
+      iso_639_1,
+      vote_average,
+      width,
+      height: 100,
+    });
+    const { fetchImpl, calls } = fakeTmdb({
+      "/3/tv/7/images": {
+        body: {
+          posters: [img("/en.jpg", "en", 9), img("/ja.jpg", "ja"), img("/es.jpg", "es", 1)],
+          backdrops: [img("/en.jpg", "en", 9), img("/none.jpg", null), img("/es.jpg", "es")],
+          logos: [
+            img("/ja.png", "ja", 9),
+            img("/en-small.png", "en", 5, 100),
+            img("/en-big.png", "en", 5, 900),
+            img("/odd.svg", "en", 10),
+          ],
+        },
+      },
+      "/3/tv/7": {
+        body: { images: { logos: [img("/ja.png", "ja", 9), img("/es.png", "es")] } },
+      },
+    });
+    const tmdb = guide("v3key", fetchImpl);
+    const options = await tmdb.artwork("7", "es-MX");
+    expect(calls[0]?.url.searchParams.has("language")).toBe(false);
+    expect(options?.poster.map((o) => o.previewUrl)).toEqual([
+      "https://image.tmdb.org/t/p/w342/es.jpg",
+      "https://image.tmdb.org/t/p/w342/en.jpg",
+      "https://image.tmdb.org/t/p/w342/ja.jpg",
+    ]);
+    expect(options?.poster[0]).toMatchObject({
+      url: "https://image.tmdb.org/t/p/original/es.jpg",
+      language: "es",
+    });
+    expect(options?.backdrop.map((o) => o.language)).toEqual([null, "es", "en"]);
+    // Ties go to the widest; an SVG is not a file TMDB's way, and Jellyfin couldn't use it anyway.
+    expect(options?.logo.map((o) => o.previewUrl.split("/").at(-1))).toEqual([
+      "en-big.png",
+      "en-small.png",
+      "ja.png",
+    ]);
+    expect((await tmdb.show("7", undefined, "es"))?.logoUrl).toBe(
+      "https://image.tmdb.org/t/p/w500/es.png",
+    );
+    expect(await tmdb.artwork("404", "es")).toBeNull();
+  });
+
   it("reads whether the show still airs from TMDB's status and its next episode", async () => {
     const next = { season_number: 2, episode_number: 5, air_date: "2026-11-12" };
     const { fetchImpl } = fakeTmdb({

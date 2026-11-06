@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { EpisodeAdjustment } from "@orca/hm-contract";
+import type { ArtworkKind, EpisodeAdjustment } from "@orca/hm-contract";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const series = sqliteTable(
@@ -13,6 +13,13 @@ export const series = sqliteTable(
     imdbId: text("imdb_id"),
     folderName: text("folder_name").notNull(),
     hasPoster: integer("has_poster", { mode: "boolean" }).notNull().default(false),
+    hasBackdrop: integer("has_backdrop", { mode: "boolean" }).notNull().default(false),
+    hasLogo: integer("has_logo", { mode: "boolean" }).notNull().default(false),
+    artworkVersion: integer("artwork_version").notNull().default(0),
+    artworkFrom: text("artwork_from", { mode: "json" })
+      .$type<Partial<Record<ArtworkKind, string>>>()
+      .notNull()
+      .default(sql`'{}'`),
     follow: integer("follow", { mode: "boolean" }).notNull().default(false),
     paused: integer("paused", { mode: "boolean" }).notNull().default(false),
     checkIntervalHours: integer("check_interval_hours").notNull().default(12),

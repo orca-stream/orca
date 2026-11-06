@@ -1,5 +1,12 @@
 import type { Extraction, SiteExtractor } from "@orca/extractor-core";
-import type { EpisodeStatus, HmEvent, JobStatus, ProgressDetail } from "@orca/hm-contract";
+import type {
+  ArtworkKind,
+  ArtworkOptionsDto,
+  EpisodeStatus,
+  HmEvent,
+  JobStatus,
+  ProgressDetail,
+} from "@orca/hm-contract";
 import type { HostLane, Job, NewJob } from "../domain/job.ts";
 import type { Notification, NotificationKind } from "../domain/notification.ts";
 import type { Episode, Series, SeriesSource, Source } from "../domain/series.ts";
@@ -18,6 +25,8 @@ export interface Random {
 export interface SeriesWithCounts extends Series {
   episodeCount: number;
   availableCount: number;
+  /** When an episode of it last finished downloading; null if none has. */
+  lastDownloadAt: number | null;
 }
 
 export type EpisodeSourceSwitch = Pick<
@@ -58,6 +67,8 @@ export interface SeriesRepository {
     patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "closed">>,
   ): Promise<void>;
   list(): Promise<SeriesWithCounts[]>;
+  /** When an episode of the series last finished downloading; null if none has. */
+  lastDownloadAt(seriesId: string): Promise<number | null>;
   update(
     id: string,
     patch: Partial<
@@ -72,6 +83,10 @@ export interface SeriesRepository {
         | "paused"
         | "checkIntervalHours"
         | "hasPoster"
+        | "hasBackdrop"
+        | "hasLogo"
+        | "artworkVersion"
+        | "artworkFrom"
         | "lastCheckedAt"
         | "maxHeight"
         | "audioLangs"
@@ -281,11 +296,14 @@ export interface LibraryWriter {
    * already there, so a caller undoing its work knows the folder is not its own to remove.
    */
   writeSeries(series: Series): Promise<{ createdFolder: boolean }>;
-  writePoster(series: Series, image: FetchedImage): Promise<void>;
+  /** Writes a series' poster, backdrop or logo into its folder, replacing the one it had. */
+  writeArtwork(series: Series, kind: ArtworkKind, image: FetchedImage): Promise<void>;
+  /** Deletes that artwork from its folder; nothing to delete is not an error. */
+  removeArtwork(series: Series, kind: ArtworkKind): Promise<void>;
   /** Deletes the files of a series folder this server just made (`createdFolder`), and the folder if it ends up empty. */
   removeSeries(series: Series): Promise<void>;
-  /** The poster image on disk, if the series has one. */
-  posterPath(series: Series): Promise<string | null>;
+  /** That artwork's file on disk, if the series has one. */
+  artworkPath(series: Series, kind: ArtworkKind): Promise<string | null>;
   /**
    * Moves the staged file to its library name and writes the episode .nfo. Returns the path under
    * MEDIA_ROOT. A file already at that name is never replaced: it is kept as the episode
@@ -360,9 +378,13 @@ export interface LibraryShow {
 export interface MediaServer {
   /**
    * Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. With
-   * `replaceMetadata` it rereads the series from scratch (its nfo first), not only what is new.
+   * `replaceMetadata` it rereads the series from scratch (its nfo first), not only what is new; with
+   * `replaceImages`, its images (the ones in its folder first).
    */
-  libraryUpdated(path: string, options?: { replaceMetadata?: boolean | undefined }): Promise<void>;
+  libraryUpdated(
+    path: string,
+    options?: { replaceMetadata?: boolean | undefined; replaceImages?: boolean | undefined },
+  ): Promise<void>;
   /**
    * The show with that TMDB id, looked up through Jellyfin's own TMDB provider (and its key); null
    * when TMDB has none. Throws AppError upstream when Jellyfin can't be asked.
@@ -408,6 +430,8 @@ export type AiringStatus = "airing" | "returning" | "ended" | "canceled";
 export interface GuideShow {
   /** A wide still of the show (TMDB's "backdrop"), an absolute https address; null when it has none. */
   backdropUrl: string | null;
+  /** The show's logo, TMDB's best in the language asked for (see `rankArtwork`); null without one. */
+  logoUrl: string | null;
   status: AiringStatus | null;
   /** The next episode on TMDB's calendar; `airDate` is `YYYY-MM-DD`. */
   nextEpisode: { season: number; number: number; airDate: string | null } | null;
@@ -431,7 +455,13 @@ export interface EpisodeGuide {
     signal?: AbortSignal,
   ): Promise<GuideEpisode[] | null>;
   /** The show itself, beyond its seasons; null when TMDB has no such show. */
-  show(tmdbId: string, signal?: AbortSignal): Promise<GuideShow | null>;
+  show(tmdbId: string, signal?: AbortSignal, language?: string): Promise<GuideShow | null>;
+  /** Every poster, backdrop and logo TMDB has for the show, best first; null when it has no such show. */
+  artwork(
+    tmdbId: string,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ArtworkOptionsDto | null>;
   /** The show itself (name, year, IMDb id, synopsis, poster), for a server without Jellyfin. */
   match(
     tmdbId: string,

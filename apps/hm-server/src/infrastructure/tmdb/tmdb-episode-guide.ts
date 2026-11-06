@@ -1,4 +1,5 @@
 import * as z from "zod";
+import type { ArtworkKind, ArtworkOptionDto, ArtworkOptionsDto } from "@orca/hm-contract";
 import type {
   AiringStatus,
   EpisodeGuide,
@@ -17,6 +18,32 @@ const TMDB_STILL = "https://image.tmdb.org/t/p/w400";
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
 /** A show's poster, as wide as the panel's cards show it. */
 const TMDB_POSTER = "https://image.tmdb.org/t/p/w500";
+/** The image as TMDB has it, which is what a series folder keeps. */
+const TMDB_ORIGINAL = "https://image.tmdb.org/t/p/original";
+/** The smaller copy the panel lays out to choose from, per kind. */
+const TMDB_CHOICE: Record<ArtworkKind, string> = {
+  poster: "https://image.tmdb.org/t/p/w342",
+  backdrop: "https://image.tmdb.org/t/p/w780",
+  // Also what the panel shows over the series' banner: sharp at the size it is laid out.
+  logo: "https://image.tmdb.org/t/p/w500",
+};
+/** More than anyone browses; TMDB has hundreds of posters for a long-running show. */
+const MAX_CHOICES = 60;
+
+const ImageItem = z.object({
+  file_path: z.string(),
+  iso_639_1: z.string().nullish(),
+  width: z.number().int().nonnegative().default(0),
+  height: z.number().int().nonnegative().default(0),
+  vote_average: z.number().default(0),
+});
+type ImageItem = z.infer<typeof ImageItem>;
+
+const ImagesBody = z.object({
+  posters: z.array(ImageItem).default([]),
+  backdrops: z.array(ImageItem).default([]),
+  logos: z.array(ImageItem).default([]),
+});
 
 export interface TmdbEpisodeGuideOptions {
   /** A v3 API key, or a v4 read access token (a JWT, sent as a bearer token). */
@@ -28,6 +55,7 @@ export interface TmdbEpisodeGuideOptions {
 
 const ShowBody = z.object({
   backdrop_path: z.string().nullish(),
+  images: ImagesBody.nullish(),
   status: z.string().nullish(),
   next_episode_to_air: z
     .object({
@@ -80,6 +108,39 @@ const yearOf = (date: string | null | undefined): number | null => {
 /** An image's address, only for a path TMDB's way (`/abc.jpg`): nothing else reaches the panel. */
 const imageOf = (base: string, path: string | null | undefined): string | null =>
   path && /^\/[\w-]+\.(jpe?g|png|webp)$/i.test(path) ? `${base}${path}` : null;
+
+/**
+ * TMDB's images of one kind, best first: ones in `language` (its first two letters), then English,
+ * then without text, then the rest. A backdrop puts the ones without text first: the logo is laid
+ * over it, and the name twice reads badly. Within each, TMDB's votes, then the widest. Only the
+ * files TMDB's way (`imageOf`).
+ */
+export function rankArtwork(
+  kind: ArtworkKind,
+  items: readonly ImageItem[],
+  language: string | undefined,
+): ArtworkOptionDto[] {
+  const own = language?.slice(0, 2).toLowerCase();
+  const order =
+    kind === "backdrop" ? [null, own, "en"] : ([own, "en", null] as (string | null | undefined)[]);
+  const rank = (item: ImageItem) => {
+    const at = order.findIndex(
+      (wanted) => wanted !== undefined && (item.iso_639_1 ?? null) === wanted,
+    );
+    return at === -1 ? order.length : at;
+  };
+  return items
+    .filter((item) => imageOf(TMDB_ORIGINAL, item.file_path) !== null)
+    .toSorted((a, b) => rank(a) - rank(b) || b.vote_average - a.vote_average || b.width - a.width)
+    .slice(0, MAX_CHOICES)
+    .map((item) => ({
+      url: `${TMDB_ORIGINAL}${item.file_path}`,
+      previewUrl: `${TMDB_CHOICE[kind]}${item.file_path}`,
+      language: item.iso_639_1 || null,
+      width: item.width,
+      height: item.height,
+    }));
+}
 
 /**
  * TMDB's statuses for a show (in English, whatever the language asked for). "Returning Series"
@@ -147,15 +208,23 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
       .sort((a, b) => a.number - b.number);
   }
 
-  async show(tmdbId: string, signal?: AbortSignal): Promise<GuideShow | null> {
-    // Without a language TMDB picks the image it ranks best, text-free or not.
-    const body = await this.get(`/tv/${encodeURIComponent(tmdbId)}`, undefined, signal);
+  async show(tmdbId: string, signal?: AbortSignal, language?: string): Promise<GuideShow | null> {
+    // Without a language TMDB picks the image it ranks best, text-free or not, and lists the images
+    // of every language: the logo is chosen from them.
+    const body = await this.get(
+      `/tv/${encodeURIComponent(tmdbId)}?append_to_response=images`,
+      undefined,
+      signal,
+    );
     if (body === null) return null;
     const show = this.parse(ShowBody, body);
     const next = show.next_episode_to_air;
     const status = (show.status && STATUSES[show.status]) || null;
+    const logo = rankArtwork("logo", show.images?.logos ?? [], language)[0];
     return {
       backdropUrl: imageOf(TMDB_BACKDROP, show.backdrop_path),
+      // Its smaller copy is the one the panel shows over the banner.
+      logoUrl: logo?.previewUrl ?? null,
       status: status === "returning" && next ? "airing" : status,
       nextEpisode: next
         ? {
@@ -164,6 +233,22 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
             airDate: next.air_date || null,
           }
         : null,
+    };
+  }
+
+  async artwork(
+    tmdbId: string,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ArtworkOptionsDto | null> {
+    // No language: TMDB then lists the images of every language.
+    const body = await this.get(`/tv/${encodeURIComponent(tmdbId)}/images`, undefined, signal);
+    if (body === null) return null;
+    const images = this.parse(ImagesBody, body);
+    return {
+      poster: rankArtwork("poster", images.posters, language),
+      backdrop: rankArtwork("backdrop", images.backdrops, language),
+      logo: rankArtwork("logo", images.logos, language),
     };
   }
 

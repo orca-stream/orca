@@ -27,7 +27,17 @@ export interface Series {
   imdbId: string | null;
   /** Folder under MEDIA_ROOT, e.g. `The Beverly Hillbillies (1962)`. */
   folderName: string;
+  /**
+   * Artwork in its folder, under the names Jellyfin reads (`poster`, `backdrop`, `logo`): chosen in
+   * the panel or, for the poster, taken from the site. Without one, TMDB's (or Jellyfin's) is used.
+   */
   hasPoster: boolean;
+  hasBackdrop: boolean;
+  hasLogo: boolean;
+  /** Bumped on every artwork change, so the panel asks for the new image, not the cached one. */
+  artworkVersion: number;
+  /** For artwork taken from TMDB, its file there (`/abc.jpg`), by kind; absent for an uploaded one. */
+  artworkFrom: Partial<Record<"poster" | "backdrop" | "logo", string>>;
   follow: boolean;
   /** Its downloads wait in the queue until it is resumed; new episodes are still looked for. */
   paused: boolean;

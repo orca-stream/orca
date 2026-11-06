@@ -102,6 +102,11 @@ export const ShowLookupDto = z.object({
   /** A wide still of the show from TMDB's image host; null without a TMDB key of this server's own. */
   backdropUrl: z.string().nullable(),
   /**
+   * The show's name as artwork (a transparent PNG), TMDB's best in the language asked for, else in
+   * English, else any; null without a TMDB key of this server's own or when TMDB has none.
+   */
+  logoUrl: z.string().nullable(),
+  /**
    * Whether the show still airs, as TMDB says: `airing` with a next episode on the calendar,
    * `returning` when more is expected but undated, `ended` / `canceled` once no new episodes will
    * come; null without a TMDB key of this server's own, or for a status it can't read.
@@ -320,9 +325,24 @@ export const SeriesDto = z.object({
   subtitleLangs: z.array(z.string()).nullable(),
   /** The source each season prefers for its new episodes (see `SeriesPatch.preferredSources`). */
   preferredSources: PreferredSources,
+  /**
+   * Artwork of the series' own, in its folder where Jellyfin reads it (`/api/series/:id/:kind`);
+   * without one, the panel shows TMDB's. `artworkVersion` changes with every artwork change.
+   */
   hasPoster: z.boolean(),
+  hasBackdrop: z.boolean(),
+  hasLogo: z.boolean(),
+  artworkVersion: z.number().int(),
+  /** For artwork of its own taken from TMDB, its file there (`/abc.jpg`), by kind; not for an upload. */
+  artworkFrom: z.object({
+    poster: z.string().optional(),
+    backdrop: z.string().optional(),
+    logo: z.string().optional(),
+  }),
   episodeCount: z.number().int(),
   availableCount: z.number().int(),
+  /** When an episode of it last finished downloading; null if none has. */
+  lastDownloadAt: z.number().nullable(),
   /** Episode downloads of this series that are queued or running right now. */
   downloadingCount: z.number().int(),
   /** Of those, the ones fetching right now and how far each is (0–1; null while unknown). */
@@ -376,3 +396,35 @@ export const SwitchSourceResult = z.object({
   busy: z.array(z.string()),
 });
 export type SwitchSourceResult = z.infer<typeof SwitchSourceResult>;
+
+/** The artwork a series can have of its own: a 2:3 poster, a wide backdrop and a logo. */
+export const ArtworkKind = z.enum(["poster", "backdrop", "logo"]);
+export type ArtworkKind = z.infer<typeof ArtworkKind>;
+
+export const ArtworkParams = z.object({ id: z.string().min(1), kind: ArtworkKind });
+export type ArtworkParams = z.infer<typeof ArtworkParams>;
+
+/**
+ * One image TMDB has for a show. `url` is the full-size one the server saves; `previewUrl` a
+ * smaller one the panel shows to choose from. `language` is ISO 639-1, null for one without text.
+ */
+export const ArtworkOptionDto = z.object({
+  url: z.string(),
+  previewUrl: z.string(),
+  language: z.string().nullable(),
+  width: z.number().int(),
+  height: z.number().int(),
+});
+export type ArtworkOptionDto = z.infer<typeof ArtworkOptionDto>;
+
+/** Every image TMDB has for a show, the ones in the language asked for first. */
+export const ArtworkOptionsDto = z.object({
+  poster: z.array(ArtworkOptionDto),
+  backdrop: z.array(ArtworkOptionDto),
+  logo: z.array(ArtworkOptionDto),
+});
+export type ArtworkOptionsDto = z.infer<typeof ArtworkOptionsDto>;
+
+/** Sets a series' artwork to one of TMDB's (`ArtworkOptionDto.url`); an upload sends the image itself. */
+export const ArtworkFromUrlBody = z.object({ url: z.url({ protocol: /^https$/ }) });
+export type ArtworkFromUrlBody = z.infer<typeof ArtworkFromUrlBody>;

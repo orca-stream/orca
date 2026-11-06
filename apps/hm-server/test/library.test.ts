@@ -204,10 +204,32 @@ describe("FsLibraryWriter", () => {
   it("keeps the extension of the poster it was given", async () => {
     const series = aSeries();
     await writer.writeSeries(series);
-    await writer.writePoster(series, { bytes: new Uint8Array([9]), extension: ".png" });
-    expect(await writer.posterPath(series)).toBe(
+    await writer.writeArtwork(series, "poster", { bytes: new Uint8Array([9]), extension: ".png" });
+    expect(await writer.artworkPath(series, "poster")).toBe(
       join(root, "The Beverly Hillbillies (1962)", "poster.png"),
     );
+  });
+
+  it("keeps one file per artwork, under the names Jellyfin reads, and removes it", async () => {
+    const series = aSeries();
+    const folder = join(root, "The Beverly Hillbillies (1962)");
+    await writer.writeSeries(series);
+    await writer.writeArtwork(series, "logo", { bytes: new Uint8Array([1]), extension: ".png" });
+    await writer.writeArtwork(series, "backdrop", {
+      bytes: new Uint8Array([2]),
+      extension: ".jpg",
+    });
+    await writer.writeArtwork(series, "backdrop", {
+      bytes: new Uint8Array([3]),
+      extension: ".webp",
+    });
+    expect((await readdir(folder)).sort()).toEqual(["backdrop.webp", "logo.png", "tvshow.nfo"]);
+    expect(await writer.artworkPath(series, "backdrop")).toBe(join(folder, "backdrop.webp"));
+
+    await writer.removeArtwork(series, "backdrop");
+    await writer.removeArtwork(series, "poster");
+    expect((await readdir(folder)).sort()).toEqual(["logo.png", "tvshow.nfo"]);
+    expect(await writer.artworkPath(series, "backdrop")).toBeNull();
   });
 
   it("removes a series folder it just made, but never one with episodes in it", async () => {
@@ -225,9 +247,12 @@ describe("FsLibraryWriter", () => {
   it("serves a poster only once one was written", async () => {
     const series = aSeries();
     await writer.writeSeries(series);
-    expect(await writer.posterPath(series)).toBeNull();
-    await writer.writePoster(series, { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" });
-    const path = await writer.posterPath(series);
+    expect(await writer.artworkPath(series, "poster")).toBeNull();
+    await writer.writeArtwork(series, "poster", {
+      bytes: new Uint8Array([1, 2, 3]),
+      extension: ".jpg",
+    });
+    const path = await writer.artworkPath(series, "poster");
     expect(path).toBe(join(root, "The Beverly Hillbillies (1962)", "poster.jpg"));
     expect([...(await readFile(path!))]).toEqual([1, 2, 3]);
   });

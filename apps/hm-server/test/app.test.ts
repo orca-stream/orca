@@ -459,6 +459,83 @@ describe("series routes", () => {
   });
 });
 
+describe("a series' artwork", () => {
+  const JPEG = [0xff, 0xd8, 0xff, 0xe0, 1, 2];
+  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7];
+  const put = (path: string, init: RequestInit) =>
+    app.request(path, authed({ method: "PUT", ...init }));
+  const upload = (path: string, bytes: number[], type: string) =>
+    put(path, { headers: { "content-type": type }, body: new Uint8Array(bytes) });
+
+  it("takes one of TMDB's images, only from TMDB's image host, and Jellyfin is told", async () => {
+    const { series } = await addBevhill(h);
+    h.images.image = { bytes: new Uint8Array(JPEG), extension: ".jpg" };
+    const res = await put(`/api/series/${series.id}/backdrop`, {
+      ...json({ url: "https://image.tmdb.org/t/p/original/wide.jpg" }),
+      method: "PUT",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      hasBackdrop: true,
+      artworkVersion: 1,
+      artworkFrom: { backdrop: "/wide.jpg" },
+    });
+    expect(h.images.requested.at(-1)).toBe("https://image.tmdb.org/t/p/original/wide.jpg");
+    expect(h.images.hosts.at(-1)).toEqual(["image.tmdb.org"]);
+
+    const served = await get(`/api/series/${series.id}/backdrop?v=1`);
+    expect(served.headers.get("content-type")).toBe("image/jpeg");
+    expect(served.headers.get("cache-control")).toContain("immutable");
+    expect([...new Uint8Array(await served.arrayBuffer())]).toEqual(JPEG);
+
+    const queued = (await h.jobs.list({ limit: 50, status: ["queued"] })).items;
+    expect(queued.filter((j) => j.kind === "refresh_library").map((j) => j.payload)).toContainEqual(
+      {
+        seriesId: series.id,
+        replaceImages: true,
+      },
+    );
+  });
+
+  it("takes an uploaded image by its bytes, and refuses what isn't one", async () => {
+    const { series } = await addBevhill(h);
+    const logo = `/api/series/${series.id}/logo`;
+    // What it says it is doesn't count: a PNG sent as a JPEG is a PNG.
+    expect((await upload(logo, PNG, "image/jpeg")).status).toBe(200);
+    expect((await get(logo)).headers.get("content-type")).toBe("image/png");
+
+    expect((await upload(logo, JPEG, "image/jpeg")).status).toBe(400);
+    expect((await upload(`/api/series/${series.id}/poster`, [1, 2, 3], "image/png")).status).toBe(
+      400,
+    );
+    expect((await upload(logo, PNG, "text/plain")).status).toBe(400);
+    const big = new Array(9 * 1024 * 1024).fill(0);
+    expect((await upload(logo, big, "image/png")).status).toBe(413);
+  });
+
+  it("goes back to TMDB's once its own is removed", async () => {
+    const { series } = await addBevhill(h);
+    await upload(`/api/series/${series.id}/logo`, PNG, "image/png");
+    const res = await app.request(`/api/series/${series.id}/logo`, authed({ method: "DELETE" }));
+    expect(await res.json()).toMatchObject({ hasLogo: false, artworkVersion: 2, artworkFrom: {} });
+    expect((await get(`/api/series/${series.id}/logo`)).status).toBe(404);
+  });
+
+  it("lists TMDB's images for a series with a TMDB id", async () => {
+    const { series } = await addBevhill(h);
+    expect((await get(`/api/series/${series.id}/artwork`)).status).toBe(409);
+    await app.request(
+      `/api/series/${series.id}`,
+      authed({ ...json({ tmdbId: "30991" }), method: "PATCH" }),
+    );
+    const options = { poster: [], backdrop: [], logo: [] };
+    h.episodeGuide.artworks.set("30991", options);
+    const res = await get(`/api/series/${series.id}/artwork`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(options);
+  });
+});
+
 describe("Jellyfin's shows", () => {
   it("lists them with the series this server has for each, 502 when Jellyfin can't be asked", async () => {
     h.mediaServer.library = [
@@ -514,6 +591,7 @@ describe("TMDB lookup", () => {
       overview: "Bounty hunters in space.",
       posterUrl: "https://image.tmdb.org/t/p/w342/bebop.jpg",
       backdropUrl: null,
+      logoUrl: null,
       status: null,
       nextEpisode: null,
     });
@@ -529,11 +607,13 @@ describe("TMDB lookup", () => {
     });
     h.episodeGuide.showFacts.set("30991", {
       backdropUrl: "https://image.tmdb.org/t/p/w1280/wide.jpg",
+      logoUrl: "https://image.tmdb.org/t/p/w500/logo.png",
       status: "ended",
       nextEpisode: null,
     });
     expect(await (await get("/api/lookup/tmdb/30991")).json()).toMatchObject({
       backdropUrl: "https://image.tmdb.org/t/p/w1280/wide.jpg",
+      logoUrl: "https://image.tmdb.org/t/p/w500/logo.png",
       status: "ended",
     });
     h.episodeGuide.fail = new AppError("upstream", "TMDB answered 500");

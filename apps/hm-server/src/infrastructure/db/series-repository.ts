@@ -8,7 +8,7 @@ import type {
 } from "../../application/ports.ts";
 import type { Episode, Series, SeriesSource, Source } from "../../domain/series.ts";
 import type { Db } from "./client.ts";
-import { episodes, series, seriesSources } from "./schema.ts";
+import { episodes, jobs, series, seriesSources } from "./schema.ts";
 
 type SeriesRow = typeof series.$inferSelect;
 type EpisodeRow = typeof episodes.$inferSelect;
@@ -146,11 +146,34 @@ export class DrizzleSeriesRepository implements SeriesRepository {
       .groupBy(episodes.seriesId)
       .all();
     const byId = new Map(counts.map((c) => [c.seriesId, c]));
+    const downloaded = new Map(
+      this.lastDownloads()
+        .all()
+        .map((row) => [row.seriesId, row.at]),
+    );
     return rows.map((row) => ({
       ...toSeries(row),
       episodeCount: byId.get(row.id)?.total ?? 0,
       availableCount: byId.get(row.id)?.available ?? 0,
+      lastDownloadAt: downloaded.get(row.id) ?? null,
     }));
+  }
+
+  async lastDownloadAt(seriesId: string): Promise<number | null> {
+    return this.lastDownloads(seriesId).get()?.at ?? null;
+  }
+
+  /** The newest finished download of each series (or of one), from the jobs' history. */
+  private lastDownloads(seriesId?: string) {
+    return this.db
+      .select({ seriesId: jobs.seriesId, at: sql<number>`max(${jobs.finishedAt})` })
+      .from(jobs)
+      .where(
+        sql`${jobs.kind} = 'download_episode' and ${jobs.status} = 'done' and ${jobs.finishedAt} is not null${
+          seriesId === undefined ? sql`` : sql` and ${jobs.seriesId} = ${seriesId}`
+        }`,
+      )
+      .groupBy(jobs.seriesId);
   }
 
   async update(

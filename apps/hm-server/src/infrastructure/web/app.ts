@@ -1,5 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  ArtworkFromUrlBody,
+  ArtworkKind,
   CreateSeriesBody,
   EnqueueBody,
   ExtractorsBody,
@@ -34,6 +36,7 @@ import { csrf } from "hono/csrf";
 import { secureHeaders } from "hono/secure-headers";
 import { streamSSE } from "hono/streaming";
 import type { ZodType } from "zod";
+import { MAX_ARTWORK_BYTES } from "../../application/artwork.ts";
 import { AppError } from "../../domain/errors.ts";
 import type { EventBus } from "../../application/ports.ts";
 import type { UseCases } from "../../application/use-cases.ts";
@@ -47,6 +50,9 @@ const MAX_BODY_BYTES = 1024 * 1024;
 const PING_MS = 25_000;
 /** How many notifications the bell lists. */
 const NOTIFICATIONS_SHOWN = 50;
+/** A series' artwork, as uploaded: `/api/series/:id/poster`, `…/backdrop`, `…/logo`. */
+const ARTWORK_PATH = /\/series\/[^/]+\/(poster|backdrop|logo)$/;
+
 const POSTER_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".png": "image/png",
@@ -130,9 +136,9 @@ export function createApp(deps: AppDeps) {
   const { useCases } = deps;
   const api = new Hono<Env>();
 
-  api.use(
+  const limitBody = (maxSize: number) =>
     bodyLimit({
-      maxSize: MAX_BODY_BYTES,
+      maxSize,
       onError: (c) =>
         c.json(
           {
@@ -141,7 +147,14 @@ export function createApp(deps: AppDeps) {
           } satisfies ApiErrorBody,
           413,
         ),
-    }),
+    });
+  const smallBody = limitBody(MAX_BODY_BYTES);
+  // An uploaded image is the one body allowed to be large.
+  const imageBody = limitBody(MAX_ARTWORK_BYTES + 64 * 1024);
+  api.use((c, next) =>
+    c.req.method === "PUT" && ARTWORK_PATH.test(c.req.path)
+      ? imageBody(c, next)
+      : smallBody(c, next),
   );
   // Origin check on form-style posts; JSON posts are already blocked cross-site by SameSite=Strict + CORS.
   // A cross-site request always carries an Origin; one without it is not a browser riding a cookie.
@@ -311,18 +324,54 @@ export function createApp(deps: AppDeps) {
     return c.json(await useCases.deleteEpisodeFile(id, episodeId));
   });
 
-  api.get("/series/:id/poster", async (c) => {
-    const path = await useCases.posterOf(c.req.param("id"));
+  // A series' own artwork, in its folder. The panel adds `?v=` (its `artworkVersion`) to the address,
+  // so a changed image is a new address and the cached one can be kept a long time.
+  api.get("/series/:id/:kind{poster|backdrop|logo}", async (c) => {
+    const kind = ArtworkKind.parse(c.req.param("kind"));
+    const path = await useCases.artworkOf(c.req.param("id"), kind);
     if (!path)
       return c.json(
-        { error: "not_found", message: "This series has no poster" } satisfies ApiErrorBody,
+        { error: "not_found", message: `This series has no ${kind}` } satisfies ApiErrorBody,
         404,
       );
     return c.body(new Uint8Array(await readFile(path)), 200, {
       "content-type": POSTER_TYPES[extname(path).toLowerCase()] ?? "application/octet-stream",
-      "cache-control": "private, max-age=3600",
+      "cache-control": c.req.query("v")
+        ? "private, max-age=31536000, immutable"
+        : "private, no-cache",
     });
   });
+
+  api.get("/series/:id/artwork", async (c) =>
+    c.json(
+      await useCases.artworkOptions(
+        c.req.param("id"),
+        firstLanguage(c.req.header("accept-language")),
+        c.req.raw.signal,
+      ),
+    ),
+  );
+
+  // One of TMDB's (a JSON `{ url }`) or an image of one's own (the image itself as the body).
+  api.put("/series/:id/:kind{poster|backdrop|logo}", async (c) => {
+    const id = c.req.param("id");
+    const kind = ArtworkKind.parse(c.req.param("kind"));
+    const type = (c.req.header("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+    if (type === "application/json") {
+      const body = ArtworkFromUrlBody.safeParse(await c.req.json().catch(() => null));
+      if (!body.success) throw new AppError("bad_request", "Send the address of a TMDB image");
+      return c.json(await useCases.setArtwork(id, kind, { url: body.data.url }, c.req.raw.signal));
+    }
+    if (!type.startsWith("image/")) {
+      throw new AppError("bad_request", "Send an image, or the address of a TMDB image");
+    }
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    return c.json(await useCases.setArtwork(id, kind, { bytes }));
+  });
+
+  api.delete("/series/:id/:kind{poster|backdrop|logo}", async (c) =>
+    c.json(await useCases.removeArtwork(c.req.param("id"), ArtworkKind.parse(c.req.param("kind")))),
+  );
 
   api.post("/series/:id/check", async (c) =>
     c.json(await useCases.checkSeriesNow(c.req.param("id")), 202),

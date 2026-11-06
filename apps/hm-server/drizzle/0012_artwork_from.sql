@@ -1,0 +1,1 @@
+ALTER TABLE `series` ADD `artwork_from` text DEFAULT '{}' NOT NULL;

@@ -3,6 +3,8 @@ import {
   episodeOffset,
   IMDB_ID_PATTERN,
   TMDB_ID_PATTERN,
+  type ArtworkKind,
+  type ArtworkOptionsDto,
   type CreateSeriesInput,
   type EpisodeDto,
   type JobDto,
@@ -29,6 +31,13 @@ import { episodeCode, type Episode, type Series, type SeriesSource } from "../do
 import { seriesFolderName } from "../domain/naming.ts";
 import type { Deps } from "./deps.ts";
 import { trustedPosterUrl } from "./poster-url.ts";
+import {
+  ARTWORK_FLAG,
+  fitsKind,
+  MAX_ARTWORK_BYTES,
+  sniffImage,
+  TMDB_IMAGE_HOSTS,
+} from "./artwork.ts";
 import type { EpisodeSourceSwitch, FetchedImage, LibraryShow } from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
@@ -412,6 +421,10 @@ export function createUseCases(deps: Deps) {
             imdbId: show.imdbId !== null && IMDB_ID_PATTERN.test(show.imdbId) ? show.imdbId : null,
             folderName,
             hasPoster: false,
+            hasBackdrop: false,
+            hasLogo: false,
+            artworkVersion: 0,
+            artworkFrom: {},
             follow: body.follow ?? false,
             paused: false,
             checkIntervalHours: 12,
@@ -422,7 +435,10 @@ export function createUseCases(deps: Deps) {
             preferredSources: {},
             createdAt: now,
           };
-          series.hasPoster = (await deps.library.posterPath(series)) !== null;
+          // Artwork the show's folder already has (Jellyfin may have saved it there) is its own.
+          series.hasPoster = (await deps.library.artworkPath(series, "poster")) !== null;
+          series.hasBackdrop = (await deps.library.artworkPath(series, "backdrop")) !== null;
+          series.hasLogo = (await deps.library.artworkPath(series, "logo")) !== null;
           // The show's own files take this server's names first, so the ones the address also lists
           // are known to be there and aren't downloaded again. Its nfo and images are left alone.
           // Renamed files stay renamed if saving then fails: they are the same files, better named.
@@ -477,6 +493,10 @@ export function createUseCases(deps: Deps) {
           imdbId,
           folderName,
           hasPoster: false,
+          hasBackdrop: false,
+          hasLogo: false,
+          artworkVersion: 0,
+          artworkFrom: {},
           follow: body.follow ?? false,
           paused: false,
           checkIntervalHours: 12,
@@ -513,7 +533,8 @@ export function createUseCases(deps: Deps) {
       const posterUrl = trustedPosterUrl(extraction.series.posterUrl, hosts);
       if (posterUrl) {
         try {
-          await deps.library.writePoster(series, await deps.images.fetch(posterUrl, { hosts }));
+          const image = await deps.images.fetch(posterUrl, { hosts });
+          await deps.library.writeArtwork(series, "poster", image);
           created = (await deps.series.update(series.id, { hasPoster: true })) ?? series;
         } catch {
           // A missing cover is not worth failing the add for.
@@ -567,7 +588,7 @@ export function createUseCases(deps: Deps) {
       const [show, guide] = await Promise.all([
         find,
         // Only with a TMDB key of our own, and only extras: without them the lookup still answers.
-        deps.episodeGuide?.show(tmdbId, signal).catch((error: unknown) => {
+        deps.episodeGuide?.show(tmdbId, signal, language).catch((error: unknown) => {
           if (signal?.aborted) throw error;
           return null;
         }) ?? null,
@@ -582,6 +603,7 @@ export function createUseCases(deps: Deps) {
         overview: show.overview,
         posterUrl: show.posterUrl,
         backdropUrl: guide?.backdropUrl ?? null,
+        logoUrl: guide?.logoUrl ?? null,
         status: guide?.status ?? null,
         nextEpisode: guide?.nextEpisode ?? null,
       };
@@ -659,6 +681,7 @@ export function createUseCases(deps: Deps) {
       return toSeriesDto(series, await deps.series.listSources([id]), nextUrlOf, downloading, {
         episodeCount: episodes.length,
         availableCount: episodes.filter((episode) => episode.status === "available").length,
+        lastDownloadAt: await deps.series.lastDownloadAt(id),
       });
     },
 
@@ -992,10 +1015,107 @@ export function createUseCases(deps: Deps) {
       return { userId: session.userId, userName: session.userName };
     },
 
-    async posterOf(seriesId: string): Promise<string | null> {
+    /** The file of a series' own artwork of that kind; null when it has none of its own. */
+    async artworkOf(seriesId: string, kind: ArtworkKind): Promise<string | null> {
       const series = await deps.series.get(seriesId);
       if (!series) throw new AppError("not_found", "No such series");
-      return deps.library.posterPath(series);
+      return deps.library.artworkPath(series, kind);
+    },
+
+    /** Every poster, backdrop and logo TMDB has for the series' show, to choose its own from. */
+    async artworkOptions(
+      seriesId: string,
+      language: string | undefined,
+      signal?: AbortSignal,
+    ): Promise<ArtworkOptionsDto> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      if (!series.tmdbId) {
+        throw new AppError(
+          "conflict",
+          "Without a TMDB id the series' artwork can only be uploaded",
+        );
+      }
+      if (!deps.episodeGuide) {
+        throw new AppError("unavailable", "No TMDB key: set one in Settings to choose from TMDB");
+      }
+      const options = await deps.episodeGuide.artwork(series.tmdbId, language, signal);
+      if (!options) {
+        throw new AppError("not_found", `TMDB has no show with the id ${series.tmdbId}`);
+      }
+      return options;
+    },
+
+    /**
+     * Gives a series artwork of its own: one of TMDB's (`url`, on TMDB's image host only) or an
+     * uploaded image (`bytes`). It goes in its folder, where Jellyfin reads it, which is told.
+     */
+    async setArtwork(
+      seriesId: string,
+      kind: ArtworkKind,
+      from: { url: string } | { bytes: Uint8Array },
+      signal?: AbortSignal,
+    ): Promise<SeriesDto> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      let image: FetchedImage;
+      if ("url" in from) {
+        try {
+          image = await deps.images.fetch(from.url, {
+            hosts: TMDB_IMAGE_HOSTS,
+            ...(signal ? { signal } : {}),
+          });
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          throw new AppError("upstream", "Could not fetch that image from TMDB", { cause: error });
+        }
+      } else {
+        if (from.bytes.length > MAX_ARTWORK_BYTES) {
+          throw new AppError("bad_request", "That image is too large: 8 MB at most");
+        }
+        image = { bytes: from.bytes, extension: "" };
+      }
+      // By its bytes, whatever its address or upload said it was.
+      const extension = sniffImage(image.bytes);
+      if (!extension) throw new AppError("bad_request", "Only a JPEG, PNG or WebP image will do");
+      if (!fitsKind(kind, extension)) {
+        throw new AppError("bad_request", "A logo has to be a PNG or WebP, to stay transparent");
+      }
+      await withFolderLock(`series:${seriesId}`, async () => {
+        // Read again under the lock: a rename may have moved its folder meanwhile.
+        const current = (await deps.series.get(seriesId)) ?? series;
+        await deps.library.writeArtwork(current, kind, { bytes: image.bytes, extension });
+        // Which of TMDB's it is, so the panel marks it among TMDB's instead of listing it twice.
+        const { [kind]: _old, ...others } = current.artworkFrom;
+        const from_ = "url" in from ? new URL(from.url).pathname.split("/").at(-1) : undefined;
+        await deps.series.update(seriesId, {
+          [ARTWORK_FLAG[kind]]: true,
+          artworkVersion: current.artworkVersion + 1,
+          artworkFrom: from_ ? { ...others, [kind]: `/${from_}` } : others,
+        });
+      });
+      deps.events.publish({ type: "series.updated", seriesId });
+      await enqueueRefresh(seriesId, { replaceImages: true });
+      return this.getSeries(seriesId);
+    },
+
+    /** Takes a series' own artwork of that kind away: TMDB's (or Jellyfin's) is used again. */
+    async removeArtwork(seriesId: string, kind: ArtworkKind): Promise<SeriesDto> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      await withFolderLock(`series:${seriesId}`, async () => {
+        const current = (await deps.series.get(seriesId)) ?? series;
+        await deps.library.removeArtwork(current, kind);
+        const { [kind]: _old, ...others } = current.artworkFrom;
+        await deps.series.update(seriesId, {
+          [ARTWORK_FLAG[kind]]: false,
+          artworkVersion: current.artworkVersion + 1,
+          artworkFrom: others,
+        });
+      });
+      deps.events.publish({ type: "series.updated", seriesId });
+      await enqueueRefresh(seriesId, { replaceImages: true });
+      return this.getSeries(seriesId);
     },
   };
 }

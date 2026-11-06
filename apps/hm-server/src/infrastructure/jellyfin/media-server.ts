@@ -82,7 +82,7 @@ export class JellyfinMediaServer implements MediaServer {
    */
   async libraryUpdated(
     path: string,
-    options: { replaceMetadata?: boolean | undefined } = {},
+    options: { replaceMetadata?: boolean | undefined; replaceImages?: boolean | undefined } = {},
   ): Promise<void> {
     const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
@@ -103,11 +103,20 @@ export class JellyfinMediaServer implements MediaServer {
               imageRefreshMode: MetadataRefreshMode.Default,
               replaceAllMetadata: true,
             }
-          : {
-              itemId,
-              metadataRefreshMode: MetadataRefreshMode.Default,
-              imageRefreshMode: MetadataRefreshMode.Default,
-            },
+          : options.replaceImages && isSeries
+            ? {
+                // As Jellyfin's own "Replace existing images": the ones in its folder win over TMDB's,
+                // and one deleted from it is gone from Jellyfin too. The metadata is kept.
+                itemId,
+                metadataRefreshMode: MetadataRefreshMode.FullRefresh,
+                imageRefreshMode: MetadataRefreshMode.FullRefresh,
+                replaceAllImages: true,
+              }
+            : {
+                itemId,
+                metadataRefreshMode: MetadataRefreshMode.Default,
+                imageRefreshMode: MetadataRefreshMode.Default,
+              },
       );
     } catch (error) {
       if (!isAxiosError(error)) throw error;

@@ -12,13 +12,16 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "node:path";
 import { externalSubtitleName } from "@orca/media-probe";
+import type { ArtworkKind } from "@orca/hm-contract";
 import type { EpisodeFile, FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
 import type { Episode, Series } from "../../domain/series.ts";
 import { episodeFileName, seasonFolderName } from "../../domain/naming.ts";
 import { episodeNfo, tvshowNfo } from "./nfo.ts";
 
 const STAGING = ".hm-staging";
-const POSTER_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
+const IMAGE_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
+/** The names Jellyfin reads artwork by in a series' folder, one per kind this server manages. */
+const ARTWORK_KINDS: readonly ArtworkKind[] = ["poster", "backdrop", "logo"];
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".avi", ".webm", ".mov", ".ts"]);
 
 const isUnder = (path: string, folder: string) => path.startsWith(`${folder}${sep}`);
@@ -105,23 +108,35 @@ export class FsLibraryWriter implements LibraryWriter {
     return { createdFolder };
   }
 
-  async writePoster(series: Series, image: FetchedImage): Promise<void> {
-    await this.atomicWrite(join(this.seriesPath(series), `poster${image.extension}`), image.bytes);
+  async writeArtwork(series: Series, kind: ArtworkKind, image: FetchedImage): Promise<void> {
+    const name = `${kind}${image.extension}`;
+    await this.atomicWrite(join(this.seriesPath(series), name), image.bytes);
+    // One file per kind: a `poster.png` left beside a new `poster.jpg` would be read instead of it.
+    for (const extension of IMAGE_EXTENSIONS) {
+      if (extension !== image.extension) {
+        await rm(join(this.seriesPath(series), `${kind}${extension}`), { force: true });
+      }
+    }
   }
 
-  async posterPath(series: Series): Promise<string | null> {
-    for (const extension of POSTER_EXTENSIONS) {
-      const path = join(this.seriesPath(series), `poster${extension}`);
+  async artworkPath(series: Series, kind: ArtworkKind): Promise<string | null> {
+    for (const extension of IMAGE_EXTENSIONS) {
+      const path = join(this.seriesPath(series), `${kind}${extension}`);
       if ((await stat(path).catch(() => null))?.isFile()) return path;
     }
     return null;
   }
 
+  async removeArtwork(series: Series, kind: ArtworkKind): Promise<void> {
+    for (const extension of IMAGE_EXTENSIONS) {
+      await rm(join(this.seriesPath(series), `${kind}${extension}`), { force: true });
+    }
+  }
+
   async removeSeries(series: Series): Promise<void> {
     const folder = this.seriesPath(series);
     await rm(join(folder, "tvshow.nfo"), { force: true });
-    for (const extension of POSTER_EXTENSIONS)
-      await rm(join(folder, `poster${extension}`), { force: true });
+    for (const kind of ARTWORK_KINDS) await this.removeArtwork(series, kind);
     // rmdir, not rm -r: a folder with episodes in it stays.
     if ((await readdir(folder).catch(() => [])).length === 0)
       await rmdir(folder).catch(() => undefined);

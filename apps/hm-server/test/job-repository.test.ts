@@ -9,6 +9,31 @@ const job = (extra = {}) => ({
 });
 
 describe("DrizzleJobRepository", () => {
+  it("tells when each series last finished downloading an episode", async () => {
+    const { jobs, series, clock } = testDatabase();
+    await series.create(aSeries({ id: "a" }), aSource({ seriesId: "a" }), []);
+    await series.create(
+      aSeries({ id: "b", folderName: "B" }),
+      aSource({ seriesId: "b", externalId: "b" }),
+      [],
+    );
+    const first = await jobs.enqueue(job({ seriesId: "a" }));
+    const second = await jobs.enqueue(job({ seriesId: "a" }));
+    await jobs.enqueue(job({ seriesId: "b" })); // still queued: not downloaded
+    await jobs.claim("download", "w", 1000);
+    clock.advance(1000);
+    await jobs.complete(first.job.id, "w");
+    await jobs.claim("download", "w", 1000);
+    clock.advance(1000);
+    const at = clock.now();
+    await jobs.complete(second.job.id, "w");
+
+    expect(await series.lastDownloadAt("a")).toBe(at);
+    expect(await series.lastDownloadAt("b")).toBeNull();
+    const listed = new Map((await series.list()).map((s) => [s.id, s.lastDownloadAt]));
+    expect(Object.fromEntries(listed)).toEqual({ a: at, b: null });
+  });
+
   it("counts the queued and running episode downloads of each series", async () => {
     const { jobs, series } = testDatabase();
     await series.create(aSeries({ id: "a" }), aSource({ seriesId: "a" }), []);

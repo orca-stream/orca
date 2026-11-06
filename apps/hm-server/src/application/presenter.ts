@@ -131,9 +131,10 @@ export function toSeriesDto(
   sources: readonly SeriesSource[],
   nextUrl: NextSourceUrl,
   downloads: SeriesDownloads,
-  counts?: { episodeCount: number; availableCount: number },
+  counts?: { episodeCount: number; availableCount: number; lastDownloadAt?: number | null },
 ): SeriesDto {
-  const c = counts ?? ("episodeCount" in series ? series : { episodeCount: 0, availableCount: 0 });
+  const c: { episodeCount: number; availableCount: number; lastDownloadAt?: number | null } =
+    counts ?? ("episodeCount" in series ? series : { episodeCount: 0, availableCount: 0 });
   return {
     id: series.id,
     title: series.title,
@@ -151,6 +152,11 @@ export function toSeriesDto(
     subtitleLangs: series.subtitleLangs,
     preferredSources: series.preferredSources,
     hasPoster: series.hasPoster,
+    hasBackdrop: series.hasBackdrop,
+    hasLogo: series.hasLogo,
+    artworkVersion: series.artworkVersion,
+    artworkFrom: series.artworkFrom,
+    lastDownloadAt: c.lastDownloadAt ?? null,
     episodeCount: c.episodeCount,
     availableCount: c.availableCount,
     downloadingCount: downloads.count,

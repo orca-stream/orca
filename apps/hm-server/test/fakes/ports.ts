@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
+  ArtworkOptionsDto,
   JellyfinConnectBody,
   JellyfinConnection,
   LocalAdminBody,
@@ -141,6 +142,14 @@ export class FakeEpisodeGuide implements EpisodeGuide {
   readonly showFacts = new Map<string, GuideShow>();
   /** The show itself, as a server without Jellyfin looks it up. */
   readonly matches = new Map<string, ShowMatch>();
+  /** Its posters, backdrops and logos, by TMDB id. */
+  readonly artworks = new Map<string, ArtworkOptionsDto>();
+
+  async artwork(tmdbId: string, language: string | undefined): Promise<ArtworkOptionsDto | null> {
+    if (this.fail) throw this.fail;
+    this.languages.push(language);
+    return this.artworks.get(tmdbId) ?? null;
+  }
 
   async match(tmdbId: string, language: string | undefined): Promise<ShowMatch | null> {
     if (this.fail) throw this.fail;
@@ -194,12 +203,14 @@ export class FakeImageFetcher implements ImageFetcher {
   fail = false;
   readonly requested: string[] = [];
   readonly hosts: (readonly string[])[] = [];
+  /** What every fetch answers. */
+  image: FetchedImage = { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" };
 
   async fetch(url: string, options: { hosts: readonly string[] }): Promise<FetchedImage> {
     this.requested.push(url);
     this.hosts.push(options.hosts);
     if (this.fail) throw new Error("no image");
-    return { bytes: new Uint8Array([1, 2, 3]), extension: ".jpg" };
+    return this.image;
   }
 }
 

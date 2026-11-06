@@ -64,7 +64,11 @@ const hasMirrors = (payload: unknown): boolean =>
 const describe = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-const RefreshPayload = z.object({ seriesId: z.string(), replaceMetadata: z.boolean().optional() });
+const RefreshPayload = z.object({
+  seriesId: z.string(),
+  replaceMetadata: z.boolean().optional(),
+  replaceImages: z.boolean().optional(),
+});
 const CheckPayload = z.object({ seriesId: z.string() });
 
 /** The pipeline for every kind of job. The queue calls `run`; `onOutcome` keeps episodes in line. */
@@ -374,10 +378,13 @@ export function createJobHandler(deps: Deps): JobHandler {
   }
 
   async function refreshLibrary(job: Job): Promise<void> {
-    const { seriesId, replaceMetadata } = RefreshPayload.parse(job.payload);
+    const { seriesId, replaceMetadata, replaceImages } = RefreshPayload.parse(job.payload);
     const series = await deps.series.get(seriesId);
     if (!series) return;
-    await deps.mediaServer?.libraryUpdated(deps.library.seriesPath(series), { replaceMetadata });
+    await deps.mediaServer?.libraryUpdated(deps.library.seriesPath(series), {
+      replaceMetadata,
+      replaceImages,
+    });
   }
 
   /**
