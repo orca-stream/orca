@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useApi } from "@/api/context";
 import { keys } from "@/api/keys";
 import { dropSession } from "@/auth/session";
 import type {
+  FolderListing,
   JellyfinConnection,
   LocalAdminBody,
   Settings,
@@ -128,5 +129,26 @@ export function useSaveExtractors() {
       queryClient.setQueryData(keys.extractorsFile, text.trim() === "" ? "{}\n" : text);
       void queryClient.invalidateQueries({ queryKey: keys.extractors });
     },
+  });
+}
+
+/**
+ * The folders inside one folder of the server's disk (its home folder when `path` is null), to pick
+ * the series folder from. Asked through the setup until the server is set up, then from Settings.
+ */
+export function useFolders(during: "setup" | "settings", path: string | null, enabled: boolean) {
+  const api = useApi();
+  return useQuery({
+    queryKey: keys.folders(path),
+    queryFn: ({ signal }) =>
+      api.get<FolderListing>(
+        `${during === "setup" ? "/setup/folders" : "/settings/folders"}${
+          path === null ? "" : `?path=${encodeURIComponent(path)}`
+        }`,
+        { signal },
+      ),
+    enabled,
+    placeholderData: keepPreviousData,
+    retry: false,
   });
 }

@@ -134,7 +134,13 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
         onConnected={(connection) => setLibraries(connection.libraries)}
       />
       {extractors}
-      <LibrarySection draft={draft} set={set} errors={errors} libraries={libraries} />
+      <LibrarySection
+        draft={draft}
+        set={set}
+        errors={errors}
+        libraries={libraries}
+        during="settings"
+      />
       <ExtrasSection
         draft={draft}
         set={set}

@@ -599,6 +599,16 @@ const es = {
       jellyfinPath: "Ruta de la carpeta",
       jellyfinPathPlaceholder: "Como la ve Jellyfin",
     },
+    folders: {
+      browse: "Elegir la carpeta",
+      title: "Carpetas del servidor",
+      up: "Subir a la carpeta de arriba",
+      open: (name: string) => `Abrir ${name}`,
+      choose: "Elegir esta carpeta",
+      empty: "No hay carpetas dentro.",
+      failed: "No se pudo leer esta carpeta.",
+      retry: "Volver al inicio",
+    },
     tmdb: {
       title: "TMDB",
       description:
@@ -1310,6 +1320,16 @@ const en: typeof es = {
         "That Jellyfin has no shows library. Make one in Jellyfin and connect again, or type the path.",
       jellyfinPath: "Folder path",
       jellyfinPathPlaceholder: "As Jellyfin sees it",
+    },
+    folders: {
+      browse: "Pick the folder",
+      title: "The server's folders",
+      up: "Go up a folder",
+      open: (name: string) => `Open ${name}`,
+      choose: "Pick this folder",
+      empty: "There are no folders in here.",
+      failed: "This folder could not be read.",
+      retry: "Back to the start",
     },
     tmdb: {
       title: "TMDB",

@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { BarField } from "@/series/bar";
 import { COMMON_HEIGHTS, COMMON_LANGUAGES } from "@/series/settings-form";
 import { useConnectJellyfin, useSaveLocalAdmin } from "./api";
+import { FolderPicker } from "./folder-picker";
 import type { ExtractorsFileProblem } from "@orca/hm-contract/extractors-file";
 import {
   adminFromDraft,
@@ -581,7 +582,12 @@ export function LibrarySection({
   set,
   errors,
   libraries,
-}: SectionProps & { libraries: JellyfinConnection["libraries"] | null }) {
+  during,
+}: SectionProps & {
+  libraries: JellyfinConnection["libraries"] | null;
+  /** Where the folders are asked from: the setup's door until the server is set up. */
+  during: "setup" | "settings";
+}) {
   const t = useT();
   const locations = (libraries ?? []).flatMap((library) =>
     library.locations.map((location) => ({ library: library.name, location })),
@@ -599,6 +605,13 @@ export function LibrarySection({
           draft={draft}
           set={set}
           errors={errors}
+          action={
+            <FolderPicker
+              during={during}
+              value={draft.mediaRoot}
+              onPick={(mediaRoot) => set({ mediaRoot })}
+            />
+          }
         />
       </Group>
     );
@@ -632,6 +645,13 @@ export function LibrarySection({
         draft={draft}
         set={set}
         errors={errors}
+        action={
+          <FolderPicker
+            during={during}
+            value={draft.jellyfinMediaRoot}
+            onPick={(jellyfinMediaRoot) => set({ jellyfinMediaRoot })}
+          />
+        }
       />
     </Group>
   );

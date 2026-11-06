@@ -1,4 +1,6 @@
-import { JellyfinConnectBody, SetupBody, type ApiErrorBody } from "@orca/hm-contract";
+import { FolderQuery, JellyfinConnectBody, SetupBody, type ApiErrorBody } from "@orca/hm-contract";
+import { AppError } from "../../domain/errors.ts";
+import { listFolders } from "../folders.ts";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { csrf } from "hono/csrf";
@@ -44,6 +46,11 @@ export function createRootApp(deps: RootDeps) {
   const checkOrigin = csrf();
   first.use((c, next) => (c.req.header("origin") ? checkOrigin(c, next) : next()));
   first.get("/", (c) => c.json(setup.status()));
+  // The series folder is picked from the server's own disk; once it is set up, only from Settings.
+  first.get("/folders", validate("query", FolderQuery), async (c) => {
+    if (setup.configured) throw new AppError("conflict", "The server is already set up");
+    return c.json(await listFolders(c.req.valid("query").path));
+  });
   first.post("/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
     c.json(await setup.setupConnect(c.req.valid("json"))),
   );

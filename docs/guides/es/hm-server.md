@@ -49,6 +49,9 @@ servidor no esté configurado, cualquier dirección muestra la **configuración*
    escribe en esa misma ruta: si Jellyfin corre en otro equipo, monta antes aquí su carpeta en esa ruta
    (ver [Usarlas juntas](together.md), escenario 3). Sin él: la ruta de la carpeta de series en este
    equipo.
+   En los dos casos, el botón de carpeta junto a la ruta recorre las carpetas de este servidor para
+   elegirla (el selector del navegador no sirve: no da la ruta y muestra el disco del aparato desde el
+   que miras).
 3. **Extras.** Una clave de TMDB (opcional) y tu archivo de extractores.
 4. **Descargas.** Descargas, pistas por defecto y el navegador, con valores sugeridos ya puestos.
 

@@ -279,6 +279,18 @@ describe("the front door", () => {
     expect(again.status).toBe(409);
   });
 
+  it("lists the server's folders only until it is set up", async () => {
+    const before = await app().request(
+      `/api/setup/folders?path=${encodeURIComponent("/")}`,
+      {},
+      lan,
+    );
+    expect(before.status).toBe(200);
+    expect(await before.json()).toMatchObject({ path: "/", parent: null });
+    await app().request("/api/setup", postJson({ settings }), lan);
+    expect((await app().request("/api/setup/folders", {}, lan)).status).toBe(409);
+  });
+
   it("refuses settings that are not valid, by where they are wrong", async () => {
     const res = await app().request(
       "/api/setup",

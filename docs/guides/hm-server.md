@@ -48,6 +48,8 @@ shows the **setup**:
    lists Jellyfin's show libraries to pick the folder from. H&M writes to that same path, so if Jellyfin
    runs on another machine, mount its folder here at that path first (see [Together](together.md),
    scenario 3). Without it: the path of the shows folder on this machine.
+   Either way, the folder button beside the path browses this server's own folders to pick it (the
+   browser's picker can't: it gives no path and shows the disk of the device you look from).
 3. **Extras.** A TMDB key (optional) and your extractors file.
 4. **Downloads.** Downloads, default tracks and the browser, with suggested values filled in.
 

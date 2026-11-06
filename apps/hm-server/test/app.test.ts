@@ -149,6 +149,7 @@ describe("auth", () => {
       ["POST", "/api/settings/jellyfin"],
       ["GET", "/api/settings/extractors"],
       ["PUT", "/api/settings/extractors"],
+      ["GET", "/api/settings/folders"],
     ] as const) {
       const res = await app.request(path, {
         method,

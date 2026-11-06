@@ -35,4 +35,5 @@ export type {
   SettingsView,
   SetupStatus,
   SignIn,
+  FolderListing,
 } from "@orca/hm-contract";

@@ -3,6 +3,7 @@ import {
   CreateSeriesBody,
   EnqueueBody,
   ExtractorsBody,
+  FolderQuery,
   JellyfinConnectBody,
   LocalAdminBody,
   SettingsUpdate,
@@ -35,6 +36,7 @@ import type { ZodType } from "zod";
 import { AppError } from "../../domain/errors.ts";
 import type { EventBus } from "../../application/ports.ts";
 import type { UseCases } from "../../application/use-cases.ts";
+import { listFolders } from "../folders.ts";
 import { describeError } from "./errors.ts";
 import { LoginRateLimiter } from "./rate-limit.ts";
 import { serveWeb } from "./static.ts";
@@ -391,6 +393,9 @@ export function createApp(deps: AppDeps) {
     }
     return c.body(null, 204);
   });
+  api.get("/settings/folders", validate("query", FolderQuery), async (c) =>
+    c.json(await listFolders(c.req.valid("query").path)),
+  );
   api.post("/settings/jellyfin", validate("json", JellyfinConnectBody), async (c) =>
     c.json(await deps.settings.connectJellyfin(c.req.valid("json"))),
   );

@@ -186,7 +186,13 @@ export function SetupScreen() {
               }}
             />
             {canLeaveJellyfin && (
-              <LibrarySection draft={draft} set={set} errors={errors} libraries={libraries} />
+              <LibrarySection
+                draft={draft}
+                set={set}
+                errors={errors}
+                libraries={libraries}
+                during="setup"
+              />
             )}
           </>
         )}
