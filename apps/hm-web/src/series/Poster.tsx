@@ -37,7 +37,7 @@ export function PosterImage({
 export function Poster({ series, className }: { series: SeriesDto; className?: string }) {
   return (
     <PosterImage
-      src={series.hasPoster ? posterUrl(series.id) : null}
+      src={series.hasPoster ? posterUrl(series) : null}
       {...(className ? { className } : {})}
     />
   );

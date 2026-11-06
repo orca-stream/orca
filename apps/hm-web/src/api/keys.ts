@@ -15,6 +15,7 @@ export const keys = {
   seriesList: ["series", "list"] as const,
   seriesDetail: (id: string) => ["series", "detail", id] as const,
   episodes: (id: string) => ["series", "episodes", id] as const,
+  artworkOptions: (id: string) => ["series", "artwork", id] as const,
   libraryShows: ["library", "shows"] as const,
   libraryEpisodes: (showId: string) => ["library", "shows", showId, "episodes"] as const,
   showLookup: (tmdbId: string) => ["lookup", "tmdb", tmdbId] as const,

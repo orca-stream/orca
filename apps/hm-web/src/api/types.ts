@@ -1,6 +1,9 @@
 /** The wire shapes come from the contract the server validates against; nothing is redeclared here. */
 export type {
   ApiErrorBody,
+  ArtworkKind,
+  ArtworkOptionDto,
+  ArtworkOptionsDto,
   CreateSeriesBody,
   EpisodeDto,
   EpisodeStatus,

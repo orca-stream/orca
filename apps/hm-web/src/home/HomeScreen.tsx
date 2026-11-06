@@ -1,7 +1,7 @@
 import type { ExtractorDto, SeriesDto } from "@orca/hm-contract";
 import { Add01Icon, ArrowUpRight01Icon, Tv01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import type { CSSProperties } from "react";
 import { Link } from "wouter";
 import { useApi } from "@/api/context";
@@ -19,9 +19,33 @@ import { runningFraction } from "@/series/download-line";
 /** How many covers the series card fans out. */
 const FANNED = 3;
 
-/** Up to three covers fanned like cards in a hand; they open a little more on hover. */
+/**
+ * Up to three covers fanned like cards in a hand; they open a little more on hover. A series' own
+ * poster, else TMDB's (the same cached lookup its card and page ask for): with Jellyfin, which keeps
+ * the images itself, a series seldom has one of its own.
+ */
 function Covers({ series }: { series: SeriesDto[] }) {
-  const covers = series.filter((s) => s.hasPoster).slice(0, FANNED);
+  const api = useApi();
+  // The latest first: an episode just downloaded, or the series just added.
+  const latest = (s: SeriesDto) => Math.max(s.lastDownloadAt ?? 0, s.createdAt);
+  const candidates = series
+    .filter((s) => s.hasPoster || s.tmdbId !== null)
+    .toSorted((a, b) => latest(b) - latest(a));
+  const lookups = useQueries({
+    queries: candidates
+      .filter((s) => !s.hasPoster)
+      .slice(0, FANNED * 2)
+      .map((s) => queries.showLookup(api, s.tmdbId ?? "")),
+  });
+  const tmdbPoster = new Map(
+    lookups.flatMap((q) => (q.data?.posterUrl ? [[q.data.tmdbId, q.data.posterUrl] as const] : [])),
+  );
+  const covers = candidates
+    .flatMap((s) => {
+      const src = s.hasPoster ? posterUrl(s) : tmdbPoster.get(s.tmdbId ?? "");
+      return src ? [{ id: s.id, src }] : [];
+    })
+    .slice(0, FANNED);
   if (covers.length === 0) {
     return (
       <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
@@ -29,19 +53,24 @@ function Covers({ series }: { series: SeriesDto[] }) {
       </span>
     );
   }
+  // Held like a hand of cards: each turns about one point well below the hand, so their tops trace
+  // one even arc. The latest is in the middle and in front; the next ones behind, either side.
+  // Spread at 11° on hover the hand is 1.34 cards tall wide, so a card is never taller than the
+  // room allows: the whole hand stays inside the tile, at most 12 px into its padding either side.
+  const slots = covers.length === 3 ? [1, 0, 2] : covers.length === 2 ? [1, 0] : [0];
   const middle = (covers.length - 1) / 2;
   return (
-    <div className="relative h-full w-full">
-      {covers.map((s, index) => {
-        const offset = index - middle;
+    <div className="relative h-full w-full [container-type:size]">
+      {covers.map((s, rank) => {
+        const offset = (slots[rank] ?? 0) - middle;
         return (
           <img
             key={s.id}
-            src={posterUrl(s.id)}
+            src={s.src}
             alt=""
             loading="lazy"
-            style={{ "--o": offset } as CSSProperties}
-            className="absolute top-1/2 left-1/2 aspect-2/3 h-[84%] -translate-y-1/2 translate-x-[calc(-50%+var(--o)*30%)] rotate-[calc(var(--o)*7deg)] rounded-xl object-cover shadow-xl ring-1 ring-white/70 transition-transform duration-300 ease-out group-hover/tile:translate-x-[calc(-50%+var(--o)*38%)] group-hover/tile:rotate-[calc(var(--o)*10deg)]"
+            style={{ "--o": offset, zIndex: covers.length - rank } as CSSProperties}
+            className="absolute top-1/2 left-1/2 aspect-2/3 h-[min(84cqh,calc((100cqw+1.5rem)/1.36))] origin-[50%_180%] -translate-x-1/2 -translate-y-1/2 rotate-[calc(var(--o)*8deg)] rounded-xl object-cover shadow-xl ring-1 ring-white/70 transition-transform duration-300 ease-out group-hover/tile:rotate-[calc(var(--o)*11deg)]"
           />
         );
       })}

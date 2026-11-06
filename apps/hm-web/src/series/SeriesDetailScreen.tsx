@@ -1,13 +1,15 @@
-import type { SeriesDto, ShowLookupDto } from "@orca/hm-contract";
+import type { ArtworkKind, SeriesDto, ShowLookupDto } from "@orca/hm-contract";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Link04Icon,
   ArrowLeft01Icon,
   Download04Icon,
+  Image02Icon,
   PauseIcon,
+  PencilEdit02Icon,
   PlayIcon,
   RefreshIcon,
   RssIcon,
@@ -16,7 +18,7 @@ import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { useMutations } from "@/api/mutations";
 import { Dock, DockButton, DockAdd, DockLink, DockPlaces, DockSeparator } from "@/components/dock";
-import { posterUrl, queries } from "@/api/queries";
+import { queries } from "@/api/queries";
 import { EmptyState } from "@/components/empty-state";
 import { Loading } from "@/components/loading";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,6 +27,8 @@ import { useElementHeight } from "@/hooks/use-element-height";
 import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { GLASS_PANEL } from "./bar";
+import { ArtworkPicker } from "./ArtworkPicker";
+import { currentArtwork } from "./artwork";
 import { CurrentDownloads } from "./CurrentDownloads";
 import { PosterImage } from "./Poster";
 import { guideKey } from "./preview-form";
@@ -55,8 +59,44 @@ function IdChip({ label, href, title }: { label: string; href: string; title: st
 }
 
 /**
- * Who the series is, the way the card beside adding a series says it: the poster, the name, what
- * TMDB tells of it, and how much of it is here.
+ * The top of the card: the series' backdrop, sharp and whole (16:9, as TMDB's are), across the
+ * panel, fading into the glass at its foot so there is no edge. Without one, its poster blurred into
+ * colour; without either, the brand's light.
+ */
+function Banner({ backdrop, poster }: { backdrop: string | null; poster: string | null }) {
+  const src = backdrop ?? poster;
+  return (
+    <div
+      aria-hidden="true"
+      className="relative aspect-video overflow-hidden [mask-image:linear-gradient(to_bottom,#000_62%,transparent)]"
+    >
+      {src ? (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          className={cn(
+            "size-full object-cover",
+            backdrop === null && "scale-125 blur-2xl saturate-150",
+          )}
+        />
+      ) : (
+        <div className="size-full bg-linear-to-br from-primary/30 to-sky-300/30" />
+      )}
+      {/* Darker towards the logo (or the title) laid over its lower part, before it fades out. */}
+      <div className="absolute inset-0 bg-linear-to-t from-black/50 from-25% via-black/15 via-55% to-transparent" />
+    </div>
+  );
+}
+
+/** A round 40px button laid over the banner: back to the list, or the artwork. */
+const OVER_BANNER =
+  "flex size-10 items-center justify-center rounded-full bg-white/70 text-muted-foreground ring-1 ring-black/5 backdrop-blur-sm transition-colors hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none";
+
+/**
+ * Who the series is: its backdrop as a banner, its poster over the banner's edge, its logo (or its
+ * name) on the banner, what TMDB tells of it, and how much of it is here. The poster and the
+ * button on the banner open the artwork, to choose each image.
  */
 function SeriesHero({
   series,
@@ -69,7 +109,14 @@ function SeriesHero({
 }) {
   const t = useT();
   const { patchSeries } = useMutations();
-  const poster = series.hasPoster ? posterUrl(series.id) : (tmdb?.posterUrl ?? null);
+  const [picking, setPicking] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  const [kind, setKind] = useState<ArtworkKind>("backdrop");
+  const [brokenLogo, setBrokenLogo] = useState<string | null>(null);
+  const poster = currentArtwork(series, tmdb, "poster");
+  const backdrop = currentArtwork(series, tmdb, "backdrop");
+  const logo = currentArtwork(series, tmdb, "logo");
+  const showLogo = logo !== null && logo !== brokenLogo;
   const overview = series.plot ?? tmdb?.overview ?? null;
   const facts = [
     series.year === null ? null : String(series.year),
@@ -77,27 +124,91 @@ function SeriesHero({
   ].filter((fact) => fact !== null);
   const share = series.episodeCount === 0 ? 0 : series.availableCount / series.episodeCount;
   const hint = airingHint(series.follow, tmdb?.status ?? null);
+  const pickArtwork = (which: ArtworkKind) => {
+    setKind(which);
+    setPicking(true);
+  };
 
   return (
-    <section aria-labelledby="series-title" className="relative p-4">
-      {/* The page has no bar of its own, as adding a series hasn't: this is the way back. */}
-      <Link
-        href="/series"
-        aria-label={t.series.back}
-        title={t.series.back}
-        className="absolute top-4 right-4 flex size-10 items-center justify-center rounded-full bg-white/70 text-muted-foreground ring-1 ring-black/5 transition-colors hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
-      >
-        <HugeiconsIcon icon={ArrowLeft01Icon} className="size-5" />
-      </Link>
-      <div className="flex gap-4">
-        <PosterImage
-          src={poster}
-          className="w-32 shrink-0 self-start rounded-2xl shadow-sm sm:w-36"
+    <section ref={heroRef} aria-labelledby="series-title" className="relative pb-4">
+      <Banner backdrop={backdrop} poster={poster} />
+      <div className="absolute top-4 right-4 flex gap-2">
+        <ArtworkPicker
+          series={series}
+          tmdb={tmdb}
+          open={picking}
+          onOpenChange={setPicking}
+          kind={kind}
+          onKindChange={setKind}
+          anchor={heroRef}
+          trigger={
+            <button
+              type="button"
+              onClick={() => setKind("backdrop")}
+              aria-label={t.series.artwork.edit}
+              title={t.series.artwork.edit}
+              className={OVER_BANNER}
+            >
+              <HugeiconsIcon icon={Image02Icon} className="size-5" />
+            </button>
+          }
         />
+        {/* The page has no bar of its own, as adding a series hasn't: this is the way back. */}
+        <Link
+          href="/series"
+          aria-label={t.series.back}
+          title={t.series.back}
+          className={OVER_BANNER}
+        >
+          <HugeiconsIcon icon={ArrowLeft01Icon} className="size-5" />
+        </Link>
+      </div>
+
+      {/* The poster rises 96px into the banner's foot, and the logo beside it. */}
+      <div className="relative -mt-24 flex gap-4 px-4">
+        <button
+          type="button"
+          onClick={() => pickArtwork("poster")}
+          aria-label={t.series.artwork.editPoster}
+          title={t.series.artwork.editPoster}
+          className="group/poster relative w-32 shrink-0 self-start rounded-2xl focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none sm:w-36"
+        >
+          <PosterImage src={poster} className="rounded-2xl shadow-md ring-1 ring-black/5" />
+          <span
+            aria-hidden="true"
+            className={cn(
+              OVER_BANNER,
+              "absolute right-2 bottom-2 opacity-0 transition-opacity group-hover/poster:opacity-100 group-focus-visible/poster:opacity-100",
+            )}
+          >
+            <HugeiconsIcon icon={PencilEdit02Icon} className="size-5" />
+          </span>
+        </button>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <h1 id="series-title" className="line-clamp-2 pr-13 text-2xl leading-tight font-semibold">
-            {series.title}
-          </h1>
+          {/* The part over the banner, as tall as the poster reaches into it; 16px under it to the facts.
+              The logo sits centred between the poster and the card's edge (16px either side). */}
+          <div className="mb-2.5 flex h-24 items-end pb-2">
+            <h1
+              id="series-title"
+              className={cn(
+                "min-w-0",
+                showLogo && "flex flex-1 justify-center",
+                !showLogo &&
+                  "line-clamp-2 text-2xl leading-tight font-semibold text-white [text-shadow:0_1px_8px_rgb(0_0_0/45%)]",
+              )}
+            >
+              {showLogo ? (
+                <img
+                  src={logo}
+                  alt={series.title}
+                  onError={() => setBrokenLogo(logo)}
+                  className="max-h-20 max-w-full object-contain object-bottom drop-shadow-[0_2px_8px_rgb(0_0_0/45%)]"
+                />
+              ) : (
+                series.title
+              )}
+            </h1>
+          </div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
             {facts.length > 0 && <span>{facts.join(" · ")}</span>}
             {hint ? (
@@ -138,7 +249,7 @@ function SeriesHero({
       </div>
 
       {/* How much of it is here, as the bar under the card; holding it gets a column of its own. */}
-      <div className="mt-4 flex items-center gap-4">
+      <div className="mt-4 flex items-center gap-4 px-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="font-medium tabular-nums">
@@ -289,17 +400,15 @@ export function SeriesDetailScreen() {
   const seasonCount = guide.isSuccess
     ? guide.data.filter((season) => season.number > 0).length || null
     : groups.filter((group) => group.season > 0).length || null;
-  const backdrop = tmdb
-    ? tmdb.backdropUrl
-      ? { src: tmdb.backdropUrl, poster: false }
-      : { src: data.hasPoster ? posterUrl(data.id) : tmdb.posterUrl, poster: true }
-    : data.hasPoster
-      ? { src: posterUrl(data.id), poster: true }
-      : null;
+  // Behind the whole screen: the backdrop the banner shows, else its poster.
+  const wide = currentArtwork(data, tmdb, "backdrop");
+  const backdrop = wide
+    ? { src: wide, poster: false }
+    : { src: currentArtwork(data, tmdb, "poster"), poster: true };
 
   return (
     <div className="flex w-full flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,38rem)_minmax(0,1fr)] xl:items-start">
-      <ShowBackdrop src={backdrop?.src ?? null} poster={backdrop?.poster} />
+      <ShowBackdrop src={backdrop.src} poster={backdrop.poster} />
 
       {/* The card and the bar stay in sight beside a long season. Taller than the window, they
           scroll with the page until their end shows and stick there, so it is never held back

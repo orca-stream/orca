@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { keys } from "./keys";
 import { useApi } from "./context";
 import type {
+  ArtworkKind,
   CreateSeriesBody,
   EpisodeDto,
   JobDto,
@@ -35,6 +36,28 @@ export function useMutations() {
     patchSeries: useMutation({
       mutationFn: ({ seriesId, patch }: { seriesId: string; patch: SeriesPatch }) =>
         api.patch<SeriesDto>(`/series/${id(seriesId)}`, patch),
+      onSuccess: refreshSeries,
+    }),
+    /** The series' own poster, backdrop or logo: one of TMDB's (`url`) or an uploaded `file`. */
+    setArtwork: useMutation({
+      mutationFn: ({
+        seriesId,
+        kind,
+        from,
+      }: {
+        seriesId: string;
+        kind: ArtworkKind;
+        from: { url: string } | { file: File };
+      }) =>
+        "url" in from
+          ? api.put<SeriesDto>(`/series/${id(seriesId)}/${kind}`, { url: from.url })
+          : api.putFile<SeriesDto>(`/series/${id(seriesId)}/${kind}`, from.file),
+      onSuccess: refreshSeries,
+    }),
+    /** Back to TMDB's (or Jellyfin's) artwork of that kind. */
+    removeArtwork: useMutation({
+      mutationFn: ({ seriesId, kind }: { seriesId: string; kind: ArtworkKind }) =>
+        api.delete<SeriesDto>(`/series/${id(seriesId)}/${kind}`),
       onSuccess: refreshSeries,
     }),
     patchSource: useMutation({

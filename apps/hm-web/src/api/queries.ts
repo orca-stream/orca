@@ -1,5 +1,7 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
+  ArtworkKind,
+  ArtworkOptionsDto,
   EpisodeDto,
   ExtractorDto,
   JobDto,
@@ -121,6 +123,17 @@ export const queries = {
       retry: false,
     }),
 
+  /** Every image TMDB has for a series' show, to choose its own artwork from. */
+  artworkOptions: (api: ApiClient, seriesId: string) =>
+    queryOptions({
+      queryKey: keys.artworkOptions(seriesId),
+      queryFn: ({ signal }) =>
+        api.get<ArtworkOptionsDto>(`/series/${id(seriesId)}/artwork`, { signal }),
+      staleTime: 10 * 60_000,
+      // A 409 (no TMDB id) or a 503 (no key) is the answer: only uploading is offered then.
+      retry: false,
+    }),
+
   /** A show's seasons as TMDB numbers them; a 503 means no TMDB key, and the numbers are typed. */
   guideSeasons: (api: ApiClient, tmdbId: string, language: string) =>
     queryOptions({
@@ -148,6 +161,17 @@ export const queries = {
     }),
 };
 
-export function posterUrl(seriesId: string): string {
-  return `/api/series/${id(seriesId)}/poster`;
+/**
+ * A series' own poster, backdrop or logo. The version makes a changed image a new address, so the
+ * browser never shows the one it had cached.
+ */
+export function artworkUrl(
+  series: { id: string; artworkVersion: number },
+  kind: ArtworkKind,
+): string {
+  return `/api/series/${id(series.id)}/${kind}?v=${series.artworkVersion}`;
+}
+
+export function posterUrl(series: { id: string; artworkVersion: number }): string {
+  return artworkUrl(series, "poster");
 }

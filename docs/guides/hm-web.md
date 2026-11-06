@@ -93,8 +93,9 @@ alone. The episodes of the address that are already on disk aren't downloaded ag
 a renamed file as a new item: check that what was watched is still marked as such.
 
 A series' own screen is laid out the same way, across the whole window and with no top bar (the
-arrow on its card goes back to the list). On the left, one panel: its card (poster, year, seasons, synopsis, TMDB
-and IMDb ids, and how many episodes are here) and, below it in the same panel, its settings: its addresses and
+arrow on its card goes back to the list). On the left, one panel: its card (the backdrop as a banner
+with the logo, or the name, over it; the poster; year, seasons, synopsis, TMDB and IMDb ids, and how
+many episodes are here) and, below it in the same panel, its settings: its addresses and
 how each numbers its episodes (as the site does, or into a season and shifted), when the site was last
 and will next be searched for new episodes, with **Search now**, following and the hours between
 searches, its title and year, the TMDB and IMDb ids, the maximum video height, and the audio and subtitle languages picked
@@ -118,6 +119,16 @@ for a season the series has and no source brings shows as a faded card with a da
 that lists them by season on hover; a season's row there shows that season. Whole seasons TMDB has as
 aired and no source brings are listed there too, and counted in it; the season picker lists them as
 well (their count in amber, against TMDB's episodes), and picking one shows all its episodes as gaps.
+
+**Artwork.** The image button on the banner (or the poster itself) opens the series' artwork:
+**Poster**, **Backdrop** and **Logo**, each with every image TMDB has for the show (yours, in your
+language, first; backdrops without text first, since the logo goes over them) and **Upload image**
+for one of your own (JPEG, PNG or WebP up to 8 MB; a logo only PNG or WebP, to stay transparent).
+A pick is saved at once into the series' folder as `poster.*`, `backdrop.*` or `logo.*`, the names
+Jellyfin reads, and Jellyfin is told to read its images again, so Orca'JP shows them too. **Use
+TMDB's** removes yours and goes back to TMDB's (or Jellyfin's) pick. Choosing from TMDB needs the
+series' TMDB id and a TMDB key (Settings › TMDB); without them you can still upload. The logo shows
+only on the series' screen: the cards of the list are the poster, which usually has the name on it.
 
 It has no backend of its own: it always talks to an H&M server on the **same origin**, under `/api`.
 Sign in with the account the server's setup chose: a **Jellyfin administrator** of the Jellyfin that

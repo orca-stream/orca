@@ -33,7 +33,7 @@ export function useJobArt(job: JobDto, { withPlayer = false }: { withPlayer?: bo
   const episode = episodes.data?.find((e) => e.id === job.episodeId);
   return {
     still: tmdb?.stillUrl ?? null,
-    poster: series?.hasPoster ? posterUrl(series.id) : null,
+    poster: series?.hasPoster ? posterUrl(series) : null,
     title: tmdb?.name || episode?.title || null,
     player: episode?.player ?? null,
   };

@@ -39,7 +39,7 @@ describe("SeriesListScreen", () => {
     expect(within(card).getByRole("img", { name: "Descargando 2 · 45 %" })).toBeTruthy();
     // The count comes with the series: the list doesn't go and fetch the queue to work it out.
     expect(requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
-    expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster");
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster?v=0");
 
     const other = screen.getByRole("link", { name: "Other" }).closest("li")!;
     expect(other.querySelector("img")).toBeNull();

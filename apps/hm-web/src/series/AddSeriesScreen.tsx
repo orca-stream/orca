@@ -442,7 +442,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
         year: chosenTarget.year,
         overview: chosenTarget.series?.plot ?? tmdbShow?.overview ?? null,
         posterUrl: chosenTarget.series?.hasPoster
-          ? posterUrl(chosenTarget.series.id)
+          ? posterUrl(chosenTarget.series)
           : (tmdbShow?.posterUrl ?? null),
         tmdbId: chosenTarget.tmdbId,
         imdbId: chosenTarget.imdbId,
@@ -469,7 +469,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
     : intoSeries && {
         title: intoSeries.title,
         cover: intoSeries.hasPoster
-          ? posterUrl(intoSeries.id)
+          ? posterUrl(intoSeries)
           : intoLookupId !== "" && intoLookup.data?.tmdbId === intoLookupId
             ? intoLookup.data.posterUrl
             : null,

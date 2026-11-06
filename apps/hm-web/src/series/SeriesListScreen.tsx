@@ -47,7 +47,7 @@ function useShow(series: SeriesDto) {
   const lookup = useQuery({ ...queries.showLookup(api, tmdbId), enabled: tmdbId !== "" });
   const show = lookup.data?.tmdbId === tmdbId ? lookup.data : null;
   return {
-    cover: series.hasPoster ? posterUrl(series.id) : (show?.posterUrl ?? null),
+    cover: series.hasPoster ? posterUrl(series) : (show?.posterUrl ?? null),
     hint: airingHint(series.follow, show?.status ?? null),
     ended: finishedStatus(show?.status),
     nextEpisode: show?.nextEpisode ?? null,

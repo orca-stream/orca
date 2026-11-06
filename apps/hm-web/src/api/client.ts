@@ -47,6 +47,8 @@ export interface ApiClient {
   put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   delete<T>(path: string, options?: RequestOptions): Promise<T>;
+  /** PUTs a file as the body itself (its own content type), not as JSON. */
+  putFile<T>(path: string, file: Blob, options?: RequestOptions): Promise<T>;
   /** Re-arms `onUnauthorized` (after a successful sign-in). */
   resetUnauthorized(): void;
 }
@@ -79,7 +81,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   ): Promise<T> {
     const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     const init: RequestInit = { method, credentials: "same-origin", signal: signal ?? null };
-    if (body !== undefined) {
+    if (body instanceof Blob) {
+      init.headers = { "content-type": body.type || "application/octet-stream" };
+      init.body = body;
+    } else if (body !== undefined) {
       init.headers = { "content-type": "application/json" };
       init.body = JSON.stringify(body);
     }
@@ -111,6 +116,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     put: (path, body, o) => request("PUT", path, body, o),
     patch: (path, body, o) => request("PATCH", path, body, o),
     delete: (path, o) => request("DELETE", path, undefined, o),
+    putFile: (path, file, o) => request("PUT", path, file, o),
     resetUnauthorized() {
       unauthorizedSent = false;
     },

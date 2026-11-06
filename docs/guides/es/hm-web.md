@@ -97,8 +97,9 @@ están en el disco no se vuelven a descargar. Jellyfin puede ver un archivo reno
 nuevo: revisa que lo visto siga marcado como visto.
 
 La pantalla de una serie se ordena igual, a todo el ancho y sin barra de arriba (la flecha de su
-ficha vuelve a la lista). A la izquierda, un solo panel: su ficha (póster, año, temporadas, sinopsis,
-ids de TMDB e IMDb y cuántos episodios hay) y, debajo en el mismo panel, sus ajustes: sus direcciones y cómo numera
+ficha vuelve a la lista). A la izquierda, un solo panel: su ficha (el fondo como banner con el logo,
+o el nombre, encima; el póster; año, temporadas, sinopsis, ids de TMDB e IMDb y cuántos episodios
+hay) y, debajo en el mismo panel, sus ajustes: sus direcciones y cómo numera
 cada una (como el sitio, o hacia una temporada y desplazada), cuándo se buscaron y se buscarán episodios
 nuevos en el sitio, con **Buscar ahora**, seguir la serie y las horas entre búsquedas, su título y año,
 los ids de TMDB e IMDb, la altura máxima del vídeo y los idiomas de audio y de subtítulos elegidos de una lista (sin
@@ -123,6 +124,17 @@ fuente** si ya se emitió, **Sin emitir** si no), y la cabecera muestra un **Fal
 el ratón los lista por temporada; la fila de una temporada muestra esa temporada. También salen ahí, y cuentan, las temporadas
 enteras que TMDB da por emitidas y ninguna fuente trae; el selector de temporada también las lista (su
 cuenta en ámbar, contra los episodios de TMDB) y al elegir una se ven todos sus episodios como huecos.
+
+**Imágenes.** El botón de imagen del banner (o el propio póster) abre las imágenes de la serie:
+**Póster**, **Fondo** y **Logo**, cada una con todas las que TMDB tiene de la serie (primero las de tu
+idioma; en los fondos, primero los que no llevan texto, porque el logo va encima) y **Subir imagen**
+para una propia (JPEG, PNG o WebP de hasta 8 MB; un logo solo PNG o WebP, para que siga
+transparente). Lo que eliges se guarda al momento en la carpeta de la serie como `poster.*`,
+`backdrop.*` o `logo.*`, los nombres que lee Jellyfin, y se le pide a Jellyfin que vuelva a leer sus
+imágenes, así que Orca'JP también las muestra. **Usar la de TMDB** quita la propia y vuelve a la que
+elige TMDB (o Jellyfin). Elegir de TMDB necesita el id de TMDB de la serie y una clave de TMDB
+(Ajustes › TMDB); sin ellos se puede subir igual. El logo solo se ve en la pantalla de la serie: las
+tarjetas de la lista son el póster, que casi siempre ya lleva el nombre.
 
 No tiene backend propio: siempre habla con un servidor H&M en el **mismo origen**, bajo `/api`. Se entra
 con la cuenta que eligió la configuración del servidor: un **administrador de Jellyfin** del Jellyfin
