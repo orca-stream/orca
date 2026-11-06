@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   buildLaunchOptions,
   desktopUserAgent,
@@ -682,6 +682,39 @@ describe("PlaywrightStreamDetector: players embedded in another site", () => {
       { x: 640, y: 360 },
     ]);
     expect(popupsClosed).toEqual([1]);
+  });
+
+  it("by default clicks a third time, for players that open an ad on each of the first two", async () => {
+    vi.useFakeTimers();
+    try {
+      const browser = new FakeBrowser();
+      browser.onNewContext = (context) => {
+        context.page.clickable((page) => {
+          if (page.clicks.length < 3) {
+            page.emit("popup", { close: async () => undefined });
+            return;
+          }
+          const { req, res } = manifest();
+          page.emit("request", req);
+          page.emit("response", res);
+        });
+      };
+      const detector = new PlaywrightStreamDetector({
+        ...options,
+        timeoutMs: 45_000,
+        launch: () => Promise.resolve(browser),
+      });
+      const detection = detector.detect("https://player.test/e/1", { signal: noSignal() });
+      const settled = detection.catch(() => undefined);
+      // Past the timeout, so a missing third click fails the test instead of hanging it.
+      await vi.advanceTimersByTimeAsync(46_000);
+      await settled;
+      const streams = await detection;
+      expect(streams.map((stream) => stream.url)).toEqual(["https://cdn.test/master.m3u8"]);
+      expect(browser.contexts[0]!.page.clicks).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not click a player that already asked for its stream", async () => {

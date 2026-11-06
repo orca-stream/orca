@@ -216,9 +216,10 @@ async function defaultLaunch(
 
 /**
  * When a player has not asked for a stream this long after the page opened, it is clicked in the
- * middle (where players put their play button): the first click often only opens an ad, so twice.
+ * middle (where players put their play button): a click often only opens an ad, and some players
+ * open one on each of the first two, so three times.
  */
-const DEFAULT_PLAY_CLICK_DELAYS_MS = [2_000, 5_000];
+const DEFAULT_PLAY_CLICK_DELAYS_MS = [2_000, 5_000, 8_000];
 /** The middle of Playwright's default 1280×720 viewport. */
 const PLAY_CLICK_POINT = { x: 640, y: 360 };
 
