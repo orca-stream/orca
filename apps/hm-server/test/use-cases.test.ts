@@ -619,6 +619,40 @@ describe("downloading (the end-to-end pipeline)", () => {
     expect(await exists(video)).toBe(true);
   });
 
+  it("deletes a series, its folder only when asked, and stops what it had queued", async () => {
+    // One download at a time: the rest wait in the queue, none finishes on its own meanwhile.
+    await h.cleanup();
+    h = await createHarness({ limits: { download: 1 } });
+    const { series } = await addBevhill(h);
+    const folder = join(h.root, "The Beverly Hillbillies (1962)");
+    const [first, ...rest] = await h.useCases.listEpisodes(series.id);
+    await h.useCases.enqueue([first!.id]);
+    await h.queue.settle();
+    h.downloader.once(FakeDownloader.hangUntilAborted);
+    const [running] = await h.useCases.enqueue([rest[0]!.id]);
+    await h.queue.pump();
+    await new Promise((r) => setTimeout(r, 10));
+    expect((await h.jobs.get(running!.id))?.status).toBe("running");
+    const waiting = await h.useCases.enqueue(rest.slice(1).map((episode) => episode.id));
+    const queued = [running!, ...waiting];
+
+    await h.useCases.deleteSeries(series.id, { files: false });
+    expect(await h.series.get(series.id)).toBeNull();
+    expect(await h.series.listEpisodes(series.id)).toEqual([]);
+    for (const job of queued) expect((await h.jobs.get(job.id))?.status).toBe("cancelled");
+    expect(await exists(folder)).toBe(true);
+    expect(h.mediaServer.removed).toEqual([]);
+    expect(await fails(h.useCases.deleteSeries(series.id, { files: false }))).toMatchObject({
+      code: "not_found",
+    });
+
+    // Added again over the folder it left, and deleted with its files this time.
+    const again = await addBevhill(h);
+    await h.useCases.deleteSeries(again.series.id, { files: true });
+    expect(await exists(folder)).toBe(false);
+    expect(h.mediaServer.removed).toEqual([folder]);
+  });
+
   it("never runs more downloads than the download limit", async () => {
     await h.cleanup();
     h = await createHarness({ limits: { download: 2 } });

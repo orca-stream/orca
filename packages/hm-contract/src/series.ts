@@ -279,6 +279,15 @@ export const SeriesPatch = z.object({
 });
 export type SeriesPatch = z.infer<typeof SeriesPatch>;
 
+/** `?files=true` deletes the series' folder too; without it the files stay for Jellyfin. */
+export const DeleteSeriesQuery = z.object({
+  files: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});
+export type DeleteSeriesQuery = z.infer<typeof DeleteSeriesQuery>;
+
 /** What can change of one address of a series. */
 export const SourcePatch = z.strictObject({
   /** A closed source (a finished season) is no longer read when the series is checked. */

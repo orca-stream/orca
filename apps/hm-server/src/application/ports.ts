@@ -55,6 +55,8 @@ export interface SeriesRepository {
     switches?: EpisodeSourceSwitch[],
   ): Promise<void>;
   get(id: string): Promise<Series | null>;
+  /** Forgets a series with its sources and episodes; its jobs and notifications keep no link to it. */
+  delete(id: string): Promise<void>;
   findByFolder(folderName: string): Promise<Series | null>;
   /** The series with that TMDB id, else the one with that IMDb id; null ids match nothing. */
   findByProviderIds(ids: { tmdbId: string | null; imdbId: string | null }): Promise<Series | null>;
@@ -343,6 +345,12 @@ export interface LibraryWriter {
    * folder (nothing is deleted then). A companion this server is not allowed to delete stays.
    */
   deleteEpisode(series: Series, episode: Episode): Promise<"deleted" | "absent" | "outside">;
+  /**
+   * Deletes the series' whole folder: videos, subtitles, artwork, nfo. "absent" when it has none.
+   * What this server is not allowed to delete (a `.trickplay` folder Jellyfin made) stays, and the
+   * folders holding it with it.
+   */
+  deleteSeriesFolder(series: Series): Promise<"deleted" | "absent">;
 }
 
 /** An episode file Jellyfin already has. */
@@ -379,11 +387,16 @@ export interface MediaServer {
   /**
    * Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. With
    * `replaceMetadata` it rereads the series from scratch (its nfo first), not only what is new; with
-   * `replaceImages`, its images (the ones in its folder first).
+   * `replaceImages`, its images (the ones in its folder first). With `removed` the series' folder is
+   * gone: the library holding it is looked at instead, so Jellyfin drops it.
    */
   libraryUpdated(
     path: string,
-    options?: { replaceMetadata?: boolean | undefined; replaceImages?: boolean | undefined },
+    options?: {
+      replaceMetadata?: boolean | undefined;
+      replaceImages?: boolean | undefined;
+      removed?: boolean | undefined;
+    },
   ): Promise<void>;
   /**
    * The show with that TMDB id, looked up through Jellyfin's own TMDB provider (and its key); null

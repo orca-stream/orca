@@ -100,6 +100,8 @@ export class FakeMediaServer implements MediaServer {
   readonly updated: string[] = [];
   /** The paths refreshed with `replaceMetadata`. */
   readonly replaced: string[] = [];
+  /** The paths refreshed with `removed` (the series' folder was deleted). */
+  readonly removed: string[] = [];
   fail: Error | null = null;
 
   /** What TMDB knows, by TMDB id. */
@@ -109,10 +111,14 @@ export class FakeMediaServer implements MediaServer {
   /** Their episode files, by show id. */
   readonly episodeFiles = new Map<string, EpisodeFile[]>();
 
-  async libraryUpdated(path: string, options?: { replaceMetadata?: boolean }): Promise<void> {
+  async libraryUpdated(
+    path: string,
+    options?: { replaceMetadata?: boolean; removed?: boolean },
+  ): Promise<void> {
     if (this.fail) throw this.fail;
     this.updated.push(path);
     if (options?.replaceMetadata) this.replaced.push(path);
+    if (options?.removed) this.removed.push(path);
   }
 
   async findShowByTmdbId(tmdbId: string): Promise<ShowMatch | null> {

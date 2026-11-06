@@ -273,6 +273,12 @@ describe("JellyfinMediaServer", () => {
     expect(parts(refreshOf(requests)).path).toBe("/Items/lib-tv/Refresh");
   });
 
+  it("refreshes the library, not the series, once the series' folder is gone", async () => {
+    const { server, requests } = mediaServer(jellyfinWith());
+    await server.libraryUpdated("/media/tv/The Beverly Hillbillies (1962)", { removed: true });
+    expect(parts(refreshOf(requests)).path).toBe("/Items/lib-tv/Refresh");
+  });
+
   it("leaves the path alone when both containers see the same one", async () => {
     const { server, requests } = mediaServer(
       jellyfinWith(

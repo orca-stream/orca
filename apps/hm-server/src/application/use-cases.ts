@@ -873,6 +873,41 @@ export function createUseCases(deps: Deps) {
       return toEpisodeDto(updated, null);
     },
 
+    /**
+     * Forgets a series: its sources, its episodes and its follow-up checks. What it had queued or
+     * running is cancelled first (a running download stops and drops what it staged). Its folder is
+     * deleted only with `files`; otherwise the files stay where they are, for Jellyfin.
+     */
+    async deleteSeries(seriesId: string, options: { files: boolean }): Promise<void> {
+      const series = await deps.series.get(seriesId);
+      if (!series) throw new AppError("not_found", "No such series");
+      const queued: string[] = [];
+      const running: string[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await deps.jobs.list({ status: ["queued", "running"], limit: 200, cursor });
+        for (const job of page.items) {
+          if (job.seriesId === seriesId) (job.status === "queued" ? queued : running).push(job.id);
+        }
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor);
+      // The waiting ones first: stopping a running one frees its slot for the next in line.
+      for (const id of [...queued, ...running]) await deps.canceller.cancel(id);
+
+      const removed = await withFolderLock(`series:${seriesId}`, async () => {
+        const result = options.files ? await deps.library.deleteSeriesFolder(series) : "kept";
+        await deps.series.delete(seriesId);
+        return result === "deleted";
+      });
+      deps.events.publish({ type: "series.updated", seriesId });
+      // Nothing to queue it on (its refresh looks the series up): Jellyfin is told now, best effort.
+      if (removed && deps.mediaServer) {
+        await deps.mediaServer
+          .libraryUpdated(deps.library.seriesPath(series), { removed: true })
+          .catch((error: unknown) => console.warn("library refresh after delete failed:", error));
+      }
+    },
+
     async downloadSeries(seriesId: string): Promise<JobDto[]> {
       if (!(await deps.series.get(seriesId))) throw new AppError("not_found", "No such series");
       const episodes = await deps.series.listEpisodes(seriesId);

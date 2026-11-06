@@ -3,6 +3,7 @@ import {
   ArtworkFromUrlBody,
   ArtworkKind,
   CreateSeriesBody,
+  DeleteSeriesQuery,
   EnqueueBody,
   ExtractorsBody,
   FolderQuery,
@@ -301,6 +302,13 @@ export function createApp(deps: AppDeps) {
 
   api.patch("/series/:id", validate("json", SeriesPatch), async (c) => {
     return c.json(await useCases.patchSeries(c.req.param("id"), c.req.valid("json")));
+  });
+
+  // Its downloads stop; its folder goes only with `?files=true`.
+  api.delete("/series/:id", validate("query", DeleteSeriesQuery), async (c) => {
+    const { files } = c.req.valid("query");
+    await useCases.deleteSeries(c.req.param("id"), { files });
+    return c.body(null, 204);
   });
 
   api.patch("/series/:id/sources/:sourceId", validate("json", SourcePatch), async (c) => {

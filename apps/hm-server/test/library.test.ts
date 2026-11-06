@@ -430,6 +430,23 @@ describe("FsLibraryWriter", () => {
     expect(await writer.deleteEpisode(series, episode)).toBe("absent");
   });
 
+  it("deletes a series' whole folder, and never anything beyond it", async () => {
+    const series = aSeries();
+    const season = join(root, "The Beverly Hillbillies (1962)", "Season 01");
+    await mkdir(season, { recursive: true });
+    await writeFile(join(season, "The Beverly Hillbillies S01E01.mp4"), "x");
+    await writeFile(join(root, "The Beverly Hillbillies (1962)", "tvshow.nfo"), "x");
+    await mkdir(join(root, "Another Show"));
+
+    expect(await writer.deleteSeriesFolder(series)).toBe("deleted");
+    expect(await readdir(root)).toEqual(["Another Show"]);
+    expect(await writer.deleteSeriesFolder(series)).toBe("absent");
+    for (const folderName of ["", ".", "..", "Another Show/.."]) {
+      await expect(writer.deleteSeriesFolder(aSeries({ folderName }))).rejects.toThrow();
+    }
+    expect(await readdir(root)).toEqual(["Another Show"]);
+  });
+
   it("deletes nothing of an episode whose file is outside the series' folder", async () => {
     await mkdir(join(root, "Elsewhere"), { recursive: true });
     await writeFile(join(root, "Elsewhere", "S01E04.mp4"), "x");

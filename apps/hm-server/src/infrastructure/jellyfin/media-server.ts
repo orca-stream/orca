@@ -82,7 +82,11 @@ export class JellyfinMediaServer implements MediaServer {
    */
   async libraryUpdated(
     path: string,
-    options: { replaceMetadata?: boolean | undefined; replaceImages?: boolean | undefined } = {},
+    options: {
+      replaceMetadata?: boolean | undefined;
+      replaceImages?: boolean | undefined;
+      removed?: boolean | undefined;
+    } = {},
   ): Promise<void> {
     const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
@@ -93,7 +97,7 @@ export class JellyfinMediaServer implements MediaServer {
     const jellyfinPath = trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length));
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
     try {
-      const { itemId, isSeries } = await this.findItem(api, jellyfinPath);
+      const { itemId, isSeries } = await this.findItem(api, jellyfinPath, options.removed === true);
       // Default: only what is new or changed. Replacing is for the series alone, never its library.
       await getLibraryApi(api).refreshItem(
         options.replaceMetadata && isSeries
@@ -251,8 +255,15 @@ export class JellyfinMediaServer implements MediaServer {
     return trimSlashes(this.options.mediaRoot) + path.slice(jellyfinRoot.length);
   }
 
-  /** The series whose folder is `path`, else the library whose folder holds it. */
-  private async findItem(api: Api, path: string): Promise<{ itemId: string; isSeries: boolean }> {
+  /**
+   * The series whose folder is `path`, else the library whose folder holds it. With `libraryOnly`,
+   * always the library (the series' folder is gone).
+   */
+  private async findItem(
+    api: Api,
+    path: string,
+    libraryOnly = false,
+  ): Promise<{ itemId: string; isSeries: boolean }> {
     const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
     const library = libraries.find(
       (folder) =>
@@ -262,6 +273,7 @@ export class JellyfinMediaServer implements MediaServer {
     if (!library?.ItemId) {
       throw new PermanentError(`No Jellyfin library holds ${path}`);
     }
+    if (libraryOnly) return { itemId: library.ItemId, isSeries: false };
     const { data } = await getLibraryApi(api).getItems({
       parentId: library.ItemId,
       includeItemTypes: [BaseItemKind.Series],

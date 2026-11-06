@@ -30,6 +30,7 @@ export {
   SeriesDto,
   EpisodeAdjustment as EpisodeAdjustmentSchema,
   SeriesPatch,
+  DeleteSeriesQuery,
   ShowLookupDto,
   ShowLookupParams,
   SourceDto,

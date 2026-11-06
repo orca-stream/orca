@@ -114,6 +114,11 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     return row ? toSeries(row) : null;
   }
 
+  async delete(id: string): Promise<void> {
+    // Sources and episodes go with it (cascade); jobs and notifications are set loose.
+    this.db.delete(series).where(eq(series.id, id)).run();
+  }
+
   async findByFolder(folderName: string): Promise<Series | null> {
     const row = this.db.select().from(series).where(eq(series.folderName, folderName)).get();
     return row ? toSeries(row) : null;

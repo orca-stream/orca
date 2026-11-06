@@ -10,7 +10,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
-import { basename, dirname, extname, join, relative, sep } from "node:path";
+import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { externalSubtitleName } from "@orca/media-probe";
 import type { ArtworkKind } from "@orca/hm-contract";
 import type { EpisodeFile, FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
@@ -273,6 +273,47 @@ export class FsLibraryWriter implements LibraryWriter {
       }
     }
     return "deleted";
+  }
+
+  async deleteSeriesFolder(series: Series): Promise<"deleted" | "absent"> {
+    const root = resolve(this.root);
+    const folder = resolve(this.seriesPath(series));
+    // Never the media root itself, nor anything outside it: only a folder right inside it.
+    if (folder === root || dirname(folder) !== root) {
+      throw new Error(`${folder} is not a series folder under ${root}`);
+    }
+    if (!(await exists(folder))) return "absent";
+    await this.removeTree(folder);
+    return "deleted";
+  }
+
+  /**
+   * Deletes a folder and everything in it, leaving in place only what this server may not delete
+   * (with the folders that hold it): a `.trickplay` folder Jellyfin made 755 is its own to clear.
+   */
+  private async removeTree(folder: string): Promise<void> {
+    try {
+      await rm(folder, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EACCES" && code !== "EPERM" && code !== "ENOTEMPTY") throw error;
+    }
+    for (const entry of await readdir(folder, { withFileTypes: true }).catch(() => [])) {
+      const path = join(folder, entry.name);
+      if (entry.isDirectory()) {
+        await this.removeTree(path);
+        continue;
+      }
+      try {
+        await rm(path, { force: true });
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "EACCES" && code !== "EPERM") throw error;
+        console.warn(`left ${path} in place: ${code}`);
+      }
+    }
+    await rmdir(folder).catch(() => console.warn(`left ${folder} in place: not empty`));
   }
 
   /**

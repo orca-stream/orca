@@ -142,6 +142,7 @@ describe("auth", () => {
       ["POST", "/api/jobs/x/cancel"],
       ["POST", "/api/jobs/cancel-queued"],
       ["DELETE", "/api/series/x/episodes/y/file"],
+      ["DELETE", "/api/series/x"],
       ["GET", "/api/events"],
       ["GET", "/api/auth/me"],
       ["GET", "/api/settings"],
@@ -511,6 +512,16 @@ describe("a series' artwork", () => {
     expect((await upload(logo, PNG, "text/plain")).status).toBe(400);
     const big = new Array(9 * 1024 * 1024).fill(0);
     expect((await upload(logo, big, "image/png")).status).toBe(413);
+  });
+
+  it("deletes a series, keeping its folder unless asked", async () => {
+    const { series } = await addBevhill(h);
+    const del = (query: string) =>
+      app.request(`/api/series/${series.id}${query}`, authed({ method: "DELETE" }));
+    expect((await del("?files=maybe")).status).toBe(400);
+    expect((await del("")).status).toBe(204);
+    expect((await get(`/api/series/${series.id}`)).status).toBe(404);
+    expect((await del("")).status).toBe(404);
   });
 
   it("goes back to TMDB's once its own is removed", async () => {
