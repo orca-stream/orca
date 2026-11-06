@@ -36,6 +36,11 @@ ones** leaves those alone. With two or more sources, the episodes' header has ea
 while it is open, new episodes of that season a search finds come only from it; closed, the others
 bring them again. It changes nothing you already have — for those, use **Change source**.
 
+To delete a whole series, use the trash on its banner. It asks first: H&M forgets the series (its
+sources, its episodes, its searches for new ones) and cancels its downloads. Its files stay in its
+folder, and Jellyfin keeps showing it, unless you turn on **Also delete its files**: then its whole
+folder goes — videos, subtitles and artwork — and that can't be undone.
+
 When adding, leave "Add to" empty to make a new series, or pick one you have to add the address to it.
 For a new series, typing its TMDB id fills in the title, the year and the IMDb id: the server asks
 Jellyfin's own TMDB provider (no TMDB key of ours), in the server's preferred metadata language. It

@@ -1,5 +1,5 @@
 import type { ArtworkKind, SeriesDto, ShowLookupDto } from "@orca/hm-contract";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useIsMutating, useQueries, useQuery } from "@tanstack/react-query";
 import { type CSSProperties, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -30,6 +30,7 @@ import { GLASS_PANEL } from "./bar";
 import { ArtworkPicker } from "./ArtworkPicker";
 import { currentArtwork } from "./artwork";
 import { CurrentDownloads } from "./CurrentDownloads";
+import { DeleteSeries } from "./DeleteSeries";
 import { PosterImage } from "./Poster";
 import { guideKey } from "./preview-form";
 import { absentSeasons } from "./tmdb-match";
@@ -133,6 +134,7 @@ function SeriesHero({
     <section ref={heroRef} aria-labelledby="series-title" className="relative pb-4">
       <Banner backdrop={backdrop} poster={poster} />
       <div className="absolute top-4 right-4 flex gap-2">
+        <DeleteSeries series={series} className={OVER_BANNER} />
         <ArtworkPicker
           series={series}
           tmdb={tmdb}
@@ -312,6 +314,8 @@ export function SeriesDetailScreen() {
   const series = useQuery(queries.seriesDetail(api, id));
   const episodesQuery = useQuery(queries.episodes(api, id));
   const { enqueue, checkSeries, deleteEpisodeFile } = useMutations();
+  // Its own deletion: the live update may say it is gone before the answer does.
+  const deleting = useIsMutating({ mutationKey: ["deleteSeries"] }) > 0;
 
   const episodes = episodesQuery.data;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -359,7 +363,12 @@ export function SeriesDetailScreen() {
   // Live updates can finish or start a download under a pick: what no longer applies is dropped.
   const selection = episodes ? pruneSelection(picked, episodes) : picked;
 
-  if (series.isError && series.error instanceof ApiError && series.error.status === 404) {
+  if (
+    !deleting &&
+    series.isError &&
+    series.error instanceof ApiError &&
+    series.error.status === 404
+  ) {
     return (
       <EmptyState
         title={t.series.notFound}
@@ -372,7 +381,7 @@ export function SeriesDetailScreen() {
     );
   }
   if (!series.data || !episodes) {
-    return series.isError || episodesQuery.isError ? (
+    return !deleting && (series.isError || episodesQuery.isError) ? (
       <p role="alert" className="text-sm text-warning">
         {t.dashboard.loadFailed}
       </p>

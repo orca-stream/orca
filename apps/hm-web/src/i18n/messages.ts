@@ -241,6 +241,16 @@ const es = {
     deleteEpisodeConfirm: "Borrar",
     deleteEpisodeHint:
       "Se borra el vídeo con sus subtítulos; el episodio queda «Falta» y se puede volver a descargar.",
+    deleteSeries: "Borrar la serie",
+    deleteSeriesTitle: (title: string) => `¿Borrar «${title}»?`,
+    deleteSeriesHint:
+      "H&M deja de seguirla: se quitan sus fuentes y episodios y se cancelan sus descargas.",
+    deleteSeriesFiles: "Borrar también sus archivos",
+    deleteSeriesFilesOn:
+      "Se borra su carpeta entera del disco: vídeos, subtítulos y carátulas. No se puede deshacer.",
+    deleteSeriesFilesOff: "Los archivos se quedan en su carpeta y Jellyfin la sigue mostrando.",
+    deleteSeriesConfirm: "Borrar",
+    deleteSeriesFailed: "No se pudo borrar la serie.",
     episodeStatus: {
       missing: "Falta",
       queued: "En cola",
@@ -988,6 +998,16 @@ const en: typeof es = {
     deleteEpisodeConfirm: "Delete",
     deleteEpisodeHint:
       "The video goes with its subtitles; the episode stays as missing and can be downloaded again.",
+    deleteSeries: "Delete the series",
+    deleteSeriesTitle: (title: string) => `Delete “${title}”?`,
+    deleteSeriesHint:
+      "H&M stops keeping it: its sources and episodes go, and its downloads are cancelled.",
+    deleteSeriesFiles: "Also delete its files",
+    deleteSeriesFilesOn:
+      "Its whole folder is deleted from disk: videos, subtitles and artwork. This can't be undone.",
+    deleteSeriesFilesOff: "The files stay in its folder, and Jellyfin keeps showing it.",
+    deleteSeriesConfirm: "Delete",
+    deleteSeriesFailed: "The series couldn't be deleted.",
     episodeStatus: {
       missing: "Missing",
       queued: "Queued",

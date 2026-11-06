@@ -37,6 +37,11 @@ esa temporada: mientras esté abierta, los episodios nuevos de esa temporada que
 llegan solo de ella; cerrada, vuelven a traerlos las demás. No cambia nada de lo que ya tienes: para
 eso, **Cambiar fuente**.
 
+Para borrar una serie entera, usa la papelera de su banner. Pregunta antes: H&M olvida la serie (sus
+fuentes, sus episodios, sus búsquedas de nuevos) y cancela sus descargas. Sus archivos se quedan en su
+carpeta, y Jellyfin la sigue mostrando, salvo que actives **Borrar también sus archivos**: entonces se
+va su carpeta entera —vídeos, subtítulos y carátulas— y no se puede deshacer.
+
 Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
 dirección. En una serie nueva, al escribir su id de TMDB se rellenan el título, el año y el id de IMDb:
 el servidor se lo pregunta al proveedor TMDB del propio Jellyfin (sin clave de TMDB nuestra), en el

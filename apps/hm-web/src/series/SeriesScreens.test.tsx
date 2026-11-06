@@ -233,6 +233,8 @@ const detailHandler: Handler = (request) => {
   if (url.pathname === "/api/jobs" && request.method === "POST") return jsonResponse([], 201);
   if (url.pathname === "/api/series/s1/episodes/e1/file" && request.method === "DELETE")
     return jsonResponse({ ...EPISODES[0], status: "missing", filePath: null });
+  if (url.pathname === "/api/series/s1" && request.method === "DELETE")
+    return new Response(null, { status: 204 });
   if (url.pathname === "/api/series/s1/check" && request.method === "POST")
     return jsonResponse(makeJob({ kind: "check_series", episodeId: null, episodeCode: null }), 202);
   return jsonResponse({}, 404);
@@ -435,6 +437,26 @@ describe("SeriesDetailScreen", () => {
       ]),
     );
     expect(screen.queryByRole("toolbar")).toBeNull();
+  });
+
+  it("deletes the whole series once asked, its files only with the switch on, and goes back to the list", async () => {
+    const user = userEvent.setup();
+    const view = detailSetup();
+    await screen.findByText("Uno");
+    const deletes = () => view.requests.filter((r) => r.method === "DELETE");
+    await user.click(screen.getByRole("button", { name: "Borrar la serie" }));
+    expect(await screen.findByText(/Jellyfin la sigue mostrando/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(deletes()).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Borrar la serie" }));
+    await user.click(await screen.findByRole("switch", { name: "Borrar también sus archivos" }));
+    expect(screen.getByText(/No se puede deshacer/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Borrar" }));
+    await waitFor(() => expect(view.location.history.at(-1)).toBe("/series"));
+    expect(deletes().map((r) => new URL(r.url).pathname + new URL(r.url).search)).toEqual([
+      "/api/series/s1?files=true",
+    ]);
   });
 
   it("moves the picked episodes to another source without downloading them, and sets a season's preferred one", async () => {

@@ -92,6 +92,20 @@ export function useMutations() {
         api.delete<EpisodeDto>(`/series/${id(seriesId)}/episodes/${id(episodeId)}/file`),
       onSettled: refreshAll,
     }),
+    /**
+     * Forgets the series and stops its downloads; `files` deletes its folder too. Its own screen
+     * is left first, then its queries are dropped (see `DeleteSeries`).
+     */
+    deleteSeries: useMutation({
+      mutationKey: ["deleteSeries"],
+      mutationFn: ({ seriesId, files }: { seriesId: string; files: boolean }) =>
+        api.delete<void>(`/series/${id(seriesId)}${files ? "?files=true" : ""}`),
+      // Not awaited: its screen is left right away, and only then is it dropped from the cache.
+      onSuccess: () => {
+        void refreshJobs();
+        void queryClient.invalidateQueries({ queryKey: keys.seriesList });
+      },
+    }),
     /** The episodes take their video from that source from now on; nothing is downloaded. */
     switchSource: useMutation({
       mutationFn: ({ seriesId, body }: { seriesId: string; body: SwitchSourceBody }) =>
