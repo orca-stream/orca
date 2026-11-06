@@ -199,7 +199,7 @@ export function SettingsScreen() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-10">
       <Panel className="overflow-visible">
-        <header className="p-4">
+        <header className="px-4 py-6">
           {/* "Settings" and the logotype as one title, read as "Settings ORCA'H&M". */}
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
             {t.settings.title}

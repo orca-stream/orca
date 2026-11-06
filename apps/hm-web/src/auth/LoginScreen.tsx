@@ -58,7 +58,7 @@ export function LoginScreen() {
       <section className="flex items-center justify-center px-4 py-10 sm:py-16">
         <Panel className="w-full max-w-lg">
           <form onSubmit={submit}>
-            <header className="p-6">
+            <header className="px-4 py-6">
               {/* "Sign in to" and the logotype as one title, read as "Sign in to ORCA'H&M". */}
               <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
                 {t.login.title}

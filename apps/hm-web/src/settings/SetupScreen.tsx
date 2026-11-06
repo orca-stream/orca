@@ -149,7 +149,7 @@ export function SetupScreen() {
     <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
       <Panel>
-        <header className="flex flex-wrap items-center justify-between gap-4 p-4">
+        <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-6">
           {/* "Set up" and the logotype as one title, read as "Set up ORCA'H&M". */}
           <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
             {t.setup.title}
