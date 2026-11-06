@@ -4,7 +4,9 @@ import {
   Alert02Icon,
   ArrowRight01Icon,
   ArrowUp01Icon,
+  Cancel01Icon,
   Folder01Icon,
+  FolderAddIcon,
   FolderSearchIcon,
 } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n/locale";
 import { BAR_POPUP } from "@/series/bar";
 import { cn } from "@/lib/utils";
-import { useFolders } from "./api";
+import { ApiError } from "@/api/client";
+import { useFolders, useMakeFolder } from "./api";
 
 /**
  * Picks a folder of the server's disk, the way Jellyfin picks a library's: the browser's own picker
@@ -34,12 +37,31 @@ export function FolderPicker({
   const [path, setPath] = useState<string | null>(null);
   const folders = useFolders(during, path, open);
   const listing = folders.data;
+  const make = useMakeFolder(during);
+  // The new folder's name while one is being made; null while not.
+  const [newName, setNewName] = useState<string | null>(null);
+
+  function go(next: string | null) {
+    setPath(next);
+    setNewName(null);
+    make.reset();
+  }
+
+  function create() {
+    const name = newName?.trim();
+    if (!listing || !name || make.isPending) return;
+    make.mutate(
+      { parent: listing.path, name },
+      // Into it at once: a folder just made is the one to pick, most of the time.
+      { onSuccess: ({ path: made }) => go(made) },
+    );
+  }
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) setPath(value.startsWith("/") ? value.trim() : null);
+        if (next) go(value.startsWith("/") ? value.trim() : null);
         setOpen(next);
       }}
     >
@@ -69,7 +91,7 @@ export function FolderPicker({
             aria-label={t.settings.folders.up}
             title={t.settings.folders.up}
             disabled={!listing?.parent}
-            onClick={() => listing?.parent && setPath(listing.parent)}
+            onClick={() => listing?.parent && go(listing.parent)}
           >
             <HugeiconsIcon icon={ArrowUp01Icon} />
           </Button>
@@ -90,7 +112,7 @@ export function FolderPicker({
                 {t.settings.folders.failed}
               </p>
               {path !== null && (
-                <Button variant="outline" size="sm" onClick={() => setPath(null)}>
+                <Button variant="outline" size="sm" onClick={() => go(null)}>
                   {t.settings.folders.retry}
                 </Button>
               )}
@@ -104,7 +126,7 @@ export function FolderPicker({
                   <button
                     type="button"
                     aria-label={t.settings.folders.open(folder.name)}
-                    onClick={() => setPath(folder.path)}
+                    onClick={() => go(folder.path)}
                     className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition-colors hover:bg-white/60 focus-visible:bg-white/60 focus-visible:outline-none"
                   >
                     <HugeiconsIcon
@@ -122,18 +144,80 @@ export function FolderPicker({
             </ul>
           )}
         </div>
-        <div className="flex justify-end border-t border-(--glass-edge) p-2">
-          <Button
-            disabled={!listing || folders.isError}
-            onClick={() => {
-              if (!listing) return;
-              onPick(listing.path);
-              setOpen(false);
-            }}
-          >
-            {t.settings.folders.choose}
-          </Button>
-        </div>
+        {newName !== null ? (
+          // Not a form: the popup is drawn outside, but React would still submit the panel's own.
+          <div className="flex flex-col gap-2 border-t border-(--glass-edge) p-2">
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                aria-label={t.settings.folders.newName}
+                placeholder={t.settings.folders.newName}
+                value={newName}
+                maxLength={255}
+                aria-invalid={make.isError || undefined}
+                onChange={(event) => {
+                  setNewName(event.target.value);
+                  if (make.isError) make.reset();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    create();
+                  } else if (event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    go(path);
+                  }
+                }}
+                className="h-10 min-w-0 flex-1 rounded-full bg-white/60 px-4 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/40 aria-invalid:ring-3 aria-invalid:ring-destructive/30"
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t.common.cancel}
+                title={t.common.cancel}
+                onClick={() => go(path)}
+              >
+                <HugeiconsIcon icon={Cancel01Icon} />
+              </Button>
+              <Button
+                disabled={newName.trim() === "" || make.isPending}
+                aria-busy={make.isPending || undefined}
+                onClick={create}
+              >
+                {make.isPending ? <Spinner className="size-4" /> : t.settings.folders.create}
+              </Button>
+            </div>
+            {make.isError && (
+              <p role="alert" className="px-2 text-sm text-destructive">
+                {make.error instanceof ApiError && make.error.status === 409
+                  ? t.settings.folders.exists
+                  : t.settings.folders.createFailed}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2 border-t border-(--glass-edge) p-2">
+            <Button
+              variant="ghost"
+              disabled={!listing || folders.isError}
+              onClick={() => setNewName("")}
+            >
+              <HugeiconsIcon icon={FolderAddIcon} data-icon="inline-start" />
+              {t.settings.folders.newFolder}
+            </Button>
+            <Button
+              disabled={!listing || folders.isError}
+              onClick={() => {
+                if (!listing) return;
+                onPick(listing.path);
+                setOpen(false);
+              }}
+            >
+              {t.settings.folders.choose}
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

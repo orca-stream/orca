@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { AppError } from "../src/domain/errors.ts";
-import { listFolders } from "../src/infrastructure/folders.ts";
+import { listFolders, makeFolder } from "../src/infrastructure/folders.ts";
 
 describe("listing the server's folders", () => {
   let root: string;
@@ -33,5 +33,13 @@ describe("listing the server's folders", () => {
     await expect(listFolders("relative/path")).rejects.toMatchObject({ code: "bad_request" });
     await expect(listFolders(join(root, "nope"))).rejects.toMatchObject({ code: "not_found" });
     await expect(listFolders(join(root, "notes.txt"))).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("makes a new folder inside one, and never over one that exists", async () => {
+    expect(await makeFolder(root, "Series")).toEqual({ path: join(root, "Series") });
+    expect((await listFolders(root)).folders.map((f) => f.name)).toContain("Series");
+    await expect(makeFolder(root, "tv")).rejects.toMatchObject({ code: "conflict" });
+    await expect(makeFolder(join(root, "nope"), "x")).rejects.toMatchObject({ code: "not_found" });
+    await expect(makeFolder("relative", "x")).rejects.toMatchObject({ code: "bad_request" });
   });
 });

@@ -72,4 +72,4 @@ export {
   SignIn,
   TrackSettings,
 } from "./settings.ts";
-export { FolderListing, FolderQuery } from "./folders.ts";
+export { FolderListing, FolderQuery, NewFolderBody } from "./folders.ts";

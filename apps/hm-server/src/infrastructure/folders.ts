@@ -1,6 +1,6 @@
 import type { FolderListing } from "@orca/hm-contract";
 import type { Dirent } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
+import { mkdir, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { AppError } from "../domain/errors.ts";
@@ -32,6 +32,21 @@ export async function listFolders(path?: string, home = homedir()): Promise<Fold
   folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const parent = dirname(folder);
   return { path: folder, parent: parent === folder ? null : parent, folders };
+}
+
+/** Makes one folder inside `parent` (never its parents), and says where it is. */
+export async function makeFolder(parent: string, name: string): Promise<{ path: string }> {
+  if (!isAbsolute(parent)) throw new AppError("bad_request", "The folder must be an absolute path");
+  const path = join(resolve(parent), name);
+  try {
+    await mkdir(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new AppError("conflict", `${path} already exists`);
+    }
+    throw folderError(error, resolve(parent));
+  }
+  return { path };
 }
 
 async function isFolder(path: string): Promise<boolean> {

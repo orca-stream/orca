@@ -608,6 +608,11 @@ const es = {
       empty: "No hay carpetas dentro.",
       failed: "No se pudo leer esta carpeta.",
       retry: "Volver al inicio",
+      newFolder: "Nueva carpeta",
+      newName: "Nombre de la carpeta nueva",
+      create: "Crear",
+      exists: "Ya hay algo con ese nombre aquí.",
+      createFailed: "No se pudo crear la carpeta aquí.",
     },
     tmdb: {
       title: "TMDB",
@@ -1330,6 +1335,11 @@ const en: typeof es = {
       empty: "There are no folders in here.",
       failed: "This folder could not be read.",
       retry: "Back to the start",
+      newFolder: "New folder",
+      newName: "The new folder's name",
+      create: "Create",
+      exists: "Something with that name is already here.",
+      createFailed: "The folder could not be made here.",
     },
     tmdb: {
       title: "TMDB",

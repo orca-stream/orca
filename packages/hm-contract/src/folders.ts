@@ -15,3 +15,18 @@ export const FolderListing = z.object({
   folders: z.array(z.object({ name: z.string(), path: z.string() })),
 });
 export type FolderListing = z.infer<typeof FolderListing>;
+
+/** A new folder, made inside one the panel is showing. */
+export const NewFolderBody = z.object({
+  /** Absolute. */
+  parent: z.string().min(1).max(4096),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .refine((name) => name !== "." && name !== ".." && !/[/\\\0]/.test(name), {
+      message: "Not a folder name",
+    }),
+});
+export type NewFolderBody = z.infer<typeof NewFolderBody>;

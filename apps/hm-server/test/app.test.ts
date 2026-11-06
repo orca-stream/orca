@@ -150,6 +150,7 @@ describe("auth", () => {
       ["GET", "/api/settings/extractors"],
       ["PUT", "/api/settings/extractors"],
       ["GET", "/api/settings/folders"],
+      ["POST", "/api/settings/folders"],
     ] as const) {
       const res = await app.request(path, {
         method,

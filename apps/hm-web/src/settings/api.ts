@@ -152,3 +152,14 @@ export function useFolders(during: "setup" | "settings", path: string | null, en
     retry: false,
   });
 }
+
+/** Makes a new folder inside the one being shown, through the same door the folders are asked by. */
+export function useMakeFolder(during: "setup" | "settings") {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { parent: string; name: string }) =>
+      api.post<{ path: string }>(during === "setup" ? "/setup/folders" : "/settings/folders", body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["folders"] }),
+  });
+}

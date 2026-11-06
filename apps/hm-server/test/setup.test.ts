@@ -287,7 +287,19 @@ describe("the front door", () => {
     );
     expect(before.status).toBe(200);
     expect(await before.json()).toMatchObject({ path: "/", parent: null });
+    const bad = await app().request(
+      "/api/setup/folders",
+      postJson({ parent: "/", name: "../x" }),
+      lan,
+    );
+    expect(bad.status).toBe(400);
     await app().request("/api/setup", postJson({ settings }), lan);
+    const made = await app().request(
+      "/api/setup/folders",
+      postJson({ parent: "/", name: "x" }),
+      lan,
+    );
+    expect(made.status).toBe(409);
     expect((await app().request("/api/setup/folders", {}, lan)).status).toBe(409);
   });
 
