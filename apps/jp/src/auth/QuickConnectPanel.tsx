@@ -42,18 +42,28 @@ export function QuickConnectPanel({ server, onSignedIn }: Props) {
 
   useEffect(() => {
     if (server.trim() === "") return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
+    // Aborted rather than a reassigned flag and timer (React's immutability rule): each wait clears
+    // itself when the address changes or the panel goes, and a late answer is dropped.
+    const controller = new AbortController();
+    const { signal } = controller;
+    function later(run: () => void, ms: number) {
+      const cancel = () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", cancel);
+        run();
+      }, ms);
+      signal.addEventListener("abort", cancel, { once: true });
+    }
 
     async function request() {
       setResult({ server, state: { kind: "loading" } });
       try {
         const pending = await startQuickConnect(jellyfin, server);
-        if (cancelled) return;
+        if (signal.aborted) return;
         setResult({ server, state: { kind: "ready", request: pending } });
-        timer = setTimeout(() => void poll(pending), POLL_MS);
+        later(() => void poll(pending), POLL_MS);
       } catch (error) {
-        if (cancelled) return;
+        if (signal.aborted) return;
         const reason = error instanceof SignInError ? error.reason : "unknown";
         setResult({ server, state: { kind: "failed", reason } });
       }
@@ -61,17 +71,14 @@ export function QuickConnectPanel({ server, onSignedIn }: Props) {
 
     async function poll(pending: QuickConnectRequest) {
       const progress = await checkQuickConnect(pending);
-      if (cancelled) return;
+      if (signal.aborted) return;
       if (progress.status === "approved") signedIn(progress.api, progress.session);
       else if (progress.status === "expired") void request();
-      else timer = setTimeout(() => void poll(pending), POLL_MS);
+      else later(() => void poll(pending), POLL_MS);
     }
 
-    timer = setTimeout(() => void request(), DEBOUNCE_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
+    later(() => void request(), DEBOUNCE_MS);
+    return () => controller.abort();
   }, [server]);
 
   const state: State =

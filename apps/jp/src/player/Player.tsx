@@ -156,14 +156,15 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
   // Load it: a new item, or the same one with other tracks, picks up where it was.
   useEffect(() => {
     if (!request) return;
-    let current = true;
+    // Aborted rather than a reassigned flag (React's immutability rule): a stale load must not land.
+    const controller = new AbortController();
     const previous = sourceRef.current;
     if (previous) void playbackReports.stopped(connection, previous, now());
     sourceRef.current = null;
     requestPlayback(connection, userId, request.playable.id, deviceProfile(), request.choice).then(
       (loaded) => {
         const element = video();
-        if (!current || !element) return;
+        if (controller.signal.aborted || !element) return;
         sourceRef.current = loaded;
         setSource(loaded);
         engine.current.load(element, loaded, request.at, () => setFailure("error"));
@@ -172,9 +173,7 @@ export function Player({ connection, userId, itemId, onClose, onExpired, ...prop
       },
       fail,
     );
-    return () => {
-      current = false;
-    };
+    return () => controller.abort();
   }, [connection, userId, request]);
 
   // Up next, for the button and for when this one ends.

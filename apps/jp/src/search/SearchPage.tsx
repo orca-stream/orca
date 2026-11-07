@@ -46,14 +46,16 @@ export function SearchPage({ connection, userId, wide, onClose, onOpen, onExpire
 
   useEffect(() => {
     if (!query) return;
-    let current = true;
+    // Aborted, not a reassigned flag: React's immutability rule rejects reassigning a variable
+    // after render, and a late answer for an older query must not land.
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       search(connection, userId, query).then((items) => {
-        if (current) setResults({ term: query, items });
+        if (!controller.signal.aborted) setResults({ term: query, items });
       }, fail);
     }, DEBOUNCE_MS);
     return () => {
-      current = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [connection, userId, query]);
