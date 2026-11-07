@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./rules": "./src/rules.ts",
-    "./extractors-file": "./src/extractors-file.ts"
+    "./extractors-file": "./src/extractors-file.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
