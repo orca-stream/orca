@@ -52,7 +52,7 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="isolate grid min-h-dvh">
+    <main className="isolate grid min-h-app">
       <Backdrop />
       {/* The same glass panel as the first run's and the new series bar: rows, icons, one button. */}
       <section className="flex items-center justify-center px-4 py-10 sm:py-16">

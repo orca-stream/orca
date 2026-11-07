@@ -427,7 +427,7 @@ export function SeriesDetailScreen() {
         style={{ "--panel-h": `${panelHeight}px` } as CSSProperties}
         className={cn(
           GLASS_PANEL,
-          "min-w-0 overflow-clip xl:sticky xl:top-[min(1rem,calc(100svh-var(--panel-h)-1rem))]",
+          "min-w-0 overflow-clip xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
         )}
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />

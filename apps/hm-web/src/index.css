@@ -103,6 +103,29 @@
   }
 }
 
+/*
+ * Inside the desktop app (apps/hm-desktop) the window has no frame: the panel draws its title bar
+ * (src/desktop/TitleBar.tsx) over the window's top --title-bar-h, and the page scrolls in the body
+ * below it, so sticky headers stop under the bar instead of behind it. Fixed layers (the backdrop,
+ * the dock, dialogs) still span the whole window. In a browser the bar's height is 0.
+ */
+:root {
+  --title-bar-h: 0px;
+}
+:root.desktop {
+  --title-bar-h: 3.5rem;
+}
+:root.desktop body {
+  position: fixed;
+  inset: var(--title-bar-h) 0 0 0;
+  overflow-y: auto;
+}
+
+/* A screen's full height: the window's, less the desktop app's title bar. */
+@utility min-h-app {
+  min-height: calc(100dvh - var(--title-bar-h));
+}
+
 /* The downloading circle: its arrow drops in, rests and falls out through the bottom; its wave
    slides along the top of the fill, and rises and falls (the tide) while how far is unknown. */
 @theme {

@@ -134,7 +134,7 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
 
   return (
     <TooltipProvider>
-      <div className="isolate flex min-h-svh flex-col">
+      <div className="isolate flex min-h-app flex-col">
         <Backdrop />
         {/* Home, the series and adding one have no bar: just their content, centred on the screen. */}
         {panelled && (

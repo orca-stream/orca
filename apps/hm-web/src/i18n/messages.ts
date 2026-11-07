@@ -13,6 +13,15 @@ const es = {
     close: "Cerrar",
     noData: "Nada por aquí todavía.",
   },
+  desktop: {
+    beta: (version: string) => `Beta ${version}`,
+    betaHint: "Versión de prueba: puede cambiar y tener fallos.",
+    update: (version: string) => `Actualizar a ${version}`,
+    minimize: "Minimizar",
+    maximize: "Maximizar",
+    restore: "Restaurar",
+    close: "Cerrar",
+  },
   nav: {
     label: "Navegación principal",
     home: "Inicio",
@@ -770,6 +779,15 @@ const en: typeof es = {
     retry: "Retry",
     close: "Close",
     noData: "Nothing here yet.",
+  },
+  desktop: {
+    beta: (version: string) => `Beta ${version}`,
+    betaHint: "A test version: it may change and have bugs.",
+    update: (version: string) => `Update to ${version}`,
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore",
+    close: "Close",
   },
   nav: {
     label: "Main navigation",

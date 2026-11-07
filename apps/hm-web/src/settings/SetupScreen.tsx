@@ -146,7 +146,7 @@ export function SetupScreen() {
   const connecting = step === "jellyfin" && jellyfinOn && jellyfinForm.editing;
 
   return (
-    <main className="isolate mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
+    <main className="isolate mx-auto flex min-h-app w-full max-w-3xl flex-col justify-center px-4 py-10 sm:py-16">
       <Backdrop />
       <Panel>
         <header className="flex flex-wrap items-center justify-between gap-4 px-4 py-6">

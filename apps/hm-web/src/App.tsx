@@ -15,6 +15,8 @@ import { AddSeriesScreen } from "./series/AddSeriesScreen";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
 import { SeriesListScreen } from "./series/SeriesListScreen";
 import { Shell } from "./shell/Shell";
+import { desktopBridge } from "./desktop/bridge";
+import { TitleBar } from "./desktop/TitleBar";
 
 /** Mounted only for a signed-in admin, so the event stream never opens without a session. */
 function LiveShell({ children }: { children: ReactNode }) {
@@ -48,7 +50,7 @@ function SetupGate({ children }: { children: ReactNode }) {
   const status = useSetupStatus();
   if (status.isError) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
+      <main className="flex min-h-app flex-col items-center justify-center gap-4 px-4 text-center">
         <p role="alert">{t.errors.network}</p>
         <Button onClick={() => void status.refetch()}>{t.common.retry}</Button>
       </main>
@@ -56,7 +58,7 @@ function SetupGate({ children }: { children: ReactNode }) {
   }
   if (!status.isSuccess) {
     return (
-      <main className="flex min-h-dvh items-center justify-center">
+      <main className="flex min-h-app items-center justify-center">
         <Loading className="size-8" />
       </main>
     );
@@ -66,8 +68,10 @@ function SetupGate({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const desktop = desktopBridge();
   return (
     <Providers>
+      {desktop && <TitleBar desktop={desktop} />}
       <Router>
         <SetupGate>
           <Switch>

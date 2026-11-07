@@ -675,7 +675,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
         style={{ "--panel-h": `${columnHeight}px` } as CSSProperties}
         className={cn(
           "flex min-w-0 flex-col gap-4",
-          attached && "xl:sticky xl:top-[min(1rem,calc(100svh-var(--panel-h)-1rem))]",
+          attached &&
+            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
         )}
       >
         {/* The address floats as it is while the page scrolls, always clear of the window's top. */}

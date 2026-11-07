@@ -22,7 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (me.isError) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4 text-center">
+      <main className="flex min-h-app flex-col items-center justify-center gap-4 px-4 text-center">
         <p role="alert">{t.errors.network}</p>
         <Button onClick={() => void me.refetch()}>{t.common.retry}</Button>
       </main>
@@ -30,7 +30,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
   if (!me.isSuccess || signedOut) {
     return (
-      <main className="flex min-h-dvh items-center justify-center">
+      <main className="flex min-h-app items-center justify-center">
         <Loading className="size-8" />
       </main>
     );
