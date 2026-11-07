@@ -8,7 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
 import type { DesktopBridge } from "@orca/hm-contract/desktop";
-import logotype from "@/assets/logotype.svg";
+import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/locale";
@@ -54,7 +54,7 @@ function Control({
 }
 
 /**
- * The desktop app's title bar, drawn by the panel because the window has no frame: the logotype, the
+ * The desktop app's title bar, drawn by the panel because the window has no frame: the logo, the
  * version marked as a beta, an update when one is on offer, and the window's own buttons. 56px, its
  * 40px buttons 8px from the edges; the rest of it drags the window.
  */
@@ -77,7 +77,7 @@ export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
         }}
         className="fixed inset-x-0 top-0 z-60 flex h-14 items-center gap-2 pr-2 pl-4 select-none [-webkit-app-region:drag]"
       >
-        <img src={logotype} alt="ORCA'H&M" className="pointer-events-none h-6" />
+        <img src={logo} alt="ORCA'H&M" className="pointer-events-none h-10" />
         <Tooltip>
           <TooltipTrigger
             render={<span />}
