@@ -6,6 +6,7 @@ import type { UrlGuard } from "../src/application/ports.ts";
 import { PermanentError } from "../src/domain/errors.ts";
 import {
   alignWebVtt,
+  firstPtsSeconds,
   HlsCopier,
   localMediaPlaylist,
   parseAttributes,
@@ -42,7 +43,7 @@ const media = (prefix: string, count: number, extension = "ts") =>
 
 /** A CDN answering from a map; anything else is a 404. Remembers what was asked. */
 function fakeCdn(
-  files: Record<string, string>,
+  files: Record<string, string | Uint8Array>,
   options: { failOnce?: Set<string>; delayMs?: number } = {},
 ) {
   const asked: string[] = [];
@@ -68,7 +69,37 @@ function fakeCdn(
   return { fetchImpl, asked, maxInFlight: () => maxInFlight };
 }
 
-const library: Record<string, string> = {
+/**
+ * One MPEG-TS packet: a PES header with this PTS (90 kHz) when `pts` is given, else a table (no PES).
+ */
+function tsPacket(pts?: number): Uint8Array {
+  const packet = new Uint8Array(188).fill(0xff);
+  packet.set([0x47, 0x40, pts === undefined ? 0x00 : 0x100 >> 8, 0x10]);
+  if (pts === undefined) {
+    packet.set([0x00, 0x00, 0xb0, 0x0d], 4);
+    return packet;
+  }
+  packet.set([0x00, 0x00, 0x01, 0xe0, 0x00, 0x00, 0x80, 0x80, 0x05], 4);
+  packet.set(
+    [
+      0x21 | (Math.floor(pts / 2 ** 30) << 1),
+      (pts >> 22) & 0xff,
+      (((pts >> 15) & 0x7f) << 1) | 1,
+      (pts >> 7) & 0xff,
+      ((pts & 0x7f) << 1) | 1,
+    ],
+    13,
+  );
+  return packet;
+}
+
+const tsSegment = (...packets: Uint8Array[]) => {
+  const out = new Uint8Array(packets.length * 188);
+  packets.forEach((packet, i) => out.set(packet, i * 188));
+  return out;
+};
+
+const library: Record<string, string | Uint8Array> = {
   "master.m3u8": MASTER,
   "v480.m3u8": media("v480", 2),
   "v720.m3u8": media("v720", 3),
@@ -192,9 +223,12 @@ describe("WebVTT alignment", () => {
     "",
   ].join("\n");
 
-  it("moves every cue onto the video's clock and drops the header ffmpeg cannot read", () => {
+  it("moves every cue onto the video's clock and says so in the header", () => {
     const aligned = alignWebVtt(segment);
-    expect(aligned).not.toContain("X-TIMESTAMP-MAP");
+    expect(aligned).not.toContain("MPEGTS:137261");
+    expect(aligned.startsWith("WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000\n\n")).toBe(
+      true,
+    );
     expect(aligned).toContain("00:00:34.214 --> 00:00:35.535\nTwo minutes left.");
     // Cue settings stay as they were.
     expect(aligned).toContain("00:19:30.705 --> 00:19:31.545 align:middle line:90%\nWhat?");
@@ -209,12 +243,44 @@ describe("WebVTT alignment", () => {
     expect(alignWebVtt(plain)).toBe(plain);
     // Aligning twice is aligning once: a resumed copy rewrites nothing.
     expect(alignWebVtt(alignWebVtt(segment))).toBe(alignWebVtt(segment));
+    expect(alignWebVtt(alignWebVtt(segment), 1.4)).toBe(alignWebVtt(segment));
+  });
+
+  it("counts the cues of a segment without a map from the stream's start", () => {
+    // Measured on a real stream: no map, audio from PTS 126000 (1.4 s), and the cues land on the
+    // pauses in the audio only once moved by it.
+    const plain = "WEBVTT\n\n00:02.310 --> 00:04.650\nMagna!\n";
+    const aligned = alignWebVtt(plain, 1.4);
+    expect(aligned).toBe(
+      "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000\n\n00:00:03.710 --> 00:00:06.050\nMagna!\n",
+    );
+    expect(alignWebVtt(aligned, 1.4)).toBe(aligned);
+    expect(alignWebVtt(plain, 0)).toBe(plain);
+    expect(alignWebVtt("not a subtitle", 1.4)).toBe("not a subtitle");
   });
 
   it("does not take a map that only appears in a cue's text", () => {
     const inCue =
       "WEBVTT\n\n00:01.000 --> 00:02.000\nX-TIMESTAMP-MAP=MPEGTS:900000,LOCAL:00:00.000\n";
     expect(alignWebVtt(inCue)).toBe(inCue);
+  });
+});
+
+describe("MPEG-TS start", () => {
+  it("is the earliest PTS of the segment, tables and later frames aside", () => {
+    const segment = tsSegment(tsPacket(), tsPacket(133513), tsPacket(126000), tsPacket(137266));
+    expect(firstPtsSeconds(segment)).toBeCloseTo(1.4, 6);
+    // Beyond 2^32 / 2 the top bit counts too.
+    expect(firstPtsSeconds(tsSegment(tsPacket(2 ** 32 + 90_000)))).toBeCloseTo(
+      2 ** 32 / 90_000 + 1,
+      6,
+    );
+  });
+
+  it("is unknown for what is not a transport stream", () => {
+    expect(firstPtsSeconds(new TextEncoder().encode("aen2"))).toBeUndefined();
+    expect(firstPtsSeconds(tsSegment(tsPacket()))).toBeUndefined();
+    expect(firstPtsSeconds(new Uint8Array())).toBeUndefined();
   });
 });
 
@@ -256,10 +322,26 @@ describe("HlsCopier", () => {
       const copier = new HlsCopier({ userAgent: "x", guard: allowAll, fetch: cdn.fetchImpl });
       await copier.copy(source, dir, context(720));
       expect(await readFile(join(dir, "r2", "00000.vtt"), "utf8")).toBe(
-        "WEBVTT\n\n00:00:11.000 --> 00:00:12.000\nHi\n",
+        "WEBVTT\nX-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000\n\n00:00:11.000 --> 00:00:12.000\nHi\n",
       );
       // Audio and video segments are never read as subtitles.
       expect(await readFile(join(dir, "r1", "00002.aac"), "utf8")).toBe("aen2");
+    });
+  });
+
+  it("moves subtitles without a map by where the video and audio start", async () => {
+    await withDir(async (dir) => {
+      const cdn = fakeCdn({
+        ...library,
+        "v720-0.ts": tsSegment(tsPacket(), tsPacket(133513)),
+        "aes-0.aac": tsSegment(tsPacket(126000)),
+        "ses-0.vtt": "WEBVTT\n\n00:02.310 --> 00:04.650\nMagna!\n",
+      });
+      const copier = new HlsCopier({ userAgent: "x", guard: allowAll, fetch: cdn.fetchImpl });
+      await copier.copy(source, dir, context(720));
+      expect(await readFile(join(dir, "r2", "00000.vtt"), "utf8")).toContain(
+        "00:00:03.710 --> 00:00:06.050\nMagna!",
+      );
     });
   });
 

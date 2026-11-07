@@ -1,6 +1,6 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, extname, join } from "node:path";
+import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { DownloadContext, UrlGuard } from "../../application/ports.ts";
@@ -78,35 +78,52 @@ function webVttStamp(seconds: number): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}.${pad(millis % 1000, 3)}`;
 }
 
+/** The map an aligned segment carries: its cue times are already the video's. */
+const ALIGNED_MAP = "X-TIMESTAMP-MAP=MPEGTS:0,LOCAL:00:00:00.000";
+
 /**
  * A WebVTT segment of an HLS stream with its cues moved onto the video's clock. Its
  * `X-TIMESTAMP-MAP=MPEGTS:<pts>,LOCAL:<time>` says which video timestamp the cue time LOCAL is; a
  * player applies it, ffmpeg (8.0) does not: it reads the cues as if 0 were the video's first frame
  * and writes subtitles that come early by the stream's start (1.5 s on a real one). With the cues
- * shifted and the header gone, ffmpeg moves them to the file's start exactly as it moves the video.
- * Text without the header (or already aligned) comes back as it was.
+ * shifted, ffmpeg moves them to the file's start exactly as it moves the video.
+ *
+ * A segment without the map has its cues counted from the stream's start, as players show them
+ * (checked against the pauses in a real episode's audio): `streamStart` (seconds, the first
+ * timestamp of the video and audio) moves them; unknown, the text comes back as it was.
+ *
+ * The result carries a map that says "already aligned", which ffmpeg skips with the rest of the
+ * header, so aligning twice changes nothing.
  */
-export function alignWebVtt(text: string): string {
+export function alignWebVtt(text: string, streamStart?: number): string {
   const lines = text.split(/\r?\n/);
   const header = lines.findIndex((line) => line.trim() === "");
   const end = header === -1 ? lines.length : header;
+  if (end === 0 || !(lines[0] as string).replace(/^\uFEFF/, "").startsWith("WEBVTT")) return text;
   const index = lines.slice(0, end).findIndex((line) => line.startsWith("X-TIMESTAMP-MAP="));
-  if (index === -1) return text;
-  const attributes = new Map<string, string>();
-  for (const pair of (lines[index] as string).slice("X-TIMESTAMP-MAP=".length).split(",")) {
-    const at = pair.indexOf(":");
-    if (at > 0) attributes.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+  let shift: number;
+  if (index === -1) {
+    if (streamStart === undefined || !Number.isFinite(streamStart)) return text;
+    shift = streamStart;
+  } else {
+    const attributes = new Map<string, string>();
+    for (const pair of (lines[index] as string).slice("X-TIMESTAMP-MAP=".length).split(",")) {
+      const at = pair.indexOf(":");
+      if (at > 0) attributes.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+    }
+    const pts = Number(attributes.get("MPEGTS"));
+    const local = webVttSeconds(attributes.get("LOCAL") ?? "");
+    if (!Number.isFinite(pts) || local === undefined) return text;
+    shift = pts / MPEGTS_CLOCK - local;
   }
-  const pts = Number(attributes.get("MPEGTS"));
-  const local = webVttSeconds(attributes.get("LOCAL") ?? "");
-  if (!Number.isFinite(pts) || local === undefined) return text;
-  const shift = pts / MPEGTS_CLOCK - local;
+  if (shift === 0) return text;
   const move = (stamp: string) => {
     const seconds = webVttSeconds(stamp);
     return seconds === undefined ? stamp : webVttStamp(seconds + shift);
   };
   const out = lines.flatMap((line, i) => {
     if (i === index) return [];
+    if (i === 0) return [line, ALIGNED_MAP];
     const timing = CUE_TIMING.exec(line);
     if (timing && webVttSeconds(timing[1] as string) !== undefined) {
       return [`${move(timing[1] as string)}${timing[2]}${move(timing[3] as string)}${timing[4]}`];
@@ -114,6 +131,40 @@ export function alignWebVtt(text: string): string {
     return [line.replace(INLINE_TIMESTAMP, (_, stamp: string) => `<${move(stamp)}>`)];
   });
   return out.join("\n");
+}
+
+const TS_PACKET = 188;
+const TS_SYNC = 0x47;
+/** Enough of a segment to hold the first frames of every track, B-frames reordered included. */
+const PTS_SCAN_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The earliest presentation timestamp in an MPEG-TS segment, in seconds; undefined when the bytes are
+ * not a transport stream (an encrypted segment, fMP4, raw AAC). What ffmpeg calls the input's start.
+ */
+export function firstPtsSeconds(bytes: Uint8Array): number | undefined {
+  let earliest: number | undefined;
+  for (let at = 0; at + TS_PACKET <= bytes.length; at += TS_PACKET) {
+    if (bytes[at] !== TS_SYNC) return earliest;
+    const unitStart = ((bytes[at + 1] as number) & 0x40) !== 0;
+    const adaptation = ((bytes[at + 3] as number) >> 4) & 0x3;
+    if (!unitStart || (adaptation & 0x1) === 0) continue;
+    let p = at + 4;
+    if (adaptation & 0x2) p += 1 + (bytes[p] as number);
+    // A PES header with a PTS: start code, stream id, length, two flag bytes, header length, 5 bytes.
+    if (p + 14 > at + TS_PACKET) continue;
+    if (bytes[p] !== 0 || bytes[p + 1] !== 0 || bytes[p + 2] !== 1) continue;
+    if (((bytes[p + 7] as number) & 0x80) === 0) continue;
+    const b = (i: number) => bytes[p + 9 + i] as number;
+    const pts =
+      (b(0) & 0x0e) * 2 ** 29 +
+      b(1) * 2 ** 22 +
+      (b(2) & 0xfe) * 2 ** 14 +
+      b(3) * 2 ** 7 +
+      (b(4) >> 1);
+    earliest = earliest === undefined ? pts : Math.min(earliest, pts);
+  }
+  return earliest === undefined ? undefined : earliest / MPEGTS_CLOCK;
 }
 
 /** `KEY=value,KEY="quoted, value"`, as a map. */
@@ -375,15 +426,42 @@ export class HlsCopier {
 
   /** Every WebVTT segment rewritten onto the video's clock (see `alignWebVtt`); idempotent. */
   private async alignSubtitles(playlists: LocalPlaylist[]): Promise<void> {
+    if (!playlists.some((playlist) => playlist.subtitles)) return;
+    const streamStart = await this.streamStart(playlists);
     for (const playlist of playlists) {
       if (!playlist.subtitles) continue;
       for (const file of playlist.files) {
         if (extname(file.path) !== ".vtt") continue;
         const text = await readFile(file.path, "utf8");
-        const aligned = alignWebVtt(text);
+        const aligned = alignWebVtt(text, streamStart);
         if (aligned !== text) await writeFile(file.path, aligned);
       }
     }
+  }
+
+  /**
+   * Where the stream starts: the earliest timestamp of the first segment of the video and of each
+   * audio track, the instant ffmpeg makes the file's 0. Undefined when no segment can be read.
+   */
+  private async streamStart(playlists: LocalPlaylist[]): Promise<number | undefined> {
+    let earliest: number | undefined;
+    for (const playlist of playlists) {
+      if (playlist.subtitles) continue;
+      const first = playlist.files.find((file) => /^\d+\.[^.]+$/.test(basename(file.path)));
+      if (!first) continue;
+      const handle = await open(first.path, "r").catch(() => null);
+      if (!handle) continue;
+      try {
+        const buffer = new Uint8Array(PTS_SCAN_BYTES);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+        const start = firstPtsSeconds(buffer.subarray(0, bytesRead));
+        if (start !== undefined)
+          earliest = earliest === undefined ? start : Math.min(earliest, start);
+      } finally {
+        await handle.close();
+      }
+    }
+    return earliest;
   }
 
   /**
