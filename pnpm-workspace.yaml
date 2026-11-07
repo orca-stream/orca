@@ -45,3 +45,7 @@ minimumReleaseAge: 1440
 # `pnpm install` doesn't fail on ERR_PNPM_IGNORED_BUILDS (better-sqlite3 ships prebuilds, no script).
 allowBuilds:
   esbuild: false
+  # Electron's postinstall downloads its binary; the desktop app (apps/hm-desktop) needs it.
+  electron: true
+  # Only Squirrel.Windows uses it; the Windows build will be NSIS.
+  electron-winstaller: false

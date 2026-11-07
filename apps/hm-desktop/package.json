@@ -1,0 +1,27 @@
+{
+  "name": "@orca/hm-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orca'H&M as a desktop app: runs the server and opens its panel",
+  "homepage": "https://github.com/orca-stream/orca",
+  "author": "selkiecode <352633863+selkiecode@users.noreply.github.com>",
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "build": "vp pack",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.scripts.json",
+    "stage:server": "node scripts/stage.ts",
+    "start": "pnpm build && electron . --no-sandbox",
+    "dist:linux": "pnpm build && pnpm stage:server && electron-builder --linux deb"
+  },
+  "devDependencies": {
+    "@hugeicons/core-free-icons": "^4.4.0",
+    "@orca/hm-contract": "workspace:*",
+    "@types/node": "catalog:",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "typescript": "~7.0.2",
+    "vite-plus": "catalog:"
+  },
+  "desktopName": "orca-hm.desktop"
+}

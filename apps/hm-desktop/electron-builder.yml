@@ -1,0 +1,39 @@
+# Packaging for Orca'H&M's desktop app. `pnpm stage:server` must run first: it fills build/hm-server.
+appId: io.github.orcastream.orca.hm
+# A path-safe name: it becomes /opt/orca-hm. People see Orca'H&M (desktop entry, window, tray).
+productName: orca-hm
+artifactName: orca-hm_${version}_${arch}.${ext}
+directories:
+  output: release
+files:
+  - dist/**
+  - resources/**
+  - package.json
+# The server runs from its own folder, with its own node_modules, outside the asar archive.
+extraResources:
+  - from: build/hm-server
+    to: hm-server
+  # A folder's own top-level node_modules is always skipped by electron-builder, so it goes as its
+  # own entry.
+  - from: build/hm-server/node_modules
+    to: hm-server/node_modules
+# The app has no runtime dependencies, and the server's native module is a Node-API prebuild.
+npmRebuild: false
+linux:
+  target: deb
+  executableName: orca-hm
+  icon: resources/icon.png
+  category: AudioVideo
+  synopsis: Downloads shows into your library
+  description: Downloads shows into your library
+  syncDesktopName: true
+  # Through XWayland: see the X11 note at the top of src/main.ts.
+  executableArgs:
+    - --ozone-platform=x11
+  maintainer: selkiecode <352633863+selkiecode@users.noreply.github.com>
+  desktop:
+    entry:
+      Name: Orca'H&M
+      StartupWMClass: orca-hm
+deb:
+  packageName: orca-hm

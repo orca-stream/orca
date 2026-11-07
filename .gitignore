@@ -46,3 +46,7 @@ apps/hm-server/extractors.json
 
 # Orca'H&M: the local database (DB_FILE=./data/hm.sqlite in apps/hm-server/.env)
 apps/hm-server/data
+
+# Orca'H&M desktop app: the staged server and the packages
+apps/hm-desktop/build
+apps/hm-desktop/release

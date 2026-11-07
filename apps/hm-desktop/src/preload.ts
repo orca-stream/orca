@@ -1,0 +1,38 @@
+// Hands the panel `window.orcaDesktop`: the window's controls and the app's version, nothing more.
+// Runs sandboxed: it reaches the main process only through the channels below.
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import {
+  DESKTOP_CHANNELS,
+  DESKTOP_VERSION_ARG,
+  type DesktopBridge,
+} from "@orca/hm-contract/desktop";
+
+const version =
+  process.argv
+    .find((arg) => arg.startsWith(DESKTOP_VERSION_ARG))
+    ?.slice(DESKTOP_VERSION_ARG.length) ?? "";
+
+function listen<T>(channel: string, listener: (value: T) => void): () => void {
+  const handler = (_event: IpcRendererEvent, value: T) => listener(value);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
+
+const bridge: DesktopBridge = {
+  version,
+  platform: process.platform,
+  minimize: () => ipcRenderer.send(DESKTOP_CHANNELS.minimize),
+  toggleMaximize: () => ipcRenderer.send(DESKTOP_CHANNELS.toggleMaximize),
+  close: () => ipcRenderer.send(DESKTOP_CHANNELS.close),
+  onMaximizedChange(listener) {
+    const stop = listen(DESKTOP_CHANNELS.maximized, listener);
+    void ipcRenderer
+      .invoke(DESKTOP_CHANNELS.isMaximized)
+      .then((maximized: boolean) => listener(maximized));
+    return stop;
+  },
+  onUpdateAvailable: (listener) => listen(DESKTOP_CHANNELS.updateAvailable, listener),
+  installUpdate: () => ipcRenderer.send(DESKTOP_CHANNELS.installUpdate),
+};
+
+contextBridge.exposeInMainWorld("orcaDesktop", bridge);
