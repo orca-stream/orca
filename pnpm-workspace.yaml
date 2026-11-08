@@ -31,6 +31,13 @@ catalog:
   vite-plus: 1.5.0
 overrides:
   vite@*: "catalog:"
+  # Security (dependabot): transitive ranges with no fixed release in the line their parents ask for.
+  # minimatch 11 drops makeRe/AST/debug; electron-builder, @electron/universal and ts-morph only
+  # use minimatch(), Minimatch#match/negate/set, which 11 keeps.
+  minimatch@>=7.0.0 <11.0.1: ^11.0.5
+  glob@>=9.0.0 <14.0.2: ^14.0.4
+  # drizzle-kit's @esbuild-kit loader pins esbuild ~0.18; it only calls transform(), stable since.
+  esbuild@<0.25.0: ^0.25.12
 peerDependencyRules:
   allowAny:
     - vite
