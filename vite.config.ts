@@ -7,7 +7,10 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: {},
+  fmt: {
+    // Written by release-please on every release, in its own format.
+    ignorePatterns: [".release-please-manifest.json", "apps/hm-desktop/CHANGELOG.md"],
+  },
   lint: {
     plugins: ["react", "typescript", "oxc"],
     rules: {
