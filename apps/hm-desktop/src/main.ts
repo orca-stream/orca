@@ -95,6 +95,8 @@ if (needsX11) {
   /** What the setup page last showed, to redraw it in another language. */
   let setupStates: ToolState[] = [];
   let setupFailure: string | undefined;
+  /** Whether the tools being fetched replace older ones: the page then says it is an update. */
+  let setupIsUpdate = false;
   let window: BrowserWindow | undefined;
   let tray: Tray | undefined;
   let ready = false;
@@ -168,7 +170,10 @@ if (needsX11) {
 
   /** Redraws the setup page from its last state, in the current language. */
   function drawSetup(): void {
-    setup = setupView(setupStates, strings, displayLocale(), setupFailure);
+    setup = setupView(setupStates, strings, displayLocale(), {
+      ...(setupFailure === undefined ? {} : { failure: setupFailure }),
+      update: setupIsUpdate,
+    });
     if (setupFailure === undefined) pushSetup();
   }
 
@@ -195,6 +200,7 @@ if (needsX11) {
     setupFailure = undefined;
     try {
       const missing = await tools.missing();
+      if (missing.length > 0) setupIsUpdate = await tools.installedBefore();
       if (missing.length > 0) {
         await tools.install(
           missing,

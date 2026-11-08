@@ -7,7 +7,8 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 /** What `orca-installed.json` says: the Playwright version whose browser is in the folder. */
-const MARKER = "orca-installed.json";
+export const CHROMIUM_MARKER = "orca-installed.json";
+const MARKER = CHROMIUM_MARKER;
 
 /** One line of Playwright's progress when its output is not a terminal: `|■■■   |  30% of 110.9 MiB`. */
 const PROGRESS = /\|\s*(\d{1,3})% of ([\d.]+) MiB/;

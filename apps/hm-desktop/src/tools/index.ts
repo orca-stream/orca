@@ -1,9 +1,21 @@
 // What the server needs besides itself, fetched on the app's first start and kept beside its data:
 // Chromium for the sites' players and ffmpeg for the streams. The installer stays small, and both
 // arrive with visible progress before the server starts.
+import { access } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { chromiumInstalled, installChromium, playwrightVersion } from "./chromium.ts";
-import { ffmpegBinDir, ffmpegBuildFor, ffmpegInstalled, installFfmpeg } from "./ffmpeg.ts";
+import {
+  CHROMIUM_MARKER,
+  chromiumInstalled,
+  installChromium,
+  playwrightVersion,
+} from "./chromium.ts";
+import {
+  FFMPEG_MARKER,
+  ffmpegBinDir,
+  ffmpegBuildFor,
+  ffmpegInstalled,
+  installFfmpeg,
+} from "./ffmpeg.ts";
 
 export type ToolId = "chromium" | "ffmpeg";
 export type ToolPhase = "waiting" | "downloading" | "installing" | "ready" | "failed";
@@ -40,6 +52,23 @@ export class ToolsSetup {
 
   private get ffmpegDir(): string {
     return join(this.layout.toolsDir, "ffmpeg");
+  }
+
+  /**
+   * Whether any tool was installed before, in whatever version: fetching again is then an update
+   * (a new Playwright, a new ffmpeg build), not the first start.
+   */
+  async installedBefore(): Promise<boolean> {
+    const markers = [join(this.browsersDir, CHROMIUM_MARKER), join(this.ffmpegDir, FFMPEG_MARKER)];
+    const found = await Promise.all(
+      markers.map((marker) =>
+        access(marker).then(
+          () => true,
+          () => false,
+        ),
+      ),
+    );
+    return found.includes(true);
   }
 
   /** What still has to be fetched; reads only local files. */

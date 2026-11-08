@@ -38,6 +38,15 @@ describe("setupView", () => {
     expect(row?.status).toBe("1,3 de 65,8 MB");
   });
 
+  it("says it is an update, not the first start, when the tools were there before", () => {
+    const first = setupView([], es, "es-419");
+    expect(first.title).toBe("Preparando Orca'H&M");
+    expect(first.detail).toContain("Solo ocurre una vez");
+    const update = setupView([], es, "es-419", { update: true });
+    expect(update.title).toBe("Actualizando Orca'H&M");
+    expect(update.detail).not.toContain("primera vez");
+  });
+
   it("offers a retry, with the reason, once something failed", () => {
     const view = setupView(
       [
@@ -46,7 +55,7 @@ describe("setupView", () => {
       ],
       stringsFor("en-US"),
       "en-US",
-      "https://downloads.example answered 503",
+      { failure: "https://downloads.example answered 503" },
     );
     expect(view.rows.map((row) => [row.status, row.state])).toEqual([
       ["Ready", "ready"],

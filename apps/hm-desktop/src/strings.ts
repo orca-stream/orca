@@ -12,6 +12,9 @@ const messages = {
     setupTitle: "Getting Orca'H&M ready",
     setupDetail:
       "The first time, Orca'H&M downloads the browser and ffmpeg that its downloads use. This only happens once.",
+    updateTitle: "Updating Orca'H&M",
+    updateDetail:
+      "This version of Orca'H&M uses a newer browser or ffmpeg for its downloads, so it fetches them now. Your series and settings stay as they are.",
     chromium: "Browser (Chromium)",
     ffmpeg: "ffmpeg",
     waiting: "Waiting…",
@@ -34,6 +37,9 @@ const messages = {
     setupTitle: "Preparando Orca'H&M",
     setupDetail:
       "La primera vez, Orca'H&M descarga el navegador y ffmpeg que usan sus descargas. Solo ocurre una vez.",
+    updateTitle: "Actualizando Orca'H&M",
+    updateDetail:
+      "Esta versión de Orca'H&M usa un navegador o un ffmpeg más nuevo para sus descargas, así que los descarga ahora. Tus series y ajustes no cambian.",
     chromium: "Navegador (Chromium)",
     ffmpeg: "ffmpeg",
     waiting: "En espera…",

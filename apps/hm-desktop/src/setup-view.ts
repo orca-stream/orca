@@ -46,15 +46,20 @@ function row(state: ToolState, strings: Strings, locale: string): SetupRow {
   }
 }
 
+/**
+ * The setup page's words. `update`: the tools were installed before and a new version of the app
+ * needs newer ones, which is no first start.
+ */
 export function setupView(
   states: ToolState[],
   strings: Strings,
   locale: string,
-  failure?: string,
+  options: { failure?: string; update?: boolean } = {},
 ): SetupView {
+  const { failure, update = false } = options;
   return {
-    title: strings.setupTitle,
-    detail: strings.setupDetail,
+    title: update ? strings.updateTitle : strings.setupTitle,
+    detail: update ? strings.updateDetail : strings.setupDetail,
     rows: states.map((state) => row(state, strings, locale)),
     ...(failure === undefined
       ? {}

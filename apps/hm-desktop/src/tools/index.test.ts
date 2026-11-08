@@ -25,6 +25,7 @@ describe("ToolsSetup", () => {
   it("asks for both on the first start, and for the browser again when Playwright moves on", async () => {
     const tools = new ToolsSetup({ toolsDir, serverDir, platform: "linux", arch: "x64" });
     expect(await tools.missing()).toEqual(["chromium", "ffmpeg"]);
+    expect(await tools.installedBefore()).toBe(false);
 
     await mkdir(join(toolsDir, "browsers"), { recursive: true });
     await writeFile(
@@ -38,6 +39,8 @@ describe("ToolsSetup", () => {
       JSON.stringify({ playwright: "1.63.0" }),
     );
     expect(await tools.missing()).toEqual(["chromium", "ffmpeg"]);
+    // An older browser is there: fetching the new one is an update, not the first start.
+    expect(await tools.installedBefore()).toBe(true);
   });
 
   it("leaves ffmpeg to the system where there is no build for it", async () => {

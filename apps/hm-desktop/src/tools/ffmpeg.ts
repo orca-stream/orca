@@ -42,7 +42,8 @@ export function ffmpegBuildFor(platform: string, arch: string): FfmpegBuild | un
 }
 
 /** What `installed.json` says, so a newer build in a newer app replaces the old one. */
-const MARKER = "installed.json";
+export const FFMPEG_MARKER = "installed.json";
+const MARKER = FFMPEG_MARKER;
 
 /** The folder the server finds ffmpeg and ffprobe in. */
 export function ffmpegBinDir(dir: string): string {
