@@ -589,6 +589,12 @@ const es = {
     saveFailed: "No se pudo guardar.",
     unsaved: "Cambios sin guardar",
     loadFailed: "No se pudieron cargar los ajustes.",
+    language: {
+      title: "Idioma",
+      description: "En qué idioma se ve el panel en este aparato.",
+      label: "Idioma",
+      auto: "Automático (el del sistema)",
+    },
     access: {
       title: "Acceso al panel",
       description: "Con qué cuenta se entra a H&M.",
@@ -1355,6 +1361,12 @@ const en: typeof es = {
     saveFailed: "Could not save.",
     unsaved: "Unsaved changes",
     loadFailed: "Could not load the settings.",
+    language: {
+      title: "Language",
+      description: "Which language the panel shows on this device.",
+      label: "Language",
+      auto: "Automatic (the system's)",
+    },
     access: {
       title: "Panel access",
       description: "Which account signs in to H&M.",

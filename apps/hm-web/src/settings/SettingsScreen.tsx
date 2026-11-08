@@ -19,6 +19,7 @@ import {
 } from "./draft";
 import {
   AccessSection,
+  LanguageSection,
   BrowserSection,
   DownloadsSection,
   ExtractorsSection,
@@ -121,6 +122,7 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
   const showBar = changed || save.isPending || save.isError || save.isSuccess;
   return (
     <>
+      <LanguageSection />
       <AccessSection
         draft={draft}
         set={set}

@@ -24,6 +24,7 @@ import {
 } from "./draft";
 import {
   AccessSection,
+  LanguageSection,
   BrowserSection,
   DownloadsSection,
   ExtractorsSection,
@@ -163,6 +164,7 @@ export function SetupScreen() {
           </p>
         </header>
 
+        {step === "access" && <LanguageSection />}
         {step === "access" && (
           <AccessSection
             draft={draft}

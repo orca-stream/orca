@@ -25,6 +25,7 @@ function fakeBridge() {
       return () => {};
     },
     installUpdate: vi.fn(),
+    setLanguage: vi.fn(),
   } satisfies DesktopBridge;
   return {
     bridge,

@@ -19,6 +19,7 @@ import {
   Folder01Icon,
   FolderLibraryIcon,
   HourglassIcon,
+  LanguagesIcon,
   Key01Icon,
   Link01Icon,
   LockPasswordIcon,
@@ -29,11 +30,12 @@ import {
   Video01Icon,
   VolumeHighIcon,
 } from "@hugeicons/core-free-icons";
+import { isLanguageChoice } from "@orca/hm-contract/desktop";
 import { LANGUAGE_CODE_PATTERN, SETTING_LIMITS } from "@orca/hm-contract/rules";
 import { ApiError } from "@/api/client";
 import type { JellyfinConnection } from "@/api/types";
 import { Button } from "@/components/ui/button";
-import { useT } from "@/i18n/locale";
+import { useLanguageChoice, useT } from "@/i18n/locale";
 import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import { BarField } from "@/series/bar";
@@ -363,6 +365,32 @@ function LocalAdminRows({ current }: { current: { username: string } | null }) {
  * Who signs in to the panel: Jellyfin's administrators, or the one this server keeps. The setup holds
  * that administrator until it is done (`admin`); the settings save it on their own (`localAdmin`).
  */
+/**
+ * The panel's language on this device: saved at once, in the device and not in the server, so each
+ * browser (and the desktop app) can show its own. Each language is named in itself.
+ */
+export function LanguageSection() {
+  const t = useT();
+  const { choice, choose } = useLanguageChoice();
+  return (
+    <Group title={t.settings.language.title} description={t.settings.language.description}>
+      <SelectRow
+        icon={LanguagesIcon}
+        label={t.settings.language.label}
+        value={choice}
+        onChange={(next) => {
+          if (isLanguageChoice(next)) choose(next);
+        }}
+        options={[
+          { value: "auto", label: t.settings.language.auto },
+          { value: "es", label: "Español" },
+          { value: "en", label: "English" },
+        ]}
+      />
+    </Group>
+  );
+}
+
 export function AccessSection({
   draft,
   set,
