@@ -29,6 +29,12 @@ const PACKAGE_STEPS = new Map<number, UpdateStep>([
   [9, "installing"],
   [10, "installing"],
 ]);
+/**
+ * PkStatusEnum RUNNING: after the download, PackageKit reports it while it starts applying the
+ * package, before INSTALL, already with the install's percentage (seen: download at 100, then
+ * RUNNING at 20, then INSTALL at 60).
+ */
+const RUNNING = 3;
 /** No PkFilterEnum bit set: every package. */
 const NO_FILTER = 0n;
 
@@ -181,7 +187,12 @@ export class PackageKitUpdates implements UpdateSource {
       await properties.$subscribe(
         "PropertiesChanged",
         (_iface: string, changed: Record<string, unknown>) => {
-          const next = typeof changed.Status === "number" && PACKAGE_STEPS.get(changed.Status);
+          const status = changed.Status;
+          const next =
+            typeof status === "number" &&
+            (status === RUNNING && step === "downloading"
+              ? "installing"
+              : PACKAGE_STEPS.get(status));
           if (next && next !== step) {
             // A new step: its percentage is unknown until PackageKit reports one.
             step = next;

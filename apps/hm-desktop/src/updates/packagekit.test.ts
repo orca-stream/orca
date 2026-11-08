@@ -120,6 +120,8 @@ describe("PackageKitUpdates", () => {
           { Percentage: 100 },
           { Status: 8 },
           { Percentage: 0 },
+          { Percentage: 100 },
+          // Measured on the laptop: the download done, RUNNING already counts the install.
           { Status: 3 },
           { Percentage: 101 },
           { Percentage: 20 },
@@ -141,14 +143,15 @@ describe("PackageKitUpdates", () => {
     expect(calls[2]).toMatchObject({ args: [2n, [ours]] });
     expect(calls[2]?.hints).toContain("interactive=true");
     // Only the package's own progress, step by step: the preparatory steps' 0 to 100 would jump
-    // back and forth, and RUNNING (3) inside the download is no new step.
+    // back and forth, and the 20 after RUNNING is the install's, not the download's.
     expect(progress).toEqual([
       { step: "preparing" },
       { step: "downloading" },
       { step: "downloading", percent: 0 },
-      { step: "downloading" },
-      { step: "downloading", percent: 20 },
+      { step: "downloading", percent: 100 },
       { step: "installing" },
+      { step: "installing" },
+      { step: "installing", percent: 20 },
       { step: "installing", percent: 60 },
     ]);
     expect(close).toHaveBeenCalledOnce();
