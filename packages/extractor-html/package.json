@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@orca/extractor-core": "workspace:*",
-    "node-html-parser": "9.0.6",
+    "node-html-parser": "9.0.7",
     "zod": "catalog:"
   },
   "devDependencies": {
