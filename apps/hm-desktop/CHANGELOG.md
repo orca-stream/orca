@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.2...orca-hm-v0.3.3) (2026-11-08)
+
+
+### 🐛 Bug Fixes
+
+* **hm-web:** let the desktop app's pages scroll
+
 ## [0.3.2](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.1...orca-hm-v0.3.2) (2026-11-08)
 
 
