@@ -1,7 +1,7 @@
 // Keeps the app's update on offer: looks for a newer version now and then, and installs it when the
 // panel asks. Where updates come from changes by platform (PackageKit on Linux), so it sits behind
 // `UpdateSource`; this file is only the when and the what-to-show.
-import type { UpdateOffer, UpdateStep } from "@orca/hm-contract/desktop";
+import type { UpdateCheck, UpdateOffer, UpdateStep } from "@orca/hm-contract/desktop";
 
 /** A newer version of the app's own package, as the source names it. */
 export interface AvailableUpdate {
@@ -32,6 +32,10 @@ export interface UpdaterOptions {
   intervalMs: number;
   /** Told of every change of the offer. */
   onChange: (offer: UpdateOffer | null) => void;
+  /** Told of every change of the look itself: under way, when it last answered, why it failed. */
+  onCheckChange?: (check: UpdateCheck) => void;
+  /** The clock, for the time of the last look. */
+  now?: () => number;
   /** Called once the new version is installed: the app restarts into it. */
   onInstalled: () => void;
   /** Where a failed look is reported; looking again later is the only recovery. */
@@ -41,6 +45,7 @@ export interface UpdaterOptions {
 export class Updater {
   private readonly options: UpdaterOptions;
   private offer: UpdateOffer | null = null;
+  private checkState: UpdateCheck = { status: "idle" };
   private found: AvailableUpdate | undefined;
   private timer: NodeJS.Timeout | undefined;
   private checking: Promise<void> | undefined;
@@ -52,6 +57,11 @@ export class Updater {
   /** What the panel should show right now. */
   get current(): UpdateOffer | null {
     return this.offer;
+  }
+
+  /** Where the look for updates is. */
+  get looking(): UpdateCheck {
+    return this.checkState;
   }
 
   /** Starts looking: once after `firstCheckMs`, then every `intervalMs`. */
@@ -81,8 +91,13 @@ export class Updater {
   private async look(): Promise<void> {
     // Never replace what is being installed, nor a failure the panel still shows with its retry.
     if (this.installing) return;
+    const lastChecked = this.lastChecked;
+    this.setCheck(
+      lastChecked === undefined ? { status: "checking" } : { status: "checking", lastChecked },
+    );
     try {
       const found = await this.options.source.find();
+      this.setCheck({ status: "idle", lastChecked: (this.options.now ?? Date.now)() });
       // Installing may have begun while the look was under way.
       if (this.installing) return;
       if (!found) {
@@ -94,7 +109,21 @@ export class Updater {
       }
     } catch (error) {
       this.options.log?.(`Could not look for updates: ${reason(error)}`);
+      this.setCheck(
+        lastChecked === undefined
+          ? { status: "failed", reason: reason(error) }
+          : { status: "failed", lastChecked, reason: reason(error) },
+      );
     }
+  }
+
+  private get lastChecked(): number | undefined {
+    return "lastChecked" in this.checkState ? this.checkState.lastChecked : undefined;
+  }
+
+  private setCheck(check: UpdateCheck): void {
+    this.checkState = check;
+    this.options.onCheckChange?.(check);
   }
 
   /** Installs the version on offer; a failure keeps it on offer with the reason. */

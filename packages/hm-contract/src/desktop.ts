@@ -31,6 +31,17 @@ export type UpdateOffer =
   | { readonly status: "failed"; readonly version: string; readonly reason: string };
 
 /**
+ * Looking for a newer version, beside the version's badge. `lastChecked` (ms since the epoch) is
+ * when a look last got an answer; "unsupported": this copy cannot update itself (run from the
+ * repository, or a system without PackageKit).
+ */
+export type UpdateCheck =
+  | { readonly status: "unsupported" }
+  | { readonly status: "idle"; readonly lastChecked?: number }
+  | { readonly status: "checking"; readonly lastChecked?: number }
+  | { readonly status: "failed"; readonly lastChecked?: number; readonly reason: string };
+
+/**
  * What the desktop app (apps/hm-desktop) hands the panel as `window.orcaDesktop`, through its
  * preload script. The panel draws the window's own title bar with it; in a browser it is absent.
  */
@@ -51,6 +62,10 @@ export interface DesktopBridge {
    * returns a function that stops listening.
    */
   onUpdate(listener: (update: UpdateOffer | null) => void): () => void;
+  /** Calls back now and on every change of the look for updates; returns the unsubscribe. */
+  onUpdateCheck(listener: (check: UpdateCheck) => void): () => void;
+  /** Looks for a newer version now, instead of waiting for the next look. */
+  checkForUpdates(): void;
   /** Installs the version on offer and restarts the app into it. */
   installUpdate(): void;
   /** Tells the app the language chosen in the panel, for the words it shows itself. */
@@ -66,6 +81,9 @@ export const DESKTOP_CHANNELS = {
   maximized: "window:maximized",
   update: "update:state",
   currentUpdate: "update:current",
+  updateCheck: "update:check-state",
+  currentUpdateCheck: "update:check-current",
+  checkForUpdates: "update:check",
   installUpdate: "update:install",
   language: "app:language",
 } as const;

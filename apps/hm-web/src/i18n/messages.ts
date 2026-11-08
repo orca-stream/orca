@@ -17,6 +17,12 @@ const es = {
   desktop: {
     beta: (version: string) => `Beta ${version}`,
     betaHint: "Versión de prueba: puede cambiar y tener fallos.",
+    checkForUpdates: "Buscar actualizaciones",
+    checking: "Buscando…",
+    neverChecked: "Todavía no se han buscado actualizaciones.",
+    upToDate: (when: string) => `Tienes la última versión. Comprobado ${when}.`,
+    newVersion: (version: string) => `Hay una versión nueva: ${version}.`,
+    checkFailed: (reason: string) => `No se pudo buscar: ${reason}`,
     update: (version: string) => `Actualizar a ${version}`,
     updating: (step: UpdateStep, percent?: number) => {
       const label = {
@@ -800,6 +806,12 @@ const en: typeof es = {
   desktop: {
     beta: (version: string) => `Beta ${version}`,
     betaHint: "A test version: it may change and have bugs.",
+    checkForUpdates: "Check for updates",
+    checking: "Checking…",
+    neverChecked: "No updates have been looked for yet.",
+    upToDate: (when: string) => `You have the latest version. Checked ${when}.`,
+    newVersion: (version: string) => `A new version is out: ${version}.`,
+    checkFailed: (reason: string) => `Could not check: ${reason}`,
     update: (version: string) => `Update to ${version}`,
     updating: (step: UpdateStep, percent?: number) => {
       const label = { preparing: "Updating", downloading: "Downloading", installing: "Installing" };

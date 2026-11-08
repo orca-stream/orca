@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { UpdateOffer } from "@orca/hm-contract/desktop";
+import type { UpdateCheck, UpdateOffer } from "@orca/hm-contract/desktop";
 import {
   Updater,
   type AvailableUpdate,
@@ -150,5 +150,34 @@ describe("Updater", () => {
     await updater.check();
     expect(updater.current).toBeNull();
     expect(log).toHaveBeenCalledWith("Could not look for updates: no PackageKit");
+  });
+});
+
+describe("Updater's look for updates", () => {
+  it("says when it is looking, when it last got an answer, and why it failed", async () => {
+    const fake = fakeSource();
+    const checks: UpdateCheck[] = [];
+    let clock = 1_000;
+    const updater = new Updater({
+      source: fake.source,
+      firstCheckMs: 1,
+      intervalMs: 1,
+      onChange: vi.fn(),
+      onCheckChange: (check) => checks.push(check),
+      onInstalled: vi.fn(),
+      now: () => clock,
+    });
+    expect(updater.looking).toEqual({ status: "idle" });
+    await updater.check();
+    clock = 5_000;
+    fake.source.find.mockRejectedValueOnce(new Error("No network"));
+    await updater.check();
+    expect(checks).toEqual([
+      { status: "checking" },
+      { status: "idle", lastChecked: 1_000 },
+      { status: "checking", lastChecked: 1_000 },
+      // A failed look keeps the time of the last one that answered.
+      { status: "failed", lastChecked: 1_000, reason: "No network" },
+    ]);
   });
 });

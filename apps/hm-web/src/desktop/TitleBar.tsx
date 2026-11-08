@@ -3,16 +3,21 @@ import {
   Copy01Icon,
   Download04Icon,
   MinusSignIcon,
+  RefreshIcon,
   StopIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
-import type { DesktopBridge, UpdateOffer } from "@orca/hm-contract/desktop";
+import type { DesktopBridge, UpdateCheck, UpdateOffer } from "@orca/hm-contract/desktop";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useT } from "@/i18n/locale";
+import { formatRelative } from "@/i18n/format";
+import { useLocale, useT } from "@/i18n/locale";
+import type { Locale } from "@/i18n/messages";
+import { HINT_CARD } from "@/series/bar";
 import { cn } from "@/lib/utils";
 
 /**
@@ -81,6 +86,75 @@ function UpdateButton({ update, onInstall }: { update: UpdateOffer; onInstall: (
   );
 }
 
+/** What the version's card says about updates: looking, up to date, a new one, or a failure. */
+function checkLine(
+  check: UpdateCheck,
+  update: UpdateOffer | null,
+  t: ReturnType<typeof useT>,
+  locale: Locale,
+): string {
+  if (check.status === "checking") return t.desktop.checking;
+  if (check.status === "failed") return t.desktop.checkFailed(check.reason);
+  if (update) return t.desktop.newVersion(update.version);
+  if (check.status === "idle" && check.lastChecked !== undefined) {
+    return t.desktop.upToDate(formatRelative(new Date(check.lastChecked), new Date(), locale));
+  }
+  return t.desktop.neverChecked;
+}
+
+/**
+ * The version, marked as a beta. On hover, a card says so and, when this copy can update itself,
+ * when it last looked for a new version, with a button to look now.
+ */
+function VersionBadge({ desktop, update }: { desktop: DesktopBridge; update: UpdateOffer | null }) {
+  const t = useT();
+  const locale = useLocale();
+  const [check, setCheck] = useState<UpdateCheck>({ status: "unsupported" });
+
+  useEffect(() => desktop.onUpdateCheck(setCheck), [desktop]);
+
+  const checking = check.status === "checking";
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        delay={200}
+        closeDelay={200}
+        render={<span />}
+        className="ml-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums [-webkit-app-region:no-drag]"
+      >
+        {t.desktop.beta(desktop.version)}
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        className={cn(HINT_CARD, "flex w-72 flex-col gap-4 p-4 [-webkit-app-region:no-drag]")}
+      >
+        <p>{t.desktop.betaHint}</p>
+        {check.status !== "unsupported" && (
+          <>
+            <p className="text-muted-foreground" aria-live="polite">
+              {checkLine(check, update, t, locale)}
+            </p>
+            <Button
+              onClick={() => desktop.checkForUpdates()}
+              disabled={checking || update?.status === "installing"}
+              className="self-start"
+            >
+              {checking ? (
+                <Spinner data-icon="inline-start" aria-hidden="true" className="size-5" />
+              ) : (
+                <HugeiconsIcon icon={RefreshIcon} data-icon="inline-start" className="size-5" />
+              )}
+              {t.desktop.checkForUpdates}
+            </Button>
+          </>
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
 /**
  * The desktop app's title bar, drawn by the panel because the window has no frame: the logo, the
  * version marked as a beta, an update when one is on offer, and the window's own buttons. 56px, its
@@ -106,15 +180,7 @@ export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
         className="fixed inset-x-0 top-0 z-60 flex h-14 items-center gap-2 pr-2 pl-4 select-none [-webkit-app-region:drag]"
       >
         <img src={logo} alt="ORCA'H&M" className="pointer-events-none h-10" />
-        <Tooltip>
-          <TooltipTrigger
-            render={<span />}
-            className="ml-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary tabular-nums [-webkit-app-region:no-drag]"
-          >
-            {t.desktop.beta(desktop.version)}
-          </TooltipTrigger>
-          <TooltipContent side="bottom">{t.desktop.betaHint}</TooltipContent>
-        </Tooltip>
+        <VersionBadge desktop={desktop} update={update} />
 
         <div className="flex-1 self-stretch" aria-hidden="true" />
 

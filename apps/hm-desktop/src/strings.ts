@@ -2,6 +2,9 @@
 const messages = {
   en: {
     open: "Open Orca'H&M",
+    updateTo: (version: string) => `Update to ${version}`,
+    updating: "Updating…",
+    retryUpdate: "Retry the update",
     quit: "Quit",
     starting: "Starting…",
     failed: "Orca'H&M could not start.",
@@ -27,6 +30,9 @@ const messages = {
   },
   es: {
     open: "Abrir Orca'H&M",
+    updateTo: (version: string) => `Actualizar a ${version}`,
+    updating: "Actualizando…",
+    retryUpdate: "Reintentar la actualización",
     quit: "Salir",
     starting: "Iniciando…",
     failed: "Orca'H&M no pudo iniciarse.",

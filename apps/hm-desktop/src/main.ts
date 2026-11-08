@@ -12,12 +12,15 @@ import {
   Tray,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
+  type MenuItemConstructorOptions,
 } from "electron";
 import {
   DESKTOP_CHANNELS,
   DESKTOP_VERSION_ARG,
   isLanguageChoice,
   type LanguageChoice,
+  type UpdateCheck,
+  type UpdateOffer,
 } from "@orca/hm-contract/desktop";
 import { localeFor, readPreferences, writePreferences } from "./preferences.ts";
 import { endStartupSequence } from "./startup-notification.ts";
@@ -108,6 +111,8 @@ if (needsX11) {
   let onSetupPage = false;
   let pushTimer: NodeJS.Timeout | undefined;
   let quitting = false;
+  /** The update's status the tray menu was last built with. */
+  let trayUpdateStatus: UpdateOffer["status"] | undefined;
 
   // Installed from the .deb, the app updates through the system's packages (see
   // updates/packagekit.ts); run from the repository, there is nothing to update.
@@ -117,7 +122,16 @@ if (needsX11) {
           source: new PackageKitUpdates(DEB_PACKAGE, { log: (message) => console.error(message) }),
           firstCheckMs: UPDATE_FIRST_CHECK_MS,
           intervalMs: UPDATE_INTERVAL_MS,
-          onChange: (offer) => window?.webContents.send(DESKTOP_CHANNELS.update, offer),
+          onChange: (offer) => {
+            window?.webContents.send(DESKTOP_CHANNELS.update, offer);
+            // The tray offers it too, so it is not missed with the window closed. Rebuilt only when
+            // the status changes, not on every percent.
+            if (offer?.status !== trayUpdateStatus) {
+              trayUpdateStatus = offer?.status;
+              buildTrayMenu();
+            }
+          },
+          onCheckChange: (check) => window?.webContents.send(DESKTOP_CHANNELS.updateCheck, check),
           // The package manager replaced the app's files: restart into the new version.
           onInstalled: () => {
             app.relaunch();
@@ -352,9 +366,28 @@ if (needsX11) {
     if (window) void endTrayStartup(window);
   }
 
+  /** The tray's entry for the update on offer, if any: install it, see it going, or try again. */
+  function trayUpdateItems(): MenuItemConstructorOptions[] {
+    const offer = updater?.current;
+    if (!offer) return [];
+    // Installing shows its progress in the window, and ends by restarting the app.
+    const install = () => {
+      openFromTray();
+      void updater?.install();
+    };
+    const item: MenuItemConstructorOptions =
+      offer.status === "installing"
+        ? { label: strings.updating, enabled: false }
+        : offer.status === "failed"
+          ? { label: strings.retryUpdate, click: install }
+          : { label: strings.updateTo(offer.version), click: install };
+    return [item, { type: "separator" }];
+  }
+
   function buildTrayMenu(): void {
     tray?.setContextMenu(
       Menu.buildFromTemplate([
+        ...trayUpdateItems(),
         { label: strings.open, click: openFromTray },
         { type: "separator" },
         { label: strings.quit, click: () => void quitFromTray() },
@@ -375,6 +408,12 @@ if (needsX11) {
   ipcMain.handle(DESKTOP_CHANNELS.currentUpdate, (event) =>
     owner(event) ? (updater?.current ?? null) : null,
   );
+  ipcMain.handle(DESKTOP_CHANNELS.currentUpdateCheck, (event): UpdateCheck | null =>
+    owner(event) ? (updater?.looking ?? { status: "unsupported" }) : null,
+  );
+  ipcMain.on(DESKTOP_CHANNELS.checkForUpdates, (event) => {
+    if (owner(event)) void updater?.check();
+  });
   ipcMain.on(DESKTOP_CHANNELS.installUpdate, (event) => {
     if (owner(event)) void updater?.install();
   });

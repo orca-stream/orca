@@ -1,7 +1,7 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { DesktopBridge, UpdateOffer } from "@orca/hm-contract/desktop";
+import type { DesktopBridge, UpdateCheck, UpdateOffer } from "@orca/hm-contract/desktop";
 import { jsonResponse, renderApp } from "@/test/render";
 import { TitleBar } from "./TitleBar";
 
@@ -9,6 +9,7 @@ import { TitleBar } from "./TitleBar";
 function fakeBridge() {
   let maximized: (value: boolean) => void = () => {};
   let update: (offer: UpdateOffer | null) => void = () => {};
+  let looking: (check: UpdateCheck) => void = () => {};
   const bridge = {
     version: "0.1.0",
     platform: "linux",
@@ -25,6 +26,12 @@ function fakeBridge() {
       listener(null);
       return () => {};
     },
+    onUpdateCheck: (listener) => {
+      looking = listener;
+      listener({ status: "unsupported" });
+      return () => {};
+    },
+    checkForUpdates: vi.fn(),
     installUpdate: vi.fn(),
     setLanguage: vi.fn(),
   } satisfies DesktopBridge;
@@ -32,6 +39,7 @@ function fakeBridge() {
     bridge,
     maximize: (value: boolean) => maximized(value),
     offer: (offer: UpdateOffer | null) => update(offer),
+    look: (check: UpdateCheck) => looking(check),
   };
 }
 
@@ -94,5 +102,40 @@ describe("TitleBar", () => {
     expect(fake.bridge.installUpdate).toHaveBeenCalledOnce();
     act(() => fake.offer(null));
     expect(screen.queryByRole("button", { name: /actualizar/i })).toBeNull();
+  });
+
+  it("says on the version's card when it last looked, and looks again on demand", async () => {
+    const user = userEvent.setup();
+    const fake = fakeBridge();
+    renderApp(<TitleBar desktop={fake.bridge} />, { handler });
+    act(() => fake.look({ status: "idle", lastChecked: Date.now() - 5 * 60_000 }));
+    await user.hover(screen.getByText("Beta 0.1.0"));
+    expect(
+      await screen.findByText(/Tienes la última versión\. Comprobado hace 5 minutos\./),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Buscar actualizaciones" }));
+    expect(fake.bridge.checkForUpdates).toHaveBeenCalledOnce();
+
+    act(() => fake.look({ status: "checking" }));
+    expect(screen.getByText("Buscando…")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Buscar actualizaciones" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    act(() => fake.look({ status: "failed", reason: "No network" }));
+    expect(screen.getByText("No se pudo buscar: No network")).toBeTruthy();
+    act(() => {
+      fake.look({ status: "idle", lastChecked: Date.now() });
+      fake.offer({ status: "available", version: "0.2.0" });
+    });
+    expect(screen.getByText("Hay una versión nueva: 0.2.0.")).toBeTruthy();
+  });
+
+  it("offers no look where this copy cannot update itself", async () => {
+    const user = userEvent.setup();
+    renderApp(<TitleBar desktop={fakeBridge().bridge} />, { handler });
+    await user.hover(screen.getByText("Beta 0.1.0"));
+    expect(await screen.findByText(/Versión de prueba/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Buscar actualizaciones" })).toBeNull();
   });
 });
