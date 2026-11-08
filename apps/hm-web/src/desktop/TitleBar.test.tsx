@@ -78,10 +78,17 @@ describe("TitleBar", () => {
     const user = userEvent.setup();
     const fake = fakeBridge();
     renderApp(<TitleBar desktop={fake.bridge} />, { handler });
-    act(() => fake.offer({ status: "installing", version: "0.2.0" }));
+    act(() => fake.offer({ status: "installing", version: "0.2.0", step: "preparing" }));
     expect(screen.getByRole("button", { name: "Actualizando…" })).toHaveProperty("disabled", true);
-    act(() => fake.offer({ status: "installing", version: "0.2.0", percent: 40 }));
-    expect(screen.getByRole("button", { name: "Actualizando… 40 %" })).toBeTruthy();
+    // The download and the install each count to 100: each says which one it is.
+    act(() =>
+      fake.offer({ status: "installing", version: "0.2.0", step: "downloading", percent: 100 }),
+    );
+    expect(screen.getByRole("button", { name: "Descargando… 100 %" })).toBeTruthy();
+    act(() =>
+      fake.offer({ status: "installing", version: "0.2.0", step: "installing", percent: 40 }),
+    );
+    expect(screen.getByRole("button", { name: "Instalando… 40 %" })).toBeTruthy();
     act(() => fake.offer({ status: "failed", version: "0.2.0", reason: "Not authorized" }));
     await user.click(screen.getByRole("button", { name: "No se pudo actualizar. Reintentar" }));
     expect(fake.bridge.installUpdate).toHaveBeenCalledOnce();

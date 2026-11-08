@@ -1,7 +1,7 @@
 // Keeps the app's update on offer: looks for a newer version now and then, and installs it when the
 // panel asks. Where updates come from changes by platform (PackageKit on Linux), so it sits behind
 // `UpdateSource`; this file is only the when and the what-to-show.
-import type { UpdateOffer } from "@orca/hm-contract/desktop";
+import type { UpdateOffer, UpdateStep } from "@orca/hm-contract/desktop";
 
 /** A newer version of the app's own package, as the source names it. */
 export interface AvailableUpdate {
@@ -10,15 +10,18 @@ export interface AvailableUpdate {
   readonly version: string;
 }
 
+/** How far installing has got: the step, and its own percentage (absent while unknown). */
+export interface UpdateProgress {
+  readonly step: UpdateStep;
+  readonly percent?: number;
+}
+
 /** Where the app's updates come from. */
 export interface UpdateSource {
   /** Refreshes what is on offer and returns the newer version, if there is one. */
   find(): Promise<AvailableUpdate | undefined>;
   /** Installs it, reporting the progress (undefined while unknown); rejects with the reason. */
-  install(
-    update: AvailableUpdate,
-    onProgress: (percent: number | undefined) => void,
-  ): Promise<void>;
+  install(update: AvailableUpdate, onProgress: (progress: UpdateProgress) => void): Promise<void>;
 }
 
 export interface UpdaterOptions {
@@ -98,13 +101,13 @@ export class Updater {
   async install(): Promise<void> {
     const found = this.found;
     if (!found || this.installing) return;
-    this.set({ status: "installing", version: found.version });
+    this.set({ status: "installing", version: found.version, step: "preparing" });
     try {
-      await this.options.source.install(found, (percent) => {
+      await this.options.source.install(found, ({ step, percent }) => {
         this.set(
           percent === undefined
-            ? { status: "installing", version: found.version }
-            : { status: "installing", version: found.version, percent },
+            ? { status: "installing", version: found.version, step }
+            : { status: "installing", version: found.version, step, percent },
         );
       });
     } catch (error) {

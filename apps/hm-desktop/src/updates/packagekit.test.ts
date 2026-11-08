@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { MessageBus } from "dbus-native";
 import { exitFailure, PackageKitUpdates, parsePackageId, percentOf } from "./packagekit.ts";
+import type { UpdateProgress } from "./updater.ts";
 
 type Listener = (...args: unknown[]) => void;
 
@@ -124,6 +125,7 @@ describe("PackageKitUpdates", () => {
           { Percentage: 100 },
           { Status: 8 },
           { Percentage: 0 },
+          { Status: 3 },
           { Percentage: 101 },
           { Percentage: 20 },
           { Status: 9 },
@@ -134,15 +136,23 @@ describe("PackageKitUpdates", () => {
         emit("Finished", 1, 4000);
       },
     });
-    const progress: (number | undefined)[] = [];
+    const progress: UpdateProgress[] = [];
     await new PackageKitUpdates("orca-hm", { connect: () => bus }).install(
       { id: ours, version: "0.2.0" },
-      (percent) => progress.push(percent),
+      (value) => progress.push(value),
     );
     expect(calls[0]).toMatchObject({ method: "UpdatePackages", args: [2n, [ours]] });
     expect(calls[0]?.hints).toContain("interactive=true");
-    // Only the package's own progress: the preparatory steps' 0 to 100 would jump back and forth.
-    expect(progress).toEqual([0, undefined, 20, 60]);
+    // Only the package's own progress, step by step: the preparatory steps' 0 to 100 would jump
+    // back and forth, and RUNNING (3) inside the download is no new step.
+    expect(progress).toEqual([
+      { step: "downloading" },
+      { step: "downloading", percent: 0 },
+      { step: "downloading" },
+      { step: "downloading", percent: 20 },
+      { step: "installing" },
+      { step: "installing", percent: 60 },
+    ]);
   });
 
   it("fails with PackageKit's own reason, and closes the bus anyway", async () => {

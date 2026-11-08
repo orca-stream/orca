@@ -5,7 +5,8 @@
 // gets the system's password prompt.
 import dbus from "dbus-native";
 import type { DBusInterface, DBusService, MessageBus } from "dbus-native";
-import type { AvailableUpdate, UpdateSource } from "./updater.ts";
+import type { UpdateStep } from "@orca/hm-contract/desktop";
+import type { AvailableUpdate, UpdateProgress, UpdateSource } from "./updater.ts";
 
 const SERVICE = "org.freedesktop.PackageKit";
 const ROOT = "/org/freedesktop/PackageKit";
@@ -18,10 +19,15 @@ const EXIT_CANCELLED = 3;
 /** PkTransactionFlagEnum ONLY_TRUSTED (1), as a bitfield: install only what a signed repo serves. */
 const ONLY_TRUSTED = 1n << 1n;
 /**
- * PkStatusEnum DOWNLOAD, INSTALL and UPDATE. Before them, the Percentage runs from 0 to 100 once
- * per preparatory step (measured: 7, 99, 50, 100, 0, 100…); from them on, it is the package's own.
+ * PkStatusEnum DOWNLOAD (8), INSTALL (9) and UPDATE (10), as the steps shown. Before them, the
+ * Percentage runs from 0 to 100 once per preparatory step (measured: 7, 99, 50, 100, 0, 100…); from
+ * them on it is the package's own, and it starts again from 0 for each (download, then install).
  */
-const PACKAGE_PHASES = new Set([8, 9, 10]);
+const PACKAGE_STEPS = new Map<number, UpdateStep>([
+  [8, "downloading"],
+  [9, "installing"],
+  [10, "installing"],
+]);
 /** No PkFilterEnum bit set: every package. */
 const NO_FILTER = 0n;
 
@@ -98,7 +104,7 @@ export class PackageKitUpdates implements UpdateSource {
 
   async install(
     update: AvailableUpdate,
-    onProgress: (percent: number | undefined) => void,
+    onProgress: (progress: UpdateProgress) => void,
   ): Promise<void> {
     await this.withBus((service) =>
       this.run(
@@ -107,7 +113,7 @@ export class PackageKitUpdates implements UpdateSource {
         ["interactive=true", "background=false"],
         (tx) => tx.UpdatePackages(ONLY_TRUSTED, [update.id]),
         INSTALL_TIMEOUT_MS,
-        { onPercent: onProgress },
+        { onProgress },
       ),
     );
   }
@@ -127,7 +133,10 @@ export class PackageKitUpdates implements UpdateSource {
     hints: string[],
     start: (tx: Transaction) => PromiseLike<void>,
     timeoutMs: number,
-    listeners: { onPackage?: (id: string) => void; onPercent?: (percent?: number) => void } = {},
+    listeners: {
+      onPackage?: (id: string) => void;
+      onProgress?: (progress: UpdateProgress) => void;
+    } = {},
   ): Promise<void> {
     const packageKit = await service.getInterface<PackageKit>(ROOT, SERVICE);
     const path = await packageKit.CreateTransaction();
@@ -144,17 +153,23 @@ export class PackageKitUpdates implements UpdateSource {
       const onPackage = listeners.onPackage;
       await tx.$subscribe("Package", (_info: number, id: string) => onPackage(id));
     }
-    if (listeners.onPercent) {
-      const onPercent = listeners.onPercent;
+    if (listeners.onProgress) {
+      const onProgress = listeners.onProgress;
       const properties: DBusInterface = await service.getInterface(path, PROPERTIES);
-      let ownProgress = false;
+      let step: UpdateStep = "preparing";
       await properties.$subscribe(
         "PropertiesChanged",
         (_iface: string, changed: Record<string, unknown>) => {
-          if (typeof changed.Status === "number" && PACKAGE_PHASES.has(changed.Status)) {
-            ownProgress = true;
+          const next = typeof changed.Status === "number" && PACKAGE_STEPS.get(changed.Status);
+          if (next && next !== step) {
+            // A new step: its percentage is unknown until PackageKit reports one.
+            step = next;
+            onProgress({ step });
           }
-          if (ownProgress && "Percentage" in changed) onPercent(percentOf(changed.Percentage));
+          if (step !== "preparing" && "Percentage" in changed) {
+            const percent = percentOf(changed.Percentage);
+            onProgress(percent === undefined ? { step } : { step, percent });
+          }
         },
       );
     }

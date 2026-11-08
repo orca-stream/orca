@@ -11,12 +11,23 @@ export function isLanguageChoice(value: unknown): value is LanguageChoice {
 }
 
 /**
+ * Where installing an update is: getting ready, downloading the new version, or putting it in place.
+ * Each step reports its own percentage.
+ */
+export type UpdateStep = "preparing" | "downloading" | "installing";
+
+/**
  * A newer version of the app on offer, and how far installing it has got. "failed" keeps the offer
  * so that the panel can try again; `percent` is absent while the progress is unknown.
  */
 export type UpdateOffer =
   | { readonly status: "available"; readonly version: string }
-  | { readonly status: "installing"; readonly version: string; readonly percent?: number }
+  | {
+      readonly status: "installing";
+      readonly version: string;
+      readonly step: UpdateStep;
+      readonly percent?: number;
+    }
   | { readonly status: "failed"; readonly version: string; readonly reason: string };
 
 /**

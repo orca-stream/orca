@@ -62,7 +62,7 @@ function UpdateButton({ update, onInstall }: { update: UpdateOffer; onInstall: (
     return (
       <Button disabled className={className}>
         <Spinner data-icon="inline-start" aria-hidden="true" className="size-5" />
-        {t.desktop.updating(update.percent)}
+        {t.desktop.updating(update.step, update.percent)}
       </Button>
     );
   }

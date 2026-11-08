@@ -1,16 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { UpdateOffer } from "@orca/hm-contract/desktop";
-import { Updater, type AvailableUpdate, type UpdateSource } from "./updater.ts";
+import {
+  Updater,
+  type AvailableUpdate,
+  type UpdateProgress,
+  type UpdateSource,
+} from "./updater.ts";
 
 /** A source the test steers: what `find` returns and how `install` ends. */
 function fakeSource() {
   let offered: AvailableUpdate | undefined;
   let finish: { resolve: () => void; reject: (error: Error) => void } | undefined;
-  let progress: (percent: number | undefined) => void = () => {};
+  let progress: (progress: UpdateProgress) => void = () => {};
   const source = {
     find: vi.fn(async () => offered),
     install: vi.fn(
-      (_update: AvailableUpdate, onProgress: (percent: number | undefined) => void) =>
+      (_update: AvailableUpdate, onProgress: (progress: UpdateProgress) => void) =>
         new Promise<void>((resolve, reject) => {
           progress = onProgress;
           finish = { resolve, reject };
@@ -22,7 +27,7 @@ function fakeSource() {
     offer: (version: string | undefined) => {
       offered = version ? { id: `orca-hm;${version};amd64;orca-hm`, version } : undefined;
     },
-    progress: (percent: number | undefined) => progress(percent),
+    progress: (value: UpdateProgress) => progress(value),
     succeed: () => finish?.resolve(),
     fail: (message: string) => finish?.reject(new Error(message)),
   };
@@ -77,16 +82,24 @@ describe("Updater", () => {
     fake.offer("0.2.0");
     await updater.check();
     const installing = updater.install();
-    fake.progress(undefined);
-    fake.progress(40);
-    expect(updater.current).toEqual({ status: "installing", version: "0.2.0", percent: 40 });
+    fake.progress({ step: "downloading", percent: 100 });
+    fake.progress({ step: "installing" });
+    fake.progress({ step: "installing", percent: 40 });
+    expect(updater.current).toEqual({
+      status: "installing",
+      version: "0.2.0",
+      step: "installing",
+      percent: 40,
+    });
     fake.succeed();
     await installing;
     expect(onInstalled).toHaveBeenCalledOnce();
     expect(seen).toEqual([
       { status: "available", version: "0.2.0" },
-      { status: "installing", version: "0.2.0" },
-      { status: "installing", version: "0.2.0", percent: 40 },
+      { status: "installing", version: "0.2.0", step: "preparing" },
+      { status: "installing", version: "0.2.0", step: "downloading", percent: 100 },
+      { status: "installing", version: "0.2.0", step: "installing" },
+      { status: "installing", version: "0.2.0", step: "installing", percent: 40 },
     ]);
   });
 

@@ -1,3 +1,4 @@
+import type { UpdateStep } from "@orca/hm-contract/desktop";
 import { MIN_PASSWORD_LENGTH } from "@orca/hm-contract/rules";
 
 export const LOCALES = ["es", "en"] as const;
@@ -17,8 +18,14 @@ const es = {
     beta: (version: string) => `Beta ${version}`,
     betaHint: "Versión de prueba: puede cambiar y tener fallos.",
     update: (version: string) => `Actualizar a ${version}`,
-    updating: (percent?: number) =>
-      percent === undefined ? "Actualizando…" : `Actualizando… ${percent} %`,
+    updating: (step: UpdateStep, percent?: number) => {
+      const label = {
+        preparing: "Actualizando",
+        downloading: "Descargando",
+        installing: "Instalando",
+      };
+      return percent === undefined ? `${label[step]}…` : `${label[step]}… ${percent} %`;
+    },
     updateFailed: "No se pudo actualizar. Reintentar",
     updateFailedHint: (reason: string) => `Motivo: ${reason}`,
     minimize: "Minimizar",
@@ -794,7 +801,10 @@ const en: typeof es = {
     beta: (version: string) => `Beta ${version}`,
     betaHint: "A test version: it may change and have bugs.",
     update: (version: string) => `Update to ${version}`,
-    updating: (percent?: number) => (percent === undefined ? "Updating…" : `Updating… ${percent}%`),
+    updating: (step: UpdateStep, percent?: number) => {
+      const label = { preparing: "Updating", downloading: "Downloading", installing: "Installing" };
+      return percent === undefined ? `${label[step]}…` : `${label[step]}… ${percent}%`;
+    },
     updateFailed: "Could not update. Retry",
     updateFailedHint: (reason: string) => `Reason: ${reason}`,
     minimize: "Minimize",
