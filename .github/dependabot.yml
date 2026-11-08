@@ -9,9 +9,10 @@ updates:
     # minutes of a release — without a cooldown every bump fails its first install.
     cooldown:
       default-days: 2
-    # Nothing is published or released, so no commit type cuts a version: plain chore.
+    # release-please cuts Orca'H&M's versions from the commit types: a runtime bump ships in the app,
+    # so it is a fix (`fix(deps)`) and reaches installed copies; a dev bump is `chore(deps-dev)`.
     commit-message:
-      prefix: chore
+      prefix: fix
       prefix-development: chore
       include: scope
     ignore:
