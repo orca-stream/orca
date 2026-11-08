@@ -19,7 +19,7 @@ describe("assertChromium", () => {
         checked.push(path);
         return true;
       },
-      bundledPath: async () => "/never/asked",
+      launchBundled: async () => expect.unreachable(),
     });
     expect(checked).toEqual(["/usr/bin/chromium"]);
   });
@@ -27,7 +27,7 @@ describe("assertChromium", () => {
   it("fails at boot, saying where it looked and what to do, when the configured one is missing", async () => {
     const error = await assertChromium(detector("/opt/nope/chromium"), {
       canExecute: async () => false,
-      bundledPath: async () => "/never/asked",
+      launchBundled: async () => expect.unreachable(),
     }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ConfigError);
     const message = (error as Error).message;
@@ -36,16 +36,32 @@ describe("assertChromium", () => {
     expect(message).toContain("WITH_CHROMIUM=1");
   });
 
-  it("looks for the browser Playwright installs when no path is configured", async () => {
-    await assertChromium(detector(), {
-      canExecute: async (path) => path === "/home/x/.cache/ms-playwright/chromium/chrome",
-      bundledPath: async () => "/home/x/.cache/ms-playwright/chromium/chrome",
-    });
+  it("starts the browser Playwright installs when no path is configured", async () => {
+    const launched: boolean[] = [];
+    await assertChromium(
+      { ...detector(), noSandbox: true },
+      {
+        canExecute: async () => expect.unreachable(),
+        launchBundled: async (noSandbox) => {
+          launched.push(noSandbox);
+        },
+      },
+    );
+    expect(launched).toEqual([true]);
+  });
+
+  it("fails at boot with Playwright's reason when its browser does not start", async () => {
+    const missing = "/home/x/.cache/ms-playwright/chromium_headless_shell-1/chrome-headless-shell";
     const error = await assertChromium(detector(), {
-      canExecute: async () => false,
-      bundledPath: async () => "/home/x/.cache/ms-playwright/chromium/chrome",
+      canExecute: async () => expect.unreachable(),
+      launchBundled: async () => {
+        throw new Error(`browserType.launch: Executable doesn't exist at ${missing}\n╔═══ banner`);
+      },
     }).catch((e: unknown) => e);
-    expect((error as Error).message).toContain("/home/x/.cache/ms-playwright/chromium/chrome");
-    expect((error as Error).message).toContain("playwright install chromium");
+    expect(error).toBeInstanceOf(ConfigError);
+    const message = (error as Error).message;
+    expect(message).toContain(missing);
+    expect(message).not.toContain("banner");
+    expect(message).toContain("playwright install chromium-headless-shell");
   });
 });

@@ -1,11 +1,15 @@
 import { access, constants } from "node:fs/promises";
+import { launchWithSandboxFallback } from "@orca/stream-detector";
 import { ConfigError, type DetectorConfig } from "./config.ts";
 
 export interface ChromiumCheckDeps {
   /** True when the file exists and can be run. */
   canExecute: (path: string) => Promise<boolean>;
-  /** Where Playwright's own Chromium would be. */
-  bundledPath: () => Promise<string>;
+  /**
+   * Starts and closes the browser Playwright installs, as the detector would start it; rejects with
+   * Playwright's own reason when it cannot.
+   */
+  launchBundled: (noSandbox: boolean) => Promise<void>;
 }
 
 const real: ChromiumCheckDeps = {
@@ -14,7 +18,16 @@ const real: ChromiumCheckDeps = {
       () => true,
       () => false,
     ),
-  bundledPath: async () => (await import("playwright")).chromium.executablePath(),
+  // Headless, Playwright runs its "headless shell", not the full Chromium that
+  // `chromium.executablePath()` names: only starting it tells whether the right one is installed.
+  launchBundled: async (noSandbox) => {
+    const { chromium } = await import("playwright");
+    const browser = await launchWithSandboxFallback((options) => chromium.launch(options), {
+      headless: true,
+      ...(noSandbox ? { args: ["--no-sandbox"] } : {}),
+    });
+    await browser.close();
+  },
 };
 
 /**
@@ -32,10 +45,15 @@ export async function assertChromium(
         `Install it (in Docker, build with --build-arg WITH_CHROMIUM=1) or fix the path.`,
     );
   }
-  const bundled = await deps.bundledPath();
-  if (await deps.canExecute(bundled)) return;
-  throw new ConfigError(
-    `HM_GENERIC_DETECTOR is on but Playwright's Chromium is not installed (looked at ${bundled}). ` +
-      `Run \`pnpm exec playwright install chromium\`, or set HM_CHROMIUM_PATH to a Chromium you installed.`,
-  );
+  try {
+    await deps.launchBundled(detector.noSandbox);
+  } catch (error) {
+    // Playwright's first line says which file it looked for; the rest is a banner.
+    const reason = String(error instanceof Error ? error.message : error).split("\n")[0];
+    throw new ConfigError(
+      `HM_GENERIC_DETECTOR is on but Playwright's Chromium does not start (${reason}). ` +
+        `Run \`pnpm exec playwright install chromium-headless-shell\`, or set HM_CHROMIUM_PATH to a Chromium you installed.`,
+      { cause: error },
+    );
+  }
 }
