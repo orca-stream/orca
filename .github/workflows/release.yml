@@ -1,0 +1,122 @@
+name: Release
+
+# Orca'H&M's desktop app: release-please keeps a release PR open from the commits that ship; merging
+# it tags a draft release, and the job below fills it — the .deb, and the APT repository around it —
+# before publishing it as the latest. Installed copies update from that repository (the .deb adds
+# it), so a release only goes out once everything it needs is there.
+on:
+  push:
+    branches: [main]
+  # Escape hatch: rebuild and upload a tagged release's assets, without cutting a new release.
+  # Use it when a release was tagged but its assets never went up.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to rebuild, e.g. orca-hm-v0.2.0"
+        required: true
+
+# Never let two releases race: tagging and filling a release must not interleave.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: Prepare release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    # The package sits at the repository root ("."), so the outputs are the bare names. A package
+    # under a path would namespace them (`<path>--release_created`).
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      # A PR opened with GITHUB_TOKEN gets its CI parked in `action_required` (see toolchain.yml);
+      # RELEASE_PLEASE_TOKEN, a PAT, avoids it when set.
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  linux:
+    name: Linux package and APT repository
+    needs: release-please
+    # always(): on workflow_dispatch the release-please job is skipped, and a skipped dependency
+    # would otherwise skip this one too. `== 'true'`: a bare string test passes on "false".
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # pnpm from corepack, pinned by `packageManager` — not pnpm/action-setup. The second
+      # setup-node wires up the store cache, which needs pnpm on PATH already.
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # electron-builder downloads the Electron it packages on its own: the binary that `electron`'s
+      # postinstall fetches (~100 MB) only serves `pnpm start`.
+      - run: pnpm install --frozen-lockfile
+        env:
+          VP_GIT_HOOKS: "0"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      # The key that signs the APT repository. Its public half goes inside the .deb, which installs
+      # it for apt (scripts/apt.ts).
+      - name: Import the signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            echo "::error::Set the APT_SIGNING_KEY secret (an armored private key, no passphrase)."
+            exit 1
+          fi
+          gpg --batch --import <<< "$APT_SIGNING_KEY"
+          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ { print $10; exit }')
+          echo "APT_SIGNING_KEY_ID=$fpr" >> "$GITHUB_ENV"
+          gpg --export "$fpr" > "$RUNNER_TEMP/orca-hm.gpg"
+
+      # The .deb points apt at this repository's latest release, whose assets are the repository.
+      - name: Build the .deb
+        env:
+          HM_APT_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
+          HM_APT_KEY_FILE: ${{ runner.temp }}/orca-hm.gpg
+        run: pnpm --filter @orca/hm-desktop dist:linux
+
+      - name: Build the APT repository
+        run: |
+          set -euo pipefail
+          command -v apt-ftparchive >/dev/null || sudo apt-get install -y apt-utils
+          apps/hm-desktop/scripts/apt-repo.sh apps/hm-desktop/release/orca-hm_*_amd64.deb "$RUNNER_TEMP/apt"
+
+      # Published only now: until then the release is a draft, which `latest` never points at, so
+      # apt never sees a release without its index.
+      - name: Upload the assets and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$RUNNER_TEMP"/apt/* --clobber
+          gh release edit "$TAG" --draft=false --latest
