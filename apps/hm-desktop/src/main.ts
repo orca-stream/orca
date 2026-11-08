@@ -26,6 +26,8 @@ import { setupView } from "./setup-view.ts";
 import { RETRY_URL, setupPage, shellPage, type SetupView } from "./shell-page.ts";
 import { stringsFor, type Strings } from "./strings.ts";
 import { ToolsSetup, type ToolState } from "./tools/index.ts";
+import { PackageKitUpdates } from "./updates/packagekit.ts";
+import { Updater } from "./updates/updater.ts";
 
 // On Linux the window goes through XWayland. Under native Wayland, GNOME only raises a window that
 // spends the launcher's activation token on screen, and Chromium spends it on a new window before
@@ -45,6 +47,12 @@ const MAPPED_MS = 300;
 
 /** How often the setup page is redrawn while something downloads. */
 const PUSH_MS = 150;
+
+/** The app's Debian package (electron-builder.yml, `deb.packageName`), which updates replace. */
+const DEB_PACKAGE = "orca-hm";
+/** The first look for an update, once the start is over, and then every few hours. */
+const UPDATE_FIRST_CHECK_MS = 60_000;
+const UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
 
 // A fixed folder name: the product name has an apostrophe and an ampersand.
 app.setPath("userData", join(app.getPath("appData"), "orca-hm"));
@@ -98,6 +106,24 @@ if (needsX11) {
   let onSetupPage = false;
   let pushTimer: NodeJS.Timeout | undefined;
   let quitting = false;
+
+  // Installed from the .deb, the app updates through the system's packages (see
+  // updates/packagekit.ts); run from the repository, there is nothing to update.
+  const updater =
+    app.isPackaged && process.platform === "linux"
+      ? new Updater({
+          source: new PackageKitUpdates(DEB_PACKAGE, { log: (message) => console.error(message) }),
+          firstCheckMs: UPDATE_FIRST_CHECK_MS,
+          intervalMs: UPDATE_INTERVAL_MS,
+          onChange: (offer) => window?.webContents.send(DESKTOP_CHANNELS.update, offer),
+          // The package manager replaced the app's files: restart into the new version.
+          onInstalled: () => {
+            app.relaunch();
+            app.quit();
+          },
+          log: (message) => console.error(message),
+        })
+      : undefined;
 
   /** The app's own page: waiting for the server, or why it never answered. */
   function ownPage(message: string, detail?: string): string {
@@ -340,7 +366,12 @@ if (needsX11) {
   });
   ipcMain.on(DESKTOP_CHANNELS.close, (event) => owner(event)?.close());
   ipcMain.handle(DESKTOP_CHANNELS.isMaximized, (event) => owner(event)?.isMaximized() ?? false);
-  // DESKTOP_CHANNELS.updateAvailable / installUpdate: wired once the updater lands.
+  ipcMain.handle(DESKTOP_CHANNELS.currentUpdate, (event) =>
+    owner(event) ? (updater?.current ?? null) : null,
+  );
+  ipcMain.on(DESKTOP_CHANNELS.installUpdate, (event) => {
+    if (owner(event)) void updater?.install();
+  });
 
   app.on("second-instance", (_event, _argv, _cwd, data) => {
     // Launched again after an update installed a different build: restart into it, or the menu
@@ -361,6 +392,7 @@ if (needsX11) {
     event.preventDefault();
     quitting = true;
     quitSignal.abort();
+    updater?.stop();
     void server.stop().finally(() => app.quit());
   });
 
@@ -371,5 +403,6 @@ if (needsX11) {
     createTray();
     showWindow();
     await prepareAndStart();
+    updater?.start();
   });
 }

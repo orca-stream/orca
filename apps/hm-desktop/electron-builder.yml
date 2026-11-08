@@ -1,4 +1,5 @@
-# Packaging for Orca'H&M's desktop app. `pnpm stage:server` must run first: it fills build/hm-server.
+# Packaging for Orca'H&M's desktop app. `pnpm stage:server` and `node scripts/deb.ts` must run first:
+# they fill build/hm-server, build/deb and build/apt (`pnpm dist:linux` runs all of it).
 appId: io.github.orcastream.orca.hm
 # A path-safe name: it becomes /opt/orca-hm. People see Orca'H&M (desktop entry, window, tray).
 productName: orca-hm
@@ -17,6 +18,10 @@ extraResources:
   # own entry.
   - from: build/hm-server/node_modules
     to: hm-server/node_modules
+  # The APT repository's source and key, which the .deb's after-install puts in place. Empty in a
+  # local build.
+  - from: build/apt
+    to: apt
 # The app has no runtime dependencies, and the server's native module is a Node-API prebuild.
 npmRebuild: false
 linux:
@@ -36,4 +41,8 @@ linux:
       Name: Orca'H&M
       StartupWMClass: orca-hm
 deb:
+  # Also names the APT source and key (scripts/deb.ts) and what the app updates (src/main.ts).
   packageName: orca-hm
+  # electron-builder's own scripts, plus adding and removing the APT repository.
+  afterInstall: build/deb/after-install.tpl
+  afterRemove: build/deb/after-remove.tpl

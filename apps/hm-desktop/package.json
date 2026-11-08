@@ -13,12 +13,13 @@
     "test": "vp test run",
     "stage:server": "node scripts/stage.ts",
     "start": "pnpm build && electron . --no-sandbox",
-    "dist:linux": "pnpm build && pnpm stage:server && electron-builder --linux deb"
+    "dist:linux": "pnpm build && pnpm stage:server && node scripts/deb.ts && electron-builder --linux deb --publish never"
   },
   "devDependencies": {
     "@hugeicons/core-free-icons": "^4.4.0",
     "@orca/hm-contract": "workspace:*",
     "@types/node": "catalog:",
+    "dbus-native": "0.16.3",
     "electron": "45.2.3",
     "electron-builder": "26.18.0",
     "typescript": "~7.0.2",
