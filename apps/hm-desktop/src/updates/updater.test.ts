@@ -25,7 +25,7 @@ function fakeSource() {
   return {
     source,
     offer: (version: string | undefined) => {
-      offered = version ? { id: `orca-hm;${version};amd64;orca-hm`, version } : undefined;
+      offered = version ? { version } : undefined;
     },
     progress: (value: UpdateProgress) => progress(value),
     succeed: () => finish?.resolve(),

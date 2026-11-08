@@ -3,10 +3,8 @@
 // `UpdateSource`; this file is only the when and the what-to-show.
 import type { UpdateCheck, UpdateOffer, UpdateStep } from "@orca/hm-contract/desktop";
 
-/** A newer version of the app's own package, as the source names it. */
+/** A newer version of the app, passed back to the source to install it. */
 export interface AvailableUpdate {
-  /** The source's own handle on it, passed back to `install`. */
-  readonly id: string;
   readonly version: string;
 }
 

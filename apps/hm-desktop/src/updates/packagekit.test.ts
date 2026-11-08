@@ -65,53 +65,48 @@ function fakeBus(
 }
 
 const ours = "orca-hm;0.2.0;amd64;orca-hm";
+const REPO = "https://repo.example/releases/latest/download";
+
+/** A fetch that serves a `Packages` index listing `version`, or fails with `status`. */
+function serving(version: string | undefined, status = 200) {
+  return vi.fn(async (url: string) => {
+    expect(url).toBe(`${REPO}/Packages`);
+    const body = version ? `Package: orca-hm\nVersion: ${version}\nArchitecture: amd64\n` : "";
+    return new Response(body, { status });
+  }) as unknown as typeof fetch;
+}
+
+function updates(options: { bus?: MessageBus; fetch?: typeof fetch; log?: () => void } = {}) {
+  return new PackageKitUpdates("orca-hm", {
+    repositoryUrl: REPO,
+    currentVersion: "0.1.0",
+    ...(options.bus ? { connect: () => options.bus as MessageBus } : {}),
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.log ? { log: options.log } : {}),
+  });
+}
 
 describe("PackageKitUpdates", () => {
-  it("refreshes the sources, then finds the app's own package among the updates", async () => {
+  it("looks in the app's own repository, without asking PackageKit", async () => {
+    const { bus, calls } = fakeBus({});
+    expect(await updates({ bus, fetch: serving("0.2.0") }).find()).toEqual({ version: "0.2.0" });
+    expect(await updates({ bus, fetch: serving("0.1.0") }).find()).toBeUndefined();
+    expect(await updates({ bus, fetch: serving(undefined) }).find()).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it("fails the look when the repository cannot be read", async () => {
+    await expect(updates({ fetch: serving(undefined, 404) }).find()).rejects.toThrow(/404/);
+  });
+
+  it("refreshes the system's lists, finds the package and installs it from a trusted source", async () => {
     const { bus, calls, close } = fakeBus({
       RefreshCache: (emit) => emit("Finished", 1, 900),
       GetUpdates: (emit) => {
         emit("Package", 327685, "brave-browser;1.99.55;amd64;brave");
         emit("Package", 327685, ours);
-        emit("Package", 327685, "orca-hm-extra;9.9.9;amd64;elsewhere");
         emit("Finished", 1, 20);
       },
-    });
-    const found = await new PackageKitUpdates("orca-hm", { connect: () => bus }).find();
-    expect(found).toEqual({ id: ours, version: "0.2.0" });
-    expect(calls.map((call) => call.method)).toEqual(["RefreshCache", "GetUpdates"]);
-    // A look never asks for a password.
-    expect(calls[0]?.hints).toContain("interactive=false");
-    expect(close).toHaveBeenCalledOnce();
-  });
-
-  it("still looks when another program's repository breaks the refresh", async () => {
-    const log = vi.fn();
-    const { bus } = fakeBus({
-      RefreshCache: (emit) => {
-        emit("ErrorCode", 29, "E: https://repo.example stable Release.gpg is not (yet) available");
-        emit("Finished", 2, 900);
-      },
-      GetUpdates: (emit) => {
-        emit("Package", 327685, ours);
-        emit("Finished", 1, 20);
-      },
-    });
-    const found = await new PackageKitUpdates("orca-hm", { connect: () => bus, log }).find();
-    expect(found?.version).toBe("0.2.0");
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("repo.example"));
-  });
-
-  it("finds nothing when the package has no update", async () => {
-    const { bus } = fakeBus({
-      RefreshCache: (emit) => emit("Finished", 1, 1),
-      GetUpdates: (emit) => emit("Finished", 1, 1),
-    });
-    expect(await new PackageKitUpdates("orca-hm", { connect: () => bus }).find()).toBeUndefined();
-  });
-
-  it("installs only from a trusted source, reporting the progress", async () => {
-    const { bus, calls } = fakeBus({
       // The sequence measured from a real PackageKit 1.3.4 (Ubuntu 26.04).
       UpdatePackages: (emit) => {
         const change = (changed: Record<string, number>) =>
@@ -137,15 +132,18 @@ describe("PackageKitUpdates", () => {
       },
     });
     const progress: UpdateProgress[] = [];
-    await new PackageKitUpdates("orca-hm", { connect: () => bus }).install(
-      { id: ours, version: "0.2.0" },
-      (value) => progress.push(value),
-    );
-    expect(calls[0]).toMatchObject({ method: "UpdatePackages", args: [2n, [ours]] });
-    expect(calls[0]?.hints).toContain("interactive=true");
+    await updates({ bus }).install({ version: "0.2.0" }, (value) => progress.push(value));
+    expect(calls.map((call) => call.method)).toEqual([
+      "RefreshCache",
+      "GetUpdates",
+      "UpdatePackages",
+    ]);
+    expect(calls[2]).toMatchObject({ args: [2n, [ours]] });
+    expect(calls[2]?.hints).toContain("interactive=true");
     // Only the package's own progress, step by step: the preparatory steps' 0 to 100 would jump
     // back and forth, and RUNNING (3) inside the download is no new step.
     expect(progress).toEqual([
+      { step: "preparing" },
       { step: "downloading" },
       { step: "downloading", percent: 0 },
       { step: "downloading" },
@@ -153,21 +151,53 @@ describe("PackageKitUpdates", () => {
       { step: "installing" },
       { step: "installing", percent: 60 },
     ]);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("still installs when another program's repository breaks the refresh", async () => {
+    const log = vi.fn();
+    const { bus, calls } = fakeBus({
+      RefreshCache: (emit) => {
+        emit("ErrorCode", 29, "E: https://other.example stable Release.gpg is not (yet) available");
+        emit("Finished", 2, 900);
+      },
+      GetUpdates: (emit) => {
+        emit("Package", 327685, ours);
+        emit("Finished", 1, 20);
+      },
+      UpdatePackages: (emit) => emit("Finished", 1, 10),
+    });
+    await updates({ bus, log }).install({ version: "0.2.0" }, () => {});
+    expect(calls.map((call) => call.method)).toContain("UpdatePackages");
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("other.example"));
+  });
+
+  it("says so when the system does not offer the version yet", async () => {
+    const { bus, calls } = fakeBus({
+      RefreshCache: (emit) => emit("Finished", 1, 1),
+      GetUpdates: (emit) => emit("Finished", 1, 1),
+    });
+    await expect(updates({ bus }).install({ version: "0.2.0" }, () => {})).rejects.toThrow(
+      "The system does not offer version 0.2.0 yet.",
+    );
+    expect(calls.map((call) => call.method)).not.toContain("UpdatePackages");
   });
 
   it("fails with PackageKit's own reason, and closes the bus anyway", async () => {
     const { bus, close } = fakeBus({
+      RefreshCache: (emit) => emit("Finished", 1, 1),
+      GetUpdates: (emit) => {
+        emit("Package", 327685, ours);
+        emit("Finished", 1, 1);
+      },
       UpdatePackages: (emit) => {
         emit("ErrorCode", 4, "Not authorized");
         emit("Finished", 2, 10);
       },
     });
-    await expect(
-      new PackageKitUpdates("orca-hm", { connect: () => bus }).install(
-        { id: ours, version: "0.2.0" },
-        () => {},
-      ),
-    ).rejects.toThrow("Not authorized");
+    await expect(updates({ bus }).install({ version: "0.2.0" }, () => {})).rejects.toThrow(
+      "Not authorized",
+    );
     expect(close).toHaveBeenCalledOnce();
   });
 });

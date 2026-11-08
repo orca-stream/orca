@@ -1,6 +1,6 @@
 // Orca'H&M's desktop shell: runs the server in a utility process, shows its panel in a window and
 // stays in the tray so downloads keep going with the window closed.
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   app,
@@ -30,6 +30,7 @@ import { RETRY_URL, setupPage, shellPage, type SetupView } from "./shell-page.ts
 import { stringsFor, type Strings } from "./strings.ts";
 import { ToolsSetup, type ToolState } from "./tools/index.ts";
 import { PackageKitUpdates } from "./updates/packagekit.ts";
+import { repositoryUrlFrom } from "./updates/repository.ts";
 import { Updater } from "./updates/updater.ts";
 
 // On Linux the window goes through XWayland. Under native Wayland, GNOME only raises a window that
@@ -47,6 +48,20 @@ if (needsX11) {
 
 /** Time for a window just shown to be on screen with its startup id. */
 const MAPPED_MS = 300;
+
+/**
+ * The APT repository this build adds (resources/apt, see scripts/apt.ts), which updates come from.
+ * A local build carries none, and so never updates itself.
+ */
+function aptRepositoryUrl(): string | undefined {
+  try {
+    return repositoryUrlFrom(
+      readFileSync(join(process.resourcesPath, "apt", `${DEB_PACKAGE}.sources`), "utf8"),
+    );
+  } catch {
+    return undefined;
+  }
+}
 
 /** How often the setup page is redrawn while something downloads. */
 const PUSH_MS = 150;
@@ -116,10 +131,15 @@ if (needsX11) {
 
   // Installed from the .deb, the app updates through the system's packages (see
   // updates/packagekit.ts); run from the repository, there is nothing to update.
+  const repositoryUrl = app.isPackaged ? aptRepositoryUrl() : undefined;
   const updater =
-    app.isPackaged && process.platform === "linux"
+    repositoryUrl && process.platform === "linux"
       ? new Updater({
-          source: new PackageKitUpdates(DEB_PACKAGE, { log: (message) => console.error(message) }),
+          source: new PackageKitUpdates(DEB_PACKAGE, {
+            repositoryUrl,
+            currentVersion: app.getVersion(),
+            log: (message) => console.error(message),
+          }),
           firstCheckMs: UPDATE_FIRST_CHECK_MS,
           intervalMs: UPDATE_INTERVAL_MS,
           onChange: (offer) => {

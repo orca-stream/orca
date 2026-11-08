@@ -6,6 +6,7 @@
 import dbus from "dbus-native";
 import type { DBusInterface, DBusService, MessageBus } from "dbus-native";
 import type { UpdateStep } from "@orca/hm-contract/desktop";
+import { fetchLatestVersion, isNewer } from "./repository.ts";
 import type { AvailableUpdate, UpdateProgress, UpdateSource } from "./updater.ts";
 
 const SERVICE = "org.freedesktop.PackageKit";
@@ -31,7 +32,7 @@ const PACKAGE_STEPS = new Map<number, UpdateStep>([
 /** No PkFilterEnum bit set: every package. */
 const NO_FILTER = 0n;
 
-/** How long a look for updates may take, refreshing every source included. */
+/** How long refreshing every source, or listing the updates, may take. */
 const FIND_TIMEOUT_MS = 5 * 60_000;
 /** How long installing may take: a download of ~120 MB on a slow line. */
 const INSTALL_TIMEOUT_MS = 30 * 60_000;
@@ -66,56 +67,76 @@ export function exitFailure(exit: number, error: string | undefined): string | u
   return exit === EXIT_CANCELLED ? "The update was cancelled." : `PackageKit ended with ${exit}.`;
 }
 
+export interface PackageKitUpdatesOptions {
+  /** The app's own APT repository, which `find` reads directly (see repository.ts). */
+  repositoryUrl: string;
+  /** The version running now. */
+  currentVersion: string;
+  connect?: () => MessageBus;
+  fetch?: typeof fetch;
+  log?: (message: string) => void;
+}
+
 export class PackageKitUpdates implements UpdateSource {
   private readonly packageName: string;
+  private readonly options: PackageKitUpdatesOptions;
   private readonly connect: () => MessageBus;
   private readonly log: (message: string) => void;
 
   /** `packageName`: the app's own Debian package, e.g. "orca-hm". */
-  constructor(
-    packageName: string,
-    options: { connect?: () => MessageBus; log?: (message: string) => void } = {},
-  ) {
+  constructor(packageName: string, options: PackageKitUpdatesOptions) {
     this.packageName = packageName;
+    this.options = options;
     this.connect = options.connect ?? (() => dbus.systemBus());
     this.log = options.log ?? (() => {});
   }
 
+  /** Reads the repository's own index: under a second, where a PackageKit refresh takes ~7. */
   async find(): Promise<AvailableUpdate | undefined> {
-    return this.withBus(async (service) => {
-      // A look in the background: it never asks for a password.
-      const hints = ["interactive=false", "background=true"];
+    const latest = await fetchLatestVersion(
+      this.options.repositoryUrl,
+      this.packageName,
+      this.options.fetch,
+    );
+    return latest && isNewer(latest, this.options.currentVersion) ? { version: latest } : undefined;
+  }
+
+  /**
+   * Refreshes the system's package lists (the "preparing" step: apt has to learn of the version),
+   * finds the package's update and installs it.
+   */
+  async install(
+    update: AvailableUpdate,
+    onProgress: (progress: UpdateProgress) => void,
+  ): Promise<void> {
+    // Asked for by a click: the system may ask for a password when its rules want one.
+    const hints = ["interactive=true", "background=false"];
+    await this.withBus(async (service) => {
+      onProgress({ step: "preparing" });
       // One broken source (another program's repository with an expired key) fails the whole
       // refresh, although apt still refreshed the others, ours included: go on with what it has.
       await this.run(service, hints, (tx) => tx.RefreshCache(false), FIND_TIMEOUT_MS).catch(
         (error: unknown) =>
           this.log(`Refreshing the package sources failed, going on: ${String(error)}`),
       );
-      let found: AvailableUpdate | undefined;
+      let id: string | undefined;
       await this.run(service, hints, (tx) => tx.GetUpdates(NO_FILTER), FIND_TIMEOUT_MS, {
-        onPackage: (id) => {
-          const parsed = parsePackageId(id);
-          if (parsed?.name === this.packageName) found = { id, version: parsed.version };
+        onPackage: (packageId) => {
+          if (parsePackageId(packageId)?.name === this.packageName) id = packageId;
         },
       });
-      return found;
-    });
-  }
-
-  async install(
-    update: AvailableUpdate,
-    onProgress: (progress: UpdateProgress) => void,
-  ): Promise<void> {
-    await this.withBus((service) =>
-      this.run(
+      if (!id) {
+        throw new Error(`The system does not offer version ${update.version} yet.`);
+      }
+      const packageId = id;
+      await this.run(
         service,
-        // Asked for by a click: the system may ask for a password when its rules want one.
-        ["interactive=true", "background=false"],
-        (tx) => tx.UpdatePackages(ONLY_TRUSTED, [update.id]),
+        hints,
+        (tx) => tx.UpdatePackages(ONLY_TRUSTED, [packageId]),
         INSTALL_TIMEOUT_MS,
         { onProgress },
-      ),
-    );
+      );
+    });
   }
 
   private async withBus<T>(work: (service: DBusService) => Promise<T>): Promise<T> {
