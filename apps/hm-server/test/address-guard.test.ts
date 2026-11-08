@@ -12,7 +12,7 @@ describe("isBlockedAddress", () => {
     "10.0.0.5",
     "172.16.0.1",
     "172.31.255.255",
-    "192.168.1.145",
+    "192.168.0.10",
     // link-local and cloud metadata
     "169.254.169.254",
     "169.254.0.1",
@@ -126,7 +126,7 @@ describe("AddressGuard", () => {
       "http://[::ffff:127.0.0.1]/",
       "http://[::ffff:7f00:1]/",
       "http://169.254.169.254/latest/meta-data/",
-      "http://192.168.1.145:8096/",
+      "http://192.168.0.10:8096/",
       "http://0.0.0.0:8787/",
     ]) {
       await expect(guard.assertUrl(bad), bad).rejects.toBeInstanceOf(PermanentError);

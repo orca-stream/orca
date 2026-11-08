@@ -199,8 +199,8 @@ describe("the QR link", () => {
   });
 
   it("is only offered when a phone can open this app", () => {
-    expect(phoneReachableAppUrl(new URL("http://192.168.1.50:5173/?x=1"))).toBe(
-      "http://192.168.1.50:5173/",
+    expect(phoneReachableAppUrl(new URL("http://192.168.0.50:5173/?x=1"))).toBe(
+      "http://192.168.0.50:5173/",
     );
     expect(phoneReachableAppUrl(new URL("http://localhost:5173/"))).toBeNull();
     expect(phoneReachableAppUrl(new URL("http://127.0.0.1:4173/"))).toBeNull();

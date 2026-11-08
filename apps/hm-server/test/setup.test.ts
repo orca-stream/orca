@@ -252,7 +252,7 @@ describe("a server with settings", () => {
 });
 
 describe("the front door", () => {
-  const lan = { incoming: { socket: { remoteAddress: "192.168.1.20", remotePort: 1 } } };
+  const lan = { incoming: { socket: { remoteAddress: "192.168.0.20", remotePort: 1 } } };
   const app = () => createRootApp({ setup });
   const postJson = (body: unknown, headers: Record<string, string> = {}) => ({
     method: "POST",

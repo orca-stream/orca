@@ -48,7 +48,7 @@ describe("GenericPageExtractor", () => {
       "http://127.0.0.1:8096/",
       "http://localhost/admin",
       "http://169.254.169.254/latest/meta-data/",
-      "http://192.168.1.145:8096/",
+      "http://192.168.0.10:8096/",
       "http://[::1]/",
       "https://inside.example.com/page",
     ]) {
