@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.0...orca-hm-v0.3.1) (2026-11-08)
+
+
+### 🐛 Bug Fixes
+
+* **hm-desktop:** look for updates in the app's own repository
+
 ## [0.3.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.2.1...orca-hm-v0.3.0) (2026-11-08)
 
 
