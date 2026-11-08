@@ -39,7 +39,8 @@ direcciones (también la red local) en el puerto `8787` y guarda su base de dato
 `apps/hm-server/data/hm.sqlite` (para cambiarlo, ver [Entorno](#entorno)). Abre el panel: mientras el
 servidor no esté configurado, cualquier dirección muestra la **configuración**:
 
-1. **Acceso al panel.** Quién entra al panel: un **administrador de Jellyfin**, o el **administrador de
+1. **Idioma y acceso al panel.** El idioma del panel en este aparato (**Automático** sigue el del
+   sistema; también en **Ajustes › Idioma**, se guarda al instante y por aparato, no en el servidor). Quién entra al panel: un **administrador de Jellyfin**, o el **administrador de
    H&M**, un usuario y una contraseña que eliges aquí (al menos 8 caracteres), guardada en la base
    como un hash con sal.
 2. **Jellyfin y la carpeta.** **Usar Jellyfin** es opcional (queda encendido mientras se entre al panel
@@ -162,11 +163,14 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras
   el primer vídeo) viene con valores sugeridos.
-- En local, instala el Chromium de Playwright con
-  `pnpm --filter @orca/hm-server exec playwright install chromium`, o escribe la ruta de otro Chromium
+- En local, instala el Chromium sin interfaz de Playwright (el que usa en modo headless) con
+  `pnpm --filter @orca/hm-server exec playwright install chromium-headless-shell`; al arrancar, H&M lo
+  abre una vez para comprobarlo. O escribe la ruta de otro Chromium
   en **Ajustes › Navegador**. En la imagen Docker construida con `WITH_CHROMIUM=1`, usa
   `/usr/bin/chromium`. Chromium arranca con su sandbox, y sin él solo cuando dice que no puede crearlo
   (un contenedor, o ejecutado como root): no hay nada que activar.
+- La app de escritorio no necesita nada de esto: en su primer arranque descarga ese Chromium y ffmpeg
+  ella misma, mostrando el progreso, y los guarda junto a sus datos.
 
 El navegador y ffmpeg pasan por un proxy local protegido que rechaza direcciones privadas y locales; ver
 [What the generic detector can reach](../../hm-server-design.md#what-the-generic-detector-can-reach).

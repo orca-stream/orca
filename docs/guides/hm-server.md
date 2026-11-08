@@ -39,7 +39,8 @@ address (the LAN too) on port `8787` and keeps its database in `apps/hm-server/d
 [Environment](#environment) to change that). Open the panel: until the server is set up, every address
 shows the **setup**:
 
-1. **Panel access.** Who signs in to the panel: a **Jellyfin administrator**, or **H&M's own
+1. **Language and panel access.** The panel's language on this device (**Automatic** follows the
+   system's; also in **Settings › Language**, saved at once and per device, not in the server). Who signs in to the panel: a **Jellyfin administrator**, or **H&M's own
    administrator**, a name and a password you choose here (at least 8 characters), kept in the
    database as a salted hash.
 2. **Jellyfin and the folder.** **Use Jellyfin** is optional (it stays on while the panel signs in with
@@ -156,11 +157,14 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     then pick its target season and first episode, as with any other source.
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.
-- Locally, install Playwright's Chromium with
-  `pnpm --filter @orca/hm-server exec playwright install chromium`, or give another Chromium's path in
+- Locally, install Playwright's headless Chromium (the build it runs headless) with
+  `pnpm --filter @orca/hm-server exec playwright install chromium-headless-shell`; at boot H&M starts
+  it once to check. Or give another Chromium's path in
   **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`.
   Chromium starts with its sandbox, and without it only when it says it cannot make one (a container,
   or running as root): nothing to turn on.
+- The desktop app needs none of this: on its first start it downloads that Chromium and ffmpeg itself,
+  showing their progress, and keeps them beside its data.
 
 The browser and ffmpeg go through a guarded local proxy that refuses private and local addresses; see
 [What the generic detector can reach](../hm-server-design.md#what-the-generic-detector-can-reach).
