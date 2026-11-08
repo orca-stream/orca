@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.1...orca-hm-v0.3.2) (2026-11-08)
+
+
+### 🐛 Bug Fixes
+
+* **hm-desktop:** count the step after the download as installing
+
 ## [0.3.1](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.0...orca-hm-v0.3.1) (2026-11-08)
 
 
