@@ -50,7 +50,11 @@ describe("downloadFile", () => {
   });
 
   it("fetches a big file in parallel ranges from the address it was redirected to", async () => {
-    const big = new Uint8Array(9 * 1024 * 1024).map((_, i) => (i * 7) % 251);
+    // Past the parallel threshold; a repeating 251-byte pattern so a misplaced range shows.
+    const pattern = Uint8Array.from({ length: 251 }, (_, i) => (i * 7) % 251);
+    const big = new Uint8Array(9 * 1024 * 1024);
+    for (let at = 0; at < big.length; at += pattern.length)
+      big.set(pattern.subarray(0, big.length - at), at);
     const asked: string[] = [];
     const ranged = (async (input: string, init?: RequestInit) => {
       const range = new Headers(init?.headers).get("range") ?? "";
@@ -80,7 +84,8 @@ describe("downloadFile", () => {
       connections: 4,
       fetch: ranged,
     });
-    expect(await readFile(to)).toEqual(Buffer.from(big));
+    // `equals`, not `toEqual`: a deep diff of 9 MB alone eats the test's timeout on a slow runner.
+    expect((await readFile(to)).equals(big)).toBe(true);
     expect(last).toBe(big.length);
     expect(asked).toHaveLength(5);
     expect(asked[0]).toBe("https://downloads.example/big.bin bytes=0-0");
