@@ -114,6 +114,9 @@
 }
 :root.desktop {
   --title-bar-h: 3.5rem;
+  /* Not visible, or the body's overflow goes to the viewport instead and, the body being fixed,
+     there is nothing left to scroll. */
+  overflow: hidden;
 }
 :root.desktop body {
   position: fixed;
