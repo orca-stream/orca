@@ -26,7 +26,11 @@ o VS Code), así que las versiones nuevas llegan como cualquier otra actualizaci
 - **Desde el sistema:** el Actualizador de software (o `sudo apt upgrade`) la actualiza junto con todo
   lo demás.
 
-La app busca una versión nueva un minuto después de arrancar y luego cada seis horas. Tus datos
+La app busca una versión nueva un minuto después de arrancar y luego cada seis horas, también con la
+ventana cerrada (sigue en la bandeja). Al pasar el ratón por la etiqueta **Beta** se ve cuándo buscó
+por última vez, con **Buscar actualizaciones** para buscar ya; una versión disponible aparece también
+en el menú de la bandeja. Mientras se instala, el botón dice **Descargando… N %** y luego
+**Instalando… N %**. Tus datos
 (series, ajustes, el navegador y ffmpeg descargados) viven en `~/.config/orca-hm` y se conservan al
 actualizar.
 

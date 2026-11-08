@@ -25,7 +25,10 @@ new versions arrive like any other update:
   **Could not update. Retry**, with the reason on hover.
 - **From the system:** the Software Updater (or `sudo apt upgrade`) updates it with everything else.
 
-The app looks for a new version a minute after it starts and then every six hours. Your data
+The app looks for a new version a minute after it starts and then every six hours, also with its
+window closed (it keeps running in the tray). Hovering the **Beta** badge shows when it last looked,
+with **Check for updates** to look now; a version on offer also appears in the tray's menu.
+While it installs, the button says **Downloading… N%** and then **Installing… N%**. Your data
 (series, settings, the downloaded browser and ffmpeg) lives in `~/.config/orca-hm` and is kept across
 updates.
 
