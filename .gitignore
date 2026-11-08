@@ -31,10 +31,6 @@ dist-ssr
 # Claude Code local session state (not project source)
 .claude/settings.local.json
 
-# Project memory — a directory symlink into the private brain repo, never versioned
-.memory
-.claude
-
 # Xbox/Windows app: build output and packages
 apps/jp/xbox/Orca/bin
 apps/jp/xbox/Orca/obj
@@ -42,7 +38,6 @@ apps/jp/xbox/out
 
 # Orca'H&M: the extractors file names real sites; only extractors.example.json is versioned
 apps/hm-server/extractors.json
-
 
 # Orca'H&M: the local database (DB_FILE=./data/hm.sqlite in apps/hm-server/.env)
 apps/hm-server/data
