@@ -163,7 +163,7 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   **Settings › Browser**. In the Docker image built with `WITH_CHROMIUM=1`, use `/usr/bin/chromium`.
   Chromium starts with its sandbox, and without it only when it says it cannot make one (a container,
   or running as root): nothing to turn on.
-- The desktop app needs none of this: on its first start it downloads that Chromium and ffmpeg itself,
+- The [desktop app](hm-desktop.md) needs none of this: on its first start it downloads that Chromium and ffmpeg itself,
   showing their progress, and keeps them beside its data.
 
 The browser and ffmpeg go through a guarded local proxy that refuses private and local addresses; see

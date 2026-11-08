@@ -11,7 +11,8 @@ pnpm monorepo; each one runs on its own, and they fit together:
 | **Orca'H&M** server     | Finds shows on the sites you describe, downloads them and files them for Jellyfin                           | [hm-server](docs/guides/hm-server.md) |
 | **Orca'H&M** panel      | The web admin panel for the H&M server, signed in with a Jellyfin administrator or H&M's own administrator  | [hm-web](docs/guides/hm-web.md)       |
 
-Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
+Orca'H&M as one installable program, updated from within: [the desktop app](docs/guides/hm-desktop.md)
+(Linux). Installable builds of Orca'JP: [Android (phone and TV)](docs/guides/android.md) ·
 [Xbox and Windows](docs/guides/xbox.md). How the pieces combine: [Running them together](docs/guides/together.md).
 
 > Private, early-stage project. Nothing is published to a registry or an app store yet.
