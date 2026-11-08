@@ -1,14 +1,14 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { DesktopBridge } from "@orca/hm-contract/desktop";
+import type { DesktopBridge, UpdateOffer } from "@orca/hm-contract/desktop";
 import { jsonResponse, renderApp } from "@/test/render";
 import { TitleBar } from "./TitleBar";
 
 /** A bridge whose events the test fires by hand, as the app's main process would. */
 function fakeBridge() {
   let maximized: (value: boolean) => void = () => {};
-  let update: (version: string) => void = () => {};
+  let update: (offer: UpdateOffer | null) => void = () => {};
   const bridge = {
     version: "0.1.0",
     platform: "linux",
@@ -20,8 +20,9 @@ function fakeBridge() {
       listener(false);
       return () => {};
     },
-    onUpdateAvailable: (listener) => {
+    onUpdate: (listener) => {
       update = listener;
+      listener(null);
       return () => {};
     },
     installUpdate: vi.fn(),
@@ -30,7 +31,7 @@ function fakeBridge() {
   return {
     bridge,
     maximize: (value: boolean) => maximized(value),
-    offer: (v: string) => update(v),
+    offer: (offer: UpdateOffer | null) => update(offer),
   };
 }
 
@@ -68,8 +69,23 @@ describe("TitleBar", () => {
     const fake = fakeBridge();
     renderApp(<TitleBar desktop={fake.bridge} />, { handler });
     expect(screen.queryByRole("button", { name: /Actualizar/ })).toBeNull();
-    act(() => fake.offer("0.2.0"));
+    act(() => fake.offer({ status: "available", version: "0.2.0" }));
     await user.click(screen.getByRole("button", { name: "Actualizar a 0.2.0" }));
     expect(fake.bridge.installUpdate).toHaveBeenCalledOnce();
+  });
+
+  it("shows the install's progress, and offers to retry after a failure", async () => {
+    const user = userEvent.setup();
+    const fake = fakeBridge();
+    renderApp(<TitleBar desktop={fake.bridge} />, { handler });
+    act(() => fake.offer({ status: "installing", version: "0.2.0" }));
+    expect(screen.getByRole("button", { name: "Actualizando…" })).toHaveProperty("disabled", true);
+    act(() => fake.offer({ status: "installing", version: "0.2.0", percent: 40 }));
+    expect(screen.getByRole("button", { name: "Actualizando… 40 %" })).toBeTruthy();
+    act(() => fake.offer({ status: "failed", version: "0.2.0", reason: "Not authorized" }));
+    await user.click(screen.getByRole("button", { name: "No se pudo actualizar. Reintentar" }));
+    expect(fake.bridge.installUpdate).toHaveBeenCalledOnce();
+    act(() => fake.offer(null));
+    expect(screen.queryByRole("button", { name: /actualizar/i })).toBeNull();
   });
 });

@@ -7,9 +7,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
-import type { DesktopBridge } from "@orca/hm-contract/desktop";
+import type { DesktopBridge, UpdateOffer } from "@orca/hm-contract/desktop";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,33 @@ function Control({
   );
 }
 
+/** The update on offer: install it, see it installing, or try again after a failure. */
+function UpdateButton({ update, onInstall }: { update: UpdateOffer; onInstall: () => void }) {
+  const t = useT();
+  const className = "mr-2 tabular-nums [-webkit-app-region:no-drag]";
+  if (update.status === "installing") {
+    return (
+      <Button disabled className={className}>
+        <Spinner data-icon="inline-start" aria-hidden="true" className="size-5" />
+        {t.desktop.updating(update.percent)}
+      </Button>
+    );
+  }
+  const button = (
+    <Button onClick={onInstall} className={className}>
+      <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" className="size-5" />
+      {update.status === "failed" ? t.desktop.updateFailed : t.desktop.update(update.version)}
+    </Button>
+  );
+  if (update.status !== "failed") return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={button} />
+      <TooltipContent side="bottom">{t.desktop.updateFailedHint(update.reason)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
  * The desktop app's title bar, drawn by the panel because the window has no frame: the logo, the
  * version marked as a beta, an update when one is on offer, and the window's own buttons. 56px, its
@@ -61,10 +89,10 @@ function Control({
 export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
   const t = useT();
   const [maximized, setMaximized] = useState(false);
-  const [update, setUpdate] = useState<string>();
+  const [update, setUpdate] = useState<UpdateOffer | null>(null);
 
   useEffect(() => desktop.onMaximizedChange(setMaximized), [desktop]);
-  useEffect(() => desktop.onUpdateAvailable(setUpdate), [desktop]);
+  useEffect(() => desktop.onUpdate(setUpdate), [desktop]);
 
   return (
     <TooltipProvider>
@@ -90,15 +118,7 @@ export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
 
         <div className="flex-1 self-stretch" aria-hidden="true" />
 
-        {update && (
-          <Button
-            onClick={() => desktop.installUpdate()}
-            className="mr-2 [-webkit-app-region:no-drag]"
-          >
-            <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" className="size-5" />
-            {t.desktop.update(update)}
-          </Button>
-        )}
+        {update && <UpdateButton update={update} onInstall={() => desktop.installUpdate()} />}
         <Control
           label={t.desktop.minimize}
           icon={MinusSignIcon}

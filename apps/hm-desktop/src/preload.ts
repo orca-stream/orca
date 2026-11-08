@@ -5,6 +5,7 @@ import {
   DESKTOP_CHANNELS,
   DESKTOP_VERSION_ARG,
   type DesktopBridge,
+  type UpdateOffer,
 } from "@orca/hm-contract/desktop";
 
 const version =
@@ -31,7 +32,13 @@ const bridge: DesktopBridge = {
       .then((maximized: boolean) => listener(maximized));
     return stop;
   },
-  onUpdateAvailable: (listener) => listen(DESKTOP_CHANNELS.updateAvailable, listener),
+  onUpdate(listener) {
+    const stop = listen(DESKTOP_CHANNELS.update, listener);
+    void ipcRenderer
+      .invoke(DESKTOP_CHANNELS.currentUpdate)
+      .then((update: UpdateOffer | null) => listener(update));
+    return stop;
+  },
   installUpdate: () => ipcRenderer.send(DESKTOP_CHANNELS.installUpdate),
   setLanguage: (language) => ipcRenderer.send(DESKTOP_CHANNELS.language, language),
 };

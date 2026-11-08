@@ -11,6 +11,15 @@ export function isLanguageChoice(value: unknown): value is LanguageChoice {
 }
 
 /**
+ * A newer version of the app on offer, and how far installing it has got. "failed" keeps the offer
+ * so that the panel can try again; `percent` is absent while the progress is unknown.
+ */
+export type UpdateOffer =
+  | { readonly status: "available"; readonly version: string }
+  | { readonly status: "installing"; readonly version: string; readonly percent?: number }
+  | { readonly status: "failed"; readonly version: string; readonly reason: string };
+
+/**
  * What the desktop app (apps/hm-desktop) hands the panel as `window.orcaDesktop`, through its
  * preload script. The panel draws the window's own title bar with it; in a browser it is absent.
  */
@@ -26,8 +35,11 @@ export interface DesktopBridge {
   close(): void;
   /** Calls back now and on every change; returns a function that stops listening. */
   onMaximizedChange(listener: (maximized: boolean) => void): () => void;
-  /** Calls back with the version on offer once a newer one is found; returns the unsubscribe. */
-  onUpdateAvailable(listener: (version: string) => void): () => void;
+  /**
+   * Calls back now and on every change with the update on offer, or null while there is none;
+   * returns a function that stops listening.
+   */
+  onUpdate(listener: (update: UpdateOffer | null) => void): () => void;
   /** Installs the version on offer and restarts the app into it. */
   installUpdate(): void;
   /** Tells the app the language chosen in the panel, for the words it shows itself. */
@@ -41,7 +53,8 @@ export const DESKTOP_CHANNELS = {
   close: "window:close",
   isMaximized: "window:is-maximized",
   maximized: "window:maximized",
-  updateAvailable: "update:available",
+  update: "update:state",
+  currentUpdate: "update:current",
   installUpdate: "update:install",
   language: "app:language",
 } as const;
