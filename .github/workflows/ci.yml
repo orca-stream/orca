@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+# No job here runs Electron: its tests, types and bundle need the `electron` package, not the
+# ~100 MB binary its postinstall downloads. Only `pnpm start` uses that; packaging downloads its own.
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
 jobs:
   commitlint:
     name: Commit messages

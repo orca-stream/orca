@@ -58,6 +58,8 @@ jobs:
         if: steps.v.outputs.up_to_date == 'false' && steps.existing.outputs.open == '0'
         env:
           VP_GIT_HOOKS: "0"
+          # Nothing here runs Electron: skip its ~100 MB binary.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: |
           pnpm install --frozen-lockfile
           pnpm typecheck
