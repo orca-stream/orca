@@ -33,6 +33,7 @@ const bridge: DesktopBridge = {
   },
   onUpdateAvailable: (listener) => listen(DESKTOP_CHANNELS.updateAvailable, listener),
   installUpdate: () => ipcRenderer.send(DESKTOP_CHANNELS.installUpdate),
+  setLanguage: (language) => ipcRenderer.send(DESKTOP_CHANNELS.language, language),
 };
 
 contextBridge.exposeInMainWorld("orcaDesktop", bridge);

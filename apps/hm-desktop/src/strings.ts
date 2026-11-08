@@ -9,6 +9,18 @@ const messages = {
     seeLog: "Details are in the log:",
     minimize: "Minimize",
     close: "Close",
+    setupTitle: "Getting Orca'H&M ready",
+    setupDetail:
+      "The first time, Orca'H&M downloads the browser and ffmpeg that its downloads use. This only happens once.",
+    chromium: "Browser (Chromium)",
+    ffmpeg: "ffmpeg",
+    waiting: "Waiting…",
+    of: (received: string, total: string) => `${received} of ${total} MB`,
+    installing: "Installing…",
+    ready: "Ready",
+    failedStep: "Failed",
+    setupFailed: "Something could not be downloaded. Check the internet connection and try again.",
+    retry: "Retry",
   },
   es: {
     open: "Abrir Orca'H&M",
@@ -19,6 +31,18 @@ const messages = {
     seeLog: "Los detalles están en el registro:",
     minimize: "Minimizar",
     close: "Cerrar",
+    setupTitle: "Preparando Orca'H&M",
+    setupDetail:
+      "La primera vez, Orca'H&M descarga el navegador y ffmpeg que usan sus descargas. Solo ocurre una vez.",
+    chromium: "Navegador (Chromium)",
+    ffmpeg: "ffmpeg",
+    waiting: "En espera…",
+    of: (received: string, total: string) => `${received} de ${total} MB`,
+    installing: "Instalando…",
+    ready: "Listo",
+    failedStep: "Falló",
+    setupFailed: "No se pudo descargar algo. Revisa la conexión a internet y vuelve a intentarlo.",
+    retry: "Reintentar",
   },
 };
 

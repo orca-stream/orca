@@ -55,8 +55,8 @@ export class ServerProcess {
     return `http://${SERVER_HOST}:${SERVER_PORT}/`;
   }
 
-  /** Starts the server and resolves once it answers /health. */
-  async start(): Promise<void> {
+  /** Starts the server with `env` (the app's own, plus its tools) and resolves once it answers /health. */
+  async start(env: NodeJS.ProcessEnv = process.env): Promise<void> {
     if (!(await portIsFree(SERVER_PORT, SERVER_HOST)))
       throw new StartError({ reason: "port-busy" });
     mkdirSync(this.layout.dataDir, { recursive: true });
@@ -68,7 +68,7 @@ export class ServerProcess {
       serviceName: "Orca'H&M server",
       stdio: "pipe",
       env: {
-        ...process.env,
+        ...env,
         NODE_ENV: "production",
         HOST: SERVER_HOST,
         PORT: String(SERVER_PORT),

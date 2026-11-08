@@ -1,5 +1,6 @@
 // Orca'H&M's desktop shell: runs the server in a utility process, shows its panel in a window and
 // stays in the tray so downloads keep going with the window closed.
+import { statSync } from "node:fs";
 import { join } from "node:path";
 import {
   app,
@@ -12,10 +13,19 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from "electron";
-import { DESKTOP_CHANNELS, DESKTOP_VERSION_ARG } from "@orca/hm-contract/desktop";
+import {
+  DESKTOP_CHANNELS,
+  DESKTOP_VERSION_ARG,
+  isLanguageChoice,
+  type LanguageChoice,
+} from "@orca/hm-contract/desktop";
+import { localeFor, readPreferences, writePreferences } from "./preferences.ts";
+import { endStartupSequence } from "./startup-notification.ts";
 import { SERVER_PORT, ServerProcess, StartError } from "./server.ts";
-import { shellPage } from "./shell-page.ts";
+import { setupView } from "./setup-view.ts";
+import { RETRY_URL, setupPage, shellPage, type SetupView } from "./shell-page.ts";
 import { stringsFor, type Strings } from "./strings.ts";
+import { ToolsSetup, type ToolState } from "./tools/index.ts";
 
 // On Linux the window goes through XWayland. Under native Wayland, GNOME only raises a window that
 // spends the launcher's activation token on screen, and Chromium spends it on a new window before
@@ -30,34 +40,63 @@ if (needsX11) {
   app.exit(0);
 }
 
+/** Time for a window just shown to be on screen with its startup id. */
+const MAPPED_MS = 300;
+
+/** How often the setup page is redrawn while something downloads. */
+const PUSH_MS = 150;
+
 // A fixed folder name: the product name has an apostrophe and an ampersand.
 app.setPath("userData", join(app.getPath("appData"), "orca-hm"));
 // The panel is forms and lists: software rendering is enough, and it saves the GPU process's memory
 // while the app sits in the tray.
 app.disableHardwareAcceleration();
 
-// A second launch hands its version over: after an update the running app is the old one.
+/**
+ * Which build this is: the version, and when the app's files were written. Reinstalling the same
+ * version (a rebuilt .deb) changes only the second, and the app still running must give way too.
+ */
+const build = { version: app.getVersion(), written: statSync(app.getAppPath()).mtimeMs };
+
+// A second launch hands its build over: after an update the running app is the old one.
 if (needsX11) {
   // Relaunching: nothing else to do in this process.
-} else if (!app.requestSingleInstanceLock({ version: app.getVersion() })) {
+} else if (!app.requestSingleInstanceLock(build)) {
   app.quit();
 } else {
   const appRoot = app.getAppPath();
+  const serverDir = app.isPackaged
+    ? join(process.resourcesPath, "hm-server")
+    : join(appRoot, "build/hm-server");
   const server = new ServerProcess({
-    serverDir: app.isPackaged
-      ? join(process.resourcesPath, "hm-server")
-      : join(appRoot, "build/hm-server"),
+    serverDir,
     // Beside, not among, Chromium's own files in userData.
     dataDir: join(app.getPath("userData"), "data"),
     logFile: join(app.getPath("userData"), "logs/server.log"),
   });
+  // Chromium and ffmpeg, fetched on the first start: the installer ships neither.
+  const tools = new ToolsSetup({ toolsDir: join(app.getPath("userData"), "tools"), serverDir });
+  // Quitting mid-download stops it: the next start begins again from what is missing.
+  const quitSignal = new AbortController();
   const icon = nativeImage.createFromPath(join(appRoot, "resources/icon.png"));
 
   let strings: Strings;
+  /** The language chosen in the panel; the app's own words follow it. */
+  let language: LanguageChoice = "auto";
+  const preferencesFile = join(app.getPath("userData"), "preferences.json");
+  /** What the setup page last showed, to redraw it in another language. */
+  let setupStates: ToolState[] = [];
+  let setupFailure: string | undefined;
   let window: BrowserWindow | undefined;
   let tray: Tray | undefined;
   let ready = false;
-  let failure: string | undefined;
+  /** Why the server did not start, written when shown: the language may change meanwhile. */
+  let failure: (() => string) | undefined;
+  /** While the tools are being fetched: what the setup page shows. */
+  let setup: SetupView | undefined;
+  /** Whether the window shows the setup page, which then takes updates without reloading. */
+  let onSetupPage = false;
+  let pushTimer: NodeJS.Timeout | undefined;
   let quitting = false;
 
   /** The app's own page: waiting for the server, or why it never answered. */
@@ -68,6 +107,101 @@ if (needsX11) {
       labels: { minimize: strings.minimize, close: strings.close },
       ...(detail === undefined ? {} : { detail }),
     });
+  }
+
+  /** The page the window should show right now. */
+  function currentPage(): string {
+    if (failure) return ownPage(strings.failed, failure());
+    if (setup) return setupPage(setup, { minimize: strings.minimize, close: strings.close });
+    return ready ? server.url : ownPage(strings.starting);
+  }
+
+  function load(): void {
+    if (!window) return;
+    onSetupPage = setup !== undefined && failure === undefined;
+    void window.loadURL(currentPage());
+  }
+
+  /** Sends the setup page its new state, at most every PUSH_MS: downloads report every chunk. */
+  function pushSetup(): void {
+    if (!onSetupPage) return load();
+    if (pushTimer) return;
+    pushTimer = setTimeout(() => {
+      pushTimer = undefined;
+      if (window && onSetupPage && setup) {
+        void window.webContents
+          .executeJavaScript(`window.orcaSetup?.(${JSON.stringify(setup)})`)
+          .catch(() => {});
+      }
+    }, PUSH_MS);
+  }
+
+  function displayLocale(): string {
+    return localeFor(language, app.getLocale());
+  }
+
+  /** Redraws the setup page from its last state, in the current language. */
+  function drawSetup(): void {
+    setup = setupView(setupStates, strings, displayLocale(), setupFailure);
+    if (setupFailure === undefined) pushSetup();
+  }
+
+  /** Switches the app's own words to `next`, remembering it for the next start. */
+  function switchLanguage(next: LanguageChoice): void {
+    if (next === language) return;
+    language = next;
+    strings = stringsFor(displayLocale());
+    buildTrayMenu();
+    if (setup) {
+      drawSetup();
+      if (setupFailure !== undefined) load();
+    } else if (!ready) {
+      load();
+    }
+    void writePreferences(preferencesFile, { language }).catch((error: unknown) =>
+      console.error(`Could not save the preferences: ${String(error)}`),
+    );
+  }
+
+  /** Fetches what is missing, then starts the server; a failure leaves the setup page with a retry. */
+  async function prepareAndStart(): Promise<void> {
+    setupStates = [];
+    setupFailure = undefined;
+    try {
+      const missing = await tools.missing();
+      if (missing.length > 0) {
+        await tools.install(
+          missing,
+          (next) => {
+            setupStates = next;
+            drawSetup();
+          },
+          quitSignal.signal,
+        );
+        setup = undefined;
+        load();
+      }
+    } catch (error) {
+      if (quitSignal.signal.aborted) return;
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`Could not fetch the tools: ${reason}`);
+      setupFailure = reason;
+      drawSetup();
+      load();
+      return;
+    }
+    try {
+      await server.start(tools.serverEnv(process.env));
+      ready = true;
+      load();
+    } catch (error) {
+      const portBusy = error instanceof StartError && error.failure.reason === "port-busy";
+      failure = () =>
+        portBusy
+          ? strings.portBusy(SERVER_PORT)
+          : `${strings.seeLog} ${join(app.getPath("userData"), "logs/server.log")}`;
+      load();
+    }
   }
 
   /** The window that sent an IPC message, when it is ours: no other page may drive it. */
@@ -103,7 +237,10 @@ if (needsX11) {
       window?.focus();
     });
     // Closing the window frees its renderer; the server and the tray stay.
-    window.on("closed", () => (window = undefined));
+    window.on("closed", () => {
+      window = undefined;
+      onSetupPage = false;
+    });
     for (const [event, maximized] of [
       ["maximize", true],
       ["unmaximize", false],
@@ -115,6 +252,15 @@ if (needsX11) {
     // The window only ever shows the panel and the app's own pages; any other address goes to the
     // browser, so no outside page ever gets the bridge.
     window.webContents.on("will-navigate", (event, url) => {
+      if (url === RETRY_URL) {
+        event.preventDefault();
+        if (setup?.failure) {
+          setup = { ...setup, failure: undefined };
+          load();
+          void prepareAndStart();
+        }
+        return;
+      }
       if (url.startsWith(server.url) || url.startsWith("data:")) return;
       event.preventDefault();
       void shell.openExternal(url);
@@ -124,24 +270,69 @@ if (needsX11) {
       void shell.openExternal(url);
       return { action: "deny" };
     });
-    void window.loadURL(
-      failure ? ownPage(strings.failed, failure) : ready ? server.url : ownPage(strings.starting),
-    );
+    load();
   }
 
   function createTray(): void {
     tray = new Tray(icon.resize({ width: 24, height: 24 }));
     tray.setToolTip("Orca'H&M");
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: strings.open, click: showWindow },
-        { type: "separator" },
-        { label: strings.quit, click: () => app.quit() },
-      ]),
-    );
-    tray.on("click", showWindow);
+    buildTrayMenu();
+    tray.on("click", openFromTray);
   }
 
+  /**
+   * Ends the startup sequence GNOME's tray opened for the click that showed `target` (see
+   * startup-notification.ts): Chromium put its id on the window once it was on screen.
+   */
+  async function endTrayStartup(target: BrowserWindow): Promise<void> {
+    if (process.platform !== "linux" || target.isDestroyed()) return;
+    await new Promise((resolve) => setTimeout(resolve, MAPPED_MS));
+    if (target.isDestroyed()) return;
+    await endStartupSequence(target.getNativeWindowHandle().readUInt32LE(0));
+  }
+
+  /**
+   * Quits from the tray's menu. The click opened a startup sequence (the busy cursor) that only a
+   * window can pick up, and quitting shows none: a one-pixel, see-through window takes the id, the
+   * sequence is ended through it, and then the app quits.
+   */
+  async function quitFromTray(): Promise<void> {
+    if (process.platform === "linux") {
+      const blip = new BrowserWindow({
+        width: 1,
+        height: 1,
+        frame: false,
+        transparent: true,
+        skipTaskbar: true,
+        resizable: false,
+        show: false,
+      });
+      blip.showInactive();
+      await endTrayStartup(blip);
+      if (!blip.isDestroyed()) blip.destroy();
+    }
+    app.quit();
+  }
+
+  /** Opens the window from the tray, then ends the startup sequence that click opened. */
+  function openFromTray(): void {
+    showWindow();
+    if (window) void endTrayStartup(window);
+  }
+
+  function buildTrayMenu(): void {
+    tray?.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: strings.open, click: openFromTray },
+        { type: "separator" },
+        { label: strings.quit, click: () => void quitFromTray() },
+      ]),
+    );
+  }
+
+  ipcMain.on(DESKTOP_CHANNELS.language, (event, next: unknown) => {
+    if (owner(event) && isLanguageChoice(next)) switchLanguage(next);
+  });
   ipcMain.on(DESKTOP_CHANNELS.minimize, (event) => owner(event)?.minimize());
   ipcMain.on(DESKTOP_CHANNELS.toggleMaximize, (event) => {
     const target = owner(event);
@@ -152,10 +343,10 @@ if (needsX11) {
   // DESKTOP_CHANNELS.updateAvailable / installUpdate: wired once the updater lands.
 
   app.on("second-instance", (_event, _argv, _cwd, data) => {
-    // Launched again after an update installed a different version: restart into it, or the
-    // menu would keep bringing back the old one sitting in the tray.
-    const launched = (data as { version?: unknown } | null)?.version;
-    if (typeof launched === "string" && launched !== app.getVersion()) {
+    // Launched again after an update installed a different build: restart into it, or the menu
+    // would keep bringing back the old one sitting in the tray.
+    const launched = data as Partial<typeof build> | null;
+    if (launched && (launched.version !== build.version || launched.written !== build.written)) {
       app.relaunch();
       app.quit();
       return;
@@ -169,25 +360,16 @@ if (needsX11) {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    quitSignal.abort();
     void server.stop().finally(() => app.quit());
   });
 
   void app.whenReady().then(async () => {
-    strings = stringsFor(app.getLocale());
+    ({ language } = await readPreferences(preferencesFile));
+    strings = stringsFor(displayLocale());
     Menu.setApplicationMenu(null);
     createTray();
     showWindow();
-    try {
-      await server.start();
-      ready = true;
-      void window?.loadURL(server.url);
-    } catch (error) {
-      const reason =
-        error instanceof StartError && error.failure.reason === "port-busy"
-          ? strings.portBusy(SERVER_PORT)
-          : `${strings.seeLog} ${join(app.getPath("userData"), "logs/server.log")}`;
-      failure = reason;
-      void window?.loadURL(ownPage(strings.failed, reason));
-    }
+    await prepareAndStart();
   });
 }

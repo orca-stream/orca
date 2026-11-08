@@ -292,6 +292,9 @@ importers:
       vite-plus:
         specifier: 'catalog:'
         version: 1.5.0(@types/node@24.19.2)(@vitest/ui@5.1.0)(esbuild@0.28.2)(happy-dom@21.0.4)(jiti@2.7.0)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+      x11:
+        specifier: 4.3.3
+        version: 4.3.3
 
   apps/hm-server:
     dependencies:
@@ -4577,6 +4580,10 @@ packages:
     resolution: {integrity: sha512-c16PKLIRxBYpR3jSWsdS7SFp0COm5SOQdiFjY818dYFHJbMGuLBszpF07LBWmOS1uzrHa9VGdynsEgoeKy0oOQ==}
     engines: {node: '>=20'}
 
+  x11@4.3.3:
+    resolution: {integrity: sha512-scSNghvfgr4ak9tLt3jEAeldE0U641nyLfPPy17he5FrLKCLdSyvWoaTyCFHRPWZ5qldrEe8jeMNTAqm0aKWDg==}
+    engines: {node: '>=18'}
+
   xcode@4.0.0:
     resolution: {integrity: sha512-dDaoWzc9EP2fp9FS9PVZUkyvFxY4y1TOV9pcKaKLk++Ei/qb97XDFEVP7GnW7Osii/TzVABJ0jq2F+9/lq0TVA==}
     engines: {node: '>=14.17.0'}
@@ -8370,6 +8377,8 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
       powershell-utils: 0.2.1
+
+  x11@4.3.3: {}
 
   xcode@4.0.0:
     dependencies:
