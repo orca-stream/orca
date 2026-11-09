@@ -192,6 +192,15 @@ export function createUseCases(deps: Deps) {
     );
   }
 
+  /** One show on one site, however its address is written: host and path, no query or end slash. */
+  const showKey = (extractorId: string, address: string): string | null => {
+    try {
+      const url = new URL(address);
+      return `${extractorId} ${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, "")}`;
+    } catch {
+      return null;
+    }
+  };
   /** The hosts an extractor may name images on; none for an extractor that's gone. */
   const nextUrlOf = (source: SeriesSource): string | null =>
     deps.extractors.get(source.extractorId)?.nextSourceUrl?.(source.sourceUrl) ?? null;
@@ -226,6 +235,13 @@ export function createUseCases(deps: Deps) {
      */
     async searchSites(query: string, signal?: AbortSignal): Promise<SiteSearchDto[]> {
       const searchable = deps.extractors.list().filter((extractor) => extractor.search);
+      if (searchable.length === 0) return [];
+      // A show is the series it was added to whatever season its source reads (`?season=2`).
+      const owners = new Map<string, string>();
+      for (const source of await deps.series.listSources()) {
+        const key = showKey(source.extractorId, source.sourceUrl);
+        if (key && !owners.has(key)) owners.set(key, source.seriesId);
+      }
       return Promise.all(
         searchable.map(async (extractor): Promise<SiteSearchDto> => {
           try {
@@ -246,6 +262,7 @@ export function createUseCases(deps: Deps) {
                     posterUrl: poster
                       ? `/api/search/poster?${new URLSearchParams({ extractor: extractor.id, url: poster }).toString()}`
                       : null,
+                    seriesId: owners.get(showKey(extractor.id, result.url) ?? "") ?? null,
                   };
                 }),
             };

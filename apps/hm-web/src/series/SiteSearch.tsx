@@ -1,13 +1,13 @@
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Tv01Icon } from "@hugeicons/core-free-icons";
+import { FolderCheckIcon, Tv01Icon } from "@hugeicons/core-free-icons";
 import type { SiteSearchResultDto } from "@orca/hm-contract";
 import { MIN_SITE_SEARCH_LENGTH } from "@orca/hm-contract/rules";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode, type RefObject } from "react";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
-import type { ExtractorDto } from "@/api/types";
+import type { ExtractorDto, SeriesDto } from "@/api/types";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useT } from "@/i18n/locale";
@@ -72,6 +72,7 @@ export function SiteSearch({
   value,
   query,
   extractors,
+  series,
   anchor,
   onType,
   onPick,
@@ -81,6 +82,8 @@ export function SiteSearch({
   /** What to search, or null when the address is not a search (a web address, or no site to ask). */
   query: string | null;
   extractors: readonly ExtractorDto[];
+  /** The series there are: a result that is one of them opens it instead of being read. */
+  series: readonly SeriesDto[];
   anchor: RefObject<HTMLElement | null>;
   onType: (text: string) => void;
   onPick: (found: SiteFound) => void;
@@ -129,6 +132,9 @@ export function SiteSearch({
             <Autocomplete.List className="no-scrollbar max-h-[min(30rem,calc(var(--available-height)-3rem))] scroll-py-1 overflow-y-auto overscroll-contain">
               {(item: SiteFound) => {
                 const extractor = extractorOf(item.extractorId);
+                const yours = item.seriesId
+                  ? (series.find((one) => one.id === item.seriesId) ?? null)
+                  : null;
                 return (
                   <Autocomplete.Item
                     key={`${item.extractorId} ${item.url}`}
@@ -139,13 +145,24 @@ export function SiteSearch({
                     <ResultPoster url={item.posterUrl} />
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-base">{item.title}</span>
+                      {item.seriesId && (
+                        // Already added, from any of its seasons: picking it opens that series.
+                        <span className="flex min-w-0 items-center gap-1 text-sm font-medium text-primary">
+                          <HugeiconsIcon icon={FolderCheckIcon} className="size-4 shrink-0" />
+                          <span className="truncate">
+                            {yours
+                              ? `${t.add.siteFoundYours} · ${yours.title}`
+                              : t.add.siteFoundYours}
+                          </span>
+                        </span>
+                      )}
                       {item.originalTitle && (
                         <span className="truncate text-sm text-muted-foreground">
                           {t.add.tmdbOriginal(item.originalTitle)}
                         </span>
                       )}
                       {item.plot && (
-                        <span className="line-clamp-1 text-sm text-muted-foreground">
+                        <span className="line-clamp-2 text-sm text-muted-foreground">
                           {item.plot}
                         </span>
                       )}
@@ -176,14 +193,14 @@ export function SiteSearch({
   );
 }
 
-/** A result's poster as a small card; without one, a TV in its place. */
+/** A result's poster, large enough to tell shows of the same name apart; without one, a TV. */
 function ResultPoster({ url }: { url: string | null }) {
   return (
-    <span className="flex h-15 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black/5 text-muted-foreground">
+    <span className="flex h-24 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/5 text-muted-foreground">
       {url ? (
         <img src={url} alt="" loading="lazy" className="size-full object-cover" />
       ) : (
-        <HugeiconsIcon icon={Tv01Icon} className="size-5" />
+        <HugeiconsIcon icon={Tv01Icon} className="size-6" />
       )}
     </span>
   );

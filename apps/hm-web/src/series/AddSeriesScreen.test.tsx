@@ -393,8 +393,10 @@ describe("AddSeriesScreen", () => {
     const title = () => screen.getByLabelText("Título") as HTMLInputElement;
     await waitFor(() => expect(title().value).toBe("Cowboy Bebop"), { timeout: 2000 });
     // Read again: a fresh form, and the cached answer for the same id must still fill it in.
-    await user.click(screen.getByRole("button", { name: "Previsualizar" }));
-    await waitFor(() => expect(title().value).toBe(""));
+    await user.click(screen.getByRole("button", { name: "Buscar otra serie" }));
+    await waitFor(() => expect(screen.queryByLabelText("Título")).toBeNull());
+    await previewIt(user);
+    expect(title().value).toBe("");
     await user.type(screen.getByLabelText("Id de TMDB"), "30991");
     await waitFor(() => expect(title().value).toBe("Cowboy Bebop"), { timeout: 2000 });
   });
@@ -658,6 +660,7 @@ describe("AddSeriesScreen", () => {
                 year: 2006,
                 plot: null,
                 posterUrl: null,
+                seriesId: null,
               },
             ],
           },
@@ -691,6 +694,54 @@ describe("AddSeriesScreen", () => {
       extractorId: "site-b",
     });
     expect((input as HTMLInputElement).value).toBe("https://origin.test/series/la-casa");
+
+    // Read: the address is the series' until it is searched again, which empties it.
+    expect((input as HTMLInputElement).readOnly).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Buscar otra serie" }));
+    await waitFor(() => expect(screen.queryByLabelText("Título")).toBeNull());
+    const fresh = screen.getByLabelText("Dirección") as HTMLInputElement;
+    expect(fresh.value).toBe("");
+    expect(fresh.readOnly).toBe(false);
+  });
+
+  it("opens a series already added when the sites find it, instead of reading it again", async () => {
+    const user = userEvent.setup();
+    const site = {
+      id: "site-b",
+      name: "Site B",
+      hosts: ["origin.test"],
+      example: "https://origin.test/series/x",
+      explicit: false,
+      searchable: true,
+    };
+    const { requests, location } = setup({
+      extractors: [site],
+      series: [makeSeries({ id: "s7", title: "La casa de siempre" })],
+      siteFound: {
+        "la casa": [
+          {
+            extractorId: "site-b",
+            failed: false,
+            results: [
+              {
+                url: "https://origin.test/series/la-casa",
+                title: "La casa",
+                originalTitle: null,
+                year: null,
+                plot: null,
+                posterUrl: null,
+                seriesId: "s7",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await user.type(await screen.findByLabelText("Dirección"), "la casa");
+    const result = await screen.findByRole("option", { name: /Ya la tienes · La casa de siempre/ });
+    await user.click(result);
+    await waitFor(() => expect(location.history.at(-1)).toBe("/series/s7"));
+    expect(requests.some((r) => new URL(r.url).pathname === "/api/series/preview")).toBe(false);
   });
 
   it("sends no extractor when the choice is automatic, and hides the choice without a generic one", async () => {

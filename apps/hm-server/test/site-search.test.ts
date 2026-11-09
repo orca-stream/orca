@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { createApp } from "../src/infrastructure/web/app.ts";
 import { LoginRateLimiter } from "../src/infrastructure/web/rate-limit.ts";
 import { FakeSettingsRoutes } from "./fakes/ports.ts";
+import { FAKE_URL, FakeExtractor } from "./fakes/extractor.ts";
 import { createHarness, type Harness } from "./harness.ts";
 
 /** A site that answers a search with what the test gives it, or fails when told to. */
@@ -99,6 +100,7 @@ describe("searching the sites", () => {
             year: 2020,
             plot: null,
             posterUrl: poster,
+            seriesId: null,
           },
           // A poster on another host is never fetched for the panel.
           {
@@ -108,6 +110,7 @@ describe("searching the sites", () => {
             year: null,
             plot: null,
             posterUrl: null,
+            seriesId: null,
           },
         ],
       },
@@ -126,5 +129,36 @@ describe("searching the sites", () => {
       url: "https://elsewhere.example/other.webp",
     });
     expect((await get(`/api/search/poster?${elsewhere.toString()}`)).status).toBe(404);
+  });
+});
+
+describe("a search result that is a series already", () => {
+  it("names the series any season of that show was added to", async () => {
+    const fake = Object.assign(new FakeExtractor(), {
+      search: async (): Promise<SearchResult[]> => [
+        // The show's address, where the source was added at its first season's.
+        { kind: "series", url: `${FAKE_URL}/`, title: "Fake" },
+        { kind: "series", url: "https://fake.example/other", title: "Other" },
+      ],
+    });
+    const own = await createHarness({ extractors: [fake] });
+    try {
+      const preview = await own.useCases.previewSeries(`${FAKE_URL}?season=1`, undefined, "fake");
+      const series = await own.useCases.addSeries({
+        previewId: preview.previewId,
+        title: "Fake",
+        year: 2020,
+        episodeKeys: [],
+        follow: false,
+        downloadNow: false,
+      });
+      const [site] = await own.useCases.searchSites("fake");
+      expect(site?.results.map((result) => [result.title, result.seriesId])).toEqual([
+        ["Fake", series.id],
+        ["Other", null],
+      ]);
+    } finally {
+      await own.cleanup();
+    }
   });
 });

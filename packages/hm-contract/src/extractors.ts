@@ -30,6 +30,8 @@ export const SiteSearchResultDto = z.object({
   plot: z.string().nullable(),
   /** Through this server (`/api/search/poster?…`), which fetches it from the site; else null. */
   posterUrl: z.string().nullable(),
+  /** The series already read from this show on this site (any season of it); else null. */
+  seriesId: z.string().nullable(),
 });
 export type SiteSearchResultDto = z.infer<typeof SiteSearchResultDto>;
 

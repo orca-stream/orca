@@ -216,15 +216,15 @@ export function AddSeriesScreen() {
   return (
     <AddSeries
       key={`${round}?${search}`}
-      onStartOver={() => {
-        navigate("/series/new");
+      onStartOver={(into) => {
+        navigate(into ? `/series/new?${new URLSearchParams({ into }).toString()}` : "/series/new");
         setRound((n) => n + 1);
       }}
     />
   );
 }
 
-function AddSeries({ onStartOver }: { onStartOver: () => void }) {
+function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const t = useT();
   const api = useApi();
   const [params] = useSearchParams();
@@ -277,10 +277,19 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   const reader = chosen ?? matched ?? (urlFilled ? null : hinted) ?? null;
   const searchable = (extractors.data ?? []).some((extractor) => extractor.searchable);
   // Text that is not a web address searches the sites, unless a site was picked by hand to read it.
-  const searchQuery = searchable && urlFilled && !chosen && !isWebAddress(url.trim()) ? url : null;
+  // Only before anything is read: a read series keeps its address until "search again".
+  const searchQuery =
+    searchable && urlFilled && !chosen && preview === null && !isWebAddress(url.trim())
+      ? url
+      : null;
   const showChoice =
     explicit.length > 0 &&
     (chosen !== null || (urlFilled && extractors.isSuccess && !matched && searchQuery === null));
+
+  /** Back to an empty address, still into the series it was opened for (if any). */
+  function searchAgain() {
+    onStartOver(intoSeries?.id);
+  }
 
   function typeAddress(text: string) {
     setUrl(text);
@@ -290,6 +299,11 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
 
   /** A site's result: its address is read by the extractor of the site that found it. */
   function pickFound(found: SiteFound) {
+    // A show already added (any of its seasons) is opened, never added again.
+    if (found.seriesId) {
+      navigate(`/series/${encodeURIComponent(found.seriesId)}`);
+      return;
+    }
     typeAddress(found.url);
     runPreview(undefined, { url: found.url, extractorId: found.extractorId });
   }
@@ -771,6 +785,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                 value={url}
                 query={searchQuery}
                 extractors={extractors.data ?? []}
+                series={seriesList.data ?? []}
                 anchor={bar}
                 onType={typeAddress}
                 onPick={pickFound}
@@ -796,6 +811,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                           (searchable ? t.add.urlOrSearchPlaceholder : t.add.urlPlaceholder)
                         }
                         autoFocus
+                        // Read: the address stays as it was read until "search again".
+                        readOnly={attached}
                         aria-invalid={urlError ? true : undefined}
                         aria-describedby={urlError ? urlErrorId : undefined}
                         className="h-full pl-4! text-base md:text-lg"
@@ -815,56 +832,70 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                     )}
                   </InputGroupAddon>
                   <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
-                    {/* A circle that keeps the address wide; into an existing series it is that
-                      series' cover, and its name slides out leftwards on hover, like the reader's. */}
-                    <span className="group/preview relative block size-14">
+                    {attached ? (
+                      // Once read, the address is the series': another one starts over from here.
                       <InputGroupButton
-                        type="submit"
-                        variant="default"
-                        aria-label={
-                          previewMutation.isPending
-                            ? t.add.previewing
-                            : goesInto
-                              ? t.add.previewInto(goesInto.title)
-                              : t.add.preview
-                        }
-                        className={cn(
-                          "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full border-0 p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
-                          goesInto && "p-1 group-hover/preview:pl-3",
-                        )}
-                        // A name is searched, not read: a result is picked from the list instead.
-                        disabled={!urlFilled || previewMutation.isPending || searchQuery !== null}
-                        aria-busy={previewMutation.isPending || undefined}
+                        type="button"
+                        variant="ghost"
+                        aria-label={t.add.searchAgain}
+                        title={t.add.searchAgain}
+                        onClick={searchAgain}
+                        className="size-14 rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5 hover:bg-white hover:text-foreground"
                       >
-                        {goesInto && (
-                          <span
-                            aria-hidden="true"
-                            className="max-w-0 overflow-hidden text-sm font-medium whitespace-nowrap opacity-0 transition-all duration-300 ease-out group-hover/preview:mr-2 group-hover/preview:max-w-48 group-hover/preview:opacity-100"
-                          >
-                            {goesInto.title}
-                          </span>
-                        )}
-                        <span
-                          className={cn(
-                            "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
-                            goesInto ? "size-12 bg-white/20" : "size-14",
-                          )}
-                        >
-                          {previewMutation.isPending ? (
-                            <Spinner aria-hidden="true" className="size-6" />
-                          ) : goesInto?.cover ? (
-                            <img src={goesInto.cover} alt="" className="size-full object-cover" />
-                          ) : (
-                            // The magnifier only for a new series; an existing one without a cover
-                            // keeps a folder in its place.
-                            <HugeiconsIcon
-                              icon={goesInto ? FolderCheckIcon : Search01Icon}
-                              className="size-6"
-                            />
-                          )}
-                        </span>
+                        <HugeiconsIcon icon={RotateLeft01Icon} className="size-6" />
                       </InputGroupButton>
-                    </span>
+                    ) : (
+                      /* A circle that keeps the address wide; into an existing series it is that
+                      series' cover, and its name slides out leftwards on hover, like the reader's. */
+                      <span className="group/preview relative block size-14">
+                        <InputGroupButton
+                          type="submit"
+                          variant="default"
+                          aria-label={
+                            previewMutation.isPending
+                              ? t.add.previewing
+                              : goesInto
+                                ? t.add.previewInto(goesInto.title)
+                                : t.add.preview
+                          }
+                          className={cn(
+                            "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full border-0 p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
+                            goesInto && "p-1 group-hover/preview:pl-3",
+                          )}
+                          // A name is searched, not read: a result is picked from the list instead.
+                          disabled={!urlFilled || previewMutation.isPending || searchQuery !== null}
+                          aria-busy={previewMutation.isPending || undefined}
+                        >
+                          {goesInto && (
+                            <span
+                              aria-hidden="true"
+                              className="max-w-0 overflow-hidden text-sm font-medium whitespace-nowrap opacity-0 transition-all duration-300 ease-out group-hover/preview:mr-2 group-hover/preview:max-w-48 group-hover/preview:opacity-100"
+                            >
+                              {goesInto.title}
+                            </span>
+                          )}
+                          <span
+                            className={cn(
+                              "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
+                              goesInto ? "size-12 bg-white/20" : "size-14",
+                            )}
+                          >
+                            {previewMutation.isPending ? (
+                              <Spinner aria-hidden="true" className="size-6" />
+                            ) : goesInto?.cover ? (
+                              <img src={goesInto.cover} alt="" className="size-full object-cover" />
+                            ) : (
+                              // The magnifier only for a new series; an existing one without a cover
+                              // keeps a folder in its place.
+                              <HugeiconsIcon
+                                icon={goesInto ? FolderCheckIcon : Search01Icon}
+                                className="size-6"
+                              />
+                            )}
+                          </span>
+                        </InputGroupButton>
+                      </span>
+                    )}
                   </InputGroupAddon>
                 </InputGroup>
               </SiteSearch>
@@ -1226,7 +1257,11 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
         {attached && (
           <>
             <DockSeparator />
-            <DockButton label={t.dock.startOver} icon={RotateLeft01Icon} onClick={onStartOver} />
+            <DockButton
+              label={t.dock.startOver}
+              icon={RotateLeft01Icon}
+              onClick={() => onStartOver()}
+            />
           </>
         )}
       </Dock>
