@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/orca-stream/orca/compare/orca-hm-v0.5.0...orca-hm-v0.5.1) (2026-11-09)
+
+
+### 🐛 Bug Fixes
+
+* **deps:** bump the npm group with 4 updates ([5d234f5](https://github.com/orca-stream/orca/commit/5d234f55568d090883108b2af9aaf0b5c682ddc8))
+
 ## [0.5.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.4.0...orca-hm-v0.5.0) (2026-11-09)
 
 
