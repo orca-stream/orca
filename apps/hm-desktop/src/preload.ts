@@ -1,4 +1,5 @@
-// Hands the panel `window.orcaDesktop`: the window's controls and the app's version, nothing more.
+// Hands the panel `window.orcaDesktop`: the window's controls, the app's version and its own
+// preferences, nothing more.
 // Runs sandboxed: it reaches the main process only through the channels below.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import {
@@ -50,6 +51,10 @@ const bridge: DesktopBridge = {
   checkForUpdates: () => ipcRenderer.send(DESKTOP_CHANNELS.checkForUpdates),
   installUpdate: () => ipcRenderer.send(DESKTOP_CHANNELS.installUpdate),
   setLanguage: (language) => ipcRenderer.send(DESKTOP_CHANNELS.language, language),
+  hardwareAcceleration: () => ipcRenderer.invoke(DESKTOP_CHANNELS.hardwareAcceleration),
+  setHardwareAcceleration: (enabled) =>
+    ipcRenderer.invoke(DESKTOP_CHANNELS.setHardwareAcceleration, enabled),
+  restart: () => ipcRenderer.send(DESKTOP_CHANNELS.restart),
 };
 
 contextBridge.exposeInMainWorld("orcaDesktop", bridge);

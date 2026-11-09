@@ -34,6 +34,9 @@ function fakeBridge() {
     checkForUpdates: vi.fn(),
     installUpdate: vi.fn(),
     setLanguage: vi.fn(),
+    hardwareAcceleration: vi.fn(async () => ({ enabled: true, active: true })),
+    setHardwareAcceleration: vi.fn(async () => ({ enabled: true, active: true })),
+    restart: vi.fn(),
   } satisfies DesktopBridge;
   return {
     bridge,

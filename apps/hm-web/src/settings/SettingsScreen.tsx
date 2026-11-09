@@ -29,6 +29,7 @@ import {
   ServerIssues,
   TracksSection,
 } from "./sections";
+import { DesktopSection } from "./DesktopSection";
 import { NoteRow, Panel, PanelButton } from "./rows";
 
 /**
@@ -123,6 +124,7 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
   return (
     <>
       <LanguageSection />
+      <DesktopSection />
       <AccessSection
         draft={draft}
         set={set}

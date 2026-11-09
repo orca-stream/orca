@@ -618,6 +618,14 @@ const es = {
       label: "Idioma",
       auto: "Automático (el del sistema)",
     },
+    desktop: {
+      title: "Aplicación",
+      description: "Cómo se dibuja la ventana de la app de escritorio.",
+      hardwareAcceleration: "Aceleración por hardware",
+      restartNote: "El cambio se aplica al reiniciar la app.",
+      restart: "Reiniciar",
+      saveFailed: "No se pudo guardar el cambio.",
+    },
     access: {
       title: "Acceso al panel",
       description: "Con qué cuenta se entra a H&M.",
@@ -1407,6 +1415,14 @@ const en: typeof es = {
       description: "Which language the panel shows on this device.",
       label: "Language",
       auto: "Automatic (the system's)",
+    },
+    desktop: {
+      title: "App",
+      description: "How the desktop app draws its window.",
+      hardwareAcceleration: "Hardware acceleration",
+      restartNote: "The change applies when the app restarts.",
+      restart: "Restart",
+      saveFailed: "The change could not be saved.",
     },
     access: {
       title: "Panel access",

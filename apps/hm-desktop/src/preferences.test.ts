@@ -13,19 +13,25 @@ afterEach(async () => {
 });
 
 describe("preferences", () => {
-  it("follows the system until a language is chosen, and remembers the choice", async () => {
+  it("follows the system and draws with the GPU until told otherwise, and remembers it", async () => {
     const file = join(dir, "sub", "preferences.json");
-    expect(await readPreferences(file)).toEqual({ language: "auto" });
-    await writePreferences(file, { language: "es" });
-    expect(await readPreferences(file)).toEqual({ language: "es" });
+    expect(readPreferences(file)).toEqual({ language: "auto", hardwareAcceleration: true });
+    await writePreferences(file, { language: "es", hardwareAcceleration: false });
+    expect(readPreferences(file)).toEqual({ language: "es", hardwareAcceleration: false });
   });
 
-  it("ignores a file it cannot read or a language it does not know", async () => {
+  it("ignores a file it cannot read or values it does not know", async () => {
     const file = join(dir, "preferences.json");
     await writeFile(file, "{not json");
-    expect(await readPreferences(file)).toEqual({ language: "auto" });
-    await writeFile(file, JSON.stringify({ language: "fr" }));
-    expect(await readPreferences(file)).toEqual({ language: "auto" });
+    expect(readPreferences(file)).toEqual({ language: "auto", hardwareAcceleration: true });
+    await writeFile(file, JSON.stringify({ language: "fr", hardwareAcceleration: "no" }));
+    expect(readPreferences(file)).toEqual({ language: "auto", hardwareAcceleration: true });
+  });
+
+  it("keeps the language saved before the GPU's switch existed", async () => {
+    const file = join(dir, "preferences.json");
+    await writeFile(file, JSON.stringify({ language: "en" }));
+    expect(readPreferences(file)).toEqual({ language: "en", hardwareAcceleration: true });
   });
 
   it("uses the system's locale only under auto", () => {

@@ -42,6 +42,15 @@ export type UpdateCheck =
   | { readonly status: "failed"; readonly lastChecked?: number; readonly reason: string };
 
 /**
+ * Drawing the window with the GPU. `enabled` is what is saved; `active` is what this run uses, since
+ * Chromium decides it only at start: while they differ, the change waits for a restart.
+ */
+export interface HardwareAcceleration {
+  readonly enabled: boolean;
+  readonly active: boolean;
+}
+
+/**
  * What the desktop app (apps/hm-desktop) hands the panel as `window.orcaDesktop`, through its
  * preload script. The panel draws the window's own title bar with it; in a browser it is absent.
  */
@@ -70,6 +79,12 @@ export interface DesktopBridge {
   installUpdate(): void;
   /** Tells the app the language chosen in the panel, for the words it shows itself. */
   setLanguage(language: LanguageChoice): void;
+  /** Whether the window is drawn with the GPU, saved and in this run. */
+  hardwareAcceleration(): Promise<HardwareAcceleration>;
+  /** Saves the choice for the next start; returns the state as it now stands. */
+  setHardwareAcceleration(enabled: boolean): Promise<HardwareAcceleration>;
+  /** Restarts the app: the server stops as on quitting, and the window comes back. */
+  restart(): void;
 }
 
 /** The IPC channels behind the bridge, between the preload script and the app's main process. */
@@ -86,6 +101,9 @@ export const DESKTOP_CHANNELS = {
   checkForUpdates: "update:check",
   installUpdate: "update:install",
   language: "app:language",
+  hardwareAcceleration: "app:hardware-acceleration",
+  setHardwareAcceleration: "app:set-hardware-acceleration",
+  restart: "app:restart",
 } as const;
 
 /** The argument that carries the app's version to the preload script. */

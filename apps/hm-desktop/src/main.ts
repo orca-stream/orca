@@ -19,6 +19,7 @@ import {
   DESKTOP_CHANNELS,
   DESKTOP_VERSION_ARG,
   isLanguageChoice,
+  type HardwareAcceleration,
   type LanguageChoice,
   type UpdateCheck,
   type UpdateOffer,
@@ -82,9 +83,13 @@ const UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
 
 // A fixed folder name: the product name has an apostrophe and an ampersand.
 app.setPath("userData", join(app.getPath("appData"), "orca-hm"));
-// The panel is forms and lists: software rendering is enough, and it saves the GPU process's memory
-// while the app sits in the tray.
-app.disableHardwareAcceleration();
+const preferencesFile = join(app.getPath("userData"), "preferences.json");
+const preferences = readPreferences(preferencesFile);
+// Drawing with the GPU is a choice in Settings: off saves the GPU process's memory (~60 MB in the
+// tray) but leaves the glass and the animations to the CPU, which is slow. Chromium takes it only
+// before the app is ready, so a change waits for a restart.
+const hardwareAccelerationActive = preferences.hardwareAcceleration;
+if (!hardwareAccelerationActive) app.disableHardwareAcceleration();
 
 /**
  * Which build this is: the version, and when the app's files were written. Reinstalling the same
@@ -116,8 +121,7 @@ if (needsX11) {
 
   let strings: Strings;
   /** The language chosen in the panel; the app's own words follow it. */
-  let language: LanguageChoice = "auto";
-  const preferencesFile = join(app.getPath("userData"), "preferences.json");
+  let language: LanguageChoice = preferences.language;
   const windowStateFile = join(app.getPath("userData"), "window-state.json");
   /** What the setup page last showed, to redraw it in another language. */
   let setupStates: ToolState[] = [];
@@ -232,9 +236,18 @@ if (needsX11) {
     } else if (!ready) {
       load();
     }
-    void writePreferences(preferencesFile, { language }).catch((error: unknown) =>
+    void savePreferences();
+  }
+
+  function savePreferences(): Promise<void> {
+    preferences.language = language;
+    return writePreferences(preferencesFile, preferences).catch((error: unknown) =>
       console.error(`Could not save the preferences: ${String(error)}`),
     );
+  }
+
+  function hardwareAcceleration(): HardwareAcceleration {
+    return { enabled: preferences.hardwareAcceleration, active: hardwareAccelerationActive };
   }
 
   /** Fetches what is missing, then starts the server; a failure leaves the setup page with a retry. */
@@ -465,6 +478,22 @@ if (needsX11) {
   ipcMain.on(DESKTOP_CHANNELS.language, (event, next: unknown) => {
     if (owner(event) && isLanguageChoice(next)) switchLanguage(next);
   });
+  ipcMain.handle(DESKTOP_CHANNELS.hardwareAcceleration, (event) =>
+    owner(event) ? hardwareAcceleration() : null,
+  );
+  ipcMain.handle(DESKTOP_CHANNELS.setHardwareAcceleration, async (event, enabled: unknown) => {
+    if (!owner(event)) return null;
+    if (typeof enabled === "boolean" && enabled !== preferences.hardwareAcceleration) {
+      preferences.hardwareAcceleration = enabled;
+      await savePreferences();
+    }
+    return hardwareAcceleration();
+  });
+  ipcMain.on(DESKTOP_CHANNELS.restart, (event) => {
+    if (!owner(event)) return;
+    app.relaunch();
+    app.quit();
+  });
   ipcMain.on(DESKTOP_CHANNELS.minimize, (event) => owner(event)?.minimize());
   ipcMain.on(DESKTOP_CHANNELS.toggleMaximize, (event) => {
     const target = owner(event);
@@ -509,7 +538,6 @@ if (needsX11) {
   });
 
   void app.whenReady().then(async () => {
-    ({ language } = await readPreferences(preferencesFile));
     strings = stringsFor(displayLocale());
     Menu.setApplicationMenu(null);
     createTray();
