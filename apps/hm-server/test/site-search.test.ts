@@ -139,6 +139,12 @@ describe("a search result that is a series already", () => {
         // The show's address, where the source was added at its first season's.
         { kind: "series", url: `${FAKE_URL}/`, title: "Fake" },
         { kind: "series", url: "https://fake.example/other", title: "Other" },
+        // The same show on another of the site's domains.
+        {
+          kind: "series",
+          url: `${FAKE_URL.replace("fake.example", "mirror.example")}/`,
+          title: "Mirror",
+        },
       ],
     });
     const own = await createHarness({ extractors: [fake] });
@@ -156,6 +162,7 @@ describe("a search result that is a series already", () => {
       expect(site?.results.map((result) => [result.title, result.seriesId])).toEqual([
         ["Fake", series.id],
         ["Other", null],
+        ["Mirror", series.id],
       ]);
     } finally {
       await own.cleanup();

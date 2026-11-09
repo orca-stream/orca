@@ -192,11 +192,15 @@ export function createUseCases(deps: Deps) {
     );
   }
 
-  /** One show on one site, however its address is written: host and path, no query or end slash. */
+  /**
+   * One show on one site, however its address is written: the path, without query or end slash.
+   * Not the host: an extractor is one site, whose domain changes or has mirrors (an old source on
+   * one domain is the same show a search finds on another).
+   */
   const showKey = (extractorId: string, address: string): string | null => {
     try {
       const url = new URL(address);
-      return `${extractorId} ${url.host.toLowerCase()}${url.pathname.replace(/\/+$/, "")}`;
+      return `${extractorId} ${url.pathname.replace(/\/+$/, "")}`;
     } catch {
       return null;
     }
