@@ -45,8 +45,9 @@
     },
     "search": {
       "reads": "json",
-      "url": "https://origin.test/wp-api/v1/search?postType=any&postsPerPage=30&q={query}",
+      "url": "https://origin.test/wp-api/v1/search?postType=any&postsPerPage=30&q={query}&page={page}",
       "items": "data.posts",
+      "lastPage": "data.pagination.last_page",
       "type": {
         "from": "{type}",
         "series": ["tvshows", "animes"],

@@ -130,6 +130,63 @@ describe("createSearch", () => {
   });
 });
 
+describe("createSearch, paged", () => {
+  const post = (slug: string) => ({ title: slug, slug, type: "tvshows" });
+  const paged = (extra: Partial<JsonSearch>) =>
+    JsonSearch.parse({ ...search, url: `${ORIGIN}/search?q={query}&page={page}`, ...extra });
+
+  function pagedSetup(config: JsonSearch, pages: unknown[][], lastPage?: number) {
+    const asked: string[] = [];
+    const http: HttpClient = {
+      getJson: async (url) => {
+        asked.push(url);
+        const page = Number(new URL(url).searchParams.get("page") ?? 1);
+        return {
+          data: {
+            posts: pages[page - 1] ?? [],
+            ...(lastPage === undefined ? {} : { pagination: { last_page: lastPage } }),
+          },
+        };
+      },
+    };
+    const run = createSearch({
+      site: { name: "Site B", example: `${ORIGIN}/series/x`, search: config },
+      http,
+      canHandle: () => true,
+    });
+    return { run, asked };
+  }
+
+  it("reads page after page until one comes empty", async () => {
+    const { run, asked } = pagedSetup(paged({}), [[post("a1")], [post("a2")]]);
+    expect((await run("a")).map((result) => result.title)).toEqual(["a1", "a2"]);
+    expect(asked).toEqual([1, 2, 3].map((page) => `${ORIGIN}/search?q=a&page=${page}`));
+  });
+
+  it("stops at the last page the answer names", async () => {
+    const { run, asked } = pagedSetup(
+      paged({ lastPage: "data.pagination.last_page" }),
+      [[post("a1")], [post("a2")], [post("a3")]],
+      2,
+    );
+    expect(await run("a")).toHaveLength(2);
+    expect(asked).toHaveLength(2);
+  });
+
+  it("reads five pages at most", async () => {
+    const pages = Array.from({ length: 8 }, (_, index) => [post(`a${index}`)]);
+    const { run, asked } = pagedSetup(paged({}), pages);
+    expect(await run("a")).toHaveLength(5);
+    expect(asked).toHaveLength(5);
+  });
+
+  it("asks once when the address has no page slot", async () => {
+    const { run, asked } = pagedSetup(search, [[post("a1")], [post("a2")]]);
+    expect(await run("a")).toHaveLength(1);
+    expect(asked).toHaveLength(1);
+  });
+});
+
 describe("rankByTitle", () => {
   const titled = (title: string, originalTitle?: string) => ({
     title,

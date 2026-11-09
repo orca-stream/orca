@@ -161,8 +161,10 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   Any entry may also say how the site is **searched by name**, in `"search"`. Then typing a name in
   **Add series** (instead of an address) lists what every such site found, and picking one reads it as
   if it had been pasted. For now a search reads a JSON answer (`"reads": "json"`): `url` is where to
-  ask, with `{query}` where the name goes; `items` is where the answer lists what it found
-  (`data.posts`); `type` (optional) reads each item's kind (`"from": "{type}"`) and says which words
+  ask, with `{query}` where the name goes (and `{page}` if the site answers in pages: up to five are
+  read, one after another); `items` is where the answer lists what it found (`data.posts`);
+  `lastPage` (optional) is where a paged answer says its last page (`data.pagination.last_page`),
+  else pages are read until one comes empty; `type` (optional) reads each item's kind (`"from": "{type}"`) and says which words
   are a series and which a movie (only series are offered for now); and `result` builds each one from
   its item with `{field}` slots: `url` by kind (`"series": "/series/{slug}"`, relative to the site),
   `title` and, optionally, `originalTitle`, `year` (its first four digits), `plot` and `poster`. A

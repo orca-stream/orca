@@ -8,7 +8,10 @@ import {
 import { parseUrl } from "./url.ts";
 
 /** More than this many results is a list nobody reads: the best ones are kept. */
-const MAX_RESULTS = 20;
+const MAX_RESULTS = 120;
+/** A paged search reads no more than this many pages: the rest are rarely what was meant. */
+const MAX_PAGES = 5;
+const PAGE_SLOT = "{page}";
 const SLOT = /\{([^{}]+)\}/g;
 const YEAR = /\d{4}/;
 
@@ -124,25 +127,33 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
   ): Promise<SearchResult[]> {
     const typed = query.trim();
     if (typed === "") return [];
-    const url = config.url.replaceAll("{query}", encodeURIComponent(typed));
-    const answer = await http.getJson(url, {
-      ...(options?.signal ? { signal: options.signal } : {}),
-      ...(headers ? { headers } : {}),
-    });
-    const items = config.items === undefined ? answer : at(answer, config.items);
-    if (!Array.isArray(items)) {
-      throw new ExtractorError(
-        "invalid-response",
-        `${site.name} answered the search without a list at ${config.items ?? "its top"}`,
-      );
-    }
+    const address = config.url.replaceAll("{query}", encodeURIComponent(typed));
+    const paged = address.includes(PAGE_SLOT);
     const seen = new Set<string>();
-    const results = items.flatMap((item) => {
-      const result = resultOf(item);
-      if (!result || seen.has(result.url)) return [];
-      seen.add(result.url);
-      return [result];
-    });
+    const results: SearchResult[] = [];
+    // One page after another, never at once: the site's limits hold for its search too.
+    for (let page = 1; page <= (paged ? MAX_PAGES : 1); page++) {
+      const answer = await http.getJson(address.replaceAll(PAGE_SLOT, String(page)), {
+        ...(options?.signal ? { signal: options.signal } : {}),
+        ...(headers ? { headers } : {}),
+      });
+      const items = config.items === undefined ? answer : at(answer, config.items);
+      if (!Array.isArray(items)) {
+        throw new ExtractorError(
+          "invalid-response",
+          `${site.name} answered the search without a list at ${config.items ?? "its top"}`,
+        );
+      }
+      for (const item of items) {
+        const result = resultOf(item);
+        if (!result || seen.has(result.url)) continue;
+        seen.add(result.url);
+        results.push(result);
+      }
+      const last = config.lastPage === undefined ? undefined : Number(at(answer, config.lastPage));
+      if (items.length === 0 || (last !== undefined && Number.isFinite(last) && page >= last))
+        break;
+    }
     return rankByTitle(results, typed).slice(0, MAX_RESULTS);
   };
 }

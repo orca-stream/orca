@@ -166,8 +166,11 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   Cualquier entrada puede decir además cómo se **busca por nombre** en el sitio, en `"search"`. Así, al
   escribir un nombre en **Añadir serie** (en vez de una dirección) se lista lo que encontró cada sitio
   con búsqueda, y al elegir uno se lee como si se hubiera pegado. Por ahora la búsqueda lee una
-  respuesta JSON (`"reads": "json"`): `url` es dónde preguntar, con `{query}` donde va el nombre;
-  `items`, dónde lista la respuesta lo encontrado (`data.posts`); `type` (opcional) lee el tipo de cada
+  respuesta JSON (`"reads": "json"`): `url` es dónde preguntar, con `{query}` donde va el nombre (y
+  `{page}` si el sitio responde por páginas: se leen hasta cinco, una tras otra); `items`, dónde lista
+  la respuesta lo encontrado (`data.posts`); `lastPage` (opcional), dónde dice una respuesta por
+  páginas cuál es la última (`data.pagination.last_page`), si no se leen hasta que una llegue vacía;
+  `type` (opcional) lee el tipo de cada
   elemento (`"from": "{type}"`) y dice qué palabras son serie y cuáles película (por ahora solo se
   ofrecen series); y `result` arma cada resultado con huecos `{campo}`: `url` por tipo
   (`"series": "/series/{slug}"`, relativa al sitio), `title` y, si quieres, `originalTitle`, `year`

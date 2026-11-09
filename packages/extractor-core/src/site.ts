@@ -41,9 +41,15 @@ export const Template = z.string().min(1);
  */
 export const JsonSearch = z.object({
   reads: z.literal("json"),
+  /** With `{page}` too, the answer comes in pages: they are read in order, from 1. */
   url: z.url().includes("{query}", { message: "Needs {query} where the search goes" }),
   /** Where the answer lists the items (`data.posts`). Absent: the answer is the list. */
   items: z.string().min(1).optional(),
+  /**
+   * Where a paged answer says the number of its last page (`data.pagination.last_page`). Absent:
+   * pages are read until one comes empty.
+   */
+  lastPage: z.string().min(1).optional(),
   /**
    * What each item is: `from` reads the site's word for it, and the lists say which words are a
    * series and which a movie. An item whose word is in neither is left out. Absent: every item is a
