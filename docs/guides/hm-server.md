@@ -170,6 +170,15 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   `title` and, optionally, `originalTitle`, `year` (its first four digits), `plot` and `poster`. A
   result the entry itself could not read is never offered. See `site-b` in the example file.
 
+  A site asked by POST (a GraphQL API) takes a `body`, sent as JSON: a text that is just `{query}` or
+  `{page}` becomes what was typed or the page's number, and `{query}` may then be in the body instead
+  of `url`. `nextPage` (optional) is where a paged answer says whether another page follows
+  (`data.Page.pageInfo.hasNextPage`). A slot may name several fields, the first that has something
+  wins (`{title.english|title.romaji}`), one of them may be a word in quotes (`'anime'`), and
+  `:slug` writes it as an address does (`:slug(60)` cuts it to that length). Titles and plots in
+  HTML are read as text. `posterHosts` names the hosts the posters may come from when they are not
+  the site's own. See `site-d` in the example file.
+
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.
 - Locally, install Playwright's headless Chromium (the build it runs headless) with

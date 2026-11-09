@@ -8,6 +8,15 @@ export interface HttpClient {
     options?: { signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<unknown>;
   /**
+   * The JSON answer to `body`, sent as JSON by POST (a GraphQL query). Optional: only a search
+   * described with a `body` needs it.
+   */
+  postJson?(
+    url: string,
+    body: unknown,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<unknown>;
+  /**
    * The body of a web page as text. `headers` (a Referer, a browser's User-Agent) go with the
    * request. Optional: an extractor that reads only JSON never needs it.
    */
@@ -212,4 +221,6 @@ export interface SiteExtractor extends ExtractorInfo {
    * reads. Absent: the site can't be searched, only pasted from.
    */
   search?: (query: string, options?: { signal?: AbortSignal }) => Promise<SearchResult[]>;
+  /** The hosts the search's posters may come from besides `hosts`. Absent: only `hosts`. */
+  posterHosts?: readonly string[];
 }

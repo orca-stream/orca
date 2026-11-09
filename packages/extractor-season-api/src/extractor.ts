@@ -1,6 +1,6 @@
 import {
-  createSearch,
   ExtractorError,
+  searchFields,
   normalizeUrl,
   numberingWarnings,
   ownedUrl,
@@ -128,9 +128,7 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
     canHandle,
-    ...(site.search
-      ? { search: createSearch({ site: { ...site, search: site.search }, http, canHandle }) }
-      : {}),
+    ...searchFields(site, http, canHandle),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const address = owned(input);

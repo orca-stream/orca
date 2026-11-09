@@ -4,6 +4,7 @@ import {
   type HttpClient,
   type SearchResult,
   type SearchResultKind,
+  type SiteExtractor,
 } from "./types.ts";
 import { parseUrl } from "./url.ts";
 
@@ -32,17 +33,92 @@ function at(item: unknown, path: string): unknown {
   return value;
 }
 
+const FILTER = /^(.*?):slug(?:\((\d+)\))?$/s;
+const QUOTED = /^'(.*)'$/s;
+
+/** As an address writes a name: lower case, without accents, a dash for anything else. */
+function slugOf(text: string, length?: number): string {
+  const slug = text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return length === undefined ? slug : slug.slice(0, length).replace(/-+$/g, "");
+}
+
+/** What one slot writes for `item`: its first field (or quoted word) that has something. */
+function slotOf(slot: string, item: unknown): string {
+  const filtered = FILTER.exec(slot);
+  const choices = (filtered ? filtered[1]! : slot).split("|");
+  const length = filtered?.[2] === undefined ? undefined : Number(filtered[2]);
+  for (const choice of choices) {
+    const name = choice.trim();
+    const quoted = QUOTED.exec(name);
+    const value = quoted ? quoted[1] : at(item, name);
+    let written =
+      typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+    if (filtered) written = slugOf(written, length);
+    if (written !== "") return written;
+  }
+  return "";
+}
+
 /** The template with every slot filled in from `item`; undefined when a slot has nothing. */
 function fill(template: string | undefined, item: unknown): string | undefined {
   if (template === undefined) return undefined;
   let missing = false;
-  const text = template.replace(SLOT, (_, path: string) => {
-    const value = at(item, path.trim());
-    const written = typeof value === "string" || typeof value === "number" ? String(value) : "";
-    if (written.trim() === "") missing = true;
-    return written.trim();
+  const text = template.replace(SLOT, (_, slot: string) => {
+    const written = slotOf(slot, item);
+    if (written === "") missing = true;
+    return written;
   });
   return missing || text.trim() === "" ? undefined : text.trim();
+}
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/** Text as it reads: a site may answer a title or a plot in HTML (`<br>`, `&amp;`). */
+function readable(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  const plainText = text
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name: string) => {
+      if (name.startsWith("#")) {
+        const code =
+          name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : Number(name.slice(1));
+        return Number.isInteger(code) && code > 0 && code <= 0x10ffff
+          ? String.fromCodePoint(code)
+          : entity;
+      }
+      return ENTITIES[name.toLowerCase()] ?? entity;
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+  return plainText === "" ? undefined : plainText;
+}
+
+/** The body with `{query}` and `{page}` filled in: a text that is just `{page}` becomes a number. */
+function bodyOf(body: unknown, query: string, page: number): unknown {
+  if (typeof body === "string") {
+    if (body === PAGE_SLOT) return page;
+    return body.replaceAll("{query}", query).replaceAll(PAGE_SLOT, String(page));
+  }
+  if (Array.isArray(body)) return body.map((value) => bodyOf(value, query, page));
+  if (body !== null && typeof body === "object") {
+    return Object.fromEntries(
+      Object.entries(body).map(([key, value]) => [key, bodyOf(value, query, page)]),
+    );
+  }
+  return body;
 }
 
 /** Lower case, without accents or punctuation: how titles are compared. */
@@ -101,13 +177,13 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
   function resultOf(item: unknown): SearchResult | null {
     const kind = kindOf(item);
     const path = kind && fill(config.result.url[kind], item);
-    const title = fill(config.result.title, item);
+    const title = readable(fill(config.result.title, item));
     if (!kind || !path || !title) return null;
     const url = parseUrl(new URL(path, origin).href);
     if (!url || !canHandle(url.href)) return null;
-    const originalTitle = fill(config.result.originalTitle, item);
+    const originalTitle = readable(fill(config.result.originalTitle, item));
     const year = YEAR.exec(fill(config.result.year, item) ?? "")?.[0];
-    const plot = fill(config.result.plot, item);
+    const plot = readable(fill(config.result.plot, item));
     const poster = fill(config.result.poster, item);
     const posterUrl = poster === undefined ? null : parseUrl(new URL(poster, origin).href);
     return {
@@ -127,16 +203,29 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
   ): Promise<SearchResult[]> {
     const typed = query.trim();
     if (typed === "") return [];
-    const address = config.url.replaceAll("{query}", encodeURIComponent(typed));
-    const paged = address.includes(PAGE_SLOT);
+    const { body } = config;
+    const address = body ? config.url : config.url.replaceAll("{query}", encodeURIComponent(typed));
+    const paged = (body ? `${address}${JSON.stringify(body)}` : address).includes(PAGE_SLOT);
+    const post = http.postJson?.bind(http);
+    if (body && !post) {
+      throw new ExtractorError(
+        "network",
+        `${site.name} is searched by POST, which this server can't send`,
+      );
+    }
     const seen = new Set<string>();
     const results: SearchResult[] = [];
+    const asked = {
+      ...(options?.signal ? { signal: options.signal } : {}),
+      ...(headers ? { headers } : {}),
+    };
     // One page after another, never at once: the site's limits hold for its search too.
     for (let page = 1; page <= (paged ? MAX_PAGES : 1); page++) {
-      const answer = await http.getJson(address.replaceAll(PAGE_SLOT, String(page)), {
-        ...(options?.signal ? { signal: options.signal } : {}),
-        ...(headers ? { headers } : {}),
-      });
+      const pageAddress = address.replaceAll(PAGE_SLOT, String(page));
+      const answer =
+        body && post
+          ? await post(pageAddress, bodyOf(body, typed, page), asked)
+          : await http.getJson(pageAddress, asked);
       const items = config.items === undefined ? answer : at(answer, config.items);
       if (!Array.isArray(items)) {
         throw new ExtractorError(
@@ -151,9 +240,31 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
         results.push(result);
       }
       const last = config.lastPage === undefined ? undefined : Number(at(answer, config.lastPage));
-      if (items.length === 0 || (last !== undefined && Number.isFinite(last) && page >= last))
+      const more = config.nextPage === undefined || at(answer, config.nextPage) === true;
+      if (
+        items.length === 0 ||
+        !more ||
+        (last !== undefined && Number.isFinite(last) && page >= last)
+      )
         break;
     }
     return rankByTitle(results, typed).slice(0, MAX_RESULTS);
+  };
+}
+
+/**
+ * The search fields of an extractor whose site's file describes one (its search, and the hosts its
+ * posters may come from); none when it doesn't.
+ */
+export function searchFields(
+  site: Pick<SiteBase, "name" | "example" | "userAgent" | "search">,
+  http: HttpClient,
+  canHandle: (url: string) => boolean,
+): Pick<SiteExtractor, "search" | "posterHosts"> {
+  const config = site.search;
+  if (!config) return {};
+  return {
+    search: createSearch({ site: { ...site, search: config }, http, canHandle }),
+    ...(config.posterHosts ? { posterHosts: config.posterHosts } : {}),
   };
 }

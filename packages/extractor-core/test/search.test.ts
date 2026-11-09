@@ -187,6 +187,141 @@ describe("createSearch, paged", () => {
   });
 });
 
+describe("createSearch, by POST", () => {
+  const GRAPHQL = "https://graphql.origin.test/";
+  const IMAGES = "https://images.origin.test";
+  const query =
+    "query($search:String,$page:Int){ Page(page:$page){ media(search:$search){ id } } }";
+  const graph = JsonSearch.parse({
+    reads: "json",
+    url: GRAPHQL,
+    body: { query, variables: { search: "{query}", page: "{page}", perPage: 20 } },
+    items: "data.Page.media",
+    nextPage: "data.Page.pageInfo.hasNextPage",
+    type: { from: "{format}", series: ["TV", "ONA"], movie: ["MOVIE"] },
+    result: {
+      url: { series: "/anime/{title.english|title.romaji|title.native|'anime':slug(60)}-{id}" },
+      title: "{title.english|title.romaji|title.native}",
+      originalTitle: "{title.romaji}",
+      year: "{seasonYear}",
+      plot: "{description}",
+      poster: "{coverImage.extraLarge|coverImage.large}",
+    },
+    posterHosts: ["images.origin.test"],
+  });
+  const media = (id: number, title: Record<string, string | null>, extra: object = {}) => ({
+    id,
+    title: { romaji: null, english: null, native: null, ...title },
+    format: "TV",
+    coverImage: { extraLarge: null, large: `${IMAGES}/${id}.jpg` },
+    ...extra,
+  });
+
+  function graphSetup(pages: { media: unknown[]; hasNextPage: boolean }[]) {
+    const asked: { url: string; body: unknown; headers: Record<string, string> | undefined }[] = [];
+    const http: HttpClient = {
+      getJson: async () => {
+        throw new Error("a POST search never GETs");
+      },
+      postJson: async (url, body, options) => {
+        asked.push({ url, body, headers: options?.headers });
+        const page = (body as { variables: { page: number } }).variables.page;
+        const answer = pages[page - 1] ?? { media: [], hasNextPage: false };
+        return {
+          data: { Page: { pageInfo: { hasNextPage: answer.hasNextPage }, media: answer.media } },
+        };
+      },
+    };
+    const run = createSearch({
+      site: {
+        name: "Site D",
+        example: "https://another.test/anime/x-1",
+        userAgent: "UA",
+        search: graph,
+      },
+      http,
+      canHandle: (url) => /^\/anime\/[^/]*-(\d+)\/?$/.test(new URL(url).pathname),
+    });
+    return { run, asked };
+  }
+
+  it("posts the body with what was typed as text and the page as a number", async () => {
+    const { run, asked } = graphSetup([{ media: [], hasNextPage: false }]);
+    await run(' spy "x" ');
+    expect(asked).toEqual([
+      {
+        url: GRAPHQL,
+        body: { query, variables: { search: 'spy "x"', page: 1, perPage: 20 } },
+        headers: { "user-agent": "UA" },
+      },
+    ]);
+  });
+
+  it("reads the next page only while the answer says there is one", async () => {
+    const { run, asked } = graphSetup([
+      { media: [media(1, { romaji: "Spy A" })], hasNextPage: true },
+      { media: [media(2, { romaji: "Spy B" })], hasNextPage: false },
+      { media: [media(3, { romaji: "Spy C" })], hasNextPage: false },
+    ]);
+    expect((await run("spy")).map((result) => result.title)).toEqual(["Spy A", "Spy B"]);
+    expect(asked).toHaveLength(2);
+  });
+
+  it("builds the address from the first title there is, as the site writes it", async () => {
+    const { run } = graphSetup([
+      {
+        media: [
+          media(140960, { english: "SPY x FAMILY", romaji: "SPY×FAMILY" }),
+          media(15111, { romaji: "Spy Pengüin" }),
+          media(7, { native: "スパイ教室" }),
+          media(8, { english: "A".repeat(59) + " long tail" }),
+        ],
+        hasNextPage: false,
+      },
+    ]);
+    expect((await run("spy")).map((result) => result.url)).toEqual([
+      "https://another.test/anime/spy-x-family-140960",
+      "https://another.test/anime/spy-penguin-15111",
+      "https://another.test/anime/anime-7",
+      `https://another.test/anime/${"a".repeat(59)}-8`,
+    ]);
+  });
+
+  it("reads titles and plots written in HTML as text", async () => {
+    const { run } = graphSetup([
+      {
+        media: [
+          media(
+            1,
+            { english: "Love, Death &amp; Robots", romaji: "Ai &#x26; Shi" },
+            { description: "A family.<br>\n<br>(Source: <i>Somewhere</i>) &quot;ok&quot;" },
+          ),
+        ],
+        hasNextPage: false,
+      },
+    ]);
+    expect(await run("love")).toEqual([
+      {
+        kind: "series",
+        url: "https://another.test/anime/love-death-amp-robots-1",
+        title: "Love, Death & Robots",
+        originalTitle: "Ai & Shi",
+        plot: 'A family. (Source: Somewhere) "ok"',
+        posterUrl: `${IMAGES}/1.jpg`,
+      },
+    ]);
+  });
+
+  it("can't search by POST through a client that only GETs", async () => {
+    const run = createSearch({
+      site: { name: "Site D", example: "https://another.test/anime/x-1", search: graph },
+      http: { getJson: async () => ({}) },
+      canHandle: () => true,
+    });
+    await expect(run("spy")).rejects.toBeInstanceOf(ExtractorError);
+  });
+});
+
 describe("rankByTitle", () => {
   const titled = (title: string, originalTitle?: string) => ({
     title,
@@ -227,5 +362,15 @@ describe("JsonSearch", () => {
       result: { url: { series: "/series/{slug}" }, title: "{title}" },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("takes the query's slot in the body of a POST search", () => {
+    const result = JsonSearch.safeParse({
+      reads: "json",
+      url: `${ORIGIN}/graphql`,
+      body: { variables: { search: "{query}" } },
+      result: { url: { series: "/series/{slug}" }, title: "{title}" },
+    });
+    expect(result.success).toBe(true);
   });
 });

@@ -177,6 +177,16 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   (sus cuatro primeras cifras), `plot` y `poster`. Nunca se ofrece un resultado que la propia entrada
   no sepa leer. Mira `site-b` en el archivo de ejemplo.
 
+  Un sitio al que se pregunta por POST (una API GraphQL) lleva `body`, que se envía como JSON: un
+  texto que sea solo `{query}` o `{page}` pasa a ser lo escrito o el número de página, y entonces
+  `{query}` puede ir en el cuerpo en vez de en `url`. `nextPage` (opcional) es dónde dice una
+  respuesta por páginas si hay otra detrás (`data.Page.pageInfo.hasNextPage`). Un hueco puede nombrar
+  varios campos y gana el primero que tenga algo (`{title.english|title.romaji}`), uno de ellos puede
+  ser una palabra entre comillas (`'anime'`), y `:slug` lo escribe como una dirección (`:slug(60)` lo
+  corta a ese largo). Los títulos y sinopsis en HTML se leen como texto. `posterHosts` nombra los
+  hosts de los que pueden venir las portadas cuando no son los del sitio. Mira `site-d` en el archivo
+  de ejemplo.
+
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras
   el primer vídeo) viene con valores sugeridos.

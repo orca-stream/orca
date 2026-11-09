@@ -42,6 +42,34 @@ export class FetchHttpClient implements HttpClient {
     });
   }
 
+  postJson(
+    url: string,
+    body: unknown,
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
+  ): Promise<unknown> {
+    return this.limiter.run(new URL(url).host, "metadata", options?.signal, async () => {
+      const response = await this.request(
+        url,
+        options?.signal,
+        {
+          accept: "application/json",
+          "content-type": "application/json",
+          ...lowerCaseKeys(options?.headers ?? {}),
+        },
+        JSON.stringify(body),
+      );
+      try {
+        return await response.json();
+      } catch (error) {
+        throw new ExtractorError(
+          "invalid-response",
+          `${new URL(url).host} did not answer with JSON`,
+          { cause: error },
+        );
+      }
+    });
+  }
+
   getText(
     url: string,
     options?: { signal?: AbortSignal; headers?: Record<string, string> },
@@ -65,10 +93,12 @@ export class FetchHttpClient implements HttpClient {
     url: string,
     signal: AbortSignal | undefined,
     headers: Record<string, string>,
+    body?: string,
   ): Promise<Response> {
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
+        ...(body === undefined ? {} : { method: "POST", body }),
         headers: { "user-agent": this.userAgent, ...headers },
         ...(signal ? { signal } : {}),
       });

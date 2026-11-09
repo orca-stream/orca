@@ -1,6 +1,6 @@
 import {
-  createSearch,
   ExtractorError,
+  searchFields,
   normalizeUrl as normalize,
   numberingWarnings,
   ownsHost,
@@ -174,9 +174,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
     canHandle,
-    ...(site.search
-      ? { search: createSearch({ site: { ...site, search: site.search }, http, canHandle }) }
-      : {}),
+    ...searchFields(site, http, canHandle),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const parsed = parseUrl(input);

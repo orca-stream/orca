@@ -21,4 +21,4 @@ export {
 } from "./types.ts";
 export { normalizeUrl, ownedUrl, ownsHost, parseUrl } from "./url.ts";
 export { numberingWarnings } from "./warnings.ts";
-export { createSearch, rankByTitle, type SearchOptions } from "./search.ts";
+export { createSearch, rankByTitle, searchFields, type SearchOptions } from "./search.ts";

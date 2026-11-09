@@ -115,6 +115,27 @@ describe("FetchHttpClient", () => {
     });
   });
 
+  it("posts a JSON body and parses the JSON answer", async () => {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    const fetchImpl = ((url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      return Promise.resolve(Response.json({ data: 1 }));
+    }) as typeof fetch;
+    const client = new FetchHttpClient({
+      userAgent: "OrcaHM/test",
+      fetch: fetchImpl,
+      limiter: testLimiter().limiter,
+    });
+    await expect(
+      client.postJson("https://graphql.site.example/", { query: "q", variables: { page: 1 } }),
+    ).resolves.toEqual({ data: 1 });
+    expect(calls[0]?.init).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ query: "q", variables: { page: 1 } }),
+      headers: { "content-type": "application/json", accept: "application/json" },
+    });
+  });
+
   it("types a page's errors as it types JSON's", async () => {
     const { fetchImpl } = responder(new Response("gone", { status: 404 }));
     const client = new FetchHttpClient({

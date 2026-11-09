@@ -132,6 +132,36 @@ describe("searching the sites", () => {
   });
 });
 
+describe("a search whose posters live on an images server of its own", () => {
+  it("serves posters from the hosts the search names, and still from no other", async () => {
+    const site: SiteExtractor = {
+      ...searchableSite("site", [
+        {
+          kind: "series",
+          url: "https://site.example/series/the-show",
+          title: "The Show",
+          posterUrl: "https://images.example/the-show.webp",
+        },
+      ]),
+      posterHosts: ["images.example"],
+    };
+    const own = await createHarness({ extractors: [site] });
+    try {
+      const [found] = await own.useCases.searchSites("show");
+      expect(found?.results[0]?.posterUrl).toBe(
+        `/api/search/poster?${new URLSearchParams({ extractor: "site", url: "https://images.example/the-show.webp" }).toString()}`,
+      );
+      await own.useCases.searchPoster("site", "https://images.example/the-show.webp");
+      expect(own.images.hosts.at(-1)).toEqual(["site.example", "images.example"]);
+      await expect(
+        own.useCases.searchPoster("site", "https://elsewhere.example/x.webp"),
+      ).rejects.toMatchObject({ code: "not_found" });
+    } finally {
+      await own.cleanup();
+    }
+  });
+});
+
 describe("a search result that is a series already", () => {
   it("names the series any season of that show was added to", async () => {
     const fake = Object.assign(new FakeExtractor(), {

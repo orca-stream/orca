@@ -31,7 +31,11 @@ export const ExtractorId = z
 
 /**
  * A text with `{path.to.field}` slots, filled in from one item of an answer (`/series/{slug}`,
- * `{images.poster}`). A slot whose field is missing or empty leaves the whole text out.
+ * `{images.poster}`). A slot may name several fields, `|` between them, and takes the first that has
+ * something (`{title.english|title.romaji}`); one of them may be a word in quotes, written as it is
+ * (`{title|'show'}`). `:slug` at the end of a slot writes it as an address does (lower case, accents
+ * off, a dash for anything else; `:slug(60)`, cut to that length). A slot that has nothing leaves
+ * the whole text out.
  */
 export const Template = z.string().min(1);
 
@@ -39,44 +43,69 @@ export const Template = z.string().min(1);
  * How a site is searched through its JSON API: where to ask, where the answer lists what it found,
  * and how each item becomes a result. `{query}` in `url` is what was typed.
  */
-export const JsonSearch = z.object({
-  reads: z.literal("json"),
-  /** With `{page}` too, the answer comes in pages: they are read in order, from 1. */
-  url: z.url().includes("{query}", { message: "Needs {query} where the search goes" }),
-  /** Where the answer lists the items (`data.posts`). Absent: the answer is the list. */
-  items: z.string().min(1).optional(),
-  /**
-   * Where a paged answer says the number of its last page (`data.pagination.last_page`). Absent:
-   * pages are read until one comes empty.
-   */
-  lastPage: z.string().min(1).optional(),
-  /**
-   * What each item is: `from` reads the site's word for it, and the lists say which words are a
-   * series and which a movie. An item whose word is in neither is left out. Absent: every item is a
-   * series.
-   */
-  type: z
-    .object({
-      from: Template,
-      series: z.array(z.string().min(1)).min(1),
-      movie: z.array(z.string().min(1)).optional(),
-    })
-    .optional(),
-  result: z.object({
+export const JsonSearch = z
+  .object({
+    reads: z.literal("json"),
     /**
-     * The address of each item, by what it is; relative ones are on the site's origin. A kind with
-     * no address here is left out.
+     * With `{page}` too, the answer comes in pages: they are read in order, from 1. Needs `{query}`
+     * where the search goes, here or in `body`.
      */
-    url: z.object({ series: Template, movie: Template.optional() }),
-    title: Template,
-    originalTitle: Template.optional(),
-    /** The first four digits in a row are the year (`{release_date}` works as it is). */
-    year: Template.optional(),
-    plot: Template.optional(),
-    /** An absolute address, or one on the site's origin. */
-    poster: Template.optional(),
-  }),
-});
+    url: z.url(),
+    /**
+     * Sent as JSON, by POST, when the site is asked that way (a GraphQL query and its variables). A
+     * text that is just `{query}` or `{page}` becomes what was typed or the page's number; `{query}`
+     * inside a longer text is replaced too. Absent: the search is a GET of `url`.
+     */
+    body: z.record(z.string(), z.json()).optional(),
+    /** Where the answer lists the items (`data.posts`). Absent: the answer is the list. */
+    items: z.string().min(1).optional(),
+    /**
+     * Where a paged answer says the number of its last page (`data.pagination.last_page`). Absent:
+     * pages are read until one comes empty.
+     */
+    lastPage: z.string().min(1).optional(),
+    /**
+     * Where a paged answer says whether another page follows (`data.Page.pageInfo.hasNextPage`): the
+     * next one is read only when it is `true`.
+     */
+    nextPage: z.string().min(1).optional(),
+    /**
+     * What each item is: `from` reads the site's word for it, and the lists say which words are a
+     * series and which a movie. An item whose word is in neither is left out. Absent: every item is a
+     * series.
+     */
+    type: z
+      .object({
+        from: Template,
+        series: z.array(z.string().min(1)).min(1),
+        movie: z.array(z.string().min(1)).optional(),
+      })
+      .optional(),
+    result: z.object({
+      /**
+       * The address of each item, by what it is; relative ones are on the site's origin. A kind with
+       * no address here is left out.
+       */
+      url: z.object({ series: Template, movie: Template.optional() }),
+      title: Template,
+      originalTitle: Template.optional(),
+      /** The first four digits in a row are the year (`{release_date}` works as it is). */
+      year: Template.optional(),
+      plot: Template.optional(),
+      /** An absolute address, or one on the site's origin. */
+      poster: Template.optional(),
+    }),
+    /**
+     * The hosts the results' posters may come from besides the site's own (an images server of the
+     * search's): no other host is ever fetched.
+     */
+    posterHosts: z.array(Host).min(1).optional(),
+  })
+  .refine(
+    (search) =>
+      search.url.includes("{query}") || JSON.stringify(search.body ?? {}).includes("{query}"),
+    { message: "Needs {query} where the search goes, in url or body", path: ["url"] },
+  );
 export type JsonSearch = z.infer<typeof JsonSearch>;
 
 /** How a site is searched by name; one kind per way its search answers. */

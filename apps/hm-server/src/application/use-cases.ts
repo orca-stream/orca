@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { SiteExtractor } from "@orca/extractor-core";
 import {
   episodeOffset,
   IMDB_ID_PATTERN,
@@ -210,6 +211,9 @@ export function createUseCases(deps: Deps) {
     deps.extractors.get(source.extractorId)?.nextSourceUrl?.(source.sourceUrl) ?? null;
   const hostsOf = (extractorId: string): readonly string[] =>
     deps.extractors.list().find((extractor) => extractor.id === extractorId)?.hosts ?? [];
+  /** The hosts a search result's poster may come from: the site's own and its search's images. */
+  const searchPosterHosts = (extractor: SiteExtractor | undefined): readonly string[] =>
+    extractor ? [...extractor.hosts, ...(extractor.posterHosts ?? [])] : [];
   /** Each series' downloads as they stand now. */
   const downloadsNow = async () => {
     const [counts, running] = await Promise.all([
@@ -256,7 +260,7 @@ export function createUseCases(deps: Deps) {
               results: found
                 .filter((result) => result.kind === "series")
                 .map((result) => {
-                  const poster = trustedPosterUrl(result.posterUrl, extractor.hosts);
+                  const poster = trustedPosterUrl(result.posterUrl, searchPosterHosts(extractor));
                   return {
                     url: result.url,
                     title: result.title,
@@ -284,7 +288,9 @@ export function createUseCases(deps: Deps) {
       posterUrl: string,
       signal?: AbortSignal,
     ): Promise<FetchedImage> {
-      const hosts = hostsOf(extractorId);
+      const hosts = searchPosterHosts(
+        deps.extractors.list().find((extractor) => extractor.id === extractorId),
+      );
       const url = trustedPosterUrl(posterUrl, hosts);
       if (!url) throw new AppError("not_found", "Not a poster of this extractor");
       try {

@@ -114,6 +114,32 @@
     "limits": {
       "metadataPerSec": 2,
       "downloadsPerHost": 1
+    },
+    "search": {
+      "reads": "json",
+      "url": "https://graphql.origin.test/",
+      "body": {
+        "query": "query($search:String,$page:Int,$perPage:Int){ Page(page:$page,perPage:$perPage){ pageInfo { hasNextPage } media(search:$search,type:ANIME,isAdult:false,sort:SEARCH_MATCH){ id title { romaji english native } coverImage { extraLarge large } description(asHtml:false) format seasonYear } } }",
+        "variables": { "search": "{query}", "page": "{page}", "perPage": 20 }
+      },
+      "items": "data.Page.media",
+      "nextPage": "data.Page.pageInfo.hasNextPage",
+      "type": {
+        "from": "{format}",
+        "series": ["TV", "TV_SHORT", "ONA", "OVA", "SPECIAL"],
+        "movie": ["MOVIE"]
+      },
+      "result": {
+        "url": {
+          "series": "/anime/{title.english|title.romaji|title.native|'anime':slug(60)}-{id}"
+        },
+        "title": "{title.english|title.romaji|title.native}",
+        "originalTitle": "{title.romaji}",
+        "year": "{seasonYear}",
+        "plot": "{description}",
+        "poster": "{coverImage.extraLarge|coverImage.large}"
+      },
+      "posterHosts": ["images.origin.test"]
     }
   }
 }
