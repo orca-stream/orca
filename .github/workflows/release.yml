@@ -63,6 +63,13 @@ jobs:
         with:
           ref: ${{ env.TAG }}
 
+      # The mirror comes from the workflow's own commit: an older tag rebuilt by hand may predate it.
+      - uses: actions/checkout@v7
+        with:
+          path: .release-tools
+          sparse-checkout: apps/hm-desktop/scripts/release-mirror.ts
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -104,7 +111,18 @@ jobs:
         env:
           HM_APT_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
           HM_APT_KEY_FILE: ${{ runner.temp }}/orca-hm.gpg
-        run: pnpm --filter @orca/hm-desktop dist:linux
+          # electron-builder downloads Electron (and its SHASUMS256.txt) and its tools from GitHub
+          # releases, whose download URLs have failed for hours with 504s while the API served the
+          # same files: scripts/release-mirror.ts fetches them through the API instead.
+          GH_TOKEN: ${{ github.token }}
+          ELECTRON_MIRROR: http://127.0.0.1:8799/electron/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: http://127.0.0.1:8799/electron-userland/electron-builder-binaries/
+          ELECTRON_BUILDER_BINARIES_ALLOW_HTTP: "true"
+        run: |
+          node .release-tools/apps/hm-desktop/scripts/release-mirror.ts 8799 &
+          mirror=$!
+          trap 'kill "$mirror"' EXIT
+          pnpm --filter @orca/hm-desktop dist:linux
 
       - name: Build the APT repository
         run: |
@@ -134,6 +152,13 @@ jobs:
         with:
           ref: ${{ env.TAG }}
 
+      # The mirror comes from the workflow's own commit: an older tag rebuilt by hand may predate it.
+      - uses: actions/checkout@v7
+        with:
+          path: .release-tools
+          sparse-checkout: apps/hm-desktop/scripts/release-mirror.ts
+          sparse-checkout-cone-mode: false
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -155,10 +180,19 @@ jobs:
       - name: Build the installer
         env:
           HM_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
+          # electron-builder downloads Electron (and its SHASUMS256.txt) and its tools from GitHub
+          # releases, whose download URLs have failed for hours with 504s while the API served the
+          # same files: scripts/release-mirror.ts fetches them through the API instead.
+          GH_TOKEN: ${{ github.token }}
+          ELECTRON_MIRROR: http://127.0.0.1:8799/electron/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: http://127.0.0.1:8799/electron-userland/electron-builder-binaries/
+          ELECTRON_BUILDER_BINARIES_ALLOW_HTTP: "true"
         working-directory: apps/hm-desktop
-        # electron-builder fetches NSIS, 7-Zip and its icons from GitHub releases on the fly, and those
-        # downloads have failed from Windows runners with a 504 now and then: try a few times.
+        # A failed download still fails the build now and then: try a few times.
         run: |
+          node ../../.release-tools/apps/hm-desktop/scripts/release-mirror.ts 8799 &
+          mirror=$!
+          trap 'kill "$mirror"' EXIT
           for attempt in 1 2 3; do
             pnpm dist:win -c.publish.provider=generic "-c.publish.url=$HM_UPDATE_URL" && exit 0
             echo "::warning::Building the installer failed (attempt $attempt)."
