@@ -13,6 +13,7 @@ import {
   Alert02Icon,
   ArrowTurnBackwardIcon,
   Cancel01Icon,
+  ResizeFieldIcon,
   Tick02Icon,
   Upload04Icon,
 } from "@hugeicons/core-free-icons";
@@ -42,8 +43,19 @@ import {
   type DraftArtworks,
 } from "./artwork";
 import { GLASS_PANEL, PILL_BUTTON, SECONDARY } from "./bar";
+import { useFitsBeside, useMovablePanel } from "./movable-panel";
 
 const KINDS: readonly ArtworkKind[] = ["poster", "backdrop", "logo"];
+
+/** The panel at its widest and tallest (56rem × 52rem), and at its smallest when stretched by hand. */
+const PANEL = {
+  max: { width: 896, height: 832 },
+  min: { width: 352, height: 320 },
+} as const;
+/** From the card's edge to the panel beside it (the card is 1px in from its panel's edge). */
+const BESIDE_GAP = 17;
+/** From the button to the panel below it. */
+const BELOW_GAP = 16;
 
 /** What a file input offers for each kind; the server checks the bytes either way. */
 const ACCEPT: Record<ArtworkKind, string> = {
@@ -54,9 +66,10 @@ const ACCEPT: Record<ArtworkKind, string> = {
 
 /** How each kind's tiles are laid out: its own shape, and as many across as stay legible. */
 const GRID: Record<ArtworkKind, { grid: string; tile: string }> = {
-  poster: { grid: "grid-cols-3 sm:grid-cols-4 lg:grid-cols-5", tile: "aspect-[2/3]" },
-  backdrop: { grid: "grid-cols-2 lg:grid-cols-3", tile: "aspect-video" },
-  logo: { grid: "grid-cols-2 lg:grid-cols-3", tile: "aspect-[16/7]" },
+  // By the panel's own width, not the window's: it is stretched by hand.
+  poster: { grid: "grid-cols-3 @lg:grid-cols-4 @2xl:grid-cols-5", tile: "aspect-[2/3]" },
+  backdrop: { grid: "grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3", tile: "aspect-video" },
+  logo: { grid: "grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3", tile: "aspect-[16/7]" },
 };
 
 /**
@@ -151,7 +164,7 @@ interface PickerFrame {
   onKindChange: (kind: ArtworkKind) => void;
   /** The button it opens from and sits beside. */
   trigger: ReactElement;
-  /** What it opens beside: the show's card. */
+  /** What it opens beside, when there is room for all of it: the show's card. */
   anchor: RefObject<Element | null>;
 }
 
@@ -214,24 +227,68 @@ function ArtworkPickerView({
       t.series.artwork.none
     ) : null);
 
+  // Beside the card when all of it fits there, so each pick shows on the card as it is made; else
+  // below its button, over the card (which never moves). Either way it can be moved and stretched.
+  const beside = useFitsBeside(anchor, open, PANEL.max.width, BESIDE_GAP);
+  const { panel, place, onMoveStart, onResizeStart } = useMovablePanel({
+    open,
+    placement: beside ? "beside" : "below",
+    anchoredRight: !beside,
+    limits: PANEL,
+  });
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger render={trigger} />
-      {/* Beside the card, 16px out from its edge and level with its top (the card is 1px in from
-          its panel's edge). It stays there: never flipped or shifted over the card. */}
+      {/* Beside: 16px out from the card's edge and level with its top. Below: 16px under the
+          button, its right edge with the button's, shifted only to stay in the window. */}
       <PopoverContent
-        anchor={anchor}
-        side="right"
-        align="start"
-        sideOffset={17}
-        alignOffset={-1}
-        collisionAvoidance={{ side: "none", align: "none", fallbackAxisSide: "none" }}
+        ref={panel}
+        {...(beside
+          ? {
+              anchor,
+              side: "right" as const,
+              align: "start" as const,
+              sideOffset: BESIDE_GAP,
+              alignOffset: -1,
+              collisionAvoidance: {
+                side: "none",
+                align: "none",
+                fallbackAxisSide: "none",
+              } as const,
+            }
+          : {
+              side: "bottom" as const,
+              align: "end" as const,
+              sideOffset: BELOW_GAP,
+              collisionAvoidance: {
+                side: "none",
+                align: "shift",
+                fallbackAxisSide: "none",
+              } as const,
+            })}
+        style={{
+          translate: `${place.offset.x}px ${place.offset.y}px`,
+          ...(place.size && {
+            width: place.size.width,
+            height: place.size.height,
+            maxHeight: "none",
+          }),
+        }}
         className={cn(
           GLASS_PANEL,
-          "max-h-[min(52rem,calc(var(--available-height)-11px))] w-[min(56rem,calc(var(--available-width)-11px))] gap-4 p-4 text-base",
+          // No transition: moved or stretched, it follows the pointer at once.
+          "@container relative gap-4 p-4 text-base transition-none",
+          beside
+            ? "max-h-[min(52rem,calc(var(--available-height)-11px))] w-[min(56rem,calc(var(--available-width)-11px))]"
+            : "max-h-[min(52rem,calc(var(--available-height)-16px))] w-[min(56rem,calc(100vw-32px))]",
         )}
       >
-        <div className="flex items-start gap-4">
+        {/* The title row is the handle it is moved by. */}
+        <div
+          onPointerDown={onMoveStart}
+          className="flex cursor-grab touch-none items-start gap-4 select-none active:cursor-grabbing"
+        >
           <div className="min-w-0 flex-1 px-2 pt-1">
             <PopoverTitle className="text-lg font-semibold">{t.series.artwork.title}</PopoverTitle>
             <PopoverDescription className="text-sm">{hint}</PopoverDescription>
@@ -356,6 +413,14 @@ function ArtworkPickerView({
             );
           })}
         </Tabs>
+        {/* The grip it is stretched by, in the bottom-right corner. */}
+        <span
+          aria-hidden="true"
+          onPointerDown={onResizeStart}
+          className="absolute right-2 bottom-2 flex size-8 cursor-nwse-resize touch-none items-center justify-center rounded-full bg-white/85 text-muted-foreground shadow-xs ring-1 ring-black/5 hover:bg-white hover:text-foreground"
+        >
+          <HugeiconsIcon icon={ResizeFieldIcon} className="size-4" />
+        </span>
       </PopoverContent>
     </Popover>
   );
