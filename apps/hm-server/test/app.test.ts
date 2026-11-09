@@ -127,6 +127,7 @@ describe("auth", () => {
   it("401 on every protected route without a session", async () => {
     for (const [method, path] of [
       ["GET", "/api/extractors"],
+      ["GET", "/api/lookup/tmdb?query=x"],
       ["GET", "/api/lookup/tmdb/1"],
       ["GET", "/api/lookup/tmdb/1/seasons"],
       ["GET", "/api/lookup/tmdb/1/seasons/1"],
@@ -599,6 +600,35 @@ describe("Jellyfin's shows", () => {
 });
 
 describe("TMDB lookup", () => {
+  it("searches shows by name through Jellyfin, narrowed to a year", async () => {
+    h.mediaServer.shows.set("30991", {
+      title: "Cowboy Bebop",
+      year: 1998,
+      imdbId: null,
+      overview: "Bounty hunters in space.",
+      posterUrl: null,
+    });
+    const res = await get("/api/lookup/tmdb?query=bebop&year=1998");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([
+      {
+        tmdbId: "30991",
+        title: "Cowboy Bebop",
+        originalTitle: null,
+        year: 1998,
+        overview: "Bounty hunters in space.",
+        posterUrl: null,
+      },
+    ]);
+    expect(h.mediaServer.searches).toEqual(["bebop|1998"]);
+  });
+
+  it("400 for a search without a name or with a year that isn't one", async () => {
+    expect((await get("/api/lookup/tmdb?query=%20")).status).toBe(400);
+    expect((await get("/api/lookup/tmdb")).status).toBe(400);
+    expect((await get("/api/lookup/tmdb?query=x&year=12")).status).toBe(400);
+  });
+
   it("names a show by its TMDB id, through Jellyfin", async () => {
     h.mediaServer.shows.set("30991", {
       title: "Cowboy Bebop",

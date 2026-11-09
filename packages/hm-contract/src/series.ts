@@ -119,6 +119,32 @@ export const ShowLookupDto = z.object({
 });
 export type ShowLookupDto = z.infer<typeof ShowLookupDto>;
 
+/** The longest name a show is searched by; TMDB's own titles stay well under it. */
+export const MAX_SHOW_QUERY_LENGTH = 200;
+
+/** A show searched on TMDB by name, optionally narrowed to the year it first aired. */
+export const ShowSearchQuery = z.object({
+  query: z.string().trim().min(1).max(MAX_SHOW_QUERY_LENGTH),
+  year: z.coerce.number().int().min(1000).max(9999).optional(),
+});
+export type ShowSearchQuery = z.infer<typeof ShowSearchQuery>;
+
+/**
+ * A show TMDB found by name, in the same language a lookup by id answers in (Jellyfin's preferred
+ * metadata language when there is a Jellyfin): picking one fills in its TMDB id.
+ */
+export const ShowSearchResultDto = z.object({
+  tmdbId: z.string(),
+  title: z.string(),
+  /** The name it first aired with, when the title is a translation of it; else null. */
+  originalTitle: z.string().nullable(),
+  year: z.number().int().nullable(),
+  overview: z.string().nullable(),
+  /** A thumbnail of TMDB's poster, an absolute http(s) address the panel loads as is. */
+  posterUrl: z.string().nullable(),
+});
+export type ShowSearchResultDto = z.infer<typeof ShowSearchResultDto>;
+
 /** The language TMDB answers in (`es`, `en-US`); TMDB's default when absent. */
 const GuideLanguage = z
   .string()

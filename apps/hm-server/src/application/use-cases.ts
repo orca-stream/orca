@@ -10,6 +10,7 @@ import {
   type JobDto,
   type LibraryEpisodeDto,
   type LibraryShowDto,
+  type ShowSearchResultDto,
   type ListJobsQuery,
   type NotificationList,
   type Me,
@@ -607,6 +608,22 @@ export function createUseCases(deps: Deps) {
         status: guide?.status ?? null,
         nextEpisode: guide?.nextEpisode ?? null,
       };
+    },
+
+    /**
+     * The shows TMDB has by that name, to pick a new series' TMDB id from: the same way `lookupShow`
+     * asks (Jellyfin's provider when there is a Jellyfin, else this server's key in `language`), so
+     * the names listed are the ones picking one fills in.
+     */
+    async searchShows(
+      query: string,
+      year: number | undefined,
+      language: string | undefined,
+      signal?: AbortSignal,
+    ): Promise<ShowSearchResultDto[]> {
+      if (deps.mediaServer) return deps.mediaServer.searchShows(query, year, signal);
+      if (deps.episodeGuide) return deps.episodeGuide.search(query, year, language, signal);
+      throw new AppError("unavailable", "Searching TMDB needs Jellyfin or a TMDB key");
     },
 
     /** A show's seasons as TMDB numbers them, to pick the one an address goes to. */

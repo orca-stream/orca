@@ -43,7 +43,10 @@ carpeta, y Jellyfin la sigue mostrando, salvo que actives **Borrar también sus 
 va su carpeta entera —vídeos, subtítulos y carátulas— y no se puede deshacer.
 
 Al agregar, deja «Añadir a» vacío para crear una serie nueva, o elige una que ya tengas para sumarle la
-dirección. En una serie nueva, al escribir su id de TMDB se rellenan el título, el año y el id de IMDb:
+dirección. En una serie nueva, la fila del título también busca en TMDB: al pulsarla salen las series
+de TMDB con el nombre que le da el sitio, y al escribir se busca otra; elegir una rellena el título, el
+año, el id de TMDB y el de IMDb. Si escribes sin elegir, el título queda como lo pusiste. También
+puedes escribir su id de TMDB: se rellenan el título, el año y el id de IMDb:
 el servidor se lo pregunta al proveedor TMDB del propio Jellyfin (sin clave de TMDB nuestra), en el
 idioma de metadatos preferido del servidor. Reemplaza lo que sugirió el sitio y rellena lo vacío, pero nunca pisa lo que escribiste a
 mano. El título es el que mostrarán Jellyfin y Orca'JP, porque el `tvshow.nfo` de la serie lo fija. En

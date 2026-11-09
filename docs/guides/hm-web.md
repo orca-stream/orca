@@ -42,7 +42,9 @@ folder, and Jellyfin keeps showing it, unless you turn on **Also delete its file
 folder goes — videos, subtitles and artwork — and that can't be undone.
 
 When adding, leave "Add to" empty to make a new series, or pick one you have to add the address to it.
-For a new series, typing its TMDB id fills in the title, the year and the IMDb id: the server asks
+For a new series, the title row is also a TMDB search: click it to see TMDB's shows named as the site
+names it, or type to search for another; picking one fills in its title, year, TMDB id and IMDb id.
+Typing without picking keeps the title as yours. Typing its TMDB id works too, and fills in the title, the year and the IMDb id: the server asks
 Jellyfin's own TMDB provider (no TMDB key of ours), in the server's preferred metadata language. It
 replaces what the site suggested and fills any empty field, but never overwrites what you typed. The title is what Jellyfin and
 Orca'JP will show, since the series' `tvshow.nfo` names it. On disk, characters a file name can't

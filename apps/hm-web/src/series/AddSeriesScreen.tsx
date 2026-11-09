@@ -4,6 +4,7 @@ import type {
   PreviewDto,
   SeriesDto,
   ShowLookupDto,
+  ShowSearchResultDto,
 } from "@orca/hm-contract";
 import { TMDB_ID_PATTERN } from "@orca/hm-contract/rules";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -25,7 +26,6 @@ import {
   RotateLeft01Icon,
   RssIcon,
   Search01Icon,
-  TextFontIcon,
   Tick02Icon,
   Tv01Icon,
 } from "@hugeicons/core-free-icons";
@@ -81,6 +81,7 @@ import {
 } from "./preview-form";
 import { ShowBackdrop } from "./ShowBackdrop";
 import { ShowCard, type ShowCardData } from "./ShowCard";
+import { TitleSearch } from "./TitleSearch";
 
 /** How long the TMDB id has to stay put before it is looked up. */
 const LOOKUP_DELAY_MS = 500;
@@ -346,6 +347,19 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
     }
   }
   const typedBy = (field: LookupField) => setEdited((fields) => new Set(fields).add(field));
+  // A show picked from TMDB's search is the series: its id, and the lookup fills in all the rest.
+  function pickShow(show: ShowSearchResultDto) {
+    if (!form) return;
+    setAppliedShow(null);
+    setEdited(new Set());
+    setForm({
+      ...form,
+      title: show.title,
+      year: show.year === null ? "" : String(show.year),
+      tmdbId: show.tmdbId,
+      imdbId: "",
+    });
+  }
   const tmdbError = invalid.has("tmdbId")
     ? t.add.tmdbInvalid
     : lookupId !== "" && lookup.isError
@@ -882,15 +896,14 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                 {asksNew && (
                   <>
                     <div className="flex">
-                      <BarField
-                        icon={TextFontIcon}
-                        label={t.add.fieldTitle}
-                        placeholder={t.add.titlePlaceholder}
+                      <TitleSearch
                         value={form.title}
-                        onChange={(event) => {
+                        siteTitle={preview.series.title}
+                        onType={(title) => {
                           typedBy("title");
-                          setForm({ ...form, title: event.target.value });
+                          setForm({ ...form, title });
                         }}
+                        onPick={pickShow}
                       />
                       <BarField
                         icon={Calendar03Icon}

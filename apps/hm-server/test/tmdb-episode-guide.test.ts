@@ -19,6 +19,71 @@ const guide = (apiKey: string, fetchImpl: typeof fetch) =>
   new TmdbEpisodeGuide({ apiKey, userAgent: "OrcaHM/test", timeoutMs: 1000, fetch: fetchImpl });
 
 describe("TmdbEpisodeGuide", () => {
+  it("searches shows by name and year in the language asked for, best first", async () => {
+    const { fetchImpl, calls } = fakeTmdb({
+      "/3/search/tv": {
+        body: {
+          results: [
+            {
+              id: 4607,
+              name: "Lost",
+              original_name: "Lost",
+              first_air_date: "2004-09-22",
+              overview: "  Survivors of a plane crash.  ",
+              poster_path: "/lost.jpg",
+            },
+            { id: 896, name: "El mundo perdido", original_name: "The Lost World" },
+            { id: 7, name: "", original_name: "" },
+            { id: 8, name: null, original_name: "Only Original", poster_path: "javascript:x" },
+          ],
+        },
+      },
+    });
+    expect(await guide("v3key", fetchImpl).search("lost", 2004, "es-MX")).toEqual([
+      {
+        tmdbId: "4607",
+        title: "Lost",
+        originalTitle: null,
+        year: 2004,
+        overview: "Survivors of a plane crash.",
+        posterUrl: "https://image.tmdb.org/t/p/w154/lost.jpg",
+      },
+      {
+        tmdbId: "896",
+        title: "El mundo perdido",
+        originalTitle: "The Lost World",
+        year: null,
+        overview: null,
+        posterUrl: null,
+      },
+      {
+        tmdbId: "8",
+        title: "Only Original",
+        originalTitle: null,
+        year: null,
+        overview: null,
+        posterUrl: null,
+      },
+    ]);
+    const params = calls[0]?.url.searchParams;
+    expect(params?.get("query")).toBe("lost");
+    expect(params?.get("first_air_date_year")).toBe("2004");
+    expect(params?.get("include_adult")).toBe("false");
+    expect(params?.get("language")).toBe("es-MX");
+    expect(params?.get("api_key")).toBe("v3key");
+  });
+
+  it("searches without a year when none is given, and says upstream when TMDB fails", async () => {
+    const { fetchImpl, calls } = fakeTmdb({ "/3/search/tv": { body: { results: [] } } });
+    expect(await guide("v3key", fetchImpl).search("nothing", undefined, undefined)).toEqual([]);
+    expect(calls[0]?.url.searchParams.has("first_air_date_year")).toBe(false);
+    expect(calls[0]?.url.searchParams.has("language")).toBe(false);
+    const failing = fakeTmdb({ "/3/search/tv": { status: 500, body: {} } });
+    await expect(
+      guide("v3key", failing.fetchImpl).search("x", undefined, "es"),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
   it("lists the seasons in order, with their years, sending a v3 key in the query", async () => {
     const { fetchImpl, calls } = fakeTmdb({
       "/3/tv/135237": {

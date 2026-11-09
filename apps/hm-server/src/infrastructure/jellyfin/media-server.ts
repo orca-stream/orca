@@ -9,8 +9,16 @@ import type { RemoteSearchResult } from "@jellyfin/sdk/lib/generated-client/mode
 import { getItemLookupApi } from "@jellyfin/sdk/lib/utils/api/item-lookup-api.js";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api.js";
 import { getLibraryStructureApi } from "@jellyfin/sdk/lib/utils/api/library-structure-api.js";
+import { TMDB_ID_PATTERN } from "@orca/hm-contract";
 import { isAxiosError, type AxiosInstance } from "axios";
-import type { EpisodeFile, LibraryShow, MediaServer, ShowMatch } from "../../application/ports.ts";
+import {
+  MAX_SHOWS_FOUND,
+  type EpisodeFile,
+  type LibraryShow,
+  type MediaServer,
+  type ShowFound,
+  type ShowMatch,
+} from "../../application/ports.ts";
 import { AppError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import { createJellyfinHttp } from "./http.ts";
 
@@ -36,14 +44,16 @@ export interface JellyfinMediaServerOptions {
 /** TMDB serves its images at full size under this segment; the panel only needs a card's worth. */
 const TMDB_FULL_SIZE = "/t/p/original/";
 const TMDB_CARD_SIZE = "/t/p/w342/";
+/** A row of search results shows a thumbnail, sharp at twice its width. */
+const TMDB_THUMB_SIZE = "/t/p/w154/";
 
 /** The poster a remote search gave, when it is a web address, at a card's size when TMDB serves it. */
-function posterOf(url: string | null | undefined): string | null {
+function posterOf(url: string | null | undefined, size = TMDB_CARD_SIZE): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-    parsed.pathname = parsed.pathname.replace(TMDB_FULL_SIZE, TMDB_CARD_SIZE);
+    parsed.pathname = parsed.pathname.replace(TMDB_FULL_SIZE, size);
     return parsed.href;
   } catch {
     return null;
@@ -142,24 +152,7 @@ export class JellyfinMediaServer implements MediaServer {
    * when TMDB has none. Disabled providers are included so a library that turned TMDB off still works.
    */
   async findShowByTmdbId(tmdbId: string, signal?: AbortSignal): Promise<ShowMatch | null> {
-    const { jellyfin, serverUrl, apiKey } = this.options;
-    const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
-    const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
-    let results: RemoteSearchResult[];
-    try {
-      ({ data: results } = await getItemLookupApi(api).getSeriesRemoteSearchResults(
-        {
-          seriesInfoRemoteSearchQuery: {
-            SearchInfo: { ProviderIds: { [TMDB]: tmdbId } },
-            SearchProviderName: TMDB_PROVIDER,
-            IncludeDisabledProviders: true,
-          },
-        },
-        signal ? { signal } : undefined,
-      ));
-    } catch (error) {
-      upstream(error);
-    }
+    const results = await this.remoteSearch({ ProviderIds: { [TMDB]: tmdbId } }, signal);
     const show = results.find((result) => result.ProviderIds?.[TMDB] === tmdbId);
     if (!show?.Name) return null;
     return {
@@ -169,6 +162,62 @@ export class JellyfinMediaServer implements MediaServer {
       overview: show.Overview?.trim() || null,
       posterUrl: posterOf(show.ImageUrl),
     };
+  }
+
+  /** The same search by name: TMDB's search, in the server's preferred metadata language. */
+  async searchShows(
+    query: string,
+    year: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<ShowFound[]> {
+    const results = await this.remoteSearch(
+      { Name: query, ...(year === undefined ? {} : { Year: year }) },
+      signal,
+    );
+    const seen = new Set<string>();
+    return results
+      .flatMap((show) => {
+        const tmdbId = show.ProviderIds?.[TMDB];
+        const title = show.Name?.trim();
+        if (!tmdbId || !TMDB_ID_PATTERN.test(tmdbId) || !title || seen.has(tmdbId)) return [];
+        seen.add(tmdbId);
+        return [
+          {
+            tmdbId,
+            title,
+            // Jellyfin's search gives the translated name only.
+            originalTitle: null,
+            year: show.ProductionYear ?? null,
+            overview: show.Overview?.trim() || null,
+            posterUrl: posterOf(show.ImageUrl, TMDB_THUMB_SIZE),
+          },
+        ];
+      })
+      .slice(0, MAX_SHOWS_FOUND);
+  }
+
+  private async remoteSearch(
+    searchInfo: { ProviderIds?: Record<string, string>; Name?: string; Year?: number },
+    signal: AbortSignal | undefined,
+  ): Promise<RemoteSearchResult[]> {
+    const { jellyfin, serverUrl, apiKey } = this.options;
+    const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
+    const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
+    try {
+      const { data } = await getItemLookupApi(api).getSeriesRemoteSearchResults(
+        {
+          seriesInfoRemoteSearchQuery: {
+            SearchInfo: searchInfo,
+            SearchProviderName: TMDB_PROVIDER,
+            IncludeDisabledProviders: true,
+          },
+        },
+        signal ? { signal } : undefined,
+      );
+      return data;
+    } catch (error) {
+      upstream(error);
+    }
   }
 
   async listShows(signal?: AbortSignal): Promise<LibraryShow[]> {

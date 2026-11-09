@@ -68,8 +68,9 @@ created first, from that same section. **Change password** ends the administrato
 keeps yours.
 
 **Without Jellyfin.** The server only writes the folder: nothing is refreshed, and there is no Jellyfin
-show to add an address to. A TMDB id is looked up with the server's own TMDB key, in the browser's
-language; without a key, type the show's details by hand. A video already in the series' season
+show to add an address to. A TMDB id is looked up (and a show searched by name) with the server's own
+TMDB key, in the browser's language — any Latin American Spanish (`es-419`, `es-HN`…) as TMDB's `es-MX`,
+since TMDB's plain `es` is Spain's; without a key, type the show's details by hand. A video already in the series' season
 folder under its number (`… S01E02.mkv`), put there by hand, is taken as that episode and never
 downloaded over (with or without Jellyfin).
 

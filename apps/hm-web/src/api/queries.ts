@@ -10,6 +10,7 @@ import type {
   NotificationList,
   SeriesDto,
   ShowLookupDto,
+  ShowSearchResultDto,
   GuideEpisodeDto,
   GuideSeasonDto,
 } from "./types";
@@ -126,6 +127,19 @@ export const queries = {
       queryFn: ({ signal }) => api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}`, { signal }),
       staleTime: SHOW_LOOKUP_STALE_MS,
       // A 404 is the answer, not a hiccup; and nobody waits through retries while typing.
+      retry: false,
+    }),
+
+  /** The shows TMDB has by a name, to pick a new series' TMDB id from. */
+  showSearch: (api: ApiClient, query: string) =>
+    queryOptions({
+      queryKey: keys.showSearch(query),
+      queryFn: ({ signal }) =>
+        api.get<ShowSearchResultDto[]>(`/lookup/tmdb?${new URLSearchParams({ query })}`, {
+          signal,
+        }),
+      staleTime: SHOW_LOOKUP_STALE_MS,
+      // Nobody waits through retries while typing: the next key asks again.
       retry: false,
     }),
 

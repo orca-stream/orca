@@ -33,9 +33,27 @@ describe("a server without Jellyfin", () => {
     });
   });
 
+  it("searches TMDB itself by name, in the browser's language", async () => {
+    const found = {
+      tmdbId: "4607",
+      title: "Lost",
+      originalTitle: null,
+      year: 2004,
+      overview: null,
+      posterUrl: null,
+    };
+    h.episodeGuide.found.set("lost", [found]);
+    expect(await h.useCases.searchShows("lost", undefined, "es-MX")).toEqual([found]);
+    expect(h.episodeGuide.languages).toEqual(["es-MX"]);
+    expect(h.mediaServer.searches).toEqual([]);
+  });
+
   it("asks for the show by hand without a TMDB key either", async () => {
     h.deps.episodeGuide = null;
     await expect(h.useCases.lookupShow("4219")).rejects.toMatchObject({ code: "unavailable" });
+    await expect(h.useCases.searchShows("lost", undefined, "es")).rejects.toMatchObject({
+      code: "unavailable",
+    });
   });
 
   it("has no library shows to offer, and takes none", async () => {
@@ -69,8 +87,11 @@ describe("a server without Jellyfin", () => {
 
 describe("firstLanguage", () => {
   it("takes the browser's first language as TMDB names it", () => {
-    expect(firstLanguage("es-419,es;q=0.9,en;q=0.8")).toBe("es");
-    expect(firstLanguage("es-HN,es;q=0.9")).toBe("es-HN");
+    // TMDB's Latin American Spanish is Mexico's; plain `es` is Spain's.
+    expect(firstLanguage("es-419,es;q=0.9,en;q=0.8")).toBe("es-MX");
+    expect(firstLanguage("es-HN,es;q=0.9")).toBe("es-MX");
+    expect(firstLanguage("es-es")).toBe("es-ES");
+    expect(firstLanguage("pt-419")).toBe("pt");
     expect(firstLanguage("en-us")).toBe("en-US");
     expect(firstLanguage("es")).toBe("es");
     expect(firstLanguage("*")).toBeUndefined();

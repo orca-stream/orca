@@ -371,6 +371,21 @@ export interface ShowMatch {
   posterUrl: string | null;
 }
 
+/** A show TMDB found by name: what the panel lists to pick its TMDB id from. */
+export interface ShowFound {
+  tmdbId: string;
+  title: string;
+  /** The name it first aired with, when the title is a translation of it; else null. */
+  originalTitle: string | null;
+  year: number | null;
+  overview: string | null;
+  /** An absolute http(s) address of its poster. */
+  posterUrl: string | null;
+}
+
+/** How many shows a search by name lists at most: the first page of TMDB's, best first. */
+export const MAX_SHOWS_FOUND = 20;
+
 /** A show in Jellyfin's libraries. */
 export interface LibraryShow {
   /** Jellyfin's item id. */
@@ -403,6 +418,12 @@ export interface MediaServer {
    * when TMDB has none. Throws AppError upstream when Jellyfin can't be asked.
    */
   findShowByTmdbId(tmdbId: string, signal?: AbortSignal): Promise<ShowMatch | null>;
+  /**
+   * The shows TMDB has by that name (first aired in `year`, when given), best first, through
+   * Jellyfin's own TMDB provider and in its preferred metadata language. Throws AppError upstream
+   * when Jellyfin can't be asked.
+   */
+  searchShows(query: string, year: number | undefined, signal?: AbortSignal): Promise<ShowFound[]>;
   /** Every show in Jellyfin's libraries. Throws AppError upstream when Jellyfin can't be asked. */
   listShows(signal?: AbortSignal): Promise<LibraryShow[]>;
   /**
@@ -475,6 +496,13 @@ export interface EpisodeGuide {
     language: string | undefined,
     signal?: AbortSignal,
   ): Promise<ArtworkOptionsDto | null>;
+  /** The shows TMDB has by that name (first aired in `year`, when given), best first. */
+  search(
+    query: string,
+    year: number | undefined,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ShowFound[]>;
   /** The show itself (name, year, IMDb id, synopsis, poster), for a server without Jellyfin. */
   match(
     tmdbId: string,

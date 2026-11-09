@@ -26,6 +26,7 @@ import type {
   GuideShow,
   MediaServer,
   Notifier,
+  ShowFound,
   ShowMatch,
   StreamDetector,
   DetectedStream,
@@ -126,6 +127,26 @@ export class FakeMediaServer implements MediaServer {
     return this.shows.get(tmdbId) ?? null;
   }
 
+  /** The searches made, as `<query>|<year>`. */
+  readonly searches: string[] = [];
+
+  /** TMDB's shows whose title holds the query, as Jellyfin's provider would list them. */
+  async searchShows(query: string, year: number | undefined): Promise<ShowFound[]> {
+    if (this.fail) throw this.fail;
+    this.searches.push(`${query}|${year ?? ""}`);
+    return [...this.shows]
+      .filter(([, show]) => show.title.toLowerCase().includes(query.toLowerCase()))
+      .filter(([, show]) => year === undefined || show.year === year)
+      .map(([tmdbId, show]) => ({
+        tmdbId,
+        title: show.title,
+        originalTitle: null,
+        year: show.year,
+        overview: show.overview,
+        posterUrl: show.posterUrl,
+      }));
+  }
+
   async listShows(): Promise<LibraryShow[]> {
     if (this.fail) throw this.fail;
     return this.library;
@@ -155,6 +176,19 @@ export class FakeEpisodeGuide implements EpisodeGuide {
     if (this.fail) throw this.fail;
     this.languages.push(language);
     return this.artworks.get(tmdbId) ?? null;
+  }
+
+  /** What a search by name finds, by query. */
+  readonly found = new Map<string, ShowFound[]>();
+
+  async search(
+    query: string,
+    _year: number | undefined,
+    language: string | undefined,
+  ): Promise<ShowFound[]> {
+    if (this.fail) throw this.fail;
+    this.languages.push(language);
+    return this.found.get(query) ?? [];
   }
 
   async match(tmdbId: string, language: string | undefined): Promise<ShowMatch | null> {

@@ -70,8 +70,9 @@ H&M pide crearlo antes, en esa misma sección. **Cambiar contraseña** cierra la
 administrador y conserva la tuya.
 
 **Sin Jellyfin.** El servidor solo escribe la carpeta: no se actualiza nada, y no hay series de
-Jellyfin a las que añadir una dirección. Un id de TMDB se busca con la clave de TMDB del propio
-servidor, en el idioma del navegador; sin clave, escribe a mano los datos de la serie. Un vídeo que ya
+Jellyfin a las que añadir una dirección. Un id de TMDB (y una serie por su nombre) se busca con la
+clave de TMDB del propio servidor, en el idioma del navegador — cualquier español latinoamericano
+(`es-419`, `es-HN`…) como el `es-MX` de TMDB, porque su `es` a secas es el de España; sin clave, escribe a mano los datos de la serie. Un vídeo que ya
 esté en la carpeta de temporada con su número (`… S01E02.mkv`), puesto a mano, se toma como ese
 episodio y nunca se descarga encima (con o sin Jellyfin).
 

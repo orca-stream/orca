@@ -19,6 +19,7 @@ import {
   SourcePatch,
   SwitchSourceBody,
   ShowLookupParams,
+  ShowSearchQuery,
   GuideEpisodesParams,
   GuideQuery,
   GuideSeasonsParams,
@@ -118,7 +119,12 @@ export function firstLanguage(header: string | undefined): string | undefined {
   if (!tag) return undefined;
   const [language = "", region = ""] = tag.split("-");
   if (!/^[a-z]{2}$/i.test(language)) return undefined;
-  // A region TMDB has no name for (Latin America's `419`) leaves the language alone.
+  // TMDB has two Spanish: Spain's (plain `es`) and Mexico's, the one Latin America reads (Jellyfin
+  // takes `es-419` that way too). Any other region of Spanish would fall back to Spain's.
+  if (language.toLowerCase() === "es" && region !== "" && region.toUpperCase() !== "ES") {
+    return "es-MX";
+  }
+  // A region TMDB has no name for leaves the language alone.
   return /^[a-z]{2}$/i.test(region)
     ? `${language.toLowerCase()}-${region.toUpperCase()}`
     : language.toLowerCase();
@@ -241,6 +247,18 @@ export function createApp(deps: AppDeps) {
 
   // --- extractors and series
   api.get("/extractors", (c) => c.json(useCases.listExtractors()));
+
+  api.get("/lookup/tmdb", validate("query", ShowSearchQuery), async (c) => {
+    const { query, year } = c.req.valid("query");
+    return c.json(
+      await useCases.searchShows(
+        query,
+        year,
+        firstLanguage(c.req.header("accept-language")),
+        c.req.raw.signal,
+      ),
+    );
+  });
 
   api.get("/lookup/tmdb/:tmdbId", validate("param", ShowLookupParams), async (c) => {
     const { tmdbId } = c.req.valid("param");

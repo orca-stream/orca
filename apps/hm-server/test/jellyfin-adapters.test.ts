@@ -393,6 +393,68 @@ describe("JellyfinMediaServer.findShowByTmdbId", () => {
   });
 });
 
+describe("JellyfinMediaServer.searchShows", () => {
+  const search =
+    (results: unknown[]): Route =>
+    (config) =>
+      new URL(config.url ?? "").pathname === "/Items/RemoteSearch/Series"
+        ? { status: 200, data: results }
+        : { status: 404, data: "" };
+
+  it("asks Jellyfin's TMDB provider by name and year, once per show", async () => {
+    const lost = {
+      Name: "Lost",
+      ProductionYear: 2004,
+      ProviderIds: { Tmdb: "4607" },
+      Overview: " Survivors. ",
+      ImageUrl: "https://image.tmdb.org/t/p/original/lost.jpg",
+    };
+    const { server, requests } = mediaServer(
+      search([
+        lost,
+        lost,
+        { Name: "No id", ProviderIds: {} },
+        { Name: "Bad id", ProviderIds: { Tmdb: "tt1" } },
+        { Name: "  ", ProviderIds: { Tmdb: "9" } },
+        { Name: "Lost Girl", ProviderIds: { Tmdb: "33852" } },
+      ]),
+    );
+    expect(await server.searchShows("lost", 2004)).toEqual([
+      {
+        tmdbId: "4607",
+        title: "Lost",
+        originalTitle: null,
+        year: 2004,
+        overview: "Survivors.",
+        posterUrl: "https://image.tmdb.org/t/p/w154/lost.jpg",
+      },
+      {
+        tmdbId: "33852",
+        title: "Lost Girl",
+        originalTitle: null,
+        year: null,
+        overview: null,
+        posterUrl: null,
+      },
+    ]);
+    const request = requests.find((r) => parts(r).path === "/Items/RemoteSearch/Series");
+    expect(JSON.parse(String(request?.data))).toEqual({
+      SearchInfo: { Name: "lost", Year: 2004 },
+      SearchProviderName: "TheMovieDb",
+      IncludeDisabledProviders: true,
+    });
+  });
+
+  it("leaves the year out when none is given, and says upstream when Jellyfin can't be asked", async () => {
+    const { server, requests } = mediaServer(search([]));
+    expect(await server.searchShows("x", undefined)).toEqual([]);
+    expect(JSON.parse(String(requests[0]?.data)).SearchInfo).toEqual({ Name: "x" });
+    await expect(
+      mediaServer(() => ({ status: 503, data: "" })).server.searchShows("x", undefined),
+    ).rejects.toMatchObject({ name: "AppError", code: "upstream" });
+  });
+});
+
 describe("JellyfinMediaServer, what the libraries already have", () => {
   const route =
     (items: Record<string, unknown[]>): Route =>

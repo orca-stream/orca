@@ -1,12 +1,14 @@
 import * as z from "zod";
 import type { ArtworkKind, ArtworkOptionDto, ArtworkOptionsDto } from "@orca/hm-contract";
-import type {
-  AiringStatus,
-  EpisodeGuide,
-  GuideEpisode,
-  GuideSeason,
-  GuideShow,
-  ShowMatch,
+import {
+  MAX_SHOWS_FOUND,
+  type AiringStatus,
+  type EpisodeGuide,
+  type GuideEpisode,
+  type GuideSeason,
+  type GuideShow,
+  type ShowFound,
+  type ShowMatch,
 } from "../../application/ports.ts";
 import { AppError } from "../../domain/errors.ts";
 
@@ -18,6 +20,8 @@ const TMDB_STILL = "https://image.tmdb.org/t/p/w400";
 const TMDB_BACKDROP = "https://image.tmdb.org/t/p/w1280";
 /** A show's poster, as wide as the panel's cards show it. */
 const TMDB_POSTER = "https://image.tmdb.org/t/p/w500";
+/** A poster in a row of search results, sharp at twice the thumbnail's width. */
+const TMDB_THUMB = "https://image.tmdb.org/t/p/w154";
 /** The image as TMDB has it, which is what a series folder keeps. */
 const TMDB_ORIGINAL = "https://image.tmdb.org/t/p/original";
 /** The smaller copy the panel lays out to choose from, per kind. */
@@ -83,6 +87,21 @@ const MatchBody = z.object({
   overview: z.string().nullish(),
   poster_path: z.string().nullish(),
   external_ids: z.object({ imdb_id: z.string().nullish() }).nullish(),
+});
+
+const SearchBody = z.object({
+  results: z
+    .array(
+      z.object({
+        id: z.number().int().nonnegative(),
+        name: z.string().nullish(),
+        original_name: z.string().nullish(),
+        first_air_date: z.string().nullish(),
+        overview: z.string().nullish(),
+        poster_path: z.string().nullish(),
+      }),
+    )
+    .default([]),
 });
 
 const SeasonBody = z.object({
@@ -250,6 +269,35 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
       backdrop: rankArtwork("backdrop", images.backdrops, language),
       logo: rankArtwork("logo", images.logos, language),
     };
+  }
+
+  async search(
+    query: string,
+    year: number | undefined,
+    language: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<ShowFound[]> {
+    const params = new URLSearchParams({ query, include_adult: "false" });
+    if (year !== undefined) params.set("first_air_date_year", String(year));
+    const body = await this.get(`/search/tv?${params.toString()}`, language, signal);
+    if (body === null) return [];
+    return this.parse(SearchBody, body)
+      .results.flatMap((show) => {
+        const original = show.original_name?.trim() || null;
+        const title = show.name?.trim() || original;
+        if (!title) return [];
+        return [
+          {
+            tmdbId: String(show.id),
+            title,
+            originalTitle: original !== null && original !== title ? original : null,
+            year: yearOf(show.first_air_date),
+            overview: show.overview?.trim() || null,
+            posterUrl: imageOf(TMDB_THUMB, show.poster_path),
+          },
+        ];
+      })
+      .slice(0, MAX_SHOWS_FOUND);
   }
 
   async match(

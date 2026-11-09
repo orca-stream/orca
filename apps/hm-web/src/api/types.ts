@@ -28,6 +28,7 @@ export type {
   SeriesDto,
   SeriesPatch,
   ShowLookupDto,
+  ShowSearchResultDto,
   SourcePatch,
   SwitchSourceBody,
   SwitchSourceResult,
