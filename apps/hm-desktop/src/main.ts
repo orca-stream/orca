@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  screen,
   shell,
   Tray,
   type IpcMainEvent,
@@ -32,6 +33,7 @@ import { ToolsSetup, type ToolState } from "./tools/index.ts";
 import { PackageKitUpdates } from "./updates/packagekit.ts";
 import { repositoryUrlFrom } from "./updates/repository.ts";
 import { Updater } from "./updates/updater.ts";
+import { readWindowState, restoredBounds, writeWindowState } from "./window-state.ts";
 
 // On Linux the window goes through XWayland. Under native Wayland, GNOME only raises a window that
 // spends the launcher's activation token on screen, and Chromium spends it on a new window before
@@ -45,6 +47,12 @@ if (needsX11) {
   app.relaunch({ args: [...process.argv.slice(1), X11_SWITCH] });
   app.exit(0);
 }
+
+/** The window's first size, and the least it can be made. */
+const WINDOW_SIZE = { width: 1280, height: 800 };
+const WINDOW_MINIMUM = { width: 360, height: 480 };
+/** How long the window rests after a move or resize before where it is gets written down. */
+const WINDOW_SAVE_MS = 500;
 
 /** Time for a window just shown to be on screen with its startup id. */
 const MAPPED_MS = 300;
@@ -110,6 +118,7 @@ if (needsX11) {
   /** The language chosen in the panel; the app's own words follow it. */
   let language: LanguageChoice = "auto";
   const preferencesFile = join(app.getPath("userData"), "preferences.json");
+  const windowStateFile = join(app.getPath("userData"), "window-state.json");
   /** What the setup page last showed, to redraw it in another language. */
   let setupStates: ToolState[] = [];
   let setupFailure: string | undefined;
@@ -282,11 +291,18 @@ if (needsX11) {
       window.focus();
       return;
     }
+    const saved = readWindowState(windowStateFile);
+    const bounds = saved
+      ? restoredBounds(
+          saved.bounds,
+          screen.getAllDisplays().map((display) => display.workArea),
+          WINDOW_MINIMUM,
+        )
+      : WINDOW_SIZE;
     window = new BrowserWindow({
-      width: 1280,
-      height: 800,
-      minWidth: 360,
-      minHeight: 480,
+      ...bounds,
+      minWidth: WINDOW_MINIMUM.width,
+      minHeight: WINDOW_MINIMUM.height,
       // The panel's backdrop colour, so nothing flashes before it paints.
       backgroundColor: "#eef2f9",
       icon,
@@ -298,10 +314,12 @@ if (needsX11) {
         additionalArguments: [`${DESKTOP_VERSION_ARG}${app.getVersion()}`],
       },
     });
+    if (saved?.maximized) window.maximize();
     window.once("ready-to-show", () => {
       window?.show();
       window?.focus();
     });
+    rememberPlace(window);
     // Closing the window frees its renderer; the server and the tray stay.
     window.on("closed", () => {
       window = undefined;
@@ -337,6 +355,35 @@ if (needsX11) {
       return { action: "deny" };
     });
     load();
+  }
+
+  /**
+   * Writes down where `target` is a moment after each move or resize (a quit that skips the close,
+   * like a SIGTERM, still finds it written) and once more as it closes. The size kept is the one it
+   * returns to from maximized.
+   */
+  function rememberPlace(target: BrowserWindow): void {
+    let timer: NodeJS.Timeout | undefined;
+    const save = () => {
+      clearTimeout(timer);
+      if (target.isDestroyed() || target.isMinimized()) return;
+      try {
+        writeWindowState(windowStateFile, {
+          bounds: target.getNormalBounds(),
+          maximized: target.isMaximized(),
+        });
+      } catch (error: unknown) {
+        console.error(`Could not remember the window's place: ${String(error)}`);
+      }
+    };
+    const later = () => {
+      clearTimeout(timer);
+      timer = setTimeout(save, WINDOW_SAVE_MS);
+    };
+    for (const event of ["move", "resize", "maximize", "unmaximize"] as const) {
+      target.on(event as "move", later);
+    }
+    target.on("close", save);
   }
 
   function createTray(): void {
