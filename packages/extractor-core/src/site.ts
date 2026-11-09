@@ -122,11 +122,20 @@ const ItemPick = z.object({
  */
 export const HtmlSearch = z.object({
   reads: z.literal("html"),
+  /**
+   * The search page, `{query}` where the name goes and, when the site answers in pages, `{page}`
+   * where its number goes: pages are then read one after another until one comes short.
+   */
   url: z.url().refine((url) => url.includes("{query}"), {
     message: "Needs {query} where the search goes",
   }),
   /** Each result on the page (`div.movie-item`); the picks below look inside it. */
   items: z.string().min(1),
+  /**
+   * What each result is, when the page says it: the words (as written there) of what is a series.
+   * A result whose word is none of them is left out. Absent: every result is a series.
+   */
+  type: ItemPick.extend({ series: z.array(z.string().min(1)).min(1) }).optional(),
   result: z.object({
     /** Relative addresses are on the site's origin. */
     url: ItemPick.extend({ attribute: z.string().min(1).default("href") }),

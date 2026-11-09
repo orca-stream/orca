@@ -291,7 +291,7 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
     };
   }
 
-  /** The items of a search page, read from its HTML. */
+  /** The items of each search page, read from its HTML, one page after another. */
   function htmlPages(config: HtmlSearch) {
     const pick = (item: HTMLElement, what: HtmlSearch["result"]["title"] | undefined) => {
       if (!what) return undefined;
@@ -302,6 +302,10 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
       return trimmed === "" ? undefined : trimmed;
     };
 
+    /** Spaces as one: a page writes its words across lines. */
+    const words = (text: string | undefined) => text?.replace(/\s+/g, " ");
+    const seriesWords = new Set(config.type?.series.map(words));
+
     return async function* (typed: string, asked: Asked): AsyncGenerator<ItemFields[]> {
       const getText = http.getText?.bind(http);
       if (!getText) {
@@ -310,15 +314,16 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
           `${site.name} is searched on its pages, which this server can't read`,
         );
       }
-      const html = await getText(
-        config.url.replaceAll("{query}", encodeURIComponent(typed)),
-        asked,
-      );
-      const { result } = config;
-      yield parse(html)
-        .querySelectorAll(config.items)
-        .map((item) => ({
-          kind: "series" as const,
+      const address = config.url.replaceAll("{query}", encodeURIComponent(typed));
+      const paged = address.includes(PAGE_SLOT);
+      const { result, type } = config;
+      let full = 0;
+      // One page after another, never at once: the site's limits hold for its search too.
+      for (let page = 1; page <= (paged ? MAX_PAGES : 1); page++) {
+        const html = await getText(address.replaceAll(PAGE_SLOT, String(page)), asked);
+        const items = parse(html).querySelectorAll(config.items);
+        yield items.map((item) => ({
+          kind: !type || seriesWords.has(words(pick(item, type))) ? ("series" as const) : null,
           path: pick(item, result.url),
           title: pick(item, result.title),
           originalTitle: pick(item, result.originalTitle),
@@ -326,6 +331,10 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
           plot: pick(item, result.plot),
           poster: pick(item, result.poster),
         }));
+        // The first page says how many a page holds; one with fewer is the last.
+        full ||= items.length;
+        if (items.length === 0 || items.length < full) break;
+      }
     };
   }
 }

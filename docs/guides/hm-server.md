@@ -183,11 +183,14 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   the site's own. See `site-d` in the example file.
 
   A site whose search page writes the results in its HTML takes `"reads": "html"`: `url` is that
-  page, with `{query}` where the name goes; `items` is a CSS selector for each result
-  (`div.movie-item`); and `result` picks, inside each one, `url` (a `selector` and its `attribute`,
+  page, with `{query}` where the name goes (and `{page}` if the site answers in pages: they are read one
+  after another, up to five, until one comes short); `items` is a CSS selector for each result
+  (`div.movie-item`); `type` (optional) picks what each result is and lists the words of a series
+  (`"series": ["TV Anime", "OVA"]`), leaving the rest out; and `result` picks, inside each one, `url` (a `selector` and its `attribute`,
   `href` if absent), `title` and, optionally, `originalTitle`, `year`, `plot` and `poster` (a
-  `selector`, and an `attribute` or, without one, the element's text). Every result is taken as a
-  series; one the entry could not read (a movie's page) is left out. See `site-c` in the example file.
+  `selector`, and an `attribute` or, without one, the element's text). Without `type`, every result
+  is taken as a series; one the entry could not read (a movie's page) is left out. See `site-c`, and
+  `site-a` for one in pages, in the example file.
 
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.

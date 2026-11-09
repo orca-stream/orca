@@ -450,4 +450,60 @@ describe("createSearch, on the site's search page", () => {
   it("refuses a search page without the query's slot", () => {
     expect(SiteSearch.safeParse({ ...htmlSearch, url: `${ORIGIN}/?s=` }).success).toBe(false);
   });
+
+  describe("in pages, saying what each result is", () => {
+    const card = (slug: string, type: string) =>
+      `<article class="anime-card"><span class="anime-card-type">
+        ${type}
+      </span><h2 class="anime-card-title"><a href="/anime/${slug}">${slug}</a></h2></article>`;
+    const pages: Record<number, string> = {
+      1: card("black-1", "TV Anime") + card("black-2", "Película"),
+      2: card("black-3", "OVA") + card("black-4", "TV Anime"),
+      3: card("black-5", "TV Anime"),
+    };
+    const pagedSearch = SiteSearch.parse({
+      reads: "html",
+      url: `${ORIGIN}/directorio?q={query}&page={page}`,
+      items: "article.anime-card",
+      type: { selector: ".anime-card-type", series: ["TV Anime", "OVA"] },
+      result: { url: { selector: "h2 a" }, title: { selector: "h2 a" } },
+    });
+
+    function pagedRun(last: number) {
+      const asked: string[] = [];
+      const run = createSearch({
+        site: { name: "Site A", example: `${ORIGIN}/anime/x`, search: pagedSearch },
+        http: {
+          getJson: async () => {
+            throw new Error("not asked");
+          },
+          getText: async (url) => {
+            asked.push(url);
+            const page = Number(new URL(url).searchParams.get("page"));
+            return `<main>${page <= last ? (pages[page] ?? "") : ""}</main>`;
+          },
+        },
+        canHandle: (url) => new URL(url).pathname.startsWith("/anime/"),
+      });
+      return { run, asked };
+    }
+
+    it("reads the pages one after another until one comes short, and keeps only series", async () => {
+      const { run, asked } = pagedRun(3);
+      const results = await run("black");
+      expect(asked).toEqual([1, 2, 3].map((n) => `${ORIGIN}/directorio?q=black&page=${n}`));
+      expect(results.map((result) => result.title)).toEqual([
+        "black-1",
+        "black-3",
+        "black-4",
+        "black-5",
+      ]);
+    });
+
+    it("stops at a page that comes empty", async () => {
+      const { run, asked } = pagedRun(2);
+      await run("black");
+      expect(asked).toHaveLength(3);
+    });
+  });
 });

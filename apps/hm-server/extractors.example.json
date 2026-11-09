@@ -28,6 +28,22 @@
     "mirrors": {
       "selector": "button.watch-server",
       "attribute": "data-server-url"
+    },
+    "search": {
+      "reads": "html",
+      "url": "https://origin.test/directorio?q={query}&page={page}",
+      "items": "article.anime-card",
+      "type": {
+        "selector": ".anime-card-type",
+        "series": ["TV Anime", "ONA", "OVA", "Especial"]
+      },
+      "result": {
+        "url": { "selector": "h2.anime-card-title a" },
+        "title": { "selector": "h2.anime-card-title a" },
+        "year": { "selector": ".anime-card-meta span" },
+        "poster": { "selector": "img", "attribute": "src" }
+      },
+      "posterHosts": ["covers.example"]
     }
   },
   "site-b": {

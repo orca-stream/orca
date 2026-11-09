@@ -191,12 +191,14 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   de ejemplo.
 
   Un sitio cuya página de búsqueda escribe los resultados en su HTML lleva `"reads": "html"`: `url`
-  es esa página, con `{query}` donde va el nombre; `items`, un selector CSS de cada resultado
-  (`div.movie-item`); y `result` toma, dentro de cada uno, `url` (un `selector` y su `attribute`,
+  es esa página, con `{query}` donde va el nombre (y `{page}` si el sitio responde por páginas: se leen una tras
+  otra, hasta cinco, hasta que una venga incompleta); `items`, un selector CSS de cada resultado
+  (`div.movie-item`); `type` (opcional) toma qué es cada resultado y lista las palabras de una serie
+  (`"series": ["TV Anime", "OVA"]`), y deja fuera el resto; y `result` toma, dentro de cada uno, `url` (un `selector` y su `attribute`,
   `href` si falta), `title` y, si quieres, `originalTitle`, `year`, `plot` y `poster` (un `selector`, y
-  un `attribute` o, sin él, el texto del elemento). Todo resultado se toma como serie; el que la
-  entrada no sepa leer (la página de una película) se deja fuera. Mira `site-c` en el archivo de
-  ejemplo.
+  un `attribute` o, sin él, el texto del elemento). Sin `type`, todo resultado se toma como
+  serie; el que la entrada no sepa leer (la página de una película) se deja fuera. Mira `site-c`, y
+  `site-a` para una por páginas, en el archivo de ejemplo.
 
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras
