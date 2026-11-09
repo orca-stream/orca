@@ -1,4 +1,5 @@
 import type {
+  ArtworkKind,
   ExtractorDto,
   GuideEpisodeDto,
   PreviewDto,
@@ -79,9 +80,11 @@ import {
   toCreateBody,
   type PreviewForm,
 } from "./preview-form";
+import { draftArtwork, type DraftArtwork, type DraftArtworks } from "./artwork";
 import { ShowBackdrop } from "./ShowBackdrop";
 import { ShowCard, type ShowCardData } from "./ShowCard";
 import { TitleSearch } from "./TitleSearch";
+import { TmdbShowSection } from "./TmdbShowSection";
 
 /** How long the TMDB id has to stay put before it is looked up. */
 const LOOKUP_DELAY_MS = 500;
@@ -224,7 +227,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   const api = useApi();
   const [params] = useSearchParams();
   const [, navigate] = useLocation();
-  const { preview: previewMutation, createSeries } = useMutations();
+  const { preview: previewMutation, createSeries, setArtwork } = useMutations();
   const extractors = useQuery(queries.extractors(api));
   const seriesList = useQuery(queries.seriesList(api));
 
@@ -233,6 +236,13 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   const [chosenId, setChosenId] = useState(params.get("extractor") ?? "");
   const [preview, setPreview] = useState<PreviewDto | null>(null);
   const [form, setForm] = useState<PreviewForm | null>(null);
+  // Set while the images picked go into the series just added, before its page opens.
+  const [placingArtwork, setPlacingArtwork] = useState(false);
+  // The images picked for a new series, and the TMDB show they were picked for.
+  const [artworks, setArtworks] = useState<{ tmdbId: string; chosen: DraftArtworks }>({
+    tmdbId: "",
+    chosen: {},
+  });
   const [notice, setNotice] = useState<string | null>(null);
   // Set when Preview is pressed on something that is not a web address; typing again clears it.
   const [urlInvalid, setUrlInvalid] = useState(false);
@@ -248,6 +258,8 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   const [edited, setEdited] = useState<ReadonlySet<LookupField>>(new Set());
   // The list of where the address goes drops from the address and itself, not from the fields below.
   const head = useRef<HTMLDivElement>(null);
+  // The whole bar: the artwork opens beside it, level with its top.
+  const bar = useRef<HTMLDivElement>(null);
   const [columnRef, columnHeight] = useElementHeight<HTMLDivElement>();
 
   // The series "Add another source" came from, if any: the address goes to it once read.
@@ -291,8 +303,23 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
   function confirm() {
     if (!preview || !form) return;
     setNotice(null);
+    // Taken now: the images belong to the show shown when it was added.
+    const images = Object.entries(chosenArtwork) as [ArtworkKind, DraftArtwork][];
     createSeries.mutate(toCreateBody(preview, form), {
-      onSuccess: (series) => navigate(`/series/${encodeURIComponent(series.id)}`),
+      onSuccess: async (series) => {
+        // The series exists either way: an image that fails can be picked again on its page.
+        setPlacingArtwork(true);
+        await Promise.allSettled(
+          images.map(([kind, image]) =>
+            setArtwork.mutateAsync({
+              seriesId: series.id,
+              kind,
+              from: "url" in image ? { url: image.url } : { file: image.file },
+            }),
+          ),
+        );
+        navigate(`/series/${encodeURIComponent(series.id)}`);
+      },
       onError: (error) => {
         // Previews are kept for a short while only: read the address again, keeping the edits.
         if (error instanceof ApiError && error.status === 410) {
@@ -316,6 +343,7 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
     });
   }
 
+  const adding = createSeries.isPending || placingArtwork;
   const gone = createSeries.error instanceof ApiError && createSeries.error.status === 410;
   const failure = createSeries.isError && !gone ? createError(createSeries.error, t) : null;
   // Once the address is read, where it goes hangs under it, as the lower half of the same bar.
@@ -524,11 +552,18 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
             },
           }
         : null;
+  // The images picked for the show being added, for the show TMDB says it is (another forgets them).
+  const chosenArtwork: DraftArtworks =
+    tmdbShow && artworks.tmdbId === tmdbShow.tmdbId && tmdbCard ? artworks.chosen : {};
   // Once TMDB has said which show it is, the show fills the background behind the glass.
+  const chosenBackdrop = tmdbShow ? draftArtwork(tmdbShow, chosenArtwork, "backdrop") : null;
   const backdrop = tmdbShow
-    ? tmdbShow.backdropUrl
-      ? { src: tmdbShow.backdropUrl, poster: false }
-      : { src: sideCard?.show.posterUrl ?? tmdbShow.posterUrl, poster: true }
+    ? chosenBackdrop
+      ? { src: chosenBackdrop, poster: false }
+      : {
+          src: draftArtwork(tmdbShow, chosenArtwork, "poster") ?? sideCard?.show.posterUrl ?? null,
+          poster: true,
+        }
     : null;
   // TMDB's episodes wherever the address's land (one season, or several when the site has more),
   // for their frames and names in the grid.
@@ -706,7 +741,10 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
             {t.add.url}
           </FieldLabel>
           {/* The rim and the shadow are the whole bar's: the address alone, or with where it goes. */}
-          <div className={cn(GLASS_PANEL, "rounded-[44px]", urlError && "border-destructive/40")}>
+          <div
+            ref={bar}
+            className={cn(GLASS_PANEL, "rounded-[44px]", urlError && "border-destructive/40")}
+          >
             <div ref={head}>
               <InputGroup
                 className={cn(
@@ -1053,18 +1091,28 @@ function AddSeries({ onStartOver }: { onStartOver: () => void }) {
                   </p>
                   <button
                     type="button"
-                    disabled={!ready || createSeries.isPending}
-                    aria-busy={createSeries.isPending || undefined}
+                    disabled={!ready || adding}
+                    aria-busy={adding || undefined}
                     onClick={confirm}
                     className="flex h-14 shrink-0 items-center gap-2 rounded-full bg-primary px-6 text-base font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                   >
-                    {createSeries.isPending && <Spinner aria-hidden="true" />}
-                    {createSeries.isPending ? t.add.confirming : t.add.confirm}
+                    {adding && <Spinner aria-hidden="true" />}
+                    {adding ? t.add.confirming : t.add.confirm}
                   </button>
                 </div>
               </div>
             )}
-            {attached && sideCard && (
+            {attached && sideCard && tmdbShow && sideCard.show === tmdbCard && (
+              <TmdbShowSection
+                caption={sideCard.caption}
+                show={sideCard.show}
+                tmdb={tmdbShow}
+                chosen={chosenArtwork}
+                anchor={bar}
+                onChosenChange={(chosen) => setArtworks({ tmdbId: tmdbShow.tmdbId, chosen })}
+              />
+            )}
+            {attached && sideCard && !(tmdbShow && sideCard.show === tmdbCard) && (
               // The bar's last part, at every width: the one place the show's card is given.
               <section
                 aria-label={sideCard.caption}

@@ -1,5 +1,11 @@
-import type { ArtworkKind, ArtworkOptionDto, SeriesDto, ShowLookupDto } from "@orca/hm-contract";
-import { useQuery } from "@tanstack/react-query";
+import type {
+  ArtworkKind,
+  ArtworkOptionDto,
+  ArtworkOptionsDto,
+  SeriesDto,
+  ShowLookupDto,
+} from "@orca/hm-contract";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { type ReactElement, type RefObject, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -26,7 +32,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
-import { currentArtwork, fileOf, OWN, TMDB_DEFAULT } from "./artwork";
+import {
+  currentArtwork,
+  fileOf,
+  OWN,
+  TMDB_DEFAULT,
+  type DraftArtwork,
+  type DraftArtworks,
+} from "./artwork";
 import { GLASS_PANEL, PILL_BUTTON, SECONDARY } from "./bar";
 
 const KINDS: readonly ArtworkKind[] = ["poster", "backdrop", "logo"];
@@ -120,81 +133,76 @@ function Tile({
   );
 }
 
-/**
- * Chooses a series' poster, backdrop and logo: one of TMDB's, an image of one's own, or back to
- * TMDB's choice. Each pick is saved at once, into the series' folder, where Jellyfin reads it. It
- * opens beside the series' card, not over it, so each pick shows on the card as it is made.
- */
-export function ArtworkPicker({
-  series,
-  tmdb,
-  open,
-  onOpenChange,
-  kind,
-  onKindChange,
-  trigger,
-  anchor,
-}: {
-  series: SeriesDto;
-  tmdb: ShowLookupDto | null;
+/** What the picker shows of one kind: the TMDB file in use, and a picture of one's own in use. */
+interface KindState {
+  /** The file name of the TMDB image in use (`fileOf`), marked in the list; null for none of them. */
+  inUse: string | null;
+  /** An image in use that the list doesn't have (an upload), shown first; null when there is none. */
+  ownSrc: string | null;
+  /** Whether "Use TMDB's" undoes a choice of one's own. */
+  resettable: boolean;
+}
+
+interface PickerFrame {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   kind: ArtworkKind;
   onKindChange: (kind: ArtworkKind) => void;
   /** The button it opens from and sits beside. */
   trigger: ReactElement;
-  /** What it opens beside: the series' card. */
+  /** What it opens beside: the show's card. */
   anchor: RefObject<Element | null>;
+}
+
+/**
+ * Chooses a show's poster, backdrop and logo: one of TMDB's, an image of one's own, or back to
+ * TMDB's choice. It opens beside the show's card, not over it, so each pick shows on the card as it
+ * is made. What a pick does is the caller's: saved at once for a series, kept for one being added.
+ */
+function ArtworkPickerView({
+  open,
+  onOpenChange,
+  kind,
+  onKindChange,
+  trigger,
+  anchor,
+  hint,
+  options,
+  hasTmdbId,
+  state,
+  backdrop,
+  pending,
+  failed,
+  onPick,
+  onUpload,
+  onReset,
+}: PickerFrame & {
+  hint: string;
+  options: UseQueryResult<ArtworkOptionsDto>;
+  hasTmdbId: boolean;
+  state: (kind: ArtworkKind) => KindState;
+  /** Behind each logo, the backdrop in use. */
+  backdrop: string | null;
+  /** What is being saved: a TMDB address, `upload` or `reset`, and the kind it is for. */
+  pending: { kind: ArtworkKind; what: string } | null;
+  failed: { message: string; retry: () => void } | null;
+  onPick: (option: ArtworkOptionDto) => void;
+  onUpload: (file: File) => void;
+  onReset: () => void;
 }) {
   const t = useT();
-  const api = useApi();
-  const { setArtwork, removeArtwork } = useMutations();
-  const options = useQuery({
-    ...queries.artworkOptions(api, series.id),
-    enabled: open && series.tmdbId !== null,
-  });
   const file = useRef<HTMLInputElement>(null);
-  /** What is being saved: a TMDB address, `upload` or `reset`, and the kind it is for. */
-  const [pending, setPending] = useState<{ kind: ArtworkKind; what: string } | null>(null);
-  const [failed, setFailed] = useState<{ message: string; retry: () => void } | null>(null);
-
-  const run = (what: string, task: () => Promise<unknown>) => {
-    const forKind = kind;
-    setPending({ kind: forKind, what });
-    setFailed(null);
-    task()
-      .catch((error: unknown) => {
-        setFailed({
-          message: error instanceof ApiError ? error.message : t.series.artwork.failed,
-          retry: () => run(what, task),
-        });
-      })
-      .finally(() => setPending(null));
-  };
-  const pick = (option: ArtworkOptionDto) =>
-    run(option.url, () =>
-      setArtwork.mutateAsync({ seriesId: series.id, kind, from: { url: option.url } }),
-    );
-  const upload = (chosen: File) =>
-    run("upload", () =>
-      setArtwork.mutateAsync({ seriesId: series.id, kind, from: { file: chosen } }),
-    );
-  const reset = () => run("reset", () => removeArtwork.mutateAsync({ seriesId: series.id, kind }));
-
   const busy = pending !== null;
-  const own = series[OWN[kind]];
-  const backdrop = currentArtwork(series, tmdb, "backdrop");
   const list = options.data?.[kind] ?? [];
-  const noTmdb =
-    series.tmdbId === null
-      ? t.series.artwork.noTmdbId
-      : options.error instanceof ApiError && options.error.status === 503
-        ? t.series.artwork.noTmdbKey
-        : null;
+  const noTmdb = !hasTmdbId
+    ? t.series.artwork.noTmdbId
+    : options.error instanceof ApiError && options.error.status === 503
+      ? t.series.artwork.noTmdbKey
+      : null;
   // A word under the list only when there is nothing (yet) to pick from.
   const note =
     noTmdb ??
-    (options.isPending && series.tmdbId !== null ? (
+    (options.isPending ? (
       <span className="flex items-center gap-2">
         <Spinner className="size-4" />
         {t.series.artwork.loading}
@@ -225,7 +233,7 @@ export function ArtworkPicker({
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1 px-2 pt-1">
             <PopoverTitle className="text-lg font-semibold">{t.series.artwork.title}</PopoverTitle>
-            <PopoverDescription className="text-sm">{t.series.artwork.hint}</PopoverDescription>
+            <PopoverDescription className="text-sm">{hint}</PopoverDescription>
           </div>
           <PopoverClose
             render={<Button variant="ghost" size="icon" className={SECONDARY} />}
@@ -249,11 +257,11 @@ export function ArtworkPicker({
               ))}
             </TabsList>
             <span className="flex-1" />
-            {own && (
+            {state(kind).resettable && (
               <button
                 type="button"
                 disabled={busy}
-                onClick={reset}
+                onClick={onReset}
                 title={t.series.artwork.resetHint}
                 className={cn(PILL_BUTTON, SECONDARY, "h-10 px-4")}
               >
@@ -286,7 +294,7 @@ export function ArtworkPicker({
               onChange={(event) => {
                 const chosen = event.target.files?.[0];
                 event.target.value = "";
-                if (chosen) upload(chosen);
+                if (chosen) onUpload(chosen);
               }}
             />
           </div>
@@ -306,15 +314,7 @@ export function ArtworkPicker({
 
           {KINDS.map((k) => {
             const listed = options.data?.[k] ?? [];
-            // The one in use: the series' own (by the TMDB file it was taken from), else TMDB's pick.
-            const from = series[OWN[k]] ? (series.artworkFrom[k] ?? null) : null;
-            const inUse = series[OWN[k]] ? fileOf(from) : fileOf(tmdb?.[TMDB_DEFAULT[k]]);
-            // Its own picture only when TMDB's list doesn't have it: an upload, or one TMDB dropped.
-            const ownTile =
-              series[OWN[k]] &&
-              (from === null ||
-                options.isError ||
-                (options.isSuccess && !listed.some((o) => fileOf(o.url) === inUse)));
+            const { inUse, ownSrc } = state(k);
             return (
               <TabsPanel
                 key={k}
@@ -322,10 +322,10 @@ export function ArtworkPicker({
                 className="-m-1 min-h-0 overflow-y-auto overscroll-contain p-1 [scrollbar-color:oklch(0_0_0/18%)_transparent] [scrollbar-width:thin]"
               >
                 <div className={cn("grid gap-4", GRID[k].grid)}>
-                  {ownTile && (
+                  {ownSrc !== null && (
                     <Tile
                       kind={k}
-                      src={artworkUrl(series, k)}
+                      src={ownSrc}
                       label={t.series.artwork.own}
                       current
                       busy={false}
@@ -344,7 +344,7 @@ export function ArtworkPicker({
                       busy={pending?.kind === k && pending.what === option.url}
                       disabled={busy}
                       behind={backdrop}
-                      onPick={() => pick(option)}
+                      onPick={() => onPick(option)}
                     />
                   ))}
                 </div>
@@ -357,5 +357,128 @@ export function ArtworkPicker({
         </Tabs>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** A series' artwork: each pick is saved at once, into its folder, where Jellyfin reads it. */
+export function ArtworkPicker({
+  series,
+  tmdb,
+  ...frame
+}: PickerFrame & { series: SeriesDto; tmdb: ShowLookupDto | null }) {
+  const t = useT();
+  const api = useApi();
+  const { setArtwork, removeArtwork } = useMutations();
+  const { kind } = frame;
+  const options = useQuery({
+    ...queries.artworkOptions(api, series.id),
+    enabled: frame.open && series.tmdbId !== null,
+  });
+  const [pending, setPending] = useState<{ kind: ArtworkKind; what: string } | null>(null);
+  const [failed, setFailed] = useState<{ message: string; retry: () => void } | null>(null);
+
+  const run = (what: string, task: () => Promise<unknown>) => {
+    const forKind = kind;
+    setPending({ kind: forKind, what });
+    setFailed(null);
+    task()
+      .catch((error: unknown) => {
+        setFailed({
+          message: error instanceof ApiError ? error.message : t.series.artwork.failed,
+          retry: () => run(what, task),
+        });
+      })
+      .finally(() => setPending(null));
+  };
+
+  const state = (k: ArtworkKind): KindState => {
+    const own = series[OWN[k]];
+    const listed = options.data?.[k] ?? [];
+    // The one in use: the series' own (by the TMDB file it was taken from), else TMDB's pick.
+    const from = own ? (series.artworkFrom[k] ?? null) : null;
+    const inUse = own ? fileOf(from) : fileOf(tmdb?.[TMDB_DEFAULT[k]]);
+    // Its own picture only when TMDB's list doesn't have it: an upload, or one TMDB dropped.
+    const ownTile =
+      own &&
+      (from === null ||
+        options.isError ||
+        (options.isSuccess && !listed.some((o) => fileOf(o.url) === inUse)));
+    return { inUse, ownSrc: ownTile ? artworkUrl(series, k) : null, resettable: own };
+  };
+
+  return (
+    <ArtworkPickerView
+      {...frame}
+      hint={t.series.artwork.hint}
+      options={options}
+      hasTmdbId={series.tmdbId !== null}
+      state={state}
+      backdrop={currentArtwork(series, tmdb, "backdrop")}
+      pending={pending}
+      failed={failed}
+      onPick={(option) =>
+        run(option.url, () =>
+          setArtwork.mutateAsync({ seriesId: series.id, kind, from: { url: option.url } }),
+        )
+      }
+      onUpload={(chosen) =>
+        run("upload", () =>
+          setArtwork.mutateAsync({ seriesId: series.id, kind, from: { file: chosen } }),
+        )
+      }
+      onReset={() => run("reset", () => removeArtwork.mutateAsync({ seriesId: series.id, kind }))}
+    />
+  );
+}
+
+/**
+ * The artwork of a show being added: nothing is saved yet, the picks are kept and the card shows
+ * them; they go into the series' folder once it is added.
+ */
+export function DraftArtworkPicker({
+  tmdb,
+  chosen,
+  onChange,
+  ...frame
+}: PickerFrame & {
+  tmdb: ShowLookupDto;
+  chosen: DraftArtworks;
+  onChange: (chosen: DraftArtworks) => void;
+}) {
+  const t = useT();
+  const api = useApi();
+  const { kind } = frame;
+  const options = useQuery({
+    ...queries.showArtworkOptions(api, tmdb.tmdbId),
+    enabled: frame.open,
+  });
+  const state = (k: ArtworkKind): KindState => {
+    const pick = chosen[k];
+    return {
+      inUse: pick ? ("url" in pick ? fileOf(pick.url) : null) : fileOf(tmdb[TMDB_DEFAULT[k]]),
+      ownSrc: pick && "file" in pick ? pick.previewUrl : null,
+      resettable: pick !== undefined,
+    };
+  };
+  const set = (pick: DraftArtwork | undefined) => {
+    const next = { ...chosen };
+    if (pick) next[kind] = pick;
+    else delete next[kind];
+    onChange(next);
+  };
+  return (
+    <ArtworkPickerView
+      {...frame}
+      hint={t.series.artwork.draftHint}
+      options={options}
+      hasTmdbId
+      state={state}
+      backdrop={chosen.backdrop?.previewUrl ?? tmdb.backdropUrl}
+      pending={null}
+      failed={null}
+      onPick={(option) => set({ url: option.url, previewUrl: option.previewUrl })}
+      onUpload={(file) => set({ file, previewUrl: URL.createObjectURL(file) })}
+      onReset={() => set(undefined)}
+    />
   );
 }

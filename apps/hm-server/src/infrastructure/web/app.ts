@@ -271,6 +271,17 @@ export function createApp(deps: AppDeps) {
     );
   });
 
+  api.get("/lookup/tmdb/:tmdbId/artwork", validate("param", ShowLookupParams), async (c) => {
+    const { tmdbId } = c.req.valid("param");
+    return c.json(
+      await useCases.showArtworkOptions(
+        tmdbId,
+        firstLanguage(c.req.header("accept-language")),
+        c.req.raw.signal,
+      ),
+    );
+  });
+
   api.get(
     "/lookup/tmdb/:tmdbId/seasons",
     validate("param", GuideSeasonsParams),

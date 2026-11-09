@@ -1100,13 +1100,20 @@ export function createUseCases(deps: Deps) {
           "Without a TMDB id the series' artwork can only be uploaded",
         );
       }
+      return this.showArtworkOptions(series.tmdbId, language, signal);
+    },
+
+    /** The same choice for a show by its TMDB id, before it is a series: to pick while adding it. */
+    async showArtworkOptions(
+      tmdbId: string,
+      language: string | undefined,
+      signal?: AbortSignal,
+    ): Promise<ArtworkOptionsDto> {
       if (!deps.episodeGuide) {
         throw new AppError("unavailable", "No TMDB key: set one in Settings to choose from TMDB");
       }
-      const options = await deps.episodeGuide.artwork(series.tmdbId, language, signal);
-      if (!options) {
-        throw new AppError("not_found", `TMDB has no show with the id ${series.tmdbId}`);
-      }
+      const options = await deps.episodeGuide.artwork(tmdbId, language, signal);
+      if (!options) throw new AppError("not_found", `TMDB has no show with the id ${tmdbId}`);
       return options;
     },
 

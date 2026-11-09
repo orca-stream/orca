@@ -129,6 +129,7 @@ describe("auth", () => {
       ["GET", "/api/extractors"],
       ["GET", "/api/lookup/tmdb?query=x"],
       ["GET", "/api/lookup/tmdb/1"],
+      ["GET", "/api/lookup/tmdb/1/artwork"],
       ["GET", "/api/lookup/tmdb/1/seasons"],
       ["GET", "/api/lookup/tmdb/1/seasons/1"],
       ["GET", "/api/library/shows"],
@@ -560,6 +561,30 @@ describe("a series' artwork", () => {
     const res = await get(`/api/series/${series.id}/artwork`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(options);
+  });
+
+  it("lists TMDB's images for a show by its TMDB id, before it is a series", async () => {
+    const options = {
+      poster: [],
+      backdrop: [
+        {
+          url: "https://image.tmdb.org/t/p/original/wide.jpg",
+          previewUrl: "https://image.tmdb.org/t/p/w780/wide.jpg",
+          language: null,
+          width: 1920,
+          height: 1080,
+        },
+      ],
+      logo: [],
+    };
+    h.episodeGuide.artworks.set("292741", options);
+    const res = await get("/api/lookup/tmdb/292741/artwork");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(options);
+    expect((await get("/api/lookup/tmdb/404404/artwork")).status).toBe(404);
+    expect((await get("/api/lookup/tmdb/abc/artwork")).status).toBe(400);
+    h.deps.episodeGuide = null;
+    expect((await get("/api/lookup/tmdb/292741/artwork")).status).toBe(503);
   });
 });
 

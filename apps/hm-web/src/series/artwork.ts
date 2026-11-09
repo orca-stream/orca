@@ -26,3 +26,18 @@ export function currentArtwork(
 ): string | null {
   return series[OWN[kind]] ? artworkUrl(series, kind) : (tmdb?.[TMDB_DEFAULT[kind]] ?? null);
 }
+
+/** An image chosen for a show being added: one of TMDB's, or a file of one's own to upload. */
+export type DraftArtwork = { url: string; previewUrl: string } | { file: File; previewUrl: string };
+
+/** The choices for a show being added, by kind; a kind left out is TMDB's choice. */
+export type DraftArtworks = Partial<Record<ArtworkKind, DraftArtwork>>;
+
+/** What a show being added shows of a kind: the image picked for it, else TMDB's choice. */
+export function draftArtwork(
+  tmdb: ShowLookupDto,
+  chosen: DraftArtworks,
+  kind: ArtworkKind,
+): string | null {
+  return chosen[kind]?.previewUrl ?? tmdb[TMDB_DEFAULT[kind]];
+}

@@ -42,6 +42,10 @@ interface Options {
       backdropUrl?: string | null;
     }
   >;
+  /** What a search on TMDB by name finds, by query; any other query finds nothing. */
+  found?: Record<string, unknown[]>;
+  /** TMDB's images of a show, by TMDB id; any other id is a 503 (no TMDB key). */
+  artwork?: Record<string, unknown>;
   /** The shows Jellyfin has; absent, Jellyfin can't be asked. */
   library?: unknown[];
   /** The episode files of each Jellyfin show, by its id. */
@@ -57,6 +61,8 @@ function setup({
   createBody = { error: "x", message: "y" },
   previews,
   shows = {},
+  found = {},
+  artwork = {},
   library,
   libraryEpisodes = {},
   guide,
@@ -88,6 +94,13 @@ function setup({
         : guide.seasons[seasons[1]!];
       return answer ? jsonResponse(answer) : jsonResponse({ error: "not_found" }, 404);
     }
+    if (pathname === "/api/lookup/tmdb")
+      return jsonResponse(found[new URL(request.url).searchParams.get("query") ?? ""] ?? []);
+    const images = /^\/api\/lookup\/tmdb\/(\d+)\/artwork$/.exec(pathname);
+    if (images) {
+      const options = artwork[images[1]!];
+      return options ? jsonResponse(options) : jsonResponse({ error: "unavailable" }, 503);
+    }
     const lookup = /^\/api\/lookup\/tmdb\/(\d+)$/.exec(pathname);
     if (lookup) {
       const show = shows[lookup[1]!];
@@ -109,6 +122,8 @@ function setup({
       return jsonResponse(
         previews ? previews[Math.min(previewCalls++, previews.length - 1)] : preview,
       );
+    const art = /^\/api\/series\/([^/]+)\/(poster|backdrop|logo)$/.exec(pathname);
+    if (art && request.method === "PUT") return jsonResponse(makeSeries({ id: art[1]! }));
     if (pathname === "/api/series" && request.method === "POST") {
       if (createStatus === 201) return jsonResponse(makeSeries({ id: "new1" }), 201);
       return jsonResponse(createBody, createStatus);
@@ -628,6 +643,8 @@ describe("AddSeriesScreen", () => {
     const { requests, location } = setup();
     await previewIt(user);
     await user.type(screen.getByLabelText("Título"), "The Beverly Hillbillies");
+    // The title's list of TMDB's shows closes, as it does on leaving the field.
+    await user.keyboard("{Escape}");
     await user.click(screen.getByRole("checkbox", { name: "Incluir S01E04" }));
     await user.click(screen.getByRole("switch", { name: /Seguir la serie/ }));
     await user.click(confirmButton());
@@ -651,6 +668,68 @@ describe("AddSeriesScreen", () => {
     });
   });
 
+  it("picks the show from TMDB's search by name, which fills in its ids", async () => {
+    const user = userEvent.setup();
+    setup({
+      found: {
+        Bebop: [
+          {
+            tmdbId: "30991",
+            title: "Cowboy Bebop",
+            originalTitle: null,
+            year: 1998,
+            overview: null,
+            posterUrl: null,
+          },
+        ],
+      },
+      shows: { "30991": { title: "Cowboy Bebop", year: 1998, imdbId: "tt0213338" } },
+    });
+    await previewIt(user);
+    await user.type(screen.getByLabelText("Título"), "Bebop");
+    await user.click(await screen.findByRole("option", { name: /Cowboy Bebop/ }));
+    expect((screen.getByLabelText("Título") as HTMLInputElement).value).toBe("Cowboy Bebop");
+    expect((screen.getByLabelText("Id de TMDB") as HTMLInputElement).value).toBe("30991");
+    await waitFor(() =>
+      expect((screen.getByLabelText("Id de IMDb") as HTMLInputElement).value).toBe("tt0213338"),
+    );
+  });
+
+  it("puts the artwork picked while adding into the series, then goes to it", async () => {
+    const user = userEvent.setup();
+    const poster = "https://image.tmdb.org/t/p/original/p2.jpg";
+    const { requests, location } = setup({
+      shows: { "30991": { title: "Cowboy Bebop", year: 1998, imdbId: null } },
+      artwork: {
+        "30991": {
+          poster: [
+            {
+              url: poster,
+              previewUrl: "https://image.tmdb.org/t/p/w342/p2.jpg",
+              language: "es",
+              width: 1,
+              height: 1,
+            },
+          ],
+          backdrop: [],
+          logo: [],
+        },
+      },
+    });
+    await previewIt(user);
+    await user.type(screen.getByLabelText("Id de TMDB"), "30991");
+    await user.click(await screen.findByRole("button", { name: "Cambiar el póster" }));
+    await user.click(await screen.findByRole("button", { name: "es" }));
+    await user.keyboard("{Escape}");
+    await user.click(confirmButton());
+
+    await waitFor(() => expect(location.history.at(-1)).toBe("/series/new1"));
+    const put = requests.find(
+      (r) => r.method === "PUT" && new URL(r.url).pathname === "/api/series/new1/poster",
+    )!;
+    expect(await put.json()).toEqual({ url: poster });
+  });
+
   it("reads the address again when the preview expired (410), keeping what was edited", async () => {
     const user = userEvent.setup();
     const { requests } = setup({
@@ -660,6 +739,8 @@ describe("AddSeriesScreen", () => {
     await previewIt(user);
     await user.clear(screen.getByLabelText("Título"));
     await user.type(screen.getByLabelText("Título"), "Mi título");
+    // The title's list of TMDB's shows closes, as it does on leaving the field.
+    await user.keyboard("{Escape}");
     await user.click(confirmButton());
 
     expect(await screen.findByText(/volvió a leer/)).toBeTruthy();
@@ -677,6 +758,8 @@ describe("AddSeriesScreen", () => {
     });
     await previewIt(user);
     await user.type(screen.getByLabelText("Título"), "Show");
+    // The title's list of TMDB's shows closes, as it does on leaving the field.
+    await user.keyboard("{Escape}");
     await user.click(confirmButton());
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Choca con algo que ya existe");
@@ -812,6 +895,8 @@ describe("AddSeriesScreen", () => {
     await user.type(screen.getByLabelText("Id de TMDB"), "12345");
     await user.type(screen.getByLabelText("Temporada"), "2");
     await user.type(screen.getByLabelText("Título"), "Show");
+    // The title's list of TMDB's shows closes, as it does on leaving the field.
+    await user.keyboard("{Escape}");
     await user.click(confirmButton());
     await waitFor(() =>
       expect(

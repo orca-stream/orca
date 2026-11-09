@@ -154,6 +154,17 @@ export const queries = {
       retry: false,
     }),
 
+  /** The same images for a show by its TMDB id, to choose them while adding it as a series. */
+  showArtworkOptions: (api: ApiClient, tmdbId: string) =>
+    queryOptions({
+      queryKey: keys.showArtworkOptions(tmdbId),
+      queryFn: ({ signal }) =>
+        api.get<ArtworkOptionsDto>(`/lookup/tmdb/${id(tmdbId)}/artwork`, { signal }),
+      staleTime: 10 * 60_000,
+      // A 503 (no key) is the answer: only uploading is offered then.
+      retry: false,
+    }),
+
   /** A show's seasons as TMDB numbers them; a 503 means no TMDB key, and the numbers are typed. */
   guideSeasons: (api: ApiClient, tmdbId: string, language: string) =>
     queryOptions({

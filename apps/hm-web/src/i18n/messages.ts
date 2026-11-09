@@ -289,6 +289,7 @@ const es = {
     artwork: {
       title: "Imágenes de la serie",
       hint: "Se guardan en la carpeta de la serie, donde Jellyfin las lee.",
+      draftHint: "Se guardan en la carpeta de la serie al añadirla.",
       edit: "Cambiar las imágenes",
       editPoster: "Cambiar el póster",
       close: "Cerrar",
@@ -1078,6 +1079,7 @@ const en: typeof es = {
     artwork: {
       title: "Series artwork",
       hint: "Saved in the series' folder, where Jellyfin reads it.",
+      draftHint: "They are saved in the series' folder once it is added.",
       edit: "Change the artwork",
       editPoster: "Change the poster",
       close: "Close",
