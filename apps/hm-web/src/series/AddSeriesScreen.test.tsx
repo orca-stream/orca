@@ -661,6 +661,7 @@ describe("AddSeriesScreen", () => {
                 plot: null,
                 posterUrl: null,
                 seriesId: null,
+                seasons: null,
               },
             ],
           },
@@ -727,6 +728,7 @@ describe("AddSeriesScreen", () => {
       plot: null,
       posterUrl: null,
       seriesId: null,
+      seasons: null,
     }));
     setup({
       extractors: [site],
@@ -752,6 +754,40 @@ describe("AddSeriesScreen", () => {
       "disabled",
       true,
     );
+  });
+
+  it("tells two results with the same title apart by their seasons", async () => {
+    const user = userEvent.setup();
+    const site = {
+      id: "site-b",
+      name: "Site B",
+      hosts: ["origin.test"],
+      example: "https://origin.test/series/x",
+      explicit: false,
+      searchable: true,
+    };
+    const twin = (slug: string, seasons: number) => ({
+      url: `https://origin.test/series/${slug}`,
+      title: "King",
+      originalTitle: null,
+      year: null,
+      plot: null,
+      posterUrl: null,
+      seriesId: null,
+      seasons,
+    });
+    setup({
+      extractors: [site],
+      siteFound: {
+        king: [
+          { extractorId: "site-b", failed: false, results: [twin("king", 4), twin("king-2", 1)] },
+        ],
+      },
+    });
+    await user.type(await screen.findByLabelText("Dirección"), "king");
+    const region = await screen.findByRole("region", { name: "Resultados de los sitios" });
+    expect(await within(region).findByText("4 temporadas")).toBeTruthy();
+    expect(within(region).getByText("1 temporada")).toBeTruthy();
   });
 
   it("opens a series already added when the sites find it, instead of reading it again", async () => {
@@ -781,6 +817,7 @@ describe("AddSeriesScreen", () => {
                 plot: null,
                 posterUrl: null,
                 seriesId: "s7",
+                seasons: null,
               },
             ],
           },

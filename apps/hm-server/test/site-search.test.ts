@@ -101,6 +101,7 @@ describe("searching the sites", () => {
             plot: null,
             posterUrl: poster,
             seriesId: null,
+            seasons: null,
           },
           // A poster on another host is never fetched for the panel.
           {
@@ -111,6 +112,7 @@ describe("searching the sites", () => {
             plot: null,
             posterUrl: null,
             seriesId: null,
+            seasons: null,
           },
         ],
       },
@@ -221,6 +223,43 @@ describe("a search result that is a series already", () => {
       });
       const [site] = await own.useCases.searchSites("fake");
       expect(site?.results.map((result) => result.seriesId)).toEqual([series.id]);
+    } finally {
+      await own.cleanup();
+    }
+  });
+});
+
+describe("a site that finds two shows with the same title", () => {
+  it("tells them apart by their seasons, read only for those two", async () => {
+    const asked: string[] = [];
+    const fake = Object.assign(new FakeExtractor(), {
+      search: async (): Promise<SearchResult[]> => [
+        { kind: "series", url: "https://fake.example/serie/king", title: "King" },
+        { kind: "series", url: "https://fake.example/serie/king-2", title: "king " },
+        { kind: "series", url: "https://fake.example/serie/queen", title: "Queen" },
+        { kind: "series", url: "https://fake.example/serie/broken", title: "Broken" },
+        { kind: "series", url: "https://fake.example/serie/broken-2", title: "Broken" },
+      ],
+      seasonSources: async (url: string) => {
+        asked.push(url);
+        if (url.includes("broken")) throw new Error("down");
+        const count = url.endsWith("king") ? 4 : 1;
+        return Array.from({ length: count }, (_, i) => ({ season: i + 1, url: `${url}-${i + 1}` }));
+      },
+    });
+    const own = await createHarness({ extractors: [fake] });
+    try {
+      const [site] = await own.useCases.searchSites("king");
+      expect(site?.results.map((result) => [result.url.split("/").at(-1), result.seasons])).toEqual(
+        [
+          ["king", 4],
+          ["king-2", 1],
+          ["queen", null],
+          ["broken", null],
+          ["broken-2", null],
+        ],
+      );
+      expect(asked).not.toContain("https://fake.example/serie/queen");
     } finally {
       await own.cleanup();
     }

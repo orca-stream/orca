@@ -227,9 +227,11 @@ function ResultTile({
   const t = useT();
   const cover = item.posterUrl;
   const mine = item.seriesId !== null;
-  const facts = [item.year === null ? null : String(item.year), item.originalTitle].filter(
-    (fact) => fact !== null,
-  );
+  const facts = [
+    item.year === null ? null : String(item.year),
+    item.seasons === null ? null : t.add.cardSeasons(item.seasons),
+    item.originalTitle,
+  ].filter((fact) => fact !== null);
   const label = [
     item.title,
     ...facts,

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { SiteExtractor } from "@orca/extractor-core";
+import type { SearchResult, SiteExtractor } from "@orca/extractor-core";
 import {
   episodeOffset,
   IMDB_ID_PATTERN,
@@ -209,6 +209,34 @@ export function createUseCases(deps: Deps) {
       return null;
     }
   };
+  /**
+   * The seasons of each result that shares its title with another of the same site: a site's
+   * duplicate (one complete, one with a single stray season) looks the same on its card. Only those
+   * are read, one show page each; one that can't be read is left without.
+   */
+  const seasonsOfTwins = async (
+    extractor: SiteExtractor,
+    results: readonly SearchResult[],
+    options?: { signal?: AbortSignal },
+  ): Promise<Map<string, number>> => {
+    const counted = new Map<string, number>();
+    if (!extractor.seasonSources) return counted;
+    const named = (result: SearchResult) => result.title.trim().toLowerCase();
+    const titles = new Map<string, number>();
+    for (const result of results) titles.set(named(result), (titles.get(named(result)) ?? 0) + 1);
+    const twins = results.filter((result) => (titles.get(named(result)) ?? 0) > 1);
+    await Promise.all(
+      twins.map(async (result) => {
+        try {
+          const sources = await extractor.seasonSources!(result.url, options);
+          if (sources.length > 0) counted.set(result.url, sources.length);
+        } catch {
+          // Without its count the card is as it was.
+        }
+      }),
+    );
+    return counted;
+  };
   /** The hosts an extractor may name images on; none for an extractor that's gone. */
   const nextUrlOf = (source: SeriesSource): string | null =>
     deps.extractors.get(source.extractorId)?.nextSourceUrl?.(source.sourceUrl) ?? null;
@@ -256,26 +284,29 @@ export function createUseCases(deps: Deps) {
       return Promise.all(
         searchable.map(async (extractor): Promise<SiteSearchDto> => {
           try {
-            const found = await extractor.search!(query, signal ? { signal } : undefined);
+            const asked = signal ? { signal } : undefined;
+            const series = (await extractor.search!(query, asked)).filter(
+              (result) => result.kind === "series",
+            );
+            const seasons = await seasonsOfTwins(extractor, series, asked);
             return {
               extractorId: extractor.id,
               failed: false,
-              results: found
-                .filter((result) => result.kind === "series")
-                .map((result) => {
-                  const poster = trustedPosterUrl(result.posterUrl, searchPosterHosts(extractor));
-                  return {
-                    url: result.url,
-                    title: result.title,
-                    originalTitle: result.originalTitle ?? null,
-                    year: result.year ?? null,
-                    plot: result.plot ?? null,
-                    posterUrl: poster
-                      ? `/api/search/poster?${new URLSearchParams({ extractor: extractor.id, url: poster }).toString()}`
-                      : null,
-                    seriesId: owners.get(showKey(extractor.id, result.url) ?? "") ?? null,
-                  };
-                }),
+              results: series.map((result) => {
+                const poster = trustedPosterUrl(result.posterUrl, searchPosterHosts(extractor));
+                return {
+                  url: result.url,
+                  title: result.title,
+                  originalTitle: result.originalTitle ?? null,
+                  year: result.year ?? null,
+                  plot: result.plot ?? null,
+                  posterUrl: poster
+                    ? `/api/search/poster?${new URLSearchParams({ extractor: extractor.id, url: poster }).toString()}`
+                    : null,
+                  seriesId: owners.get(showKey(extractor.id, result.url) ?? "") ?? null,
+                  seasons: seasons.get(result.url) ?? null,
+                };
+              }),
             };
           } catch (error) {
             if (signal?.aborted) throw error;

@@ -32,6 +32,11 @@ export const SiteSearchResultDto = z.object({
   posterUrl: z.string().nullable(),
   /** The series already read from this show on this site (any season of it); else null. */
   seriesId: z.string().nullable(),
+  /**
+   * How many seasons the site lists for it, read only when the same site found another with the same
+   * title (a site's duplicate), to tell them apart; else null.
+   */
+  seasons: z.number().int().nonnegative().nullable(),
 });
 export type SiteSearchResultDto = z.infer<typeof SiteSearchResultDto>;
 
