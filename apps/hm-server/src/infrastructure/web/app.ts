@@ -20,6 +20,8 @@ import {
   SwitchSourceBody,
   ShowLookupParams,
   ShowSearchQuery,
+  SiteSearchPosterQuery,
+  SiteSearchQuery,
   GuideEpisodesParams,
   GuideQuery,
   GuideSeasonsParams,
@@ -228,6 +230,8 @@ export function createApp(deps: AppDeps) {
   for (const path of [
     "/auth/me",
     "/extractors",
+    "/search",
+    "/search/*",
     "/lookup/*",
     "/library/*",
     "/series",
@@ -308,6 +312,19 @@ export function createApp(deps: AppDeps) {
   api.get("/library/shows/:id/episodes", async (c) =>
     c.json(await useCases.listLibraryEpisodes(c.req.param("id"), c.req.raw.signal)),
   );
+
+  api.get("/search", validate("query", SiteSearchQuery), async (c) =>
+    c.json(await useCases.searchSites(c.req.valid("query").q, c.req.raw.signal)),
+  );
+
+  api.get("/search/poster", validate("query", SiteSearchPosterQuery), async (c) => {
+    const { extractor, url } = c.req.valid("query");
+    const image = await useCases.searchPoster(extractor, url, c.req.raw.signal);
+    return c.body(new Uint8Array(image.bytes), 200, {
+      "content-type": POSTER_TYPES[image.extension] ?? "application/octet-stream",
+      "cache-control": "private, max-age=600",
+    });
+  });
 
   api.post("/series/preview", validate("json", PreviewRequest), async (c) => {
     const { url, extractorId } = c.req.valid("json");

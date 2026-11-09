@@ -9,6 +9,7 @@ const ARCHIVE = {
   hosts: ["archive.org", "www.archive.org"],
   example: "https://archive.org/details/bevhill?a=1&b=2",
   explicit: false,
+  searchable: false,
 };
 const GENERIC = {
   id: "generic",
@@ -16,6 +17,7 @@ const GENERIC = {
   hosts: [],
   example: "https://example.com/watch/my-video",
   explicit: true,
+  searchable: false,
 };
 
 function handlerFor({ series = [] as unknown[], extractors = [] as unknown[] }): Handler {

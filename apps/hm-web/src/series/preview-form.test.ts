@@ -197,6 +197,7 @@ describe("matchExtractor", () => {
       hosts: ["archive.org"],
       example: "",
       explicit: false,
+      searchable: false,
     },
     {
       id: "other",
@@ -204,6 +205,7 @@ describe("matchExtractor", () => {
       hosts: ["other.test", "www.other.test"],
       example: "",
       explicit: false,
+      searchable: false,
     },
   ];
 

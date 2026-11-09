@@ -165,6 +165,39 @@ describe("show API extractor: one season per address", () => {
     expect(requests).toHaveLength(3);
   });
 
+  it("takes the poster from where the site serves its images, when the file says where", async () => {
+    const { http } = fakeApi(answers());
+    const images = createShowApiExtractor({
+      site: parseSite({ images: `${ORIGIN}/wp-content/uploads/` }),
+      http,
+    });
+    const extraction = await images.extract(`${SHOW}?season=10`);
+    expect(extraction.series.posterUrl).toBe(`${ORIGIN}/wp-content/uploads/thumbs/poster_hd.webp`);
+  });
+
+  it("searches by name when the file says how, offering only addresses it reads", async () => {
+    const http: HttpClient = {
+      getJson: async () => ({
+        data: { posts: [{ slug: "the-show-2026", title: "The Show", type: "tvshows" }] },
+      }),
+    };
+    const searchable = createShowApiExtractor({
+      site: parseSite({
+        search: {
+          reads: "json",
+          url: `${API}/search?q={query}`,
+          items: "data.posts",
+          result: { url: { series: "/series/{slug}" }, title: "{title}" },
+        },
+      }),
+      http,
+    });
+    expect(await searchable.search!("show")).toEqual([
+      { kind: "series", url: SHOW, title: "The Show" },
+    ]);
+    expect(createShowApiExtractor({ site, http }).search).toBeUndefined();
+  });
+
   it("refuses a season the show does not have", async () => {
     const { http } = fakeApi(answers());
     await expect(

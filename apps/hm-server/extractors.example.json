@@ -36,11 +36,32 @@
     "example": "https://origin.test/series/some-show?season=1",
     "showPath": "^/series/([^/]+)/?$",
     "api": "https://origin.test/api-prefix/v1",
+    "images": "https://origin.test/wp-content/uploads",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
     "languages": ["Latino"],
     "limits": {
       "metadataPerSec": 2,
       "downloadsPerHost": 1
+    },
+    "search": {
+      "reads": "json",
+      "url": "https://origin.test/wp-api/v1/search?postType=any&postsPerPage=30&q={query}",
+      "items": "data.posts",
+      "type": {
+        "from": "{type}",
+        "series": ["tvshows", "animes"],
+        "movie": ["movies"]
+      },
+      "result": {
+        "url": {
+          "series": "/series/{slug}"
+        },
+        "title": "{title}",
+        "originalTitle": "{original_title}",
+        "year": "{release_date}",
+        "plot": "{overview}",
+        "poster": "https://origin.test/wp-content/uploads{images.poster}"
+      }
     }
   },
   "site-c": {

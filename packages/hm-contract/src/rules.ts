@@ -166,3 +166,6 @@ export function isHmEvent(value: unknown): value is HmEvent {
       return false;
   }
 }
+
+/** Below this many letters a search finds too much to be worth asking the sites. */
+export const MIN_SITE_SEARCH_LENGTH = 3;

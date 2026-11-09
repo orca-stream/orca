@@ -127,6 +127,8 @@ describe("auth", () => {
   it("401 on every protected route without a session", async () => {
     for (const [method, path] of [
       ["GET", "/api/extractors"],
+      ["GET", "/api/search?q=show"],
+      ["GET", "/api/search/poster?extractor=x&url=https%3A%2F%2Fx.example%2Fa.jpg"],
       ["GET", "/api/lookup/tmdb?query=x"],
       ["GET", "/api/lookup/tmdb/1"],
       ["GET", "/api/lookup/tmdb/1/artwork"],
@@ -324,6 +326,7 @@ describe("series routes", () => {
         hosts: ["archive.org"],
         example: "https://archive.org/details/bevhill-s01e01-36",
         explicit: false,
+        searchable: false,
       },
     ]);
   });

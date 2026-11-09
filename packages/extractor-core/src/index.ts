@@ -14,8 +14,11 @@ export {
   type ExtractorLimits,
   type HttpClient,
   type Mirror,
+  type SearchResult,
+  type SearchResultKind,
   type SeasonSource,
   type SiteExtractor,
 } from "./types.ts";
 export { normalizeUrl, ownedUrl, ownsHost, parseUrl } from "./url.ts";
 export { numberingWarnings } from "./warnings.ts";
+export { createSearch, rankByTitle, type SearchOptions } from "./search.ts";

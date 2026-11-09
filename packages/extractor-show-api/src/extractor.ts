@@ -1,4 +1,5 @@
 import {
+  createSearch,
   ExtractorError,
   normalizeUrl,
   numberingWarnings,
@@ -59,6 +60,11 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
   const showPath = new RegExp(site.showPath);
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
   const referer = `${new URL(site.example).origin}/`;
+  /** An image path the API gave, under where the site serves its images. */
+  const imageUrl = (path: string): string =>
+    /^https?:\/\//.test(path) || !site.images
+      ? new URL(path, referer).href
+      : `${site.images}/${path.replace(/^\/+/, "")}`;
 
   async function get<T extends z.ZodType>(
     data: T,
@@ -140,13 +146,18 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
     return { season, all };
   }
 
+  const canHandle = (input: string): boolean => addressOf(input) !== null;
+
   return {
     id: site.id,
     name: site.name,
     hosts: site.hosts,
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
-    canHandle: (input) => addressOf(input) !== null,
+    canHandle,
+    ...(site.search
+      ? { search: createSearch({ site: { ...site, search: site.search }, http, canHandle }) }
+      : {}),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const address = owned(input);
@@ -220,7 +231,7 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
           title,
           ...(year !== undefined ? { year } : {}),
           ...(data.overview ? { plot: data.overview } : {}),
-          ...(poster ? { posterUrl: new URL(poster, referer).href } : {}),
+          ...(poster ? { posterUrl: imageUrl(poster) } : {}),
           remoteMarker: markerOf(season, total),
         },
         seasons: [{ number: season, episodeCount: episodes.length }],

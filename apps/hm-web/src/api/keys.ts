@@ -19,6 +19,7 @@ export const keys = {
   libraryShows: ["library", "shows"] as const,
   libraryEpisodes: (showId: string) => ["library", "shows", showId, "episodes"] as const,
   showLookup: (tmdbId: string) => ["lookup", "tmdb", tmdbId] as const,
+  siteSearch: (query: string) => ["search", query] as const,
   showSearch: (query: string) => ["lookup", "tmdb-search", query] as const,
   showArtworkOptions: (tmdbId: string) => ["lookup", "tmdb-artwork", tmdbId] as const,
   guideSeasons: (tmdbId: string, language: string) =>

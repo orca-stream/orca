@@ -1,4 +1,5 @@
 import {
+  createSearch,
   ExtractorError,
   normalizeUrl,
   numberingWarnings,
@@ -118,13 +119,18 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
       .sort((a, b) => a - b)
       .join(",");
 
+  const canHandle = (input: string): boolean => addressOf(input) !== null;
+
   return {
     id: site.id,
     name: site.name,
     hosts: site.hosts,
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
-    canHandle: (input) => addressOf(input) !== null,
+    canHandle,
+    ...(site.search
+      ? { search: createSearch({ site: { ...site, search: site.search }, http, canHandle }) }
+      : {}),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const address = owned(input);

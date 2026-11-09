@@ -160,6 +160,22 @@ export interface Mirror {
   framed?: boolean;
 }
 
+/** What a site holds: H&M reads series; movies are kept apart for when it reads them too. */
+export type SearchResultKind = "series" | "movie";
+
+/** Something a site's search found, at the address its extractor reads it from. */
+export interface SearchResult {
+  kind: SearchResultKind;
+  /** An address `canHandle` claims, to be read the way a pasted one is. */
+  url: string;
+  title: string;
+  /** The name it first aired with, when the site gives one that differs from the title. */
+  originalTitle?: string;
+  year?: number;
+  plot?: string;
+  posterUrl?: string;
+}
+
 /** The port every site implements. */
 export interface SiteExtractor extends ExtractorInfo {
   /** True when the extractor must be chosen by the user: `canHandle` never claims an address. */
@@ -191,4 +207,9 @@ export interface SiteExtractor extends ExtractorInfo {
    * is downloaded, not when it is listed: the addresses may expire. Required for `mirrors` media.
    */
   resolveMirrors?(episodeUrl: string, options?: { signal?: AbortSignal }): Promise<Mirror[]>;
+  /**
+   * What the site finds by a name, best match first. Every result's address is one this extractor
+   * reads. Absent: the site can't be searched, only pasted from.
+   */
+  search?: (query: string, options?: { signal?: AbortSignal }) => Promise<SearchResult[]>;
 }

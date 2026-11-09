@@ -11,6 +11,7 @@ import type {
   SeriesDto,
   ShowLookupDto,
   ShowSearchResultDto,
+  SiteSearchDto,
   GuideEpisodeDto,
   GuideSeasonDto,
 } from "./types";
@@ -37,6 +38,8 @@ const id = encodeURIComponent;
 
 /** How long what TMDB says of a show is trusted before it is asked again. */
 const SHOW_LOOKUP_STALE_MS = 60 * 60_000;
+/** What a site finds by a name changes as it uploads: asked again after a few minutes. */
+const SITE_SEARCH_STALE_MS = 5 * 60_000;
 
 /** Every read of the API as query options, so screens and the live-event handler share the keys. */
 export const queries = {
@@ -127,6 +130,17 @@ export const queries = {
       queryFn: ({ signal }) => api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}`, { signal }),
       staleTime: SHOW_LOOKUP_STALE_MS,
       // A 404 is the answer, not a hiccup; and nobody waits through retries while typing.
+      retry: false,
+    }),
+
+  /** What every searchable site finds by a name, to pick an address from instead of pasting one. */
+  siteSearch: (api: ApiClient, query: string) =>
+    queryOptions({
+      queryKey: keys.siteSearch(query),
+      queryFn: ({ signal }) =>
+        api.get<SiteSearchDto[]>(`/search?${new URLSearchParams({ q: query })}`, { signal }),
+      staleTime: SITE_SEARCH_STALE_MS,
+      // Nobody waits through retries while typing: the next key asks again.
       retry: false,
     }),
 

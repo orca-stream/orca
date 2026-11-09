@@ -12,6 +12,7 @@ const EXTRACTORS = [
     hosts: ["archive.org"],
     example: "https://archive.org/details/x",
     explicit: false,
+    searchable: false,
   },
 ];
 const GENERIC = {
@@ -20,6 +21,7 @@ const GENERIC = {
   hosts: [],
   example: "https://example.com/watch/video",
   explicit: true,
+  searchable: false,
 };
 const URL_TO_ADD = "https://archive.org/details/bevhill";
 
@@ -42,6 +44,8 @@ interface Options {
       backdropUrl?: string | null;
     }
   >;
+  /** What the sites find by a name, by query; any other query finds nothing. */
+  siteFound?: Record<string, unknown[]>;
   /** What a search on TMDB by name finds, by query; any other query finds nothing. */
   found?: Record<string, unknown[]>;
   /** TMDB's images of a show, by TMDB id; any other id is a 503 (no TMDB key). */
@@ -62,6 +66,7 @@ function setup({
   previews,
   shows = {},
   found = {},
+  siteFound = {},
   artwork = {},
   library,
   libraryEpisodes = {},
@@ -94,6 +99,8 @@ function setup({
         : guide.seasons[seasons[1]!];
       return answer ? jsonResponse(answer) : jsonResponse({ error: "not_found" }, 404);
     }
+    if (pathname === "/api/search")
+      return jsonResponse(siteFound[new URL(request.url).searchParams.get("q") ?? ""] ?? []);
     if (pathname === "/api/lookup/tmdb")
       return jsonResponse(found[new URL(request.url).searchParams.get("query") ?? ""] ?? []);
     const images = /^\/api\/lookup\/tmdb\/(\d+)\/artwork$/.exec(pathname);
@@ -624,6 +631,66 @@ describe("AddSeriesScreen", () => {
     await user.type(input, "x");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(input.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  it("searches the sites by a name typed in the address, and reads the one picked", async () => {
+    const user = userEvent.setup();
+    const site = {
+      id: "site-b",
+      name: "Site B",
+      hosts: ["origin.test"],
+      example: "https://origin.test/series/x",
+      explicit: false,
+      searchable: true,
+    };
+    const { requests } = setup({
+      extractors: [...EXTRACTORS, site],
+      siteFound: {
+        "la casa": [
+          {
+            extractorId: "site-b",
+            failed: false,
+            results: [
+              {
+                url: "https://origin.test/series/la-casa",
+                title: "La casa",
+                originalTitle: "The House",
+                year: 2006,
+                plot: null,
+                posterUrl: null,
+              },
+            ],
+          },
+          { extractorId: "internet-archive", failed: true, results: [] },
+        ],
+      },
+    });
+    const input = await screen.findByLabelText("Dirección");
+    await waitFor(() =>
+      expect((input as HTMLInputElement).placeholder).toBe("Pega una dirección o busca por título"),
+    );
+    await user.type(input, "la");
+    expect(await screen.findByText("Escribe al menos 3 letras para buscar.")).toBeTruthy();
+    await user.type(input, " casa");
+    // A name is searched, never read: the read button waits for a web address. (Hidden from the
+    // accessibility tree while the list is open, as every popup of the bar does.)
+    const read = screen.getByRole("button", { name: "Previsualizar", hidden: true });
+    expect((read as HTMLButtonElement).disabled).toBe(true);
+    const result = await screen.findByRole("option", { name: /La casa/ });
+    expect(
+      await screen.findByText("En los sitios, para «la casa» · No respondió: Internet Archive"),
+    ).toBeTruthy();
+    await user.click(result);
+
+    await screen.findByLabelText("Título");
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series/preview",
+    )!;
+    expect(await post.json()).toEqual({
+      url: "https://origin.test/series/la-casa",
+      extractorId: "site-b",
+    });
+    expect((input as HTMLInputElement).value).toBe("https://origin.test/series/la-casa");
   });
 
   it("sends no extractor when the choice is automatic, and hides the choice without a generic one", async () => {

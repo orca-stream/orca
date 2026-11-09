@@ -1,6 +1,12 @@
 export { ApiErrorBody, LICENSE_KINDS, LicenseKindSchema, Page } from "./common.ts";
 export { LoginBody, Me } from "./auth.ts";
-export { ExtractorDto } from "./extractors.ts";
+export {
+  ExtractorDto,
+  SiteSearchDto,
+  SiteSearchPosterQuery,
+  SiteSearchQuery,
+  SiteSearchResultDto,
+} from "./extractors.ts";
 export {
   ArtworkFromUrlBody,
   ArtworkKind,

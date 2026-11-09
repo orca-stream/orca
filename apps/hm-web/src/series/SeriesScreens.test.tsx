@@ -127,6 +127,7 @@ describe("SeriesListScreen", () => {
                   hosts: ["tv.test"],
                   example: "https://tv.test/x",
                   explicit: true,
+                  searchable: false,
                 },
               ])
             : jsonResponse([]),
@@ -160,6 +161,7 @@ describe("SeriesListScreen", () => {
                   hosts: ["tv.test"],
                   example: "https://tv.test/x",
                   explicit: true,
+                  searchable: false,
                 },
               ])
             : jsonResponse([]),

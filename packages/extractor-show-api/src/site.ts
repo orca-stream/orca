@@ -11,6 +11,14 @@ export const ShowApiSite = SiteBase.extend({
   /** Where the API answers, without a trailing slash (`https://site.example/api/v1`). */
   api: z.url().transform((url) => url.replace(/\/+$/, "")),
   /**
+   * Where the paths of the site's images are served from (`https://site.example/uploads`), when that
+   * is not the site's origin.
+   */
+  images: z
+    .url()
+    .transform((url) => url.replace(/\/+$/, ""))
+    .optional(),
+  /**
    * The audio languages to keep, as the site names them (`Latino`), best first. A dual audio player
    * (`Latino - Inglés`) counts as any of its tracks. Absent: every player, in the site's order.
    */

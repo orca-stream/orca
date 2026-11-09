@@ -150,7 +150,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     envoltorio que enmarca el reproductor real (`?url=`), para abrir el reproductor en sí.
   - `"api"`: su API JSON, que lista las temporadas, episodios y reproductores de una serie. Dale sus
     hosts, la ruta de la serie (su primer grupo es el slug), la dirección base de la API y, si quieres,
-    los idiomas de audio que conservar, el mejor primero. Una temporada se agrega como cualquier fuente: pega
+    los idiomas de audio que conservar, el mejor primero, e `images`, dónde sirve el sitio las rutas de
+    imagen que da su API (`https://site.example/uploads`) cuando no es su origen. Una temporada se agrega como cualquier fuente: pega
     `<dirección de la serie>?season=N` (sin `?season` se lee la primera y la vista previa avisa de las
     demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
     sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
@@ -161,6 +162,18 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     quieres, las pistas de audio que conservar, la mejor primero (`"tracks": ["sub", "dub"]`; sin ella,
     las dos, el audio original primero). Pega la dirección de una temporada y elige su temporada destino
     y su primer episodio, como con cualquier otra fuente.
+
+  Cualquier entrada puede decir además cómo se **busca por nombre** en el sitio, en `"search"`. Así, al
+  escribir un nombre en **Añadir serie** (en vez de una dirección) se lista lo que encontró cada sitio
+  con búsqueda, y al elegir uno se lee como si se hubiera pegado. Por ahora la búsqueda lee una
+  respuesta JSON (`"reads": "json"`): `url` es dónde preguntar, con `{query}` donde va el nombre;
+  `items`, dónde lista la respuesta lo encontrado (`data.posts`); `type` (opcional) lee el tipo de cada
+  elemento (`"from": "{type}"`) y dice qué palabras son serie y cuáles película (por ahora solo se
+  ofrecen series); y `result` arma cada resultado con huecos `{campo}`: `url` por tipo
+  (`"series": "/series/{slug}"`, relativa al sitio), `title` y, si quieres, `originalTitle`, `year`
+  (sus cuatro primeras cifras), `plot` y `poster`. Nunca se ofrece un resultado que la propia entrada
+  no sepa leer. Mira `site-b` en el archivo de ejemplo.
+
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras
   el primer vídeo) viene con valores sugeridos.

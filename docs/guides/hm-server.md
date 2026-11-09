@@ -146,7 +146,8 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     query parameter of a wrapper that frames the real player (`?url=`), so the player itself is opened.
   - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
     show path (its first group is the slug), the API's base address and, optionally, the audio
-    languages to keep, best first. A season is added like any
+    languages to keep, best first, and `images`, where the site serves the image paths its API gives
+    (`https://site.example/uploads`) when that is not its origin. A season is added like any
     other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
@@ -156,6 +157,17 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     base address (it may be on another domain than the pages) and, optionally, the audio tracks to keep, best
     first (`"tracks": ["sub", "dub"]`; absent, both, original audio first). Paste a season's address,
     then pick its target season and first episode, as with any other source.
+
+  Any entry may also say how the site is **searched by name**, in `"search"`. Then typing a name in
+  **Add series** (instead of an address) lists what every such site found, and picking one reads it as
+  if it had been pasted. For now a search reads a JSON answer (`"reads": "json"`): `url` is where to
+  ask, with `{query}` where the name goes; `items` is where the answer lists what it found
+  (`data.posts`); `type` (optional) reads each item's kind (`"from": "{type}"`) and says which words
+  are a series and which a movie (only series are offered for now); and `result` builds each one from
+  its item with `{field}` slots: `url` by kind (`"series": "/series/{slug}"`, relative to the site),
+  `title` and, optionally, `originalTitle`, `year` (its first four digits), `plot` and `poster`. A
+  result the entry itself could not read is never offered. See `site-b` in the example file.
+
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.
 - Locally, install Playwright's headless Chromium (the build it runs headless) with

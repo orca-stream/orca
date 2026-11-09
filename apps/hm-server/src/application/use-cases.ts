@@ -18,6 +18,7 @@ import {
   type PreviewDto,
   type SeriesDto,
   type SeriesPatch,
+  type SiteSearchDto,
   type ShowLookupDto,
   type SourcePatch,
   type SwitchSourceBody,
@@ -209,13 +210,67 @@ export function createUseCases(deps: Deps) {
     enqueueDownloads,
 
     listExtractors() {
-      return deps.extractors.list().map(({ id, name, hosts, example, explicitOnly }) => ({
+      return deps.extractors.list().map(({ id, name, hosts, example, explicitOnly, search }) => ({
         id,
         name,
         hosts,
         example,
         explicit: explicitOnly === true,
+        searchable: search !== undefined,
       }));
+    },
+
+    /**
+     * A name searched on every site that can be searched, at once: each answers on its own, and one
+     * that fails says so without taking the others down. Only series: H&M reads no movies yet.
+     */
+    async searchSites(query: string, signal?: AbortSignal): Promise<SiteSearchDto[]> {
+      const searchable = deps.extractors.list().filter((extractor) => extractor.search);
+      return Promise.all(
+        searchable.map(async (extractor): Promise<SiteSearchDto> => {
+          try {
+            const found = await extractor.search!(query, signal ? { signal } : undefined);
+            return {
+              extractorId: extractor.id,
+              failed: false,
+              results: found
+                .filter((result) => result.kind === "series")
+                .map((result) => {
+                  const poster = trustedPosterUrl(result.posterUrl, extractor.hosts);
+                  return {
+                    url: result.url,
+                    title: result.title,
+                    originalTitle: result.originalTitle ?? null,
+                    year: result.year ?? null,
+                    plot: result.plot ?? null,
+                    posterUrl: poster
+                      ? `/api/search/poster?${new URLSearchParams({ extractor: extractor.id, url: poster }).toString()}`
+                      : null,
+                  };
+                }),
+            };
+          } catch (error) {
+            if (signal?.aborted) throw error;
+            return { extractorId: extractor.id, failed: true, results: [] };
+          }
+        }),
+      );
+    },
+
+    /** A search result's cover, fetched from its extractor's own hosts; never from any other. */
+    async searchPoster(
+      extractorId: string,
+      posterUrl: string,
+      signal?: AbortSignal,
+    ): Promise<FetchedImage> {
+      const hosts = hostsOf(extractorId);
+      const url = trustedPosterUrl(posterUrl, hosts);
+      if (!url) throw new AppError("not_found", "Not a poster of this extractor");
+      try {
+        return await deps.images.fetch(url, { hosts, ...(signal ? { signal } : {}) });
+      } catch (error) {
+        throw new AppError("upstream", "The poster could not be fetched", { cause: error });
+      }
     },
 
     /** Runs the extractor and keeps the result for a short while; nothing is persisted. */
