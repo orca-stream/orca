@@ -874,6 +874,15 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                   )}
                 </InputGroupAddon>
                 <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
+                  {searchQuery !== null && !isSiteSearch(searchQuery) && (
+                    // Too short to search yet: said quietly beside the button it keeps disabled.
+                    <span
+                      role="status"
+                      className="mr-2 animate-in text-sm font-normal whitespace-nowrap text-muted-foreground duration-300 fade-in-0"
+                    >
+                      {t.add.siteSearchShort(MIN_SITE_SEARCH_LENGTH)}
+                    </span>
+                  )}
                   {attached ? (
                     // Once read, the address is the series': another one starts over from here.
                     <InputGroupButton
@@ -1257,11 +1266,6 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                 ))}
               </NativeSelect>
             </Field>
-          )}
-          {searchQuery !== null && !isSiteSearch(searchQuery) && (
-            <p role="status" className="px-4 text-sm text-muted-foreground">
-              {t.add.siteSearchShort(MIN_SITE_SEARCH_LENGTH)}
-            </p>
           )}
           {chosen && (
             <p role="status" className="px-4 text-sm text-warning">

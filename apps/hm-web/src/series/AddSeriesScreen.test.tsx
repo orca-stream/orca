@@ -673,7 +673,7 @@ describe("AddSeriesScreen", () => {
       expect((input as HTMLInputElement).placeholder).toBe("Pega una dirección o busca por título"),
     );
     await user.type(input, "la");
-    expect(await screen.findByText("Escribe al menos 3 letras para buscar.")).toBeTruthy();
+    expect(await screen.findByText("Mínimo 3 letras")).toBeTruthy();
     await user.type(input, " casa");
     // A name is searched, never read: the read button waits for a web address.
     const read = screen.getByRole("button", { name: "Previsualizar" });
