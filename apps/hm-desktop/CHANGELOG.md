@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.4.0...orca-hm-v0.5.0) (2026-11-09)
+
+
+### ✨ Features
+
+* **hm-desktop:** install and update the app on Windows
+
 ## [0.4.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.3...orca-hm-v0.4.0) (2026-11-09)
 
 
