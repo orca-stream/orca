@@ -1,5 +1,9 @@
 import {
   ExtractorError,
+  normalizeUrl,
+  numberingWarnings,
+  ownedUrl,
+  parseUrl,
   type ExtractedEpisode,
   type Extraction,
   type ExtractionWarning,
@@ -24,18 +28,6 @@ export interface SeasonApiExtractorOptions {
   http: HttpClient;
 }
 
-const ownsHost = (hosts: readonly string[], host: string): boolean =>
-  hosts.some((own) => host === own || host.endsWith(`.${own}`));
-
-function parseUrl(input: string): URL | null {
-  try {
-    const url = new URL(input.trim());
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
-  } catch {
-    return null;
-  }
-}
-
 type Episode = SeasonData["episodeList"][number];
 
 /** The first few fields the answer got wrong, by where they are, so a changed site says what changed. */
@@ -58,15 +50,11 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
 
   /** The season's id and its address without query, fragment or trailing slash; null when not ours. */
   function addressOf(input: string): { id: string; url: URL } | null {
-    const url = parseUrl(input);
-    if (!url || !ownsHost(site.hosts, url.hostname.toLowerCase())) return null;
+    const url = ownedUrl(site.hosts, input);
+    if (!url) return null;
     const id = seasonPath.exec(url.pathname)?.[1];
     if (!id) return null;
-    const clean = new URL(url.href);
-    clean.search = "";
-    clean.hash = "";
-    clean.pathname = clean.pathname.replace(/\/+$/, "") || "/";
-    return { id: decodeURIComponent(id), url: clean };
+    return { id: decodeURIComponent(id), url: normalizeUrl(url) };
   }
 
   function owned(input: string): { id: string; url: URL } {
@@ -144,7 +132,6 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
 
       const warnings: ExtractionWarning[] = [];
       const episodes: ExtractedEpisode[] = [];
-      const seen = new Map<number, string[]>();
       const silent: number[] = [];
       for (const item of data.episodeList) {
         if (playersOf(item).length === 0) {
@@ -170,7 +157,6 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
             ...(item.runtimeSeconds ? { durationSec: item.runtimeSeconds } : {}),
           },
         });
-        seen.set(item.number, [...(seen.get(item.number) ?? []), sourceRef]);
       }
       if (silent.length > 0) {
         warnings.push({
@@ -182,23 +168,7 @@ export function createSeasonApiExtractor({ site, http }: SeasonApiExtractorOptio
         throw new ExtractorError("no-episodes", `No episodes found on ${address.url.href}`);
       }
       episodes.sort((a, b) => a.episode - b.episode);
-      for (const [number, refs] of seen) {
-        if (refs.length > 1) {
-          warnings.push({
-            code: "duplicate",
-            message: `Episode ${number} is listed ${refs.length} times`,
-            sourceRefs: refs,
-          });
-        }
-      }
-      const numbers = [...seen.keys()];
-      const missing: number[] = [];
-      for (let n = Math.min(...numbers); n <= Math.max(...numbers); n++) {
-        if (!seen.has(n)) missing.push(n);
-      }
-      if (missing.length > 0) {
-        warnings.push({ code: "gap", message: `Missing episode numbers: ${missing.join(", ")}` });
-      }
+      warnings.push(...numberingWarnings(episodes));
       const year = data.year ?? undefined;
       if (year === undefined) {
         warnings.push({ code: "year-missing", message: "The site gives no year for this season" });

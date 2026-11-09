@@ -1,10 +1,8 @@
+import { ExtractorId } from "@orca/extractor-core/site";
 import { SiteConfig } from "@orca/extractor-html/site";
 import { SeasonApiSite } from "@orca/extractor-season-api/site";
 import { ShowApiSite } from "@orca/extractor-show-api/site";
 import * as z from "zod";
-
-/** Stable: series remember the extractor they were added with by this id, the entry's key. */
-const Id = z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/, "Lower-case letters, digits and dashes");
 
 /**
  * One entry per site, under the name its owner gives it, saying how the site is read: `page` reads
@@ -31,7 +29,8 @@ const Entry = z.discriminatedUnion("reads", [
  * The extractors file. It names the sites, so it lives with whoever runs the server and never in
  * the repository; the server checks it when it is saved and the panel when it is picked.
  */
-export const ExtractorsFile = z.record(Id, Entry);
+/** Keyed by the extractor's id: series remember the extractor they were added with by it. */
+export const ExtractorsFile = z.record(ExtractorId, Entry);
 export type ExtractorsFile = z.infer<typeof ExtractorsFile>;
 
 /** Why a file is not an extractors file: its JSON, or each problem by where it is. */

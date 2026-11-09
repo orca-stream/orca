@@ -17,3 +17,5 @@ export {
   type SeasonSource,
   type SiteExtractor,
 } from "./types.ts";
+export { normalizeUrl, ownedUrl, ownsHost, parseUrl } from "./url.ts";
+export { numberingWarnings } from "./warnings.ts";

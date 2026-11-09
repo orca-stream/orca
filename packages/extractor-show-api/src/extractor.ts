@@ -1,5 +1,9 @@
 import {
   ExtractorError,
+  normalizeUrl,
+  numberingWarnings,
+  ownedUrl,
+  parseUrl,
   type ExtractedEpisode,
   type Extraction,
   type ExtractionWarning,
@@ -21,18 +25,6 @@ const EPISODE_LIST = "/single/episodes/list";
 export interface ShowApiExtractorOptions {
   site: ShowApiSite;
   http: HttpClient;
-}
-
-const ownsHost = (hosts: readonly string[], host: string): boolean =>
-  hosts.some((own) => host === own || host.endsWith(`.${own}`));
-
-function parseUrl(input: string): URL | null {
-  try {
-    const url = new URL(input.trim());
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
-  } catch {
-    return null;
-  }
 }
 
 /** The show's name without the year some sites append: `The Show (2026)` → `The Show`. */
@@ -97,17 +89,17 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
   }
 
   function addressOf(input: string): Address | null {
-    const url = parseUrl(input);
-    if (!url || !ownsHost(site.hosts, url.hostname.toLowerCase())) return null;
+    const url = ownedUrl(site.hosts, input);
+    if (!url) return null;
     const slug = showPath.exec(url.pathname)?.[1];
     if (!slug) return null;
     const asked = url.searchParams.get(SEASON_PARAM);
     if (asked !== null && !/^\d+$/.test(asked)) return null;
-    const show = new URL(url.href);
-    show.search = "";
-    show.hash = "";
-    show.pathname = show.pathname.replace(/\/+$/, "") || "/";
-    return { slug: decodeURIComponent(slug), show, season: asked === null ? null : Number(asked) };
+    return {
+      slug: decodeURIComponent(slug),
+      show: normalizeUrl(url),
+      season: asked === null ? null : Number(asked),
+    };
   }
 
   function owned(input: string): Address {
@@ -185,7 +177,6 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
         });
       }
       const episodes: ExtractedEpisode[] = [];
-      const seen = new Map<number, string[]>();
       for (const post of posts) {
         const sourceRef = String(post._id);
         // The list was asked for one season: an episode of another one is the site's mistake.
@@ -205,7 +196,6 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
             fileName: "video",
           },
         });
-        seen.set(post.episode_number, [...(seen.get(post.episode_number) ?? []), sourceRef]);
       }
       if (episodes.length === 0) {
         throw new ExtractorError(
@@ -214,23 +204,7 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
         );
       }
       episodes.sort((a, b) => a.episode - b.episode);
-      for (const [episode, sameNumber] of seen) {
-        if (sameNumber.length > 1) {
-          warnings.push({
-            code: "duplicate",
-            message: `Episode ${episode} is listed ${sameNumber.length} times`,
-            sourceRefs: sameNumber,
-          });
-        }
-      }
-      const numbers = [...seen.keys()];
-      const missing: number[] = [];
-      for (let n = Math.min(...numbers); n <= Math.max(...numbers); n++) {
-        if (!seen.has(n)) missing.push(n);
-      }
-      if (missing.length > 0) {
-        warnings.push({ code: "gap", message: `Missing episode numbers: ${missing.join(", ")}` });
-      }
+      warnings.push(...numberingWarnings(episodes));
 
       const title = data.original_title ?? (data.title ? withoutYear(data.title) : address.slug);
       const year = yearOf(data.release_date, data.title);

@@ -1,5 +1,9 @@
 import {
   ExtractorError,
+  normalizeUrl as normalize,
+  numberingWarnings,
+  ownsHost,
+  parseUrl,
   type ExtractedEpisode,
   type Extraction,
   type ExtractionWarning,
@@ -17,27 +21,6 @@ const MAX_LISTING_PAGES = 100;
 export interface HtmlExtractorOptions {
   site: SiteConfig;
   http: HttpClient;
-}
-
-const ownsHost = (hosts: readonly string[], host: string): boolean =>
-  hosts.some((own) => host === own || host.endsWith(`.${own}`));
-
-/** The address without query, fragment or trailing slash: the same season always reads the same. */
-function normalize(url: URL): URL {
-  const clean = new URL(url.href);
-  clean.search = "";
-  clean.hash = "";
-  clean.pathname = clean.pathname.replace(/\/+$/, "") || "/";
-  return clean;
-}
-
-function parseUrl(input: string): URL | null {
-  try {
-    const url = new URL(input.trim());
-    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Every value `pick` reads on the page, in page order; empty ones left out. */
@@ -253,27 +236,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
       }
       episodes.sort((a, b) => a.episode - b.episode);
 
-      const seen = new Map<number, string[]>();
-      for (const episode of episodes) {
-        seen.set(episode.episode, [...(seen.get(episode.episode) ?? []), episode.sourceRef]);
-      }
-      for (const [number, refs] of seen) {
-        if (refs.length > 1) {
-          warnings.push({
-            code: "duplicate",
-            message: `Episode ${number} is listed ${refs.length} times`,
-            sourceRefs: refs,
-          });
-        }
-      }
-      const numbers = [...seen.keys()];
-      const missing: number[] = [];
-      for (let n = Math.min(...numbers); n <= Math.max(...numbers); n++) {
-        if (!seen.has(n)) missing.push(n);
-      }
-      if (missing.length > 0) {
-        warnings.push({ code: "gap", message: `Missing episode numbers: ${missing.join(", ")}` });
-      }
+      warnings.push(...numberingWarnings(episodes));
 
       const title =
         (site.title ? readAll(root, site.title)[0] : undefined) ?? titleFromPath(season);
