@@ -237,7 +237,7 @@ function SeriesHero({
               {series.tmdbId && (
                 <IdChip
                   label={`TMDB ${series.tmdbId}`}
-                  href={`https://www.themoviedb.org/tv/${encodeURIComponent(series.tmdbId)}`}
+                  href={`https://www.themoviedb.org/${series.kind === "movie" ? "movie" : "tv"}/${encodeURIComponent(series.tmdbId)}`}
                   title={t.series.detail.tmdbLink}
                 />
               )}
