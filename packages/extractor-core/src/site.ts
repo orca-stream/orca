@@ -108,8 +108,43 @@ export const JsonSearch = z
   );
 export type JsonSearch = z.infer<typeof JsonSearch>;
 
+/** Something read inside one result of a search page: what `selector` finds, then its `attribute` or its text. */
+const ItemPick = z.object({
+  selector: z.string().min(1),
+  /** Absent: the element's text. */
+  attribute: z.string().min(1).optional(),
+});
+
+/**
+ * How a site is searched through its own search page, the results written in its HTML. `{query}` in
+ * `url` is what was typed. Every result is a series; one the extractor would not read (a movie's
+ * page) is left out.
+ */
+export const HtmlSearch = z.object({
+  reads: z.literal("html"),
+  url: z.url().refine((url) => url.includes("{query}"), {
+    message: "Needs {query} where the search goes",
+  }),
+  /** Each result on the page (`div.movie-item`); the picks below look inside it. */
+  items: z.string().min(1),
+  result: z.object({
+    /** Relative addresses are on the site's origin. */
+    url: ItemPick.extend({ attribute: z.string().min(1).default("href") }),
+    title: ItemPick,
+    originalTitle: ItemPick.optional(),
+    /** The first four digits in a row are the year. */
+    year: ItemPick.optional(),
+    plot: ItemPick.optional(),
+    /** An absolute address, or one on the site's origin. */
+    poster: ItemPick.optional(),
+  }),
+  /** As in a JSON search: other hosts the posters may come from. */
+  posterHosts: z.array(Host).min(1).optional(),
+});
+export type HtmlSearch = z.infer<typeof HtmlSearch>;
+
 /** How a site is searched by name; one kind per way its search answers. */
-export const SiteSearch = z.discriminatedUnion("reads", [JsonSearch]);
+export const SiteSearch = z.discriminatedUnion("reads", [JsonSearch, HtmlSearch]);
 export type SiteSearch = z.infer<typeof SiteSearch>;
 
 /** What every site has, however it is read. Each reader extends it with its own description. */

@@ -160,7 +160,7 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
 
   Any entry may also say how the site is **searched by name**, in `"search"`. Then typing a name in
   **Add series** (instead of an address) lists what every such site found, and picking one reads it as
-  if it had been pasted. For now a search reads a JSON answer (`"reads": "json"`): `url` is where to
+  if it had been pasted. A search that reads a JSON answer (`"reads": "json"`) says: `url`, where to
   ask, with `{query}` where the name goes (and `{page}` if the site answers in pages: up to five are
   read, one after another); `items` is where the answer lists what it found (`data.posts`);
   `lastPage` (optional) is where a paged answer says its last page (`data.pagination.last_page`),
@@ -178,6 +178,13 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   `:slug` writes it as an address does (`:slug(60)` cuts it to that length). Titles and plots in
   HTML are read as text. `posterHosts` names the hosts the posters may come from when they are not
   the site's own. See `site-d` in the example file.
+
+  A site whose search page writes the results in its HTML takes `"reads": "html"`: `url` is that
+  page, with `{query}` where the name goes; `items` is a CSS selector for each result
+  (`div.movie-item`); and `result` picks, inside each one, `url` (a `selector` and its `attribute`,
+  `href` if absent), `title` and, optionally, `originalTitle`, `year`, `plot` and `poster` (a
+  `selector`, and an `attribute` or, without one, the element's text). Every result is taken as a
+  series; one the entry could not read (a movie's page) is left out. See `site-c` in the example file.
 
 - The sites' players need the browser, so it stays on while the extractors describe any site. Its
   tuning (timeout, wait after the first video) is filled in with suggested values.

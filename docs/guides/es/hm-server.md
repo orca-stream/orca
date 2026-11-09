@@ -165,8 +165,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
 
   Cualquier entrada puede decir además cómo se **busca por nombre** en el sitio, en `"search"`. Así, al
   escribir un nombre en **Añadir serie** (en vez de una dirección) se lista lo que encontró cada sitio
-  con búsqueda, y al elegir uno se lee como si se hubiera pegado. Por ahora la búsqueda lee una
-  respuesta JSON (`"reads": "json"`): `url` es dónde preguntar, con `{query}` donde va el nombre (y
+  con búsqueda, y al elegir uno se lee como si se hubiera pegado. Una búsqueda que lee una
+  respuesta JSON (`"reads": "json"`) dice: `url`, dónde preguntar, con `{query}` donde va el nombre (y
   `{page}` si el sitio responde por páginas: se leen hasta cinco, una tras otra); `items`, dónde lista
   la respuesta lo encontrado (`data.posts`); `lastPage` (opcional), dónde dice una respuesta por
   páginas cuál es la última (`data.pagination.last_page`), si no se leen hasta que una llegue vacía;
@@ -186,6 +186,14 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   corta a ese largo). Los títulos y sinopsis en HTML se leen como texto. `posterHosts` nombra los
   hosts de los que pueden venir las portadas cuando no son los del sitio. Mira `site-d` en el archivo
   de ejemplo.
+
+  Un sitio cuya página de búsqueda escribe los resultados en su HTML lleva `"reads": "html"`: `url`
+  es esa página, con `{query}` donde va el nombre; `items`, un selector CSS de cada resultado
+  (`div.movie-item`); y `result` toma, dentro de cada uno, `url` (un `selector` y su `attribute`,
+  `href` si falta), `title` y, si quieres, `originalTitle`, `year`, `plot` y `poster` (un `selector`, y
+  un `attribute` o, sin él, el texto del elemento). Todo resultado se toma como serie; el que la
+  entrada no sepa leer (la página de una película) se deja fuera. Mira `site-c` en el archivo de
+  ejemplo.
 
 - Los reproductores de los sitios necesitan el navegador, así que sigue encendido mientras los
   extractores describan algún sitio. Su ajuste fino (tiempo máximo, espera tras

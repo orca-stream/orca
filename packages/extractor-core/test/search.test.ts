@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { createSearch, ExtractorError, rankByTitle, type HttpClient } from "../src/index.ts";
-import { JsonSearch } from "../src/site.ts";
+import { JsonSearch, SiteSearch } from "../src/site.ts";
 
 const ORIGIN = "https://origin.test";
 
@@ -372,5 +372,82 @@ describe("JsonSearch", () => {
       result: { url: { series: "/series/{slug}" }, title: "{title}" },
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("createSearch, on the site's search page", () => {
+  const page = `<html><body><h2>Resultados de búsqueda para: spy</h2>
+    <div class="movie-item"><a href="/pelicula/spy-una-espia/"><img src="//s.origin.test/p/a.webp" class="poster" alt="Spy"><span class="year"></span></a><div class="item-detail"><p>Spy</p></div></div>
+    <div class="movie-item"><a href="/serie/london-spy/"><img src="//s.origin.test/p/b.webp" class="poster" alt="London Spy"><span class="year">2015</span></a><div class="item-detail"><p>London Spy</p></div></div>
+    <div class="movie-item"><a href="/serie/spy-x-family/"><img class="poster" alt="Spy &amp; Family"><span class="year"></span></a><div class="item-detail"><p>Spy &amp; Family</p></div></div>
+    <div class="movie-item"><a href="/serie/sin-titulo/"></a><div class="item-detail"><p> </p></div></div>
+    <div class="movie-item"><a href="/serie/london-spy/"></a><div class="item-detail"><p>London Spy</p></div></div>
+  </body></html>`;
+
+  const htmlSearch = SiteSearch.parse({
+    reads: "html",
+    url: `${ORIGIN}/?s={query}`,
+    items: "div.movie-item",
+    result: {
+      url: { selector: "a" },
+      title: { selector: ".item-detail p" },
+      year: { selector: "span.year" },
+      poster: { selector: "img.poster", attribute: "src" },
+    },
+  });
+
+  function htmlSetup(http: Partial<HttpClient> = {}) {
+    const asked: { url: string; headers: Record<string, string> | undefined }[] = [];
+    const run = createSearch({
+      site: {
+        name: "Site C",
+        example: `${ORIGIN}/serie/x/`,
+        userAgent: "UA test",
+        search: htmlSearch,
+      },
+      http: {
+        getJson: async () => {
+          throw new Error("not asked");
+        },
+        getText: async (url, options) => {
+          asked.push({ url, headers: options?.headers });
+          return page;
+        },
+        ...http,
+      },
+      canHandle: (url) => new URL(url).pathname.startsWith("/serie/"),
+    });
+    return { run, asked };
+  }
+
+  it("reads the page with the query in its slot and the site's User-Agent", async () => {
+    const { run, asked } = htmlSetup();
+    await run("london spy");
+    expect(asked).toEqual([
+      { url: `${ORIGIN}/?s=london%20spy`, headers: { "user-agent": "UA test" } },
+    ]);
+  });
+
+  it("keeps each series it can read once, with what its card says, best match first", async () => {
+    const { run } = htmlSetup();
+    expect(await run("spy")).toEqual([
+      { kind: "series", url: `${ORIGIN}/serie/spy-x-family/`, title: "Spy & Family" },
+      {
+        kind: "series",
+        url: `${ORIGIN}/serie/london-spy/`,
+        title: "London Spy",
+        year: 2015,
+        posterUrl: "https://s.origin.test/p/b.webp",
+      },
+    ]);
+  });
+
+  it("says so when the server can't read pages", async () => {
+    const { run } = htmlSetup({ getText: undefined });
+    await expect(run("spy")).rejects.toBeInstanceOf(ExtractorError);
+  });
+
+  it("refuses a search page without the query's slot", () => {
+    expect(SiteSearch.safeParse({ ...htmlSearch, url: `${ORIGIN}/?s=` }).success).toBe(false);
   });
 });

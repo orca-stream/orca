@@ -100,6 +100,17 @@
       "attribute": "data-server",
       "decode": "base64",
       "unwrap": "url"
+    },
+    "search": {
+      "reads": "html",
+      "url": "https://origin.test/?s={query}",
+      "items": "div.movie-item",
+      "result": {
+        "url": { "selector": "a", "attribute": "href" },
+        "title": { "selector": ".item-detail p" },
+        "year": { "selector": "span.year" },
+        "poster": { "selector": "img.poster", "attribute": "src" }
+      }
     }
   },
   "site-d": {

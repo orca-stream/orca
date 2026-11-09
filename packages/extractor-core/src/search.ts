@@ -1,4 +1,5 @@
-import type { JsonSearch, SiteBase } from "./site.ts";
+import { parse, type HTMLElement } from "node-html-parser";
+import type { HtmlSearch, JsonSearch, SiteBase, SiteSearch } from "./site.ts";
 import {
   ExtractorError,
   type HttpClient,
@@ -17,7 +18,7 @@ const SLOT = /\{([^{}]+)\}/g;
 const YEAR = /\d{4}/;
 
 export interface SearchOptions {
-  site: Pick<SiteBase, "name" | "example" | "userAgent"> & { search: JsonSearch };
+  site: Pick<SiteBase, "name" | "example" | "userAgent"> & { search: SiteSearch };
   http: HttpClient;
   /** The extractor's own test: a result it would not read is never offered. */
   canHandle: (url: string) => boolean;
@@ -160,32 +161,36 @@ export function rankByTitle<T extends Pick<SearchResult, "title" | "originalTitl
     .map(({ result }) => result);
 }
 
-/** A search described in the site's file, asked through its JSON API. */
+/** What one item of an answer says, as written, before it becomes a result. */
+interface ItemFields {
+  kind: SearchResultKind | null;
+  path: string | undefined;
+  title: string | undefined;
+  originalTitle?: string | undefined;
+  year?: string | undefined;
+  plot?: string | undefined;
+  poster?: string | undefined;
+}
+
+type Asked = { signal?: AbortSignal; headers?: Record<string, string> };
+
+/** A search described in the site's file, asked through its JSON API or read from its search page. */
 export function createSearch({ site, http, canHandle }: SearchOptions) {
   const config = site.search;
   const origin = new URL(site.example).origin;
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
 
-  function kindOf(item: unknown): SearchResultKind | null {
-    if (!config.type) return "series";
-    const word = fill(config.type.from, item);
-    if (word === undefined) return null;
-    if (config.type.series.includes(word)) return "series";
-    return config.type.movie?.includes(word) ? "movie" : null;
-  }
-
-  function resultOf(item: unknown): SearchResult | null {
-    const kind = kindOf(item);
-    const path = kind && fill(config.result.url[kind], item);
-    const title = readable(fill(config.result.title, item));
+  function resultOf(fields: ItemFields): SearchResult | null {
+    const { kind, path } = fields;
+    const title = readable(fields.title);
     if (!kind || !path || !title) return null;
     const url = parseUrl(new URL(path, origin).href);
     if (!url || !canHandle(url.href)) return null;
-    const originalTitle = readable(fill(config.result.originalTitle, item));
-    const year = YEAR.exec(fill(config.result.year, item) ?? "")?.[0];
-    const plot = readable(fill(config.result.plot, item));
-    const poster = fill(config.result.poster, item);
-    const posterUrl = poster === undefined ? null : parseUrl(new URL(poster, origin).href);
+    const originalTitle = readable(fields.originalTitle);
+    const year = YEAR.exec(fields.year ?? "")?.[0];
+    const plot = readable(fields.plot);
+    const posterUrl =
+      fields.poster === undefined ? null : parseUrl(new URL(fields.poster, origin).href);
     return {
       kind,
       url: url.href,
@@ -197,59 +202,132 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
     };
   }
 
+  const read = config.reads === "html" ? htmlPages(config) : jsonPages(config);
+
   return async function search(
     query: string,
     options?: { signal?: AbortSignal },
   ): Promise<SearchResult[]> {
     const typed = query.trim();
     if (typed === "") return [];
-    const { body } = config;
-    const address = body ? config.url : config.url.replaceAll("{query}", encodeURIComponent(typed));
-    const paged = (body ? `${address}${JSON.stringify(body)}` : address).includes(PAGE_SLOT);
-    const post = http.postJson?.bind(http);
-    if (body && !post) {
-      throw new ExtractorError(
-        "network",
-        `${site.name} is searched by POST, which this server can't send`,
-      );
-    }
-    const seen = new Set<string>();
-    const results: SearchResult[] = [];
-    const asked = {
+    const asked: Asked = {
       ...(options?.signal ? { signal: options.signal } : {}),
       ...(headers ? { headers } : {}),
     };
-    // One page after another, never at once: the site's limits hold for its search too.
-    for (let page = 1; page <= (paged ? MAX_PAGES : 1); page++) {
-      const pageAddress = address.replaceAll(PAGE_SLOT, String(page));
-      const answer =
-        body && post
-          ? await post(pageAddress, bodyOf(body, typed, page), asked)
-          : await http.getJson(pageAddress, asked);
-      const items = config.items === undefined ? answer : at(answer, config.items);
-      if (!Array.isArray(items)) {
-        throw new ExtractorError(
-          "invalid-response",
-          `${site.name} answered the search without a list at ${config.items ?? "its top"}`,
-        );
-      }
-      for (const item of items) {
-        const result = resultOf(item);
+    const seen = new Set<string>();
+    const results: SearchResult[] = [];
+    for await (const items of read(typed, asked)) {
+      for (const fields of items) {
+        const result = resultOf(fields);
         if (!result || seen.has(result.url)) continue;
         seen.add(result.url);
         results.push(result);
       }
-      const last = config.lastPage === undefined ? undefined : Number(at(answer, config.lastPage));
-      const more = config.nextPage === undefined || at(answer, config.nextPage) === true;
-      if (
-        items.length === 0 ||
-        !more ||
-        (last !== undefined && Number.isFinite(last) && page >= last)
-      )
-        break;
     }
     return rankByTitle(results, typed).slice(0, MAX_RESULTS);
   };
+
+  /** The items of each page a JSON search answers, one page after another. */
+  function jsonPages(config: JsonSearch) {
+    function kindOf(item: unknown): SearchResultKind | null {
+      if (!config.type) return "series";
+      const word = fill(config.type.from, item);
+      if (word === undefined) return null;
+      if (config.type.series.includes(word)) return "series";
+      return config.type.movie?.includes(word) ? "movie" : null;
+    }
+
+    function fieldsOf(item: unknown): ItemFields {
+      const kind = kindOf(item);
+      return {
+        kind,
+        path: kind ? fill(config.result.url[kind], item) : undefined,
+        title: fill(config.result.title, item),
+        originalTitle: fill(config.result.originalTitle, item),
+        year: fill(config.result.year, item),
+        plot: fill(config.result.plot, item),
+        poster: fill(config.result.poster, item),
+      };
+    }
+
+    return async function* (typed: string, asked: Asked): AsyncGenerator<ItemFields[]> {
+      const { body } = config;
+      const address = body
+        ? config.url
+        : config.url.replaceAll("{query}", encodeURIComponent(typed));
+      const paged = (body ? `${address}${JSON.stringify(body)}` : address).includes(PAGE_SLOT);
+      const post = http.postJson?.bind(http);
+      if (body && !post) {
+        throw new ExtractorError(
+          "network",
+          `${site.name} is searched by POST, which this server can't send`,
+        );
+      }
+      // One page after another, never at once: the site's limits hold for its search too.
+      for (let page = 1; page <= (paged ? MAX_PAGES : 1); page++) {
+        const pageAddress = address.replaceAll(PAGE_SLOT, String(page));
+        const answer =
+          body && post
+            ? await post(pageAddress, bodyOf(body, typed, page), asked)
+            : await http.getJson(pageAddress, asked);
+        const items = config.items === undefined ? answer : at(answer, config.items);
+        if (!Array.isArray(items)) {
+          throw new ExtractorError(
+            "invalid-response",
+            `${site.name} answered the search without a list at ${config.items ?? "its top"}`,
+          );
+        }
+        yield items.map(fieldsOf);
+        const last =
+          config.lastPage === undefined ? undefined : Number(at(answer, config.lastPage));
+        const more = config.nextPage === undefined || at(answer, config.nextPage) === true;
+        if (
+          items.length === 0 ||
+          !more ||
+          (last !== undefined && Number.isFinite(last) && page >= last)
+        )
+          break;
+      }
+    };
+  }
+
+  /** The items of a search page, read from its HTML. */
+  function htmlPages(config: HtmlSearch) {
+    const pick = (item: HTMLElement, what: HtmlSearch["result"]["title"] | undefined) => {
+      if (!what) return undefined;
+      const element = item.querySelector(what.selector);
+      const value =
+        what.attribute === undefined ? element?.text : element?.getAttribute(what.attribute);
+      const trimmed = value?.trim();
+      return trimmed === "" ? undefined : trimmed;
+    };
+
+    return async function* (typed: string, asked: Asked): AsyncGenerator<ItemFields[]> {
+      const getText = http.getText?.bind(http);
+      if (!getText) {
+        throw new ExtractorError(
+          "network",
+          `${site.name} is searched on its pages, which this server can't read`,
+        );
+      }
+      const html = await getText(
+        config.url.replaceAll("{query}", encodeURIComponent(typed)),
+        asked,
+      );
+      const { result } = config;
+      yield parse(html)
+        .querySelectorAll(config.items)
+        .map((item) => ({
+          kind: "series" as const,
+          path: pick(item, result.url),
+          title: pick(item, result.title),
+          originalTitle: pick(item, result.originalTitle),
+          year: pick(item, result.year),
+          plot: pick(item, result.plot),
+          poster: pick(item, result.poster),
+        }));
+    };
+  }
 }
 
 /**
