@@ -198,4 +198,31 @@ describe("a search result that is a series already", () => {
       await own.cleanup();
     }
   });
+
+  it("knows a series added by a season's address as the show the site finds", async () => {
+    const SHOW_URL = "https://fake.example/show/fake";
+    const fake = Object.assign(new FakeExtractor(), {
+      // As a site whose seasons each have a page and whose search finds the show's.
+      showUrl: (url: string) => (url.startsWith(FAKE_URL) ? SHOW_URL : null),
+      search: async (): Promise<SearchResult[]> => [
+        { kind: "series", url: `${SHOW_URL}/`, title: "Fake" },
+      ],
+    });
+    const own = await createHarness({ extractors: [fake] });
+    try {
+      const preview = await own.useCases.previewSeries(`${FAKE_URL}?season=1`, undefined, "fake");
+      const series = await own.useCases.addSeries({
+        previewId: preview.previewId,
+        title: "Fake",
+        year: 2020,
+        episodeKeys: [],
+        follow: false,
+        downloadNow: false,
+      });
+      const [site] = await own.useCases.searchSites("fake");
+      expect(site?.results.map((result) => result.seriesId)).toEqual([series.id]);
+    } finally {
+      await own.cleanup();
+    }
+  });
 });

@@ -143,7 +143,10 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     from a season's address to the show's, the season links and the season-number pattern) — then
     a pasted show reads its first season, **Follow** adds the new seasons and **+** suggests the next
     one; `mirrors.decode: "base64"` when the players' attribute is base64; and `mirrors.unwrap`, the
-    query parameter of a wrapper that frames the real player (`?url=`), so the player itself is opened.
+    query parameter of a wrapper that frames the real player (`?url=`), so the player itself is opened;
+    and `title`, where the season page writes the show's name (`{"selector": "h1 [itemprop=name]"}`),
+    with `match` when the page adds words to it (`"^Watch (.+)$"`, its first group is the name) —
+    without it, the name is taken from the address.
   - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
     show path (its first group is the slug), the API's base address and, optionally, the audio
     languages to keep, best first, and `images`, where the site serves the image paths its API gives

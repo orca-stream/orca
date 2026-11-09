@@ -14,7 +14,7 @@ import {
   type SiteExtractor,
 } from "@orca/extractor-core";
 import { parse, type HTMLElement } from "node-html-parser";
-import type { Pick, SiteConfig } from "./site.ts";
+import type { Pick, SiteConfig, TitlePick } from "./site.ts";
 
 /** A season spread over more pages than this is a listing gone wrong, not a season. */
 const MAX_LISTING_PAGES = 100;
@@ -33,6 +33,14 @@ function readAll(root: HTMLElement, pick: Pick): string[] {
     )
     .map((value) => value?.replace(/\s+/g, " ").trim() ?? "")
     .filter((value) => value !== "");
+}
+
+/** The show's name on a page: the first value `title` reads, through its `match` when it has one. */
+function titleOn(root: HTMLElement, title: TitlePick): string | undefined {
+  const value = readAll(root, title)[0];
+  if (value === undefined || title.match === undefined) return value;
+  const found = new RegExp(title.match).exec(value)?.[1]?.trim();
+  return found === "" ? undefined : found;
 }
 
 /** An address a page wrote (maybe relative), made absolute against the page; null if it is no web address. */
@@ -240,8 +248,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
 
       warnings.push(...numberingWarnings(episodes));
 
-      const title =
-        (site.title ? readAll(root, site.title)[0] : undefined) ?? titleFromPath(season);
+      const title = (site.title ? titleOn(root, site.title) : undefined) ?? titleFromPath(season);
       return {
         series: { externalId: season.pathname, sourceUrl: season.href, title },
         seasons: [{ number: seasonNo, episodeCount: episodes.length }],
@@ -262,6 +269,12 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
             const path = season.pathname;
             season.pathname = `${path.slice(0, at.start)}${at.value + 1}${path.slice(at.end)}`;
             return season.href;
+          },
+
+          showUrl(input: string): string | null {
+            const url = parseUrl(input);
+            if (!url || !canHandle(input)) return null;
+            return (isShow(url) ? normalize(url) : showOf(url))?.href ?? null;
           },
 
           async seasonSources(

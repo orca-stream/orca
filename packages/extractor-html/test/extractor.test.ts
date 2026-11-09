@@ -226,6 +226,29 @@ describe("HTML extractor: a show with its seasons on a page of their own", () =>
     ]);
   });
 
+  it("knows the show of a season, and of the show itself", () => {
+    const extractor = createHtmlExtractor({ site: seasonsSite, http: fakePages({}).http });
+    expect(extractor.showUrl!(`${ORIGIN}/temporada/some-show-2/`)).toBe(SHOW);
+    expect(extractor.showUrl!(`${SHOW}/`)).toBe(SHOW);
+    expect(extractor.showUrl!("https://elsewhere.test/temporada/x-3/")).toBeNull();
+  });
+
+  it("reads the show's name out of the words the page adds to it", async () => {
+    const page = `<h1 class="title"><span itemprop="name"> Watch Some Show </span></h1>
+      <div class="item-season-episodes">${episodeLink(1, 1)}</div>`;
+    const read = (match: string) =>
+      createHtmlExtractor({
+        site: SiteConfig.parse({
+          ...seasonsSite,
+          title: { selector: "h1 [itemprop=name]", match },
+        }),
+        http: fakePages({ [`${ORIGIN}/temporada/some-show-1`]: page }).http,
+      }).extract(`${ORIGIN}/temporada/some-show-1/`);
+    expect((await read("^Watch (.+)$")).series.title).toBe("Some Show");
+    // A page that writes it otherwise: the address names it.
+    expect((await read("^Ver (.+)$")).series.title).toBe("some show 1");
+  });
+
   it("lists the show's seasons from any of them, lowest first, once each, only its own", async () => {
     const { http, requests } = fakePages(showPages());
     const sources = await createHtmlExtractor({ site: seasonsSite, http }).seasonSources!(

@@ -71,6 +71,10 @@
     "hosts": ["origin.test"],
     "example": "https://origin.test/serie/some-show/",
     "seasonPath": "^/temporada/[^/]+-\\d+$",
+    "title": {
+      "selector": "h1.title [itemprop=name]",
+      "match": "^Ver Serie (.+)$"
+    },
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
     "limits": {
       "metadataPerSec": 2,

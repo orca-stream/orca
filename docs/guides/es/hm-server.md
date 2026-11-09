@@ -147,7 +147,10 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     los enlaces de temporada y el patrón de su número) — así pegar la serie lee su primera temporada,
     **Seguir** agrega las temporadas nuevas y **+** sugiere la siguiente; `mirrors.decode: "base64"`
     cuando el atributo de los reproductores va en base64; y `mirrors.unwrap`, el parámetro de un
-    envoltorio que enmarca el reproductor real (`?url=`), para abrir el reproductor en sí.
+    envoltorio que enmarca el reproductor real (`?url=`), para abrir el reproductor en sí; y `title`,
+    dónde escribe la página de temporada el nombre de la serie (`{"selector": "h1 [itemprop=name]"}`),
+    con `match` si la página le añade palabras (`"^Ver (.+)$"`, su primer grupo es el nombre) — sin
+    él, el nombre sale de la dirección.
   - `"api"`: su API JSON, que lista las temporadas, episodios y reproductores de una serie. Dale sus
     hosts, la ruta de la serie (su primer grupo es el slug), la dirección base de la API y, si quieres,
     los idiomas de audio que conservar, el mejor primero, e `images`, dónde sirve el sitio las rutas de

@@ -1,4 +1,4 @@
-import { Pattern, SiteBase } from "@orca/extractor-core/site";
+import { CapturingPattern, Pattern, SiteBase } from "@orca/extractor-core/site";
 import * as z from "zod";
 
 /** Something read from a page: the element(s) `selector` finds, then their `attribute` or their text. */
@@ -9,6 +9,14 @@ const Pick = z.object({
 });
 export type Pick = z.infer<typeof Pick>;
 
+/** The show's name: a pick, and the part of it that is the name when the page adds words to it. */
+const TitlePick = Pick.extend({
+  /** Its first group is the name (`^Watch (.+)$`). Absent: all of
+   * it. A value it misses is no name: the address names the show. */
+  match: CapturingPattern("the name").optional(),
+});
+export type TitlePick = z.infer<typeof TitlePick>;
+
 /**
  * One site, described rather than programmed: where its pages list the episodes and where an episode
  * page lists its players. Nothing about a site lives in the code; this file is the site.
@@ -17,7 +25,7 @@ export const SiteConfig = SiteBase.extend({
   /** The path of an address this site can read (one season, or a part of one). Absent: any path. */
   seasonPath: Pattern.optional(),
   /** The show's name on the season page, to start the form with. Absent: taken from the address. */
-  title: Pick.optional(),
+  title: TitlePick.optional(),
   listing: z.object({
     /**
      * When the season's episodes are spread over several pages: what lists them on the season page,

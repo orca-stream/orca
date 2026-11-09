@@ -212,6 +212,11 @@ export interface SiteExtractor extends ExtractorInfo {
    */
   seasonSources?(url: string, options?: { signal?: AbortSignal }): Promise<SeasonSource[]>;
   /**
+   * Pure: the address of the show this one is part of (a season's, its show's), so a season added
+   * long ago is known as the show a search finds. Null or absent: the address stands for itself.
+   */
+  showUrl?(url: string): string | null;
+  /**
    * The players an episode page of kind `mirrors` offers, in the site's order. Read when the episode
    * is downloaded, not when it is listed: the addresses may expire. Required for `mirrors` media.
    */
