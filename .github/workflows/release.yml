@@ -156,7 +156,15 @@ jobs:
         env:
           HM_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
         working-directory: apps/hm-desktop
-        run: pnpm dist:win -c.publish.provider=generic "-c.publish.url=$HM_UPDATE_URL"
+        # electron-builder fetches NSIS, 7-Zip and its icons from GitHub releases on the fly, and those
+        # downloads have failed from Windows runners with a 504 now and then: try a few times.
+        run: |
+          for attempt in 1 2 3; do
+            pnpm dist:win -c.publish.provider=generic "-c.publish.url=$HM_UPDATE_URL" && exit 0
+            echo "::warning::Building the installer failed (attempt $attempt)."
+            sleep 30
+          done
+          exit 1
 
       - name: Upload the assets
         env:
