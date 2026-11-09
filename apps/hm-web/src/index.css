@@ -105,7 +105,7 @@
 
 /*
  * Inside the desktop app (apps/hm-desktop) the window has no frame: the panel draws its title bar
- * (src/desktop/TitleBar.tsx) over the window's top --title-bar-h, and the page scrolls in the body
+ * (src/desktop/TitleBar.tsx) over the window's top --title-bar-h, and the page scrolls in #root
  * below it, so sticky headers stop under the bar instead of behind it. Fixed layers (the backdrop,
  * the dock, dialogs) still span the whole window. In a browser the bar's height is 0.
  */
@@ -114,11 +114,16 @@
 }
 :root.desktop {
   --title-bar-h: 3.5rem;
-  /* Not visible, or the body's overflow goes to the viewport instead and, the body being fixed,
-     there is nothing left to scroll. */
+}
+/* The scroller is #root, not the body: popups (tooltips, hover cards, selects) are portalled into
+   the body and would be clipped by its overflow — a tooltip under the title bar's buttons lost its
+   top. Neither the root element nor the body scrolls, so a popup's absolute position is the
+   window's. */
+:root.desktop,
+:root.desktop body {
   overflow: hidden;
 }
-:root.desktop body {
+:root.desktop #root {
   position: fixed;
   inset: var(--title-bar-h) 0 0 0;
   overflow-y: auto;
