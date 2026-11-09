@@ -24,13 +24,14 @@ export function ExtractorMark({
       aria-hidden="true"
       style={paletteOf(extractor.id)}
       className={cn(
-        "flex shrink-0 items-center justify-center bg-linear-to-br from-(--from) to-(--to) text-white ring-1 ring-white/50",
+        // White whatever holds it: a list item recolours every descendant while highlighted.
+        "flex shrink-0 items-center justify-center bg-linear-to-br from-(--from) to-(--to) text-white! ring-1 ring-white/50",
         className,
       )}
     >
       <HugeiconsIcon
         icon={icon ?? (extractor.explicit ? PuzzleIcon : Globe02Icon)}
-        className={iconClassName}
+        className={cn("text-white!", iconClassName)}
       />
     </span>
   );
