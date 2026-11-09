@@ -1,35 +1,50 @@
-import { Autocomplete } from "@base-ui/react/autocomplete";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderCheckIcon, Tv01Icon } from "@hugeicons/core-free-icons";
 import type { SiteSearchResultDto } from "@orca/hm-contract";
-import { MIN_SITE_SEARCH_LENGTH } from "@orca/hm-contract/rules";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode, type RefObject } from "react";
+import { useRef, useState } from "react";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
 import type { ExtractorDto, SeriesDto } from "@/api/types";
+import { Tile } from "@/components/tile";
+import {
+  Pagination,
+  PaginationButton,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Spinner } from "@/components/ui/spinner";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import { useDebounced } from "@/hooks/use-debounced";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
-import { BAR_POPUP } from "./bar";
+import { isSiteSearch, pagesAround } from "./site-search";
 
 /** How long the name has to stay put before the sites are asked. */
 const SEARCH_DELAY_MS = 400;
+/** A result's narrowest column and the gap between them: the series' own grid (`FILL_TILE_GRID`). */
+const TILE_MIN = 248;
+const TILE_GAP = 24;
+/** A page is this many full rows of whatever columns fit. */
+const ROWS_PER_PAGE = 3;
 
 /** A result, with the site that found it: picking it reads its address with that site's extractor. */
 export type SiteFound = SiteSearchResultDto & { extractorId: string };
 
-/** What the sites found for `query` (when it is one), and what to say above the list. */
-function useSiteSearch(query: string | null, extractors: readonly ExtractorDto[]) {
+/** What the sites found for `query`, and what to say above the results. */
+function useSiteSearch(query: string, extractors: readonly ExtractorDto[]) {
   const t = useT();
   const api = useApi();
-  const typed = query?.trim() ?? "";
-  const asked = useDebounced(typed.length >= MIN_SITE_SEARCH_LENGTH ? typed : "", SEARCH_DELAY_MS);
+  const typed = query.trim();
+  const asked = useDebounced(isSiteSearch(typed) ? typed : "", SEARCH_DELAY_MS);
   const search = useQuery({
     ...queries.siteSearch(api, asked),
     enabled: asked !== "",
-    // The list stays while the next answer comes, instead of blinking empty on every key.
+    // The results stay while the next answer comes, instead of blinking empty on every key.
     placeholderData: keepPreviousData,
   });
   const sites = asked !== "" ? (search.data ?? []) : [];
@@ -41,167 +56,273 @@ function useSiteSearch(query: string | null, extractors: readonly ExtractorDto[]
     .map((site) => extractors.find((extractor) => extractor.id === site.extractorId)?.name)
     .filter((name) => name !== undefined);
   const allFailed = search.isError || (sites.length > 0 && failed.length === sites.length);
+  // Nothing to show yet: the first answer for this name (or any) has not come.
+  const waiting = found.length === 0 && (search.isPending || asked !== typed);
 
-  const status =
-    query === null
-      ? null
-      : typed.length < MIN_SITE_SEARCH_LENGTH
-        ? t.add.siteSearchShort(MIN_SITE_SEARCH_LENGTH)
-        : allFailed
-          ? t.add.siteSearchAllFailed
-          : search.isPending || asked !== typed
-            ? t.add.siteSearching
-            : found.length === 0
-              ? t.add.siteNoResults(asked)
-              : [
-                  t.add.siteSearchFor(asked),
-                  failed.length > 0 ? t.add.siteSearchSome(failed.join(", ")) : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ");
+  const status = allFailed
+    ? t.add.siteSearchAllFailed
+    : waiting
+      ? t.add.siteSearching
+      : found.length === 0
+        ? t.add.siteNoResults(asked)
+        : [
+            t.add.siteSearchFor(asked),
+            t.add.siteResults(found.length),
+            failed.length > 0 ? t.add.siteSearchSome(failed.join(", ")) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
-  return { found, status, fetching: search.isFetching };
+  return {
+    asked,
+    found,
+    status,
+    waiting: waiting && !allFailed,
+    fetching: search.isFetching || asked !== typed,
+  };
 }
 
 /**
- * The address, which is also where the sites are searched: text that is not a web address lists
- * what the searchable sites found by that name, below the whole bar, and picking one reads it. The
- * input inside is an `Autocomplete.Input`; typing goes through `onType` as before.
+ * What the searchable sites found by the name in the address, as a grid of covers a page at a time.
+ * Picking one reads its address with the site that found it; one already added opens instead.
  */
-export function SiteSearch({
-  value,
+export function SiteResults({
   query,
   extractors,
   series,
-  anchor,
-  onType,
+  reading,
   onPick,
-  children,
 }: {
-  value: string;
-  /** What to search, or null when the address is not a search (a web address, or no site to ask). */
-  query: string | null;
+  query: string;
   extractors: readonly ExtractorDto[];
-  /** The series there are: a result that is one of them opens it instead of being read. */
+  /** The series there are: a result that is one of them says so. */
   series: readonly SeriesDto[];
-  anchor: RefObject<HTMLElement | null>;
-  onType: (text: string) => void;
+  /** The address being read, after a pick: the others wait. */
+  reading: string | null;
   onPick: (found: SiteFound) => void;
-  children: ReactNode;
 }) {
   const t = useT();
-  const { found, status, fetching } = useSiteSearch(query, extractors);
-  // Open only while the address is a search: a web address leaves the rest of the screen alone.
-  const [open, setOpen] = useState(false);
+  const { asked, found, status, waiting, fetching } = useSiteSearch(query, extractors);
+  const [measure, width] = useElementWidth<HTMLElement>();
+  const section = useRef<HTMLElement | null>(null);
+  const columns = Math.max(2, Math.floor((width + TILE_GAP) / (TILE_MIN + TILE_GAP)));
+  const pageSize = columns * ROWS_PER_PAGE;
+  // The first result shown, for the name it was shown for: a new name starts over, and a resize
+  // keeps that result on the page it falls in.
+  const [first, setFirst] = useState({ asked, index: 0 });
+  const start = first.asked === asked ? first.index : 0;
+  const pageCount = Math.max(1, Math.ceil(found.length / pageSize));
+  const page = Math.min(Math.floor(start / pageSize), pageCount - 1);
+  const shown = found.slice(page * pageSize, (page + 1) * pageSize);
   const extractorOf = (id: string) => extractors.find((extractor) => extractor.id === id) ?? null;
 
+  function goTo(next: number) {
+    setFirst({ asked, index: next * pageSize });
+    // Back to the top of the results, under the bar, as a new page of a book.
+    section.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }
+
   return (
-    <Autocomplete.Root
-      items={found}
-      value={value}
-      onValueChange={(next, details) => {
-        // Only typing writes the address: a pick fills it in through `onPick`.
-        if (details.reason === "input-change" || details.reason === "input-clear") onType(next);
+    <section
+      ref={(node) => {
+        measure(node);
+        section.current = node;
       }}
-      itemToStringValue={(item: SiteFound) => item.url}
-      filter={null}
-      open={open && status !== null}
-      onOpenChange={setOpen}
-      // The fields below stay usable while the list is open.
-      modal={false}
-      openOnInputClick
+      aria-label={t.add.siteResultsLabel}
+      aria-busy={fetching || undefined}
+      className="flex w-full scroll-mt-32 flex-col gap-4"
     >
-      {children}
-      <Autocomplete.Portal hidden={status === null}>
-        <Autocomplete.Positioner
-          anchor={anchor}
-          sideOffset={8}
-          align="start"
-          className="isolate z-50"
-        >
-          <Autocomplete.Popup
-            aria-busy={fetching || undefined}
-            className={cn(
-              BAR_POPUP,
-              "w-(--anchor-width) max-w-(--available-width) origin-(--transform-origin) duration-100 data-closed:animate-out data-closed:fade-out-0 data-open:animate-in data-open:fade-in-0",
-            )}
+      <p role="status" className="px-2 text-sm text-muted-foreground">
+        {status}
+      </p>
+      {waiting ? (
+        <ul aria-hidden="true" className={RESULT_GRID}>
+          {Array.from({ length: pageSize }, (_, index) => (
+            <li key={index} className="glass aspect-3/4 animate-pulse rounded-3xl" />
+          ))}
+        </ul>
+      ) : (
+        shown.length > 0 && (
+          <ul
+            className={cn(RESULT_GRID, "transition-opacity duration-200", fetching && "opacity-60")}
           >
-            <Autocomplete.Status className="px-3 pt-2 pb-1 text-sm text-muted-foreground empty:hidden">
-              {status}
-            </Autocomplete.Status>
-            <Autocomplete.List className="no-scrollbar max-h-[min(30rem,calc(var(--available-height)-3rem))] scroll-py-1 overflow-y-auto overscroll-contain">
-              {(item: SiteFound) => {
-                const extractor = extractorOf(item.extractorId);
-                const yours = item.seriesId
-                  ? (series.find((one) => one.id === item.seriesId) ?? null)
-                  : null;
-                return (
-                  <Autocomplete.Item
-                    key={`${item.extractorId} ${item.url}`}
-                    value={item}
-                    onClick={() => onPick(item)}
-                    className="flex cursor-default items-center gap-3 rounded-xl p-2 outline-hidden select-none data-highlighted:bg-black/6"
+            {shown.map((item) => (
+              <ResultTile
+                key={`${item.extractorId} ${item.url}`}
+                item={item}
+                extractor={extractorOf(item.extractorId)}
+                yours={
+                  item.seriesId ? (series.find((one) => one.id === item.seriesId) ?? null) : null
+                }
+                reading={reading === item.url}
+                disabled={reading !== null}
+                onPick={() => onPick(item)}
+              />
+            ))}
+          </ul>
+        )
+      )}
+      {!waiting && pageCount > 1 && (
+        <Pagination aria-label={t.add.sitePages}>
+          <PaginationContent className="glass rounded-full p-2">
+            <PaginationItem>
+              <PaginationPrevious
+                aria-label={t.add.sitePrevious}
+                title={t.add.sitePrevious}
+                disabled={page === 0}
+                onClick={() => goTo(page - 1)}
+              />
+            </PaginationItem>
+            {pagesAround(page, pageCount).map((index, at) => (
+              <PaginationItem key={index ?? `gap ${at}`}>
+                {index === null ? (
+                  <PaginationEllipsis />
+                ) : (
+                  <PaginationButton
+                    isActive={index === page}
+                    aria-label={t.add.sitePage(index + 1)}
+                    onClick={() => goTo(index)}
                   >
-                    <ResultPoster url={item.posterUrl} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-base">{item.title}</span>
-                      {item.seriesId && (
-                        // Already added, from any of its seasons: picking it opens that series.
-                        <span className="flex min-w-0 items-center gap-1 text-sm font-medium text-primary">
-                          <HugeiconsIcon icon={FolderCheckIcon} className="size-4 shrink-0" />
-                          <span className="truncate">
-                            {yours
-                              ? `${t.add.siteFoundYours} · ${yours.title}`
-                              : t.add.siteFoundYours}
-                          </span>
-                        </span>
-                      )}
-                      {item.originalTitle && (
-                        <span className="truncate text-sm text-muted-foreground">
-                          {t.add.tmdbOriginal(item.originalTitle)}
-                        </span>
-                      )}
-                      {item.plot && (
-                        <span className="line-clamp-2 text-sm text-muted-foreground">
-                          {item.plot}
-                        </span>
-                      )}
-                    </span>
-                    {item.year !== null && (
-                      <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-                        {item.year}
-                      </span>
-                    )}
-                    {extractor && (
-                      <span title={extractor.name} className="shrink-0 pr-1">
-                        <ExtractorMark
-                          extractor={extractor}
-                          className="size-10 rounded-full"
-                          iconClassName="size-5"
-                        />
-                        <span className="sr-only">{t.add.siteFoundOn(extractor.name)}</span>
-                      </span>
-                    )}
-                  </Autocomplete.Item>
-                );
-              }}
-            </Autocomplete.List>
-          </Autocomplete.Popup>
-        </Autocomplete.Positioner>
-      </Autocomplete.Portal>
-    </Autocomplete.Root>
+                    {index + 1}
+                  </PaginationButton>
+                )}
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                aria-label={t.add.siteNext}
+                title={t.add.siteNext}
+                disabled={page === pageCount - 1}
+                onClick={() => goTo(page + 1)}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
+    </section>
   );
 }
 
-/** A result's poster, large enough to tell shows of the same name apart; without one, a TV. */
-function ResultPoster({ url }: { url: string | null }) {
+/** The series' own grid: the columns stretch to fill the row (see `FILL_TILE_GRID`). */
+const RESULT_GRID =
+  "grid w-full grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(15.5rem,1fr))] sm:gap-6";
+
+/** A result as the series' tiles are: its cover filling the card, its name and year over a shade. */
+function ResultTile({
+  item,
+  extractor,
+  yours,
+  reading,
+  disabled,
+  onPick,
+}: {
+  item: SiteFound;
+  extractor: ExtractorDto | null;
+  yours: SeriesDto | null;
+  reading: boolean;
+  disabled: boolean;
+  onPick: () => void;
+}) {
+  const t = useT();
+  const cover = item.posterUrl;
+  const mine = item.seriesId !== null;
+  const facts = [item.year === null ? null : String(item.year), item.originalTitle].filter(
+    (fact) => fact !== null,
+  );
+  const label = [
+    item.title,
+    ...facts,
+    mine ? (yours ? `${t.add.siteFoundYours} · ${yours.title}` : t.add.siteFoundYours) : null,
+    extractor ? t.add.siteFoundOn(extractor.name) : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
-    <span className="flex h-24 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black/5 text-muted-foreground">
-      {url ? (
-        <img src={url} alt="" loading="lazy" className="size-full object-cover" />
-      ) : (
-        <HugeiconsIcon icon={Tv01Icon} className="size-6" />
+    <Tile
+      covered={cover !== null}
+      className={cn(
+        "isolate has-[button:focus-visible]:ring-3 has-[button:focus-visible]:ring-ring/50",
+        cover ? "bg-black/80" : "bg-linear-to-b from-primary/10 to-transparent",
+        disabled && !reading && "opacity-60",
       )}
-    </span>
+    >
+      {cover && (
+        <>
+          <img
+            src={cover}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 -z-10 size-full object-cover transition-transform duration-500 ease-out motion-safe:group-hover/tile:scale-[1.04]"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 bg-linear-to-t from-black/85 via-black/35 via-40% to-transparent to-65%"
+          />
+        </>
+      )}
+      <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-2 sm:inset-x-5 sm:top-5">
+        {mine ? (
+          // Already added, from any of its seasons: picking it opens that series.
+          <span
+            title={yours ? `${t.add.siteFoundYours} · ${yours.title}` : t.add.siteFoundYours}
+            className="flex h-6 min-w-0 items-center gap-1 rounded-full bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-xs"
+          >
+            <HugeiconsIcon icon={FolderCheckIcon} className="size-3.5 shrink-0" />
+            <span className="truncate">{t.add.siteFoundYours}</span>
+          </span>
+        ) : (
+          <span />
+        )}
+        {extractor && (
+          <span title={extractor.name} className="shrink-0">
+            <ExtractorMark
+              extractor={extractor}
+              className="size-10 rounded-full shadow-sm"
+              iconClassName="size-5"
+            />
+          </span>
+        )}
+      </div>
+      <div className="flex flex-1 items-center justify-center">
+        {reading ? (
+          <span className="flex size-20 items-center justify-center rounded-3xl bg-white/85 text-primary shadow-lg">
+            <Spinner className="size-8" />
+          </span>
+        ) : (
+          !cover && (
+            <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
+              <HugeiconsIcon icon={Tv01Icon} className="size-10" />
+            </span>
+          )
+        )}
+      </div>
+      <div className={cn("min-w-0 p-4 sm:p-5", cover && "text-white")}>
+        <h3
+          title={item.title}
+          className="line-clamp-2 text-base leading-tight font-semibold tracking-tight sm:text-lg"
+        >
+          <button
+            type="button"
+            aria-label={label}
+            disabled={disabled}
+            onClick={onPick}
+            className="text-left outline-none after:absolute after:inset-0 after:content-[''] disabled:cursor-default"
+          >
+            {item.title}
+          </button>
+        </h3>
+        {facts.length > 0 && (
+          <p
+            className={cn(
+              "mt-0.5 truncate text-xs tabular-nums sm:text-sm",
+              cover ? "text-white/75" : "text-muted-foreground",
+            )}
+          >
+            {facts.join(" · ")}
+          </p>
+        )}
+      </div>
+    </Tile>
   );
 }

@@ -7,9 +7,16 @@ import type {
   ShowLookupDto,
   ShowSearchResultDto,
 } from "@orca/hm-contract";
-import { TMDB_ID_PATTERN } from "@orca/hm-contract/rules";
+import { MIN_SITE_SEARCH_LENGTH, TMDB_ID_PATTERN } from "@orca/hm-contract/rules";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useId, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { useLocation, useSearch, useSearchParams } from "wouter";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -54,13 +61,13 @@ import {
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
-import { Autocomplete } from "@base-ui/react/autocomplete";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useElementHeight } from "@/hooks/use-element-height";
 import { useLocale, useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import type { Messages } from "@/i18n/messages";
-import { SiteSearch, type SiteFound } from "./SiteSearch";
+import { isSiteSearch } from "./site-search";
+import { SiteResults, type SiteFound } from "./SiteSearch";
 import { BAR_POPUP, BAR_ROW, BarField, BarPicker, BarToggle, ErrorHint, GLASS_PANEL } from "./bar";
 import { EpisodeGrid } from "./EpisodeGrid";
 import {
@@ -282,6 +289,30 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
     searchable && urlFilled && !chosen && preview === null && !isWebAddress(url.trim())
       ? url
       : null;
+  // The sites' results take the screen: the address moves up and widens, and they fill the rest.
+  // Set by typing (not derived from it) so the change can be animated from where the bar was.
+  const [searching, setSearching] = useState(false);
+  const showResults = searching && searchQuery !== null && isSiteSearch(searchQuery);
+  const form$ = useRef<HTMLFormElement>(null);
+  const barWas = useRef<DOMRect | null>(null);
+  // From where the bar was to where it is now, sliding and widening rather than jumping. Its width
+  // is animated (not scaled), so what is inside lays itself out at every step instead of stretching.
+  useLayoutEffect(() => {
+    const from = barWas.current;
+    const node = form$.current;
+    barWas.current = null;
+    if (!from || !node || typeof node.animate !== "function") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const to = node.getBoundingClientRect();
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    node.animate(
+      [
+        { transform: `translate(${dx}px, ${from.top - to.top}px)`, width: `${from.width}px` },
+        { transform: "none", width: `${to.width}px` },
+      ],
+      { duration: 450, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+    );
+  }, [showResults]);
   const showChoice =
     explicit.length > 0 &&
     (chosen !== null || (urlFilled && extractors.isSuccess && !matched && searchQuery === null));
@@ -293,6 +324,13 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
 
   function typeAddress(text: string) {
     setUrl(text);
+    // Only a name long enough to search with moves the bar: a web address leaves it where it is.
+    const next =
+      searchable && !chosen && preview === null && !isWebAddress(text.trim()) && isSiteSearch(text);
+    if (next !== searching) {
+      barWas.current = form$.current?.getBoundingClientRect() ?? null;
+      setSearching(next);
+    }
     setUrlInvalid(false);
     if (previewMutation.isError) previewMutation.reset();
   }
@@ -304,7 +342,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       navigate(`/series/${encodeURIComponent(found.seriesId)}`);
       return;
     }
-    typeAddress(found.url);
+    // The name stays (and the results with it, the one picked spinning) until the address is read.
     runPreview(undefined, { url: found.url, extractorId: found.extractorId });
   }
 
@@ -324,6 +362,11 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       { url: address, ...(reader ? { extractorId: reader } : {}) },
       {
         onSuccess: (next) => {
+          if (picked) {
+            // The address picked is the series' from now on; the bar goes from the results to it.
+            setUrl(picked.url);
+            if (showResults) barWas.current = form$.current?.getBoundingClientRect() ?? null;
+          }
           setPreview(next);
           setForm({ ...initialForm(next), ...(intoSeries ? { addTo: intoSeries.id } : {}) });
           setEdited(new Set());
@@ -745,7 +788,12 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       className={cn(
         "mx-auto flex w-full flex-col gap-4",
         // Once read: the bar on the left, the episodes on the right, each taking half the width.
-        attached ? "xl:grid xl:grid-cols-2 xl:items-start xl:gap-4" : "max-w-5xl",
+        attached
+          ? "xl:grid xl:grid-cols-2 xl:items-start xl:gap-4"
+          : // Searching: from the window's top, across all of it.
+            showResults
+            ? "self-start"
+            : "max-w-5xl",
       )}
     >
       <ShowBackdrop src={backdrop?.src ?? null} poster={backdrop?.poster} />
@@ -765,11 +813,16 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       >
         {/* The address floats as it is while the page scrolls, always clear of the window's top. */}
         <form
+          ref={form$}
           noValidate
           onSubmit={runPreview}
           className={cn(
             "z-20 mx-auto w-full",
-            attached ? "max-w-3xl xl:max-w-none" : "sticky top-8 max-w-3xl",
+            attached
+              ? "max-w-3xl xl:max-w-none"
+              : showResults
+                ? "sticky top-4"
+                : "sticky top-8 max-w-3xl",
           )}
         >
           <FieldLabel htmlFor="series-url" className="sr-only">
@@ -781,124 +834,112 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
             className={cn(GLASS_PANEL, "rounded-[44px]", urlError && "border-destructive/40")}
           >
             <div ref={head}>
-              <SiteSearch
-                value={url}
-                query={searchQuery}
-                extractors={extractors.data ?? []}
-                series={seriesList.data ?? []}
-                anchor={bar}
-                onType={typeAddress}
-                onPick={pickFound}
+              <InputGroup
+                className={cn(
+                  "h-22 rounded-[43px] border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/30",
+                  attached &&
+                    "rounded-b-none has-[[data-slot=input-group-control]:focus-visible]:bg-white/45 has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+                )}
               >
-                <InputGroup
-                  className={cn(
-                    "h-22 rounded-[43px] border-0 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/30",
-                    attached &&
-                      "rounded-b-none has-[[data-slot=input-group-control]:focus-visible]:bg-white/45 has-[[data-slot=input-group-control]:focus-visible]:ring-0",
+                <InputGroupInput
+                  id="series-url"
+                  name="url"
+                  value={url}
+                  onChange={(event) => typeAddress(event.target.value)}
+                  // Text, not `url`: a name typed here searches the sites.
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={
+                    hinted?.example ??
+                    (searchable ? t.add.urlOrSearchPlaceholder : t.add.urlPlaceholder)
+                  }
+                  autoFocus
+                  // Read: the address stays as it was read until "search again".
+                  readOnly={attached}
+                  aria-invalid={urlError ? true : undefined}
+                  aria-describedby={urlError ? urlErrorId : undefined}
+                  className="h-full pl-4! text-base md:text-lg"
+                />
+                <InputGroupAddon align="inline-start" className="cursor-default pl-[15px]">
+                  {urlError ? (
+                    <ErrorHint error={urlError} className="size-14 [&_svg]:size-6" />
+                  ) : (
+                    <ExtractorIndicator extractor={reader} faded={!urlFilled} />
                   )}
-                >
-                  <Autocomplete.Input
-                    render={
-                      <InputGroupInput
-                        id="series-url"
-                        name="url"
-                        // Text, not `url`: a name typed here searches the sites.
-                        type="text"
-                        autoComplete="off"
-                        spellCheck={false}
-                        placeholder={
-                          hinted?.example ??
-                          (searchable ? t.add.urlOrSearchPlaceholder : t.add.urlPlaceholder)
-                        }
-                        autoFocus
-                        // Read: the address stays as it was read until "search again".
-                        readOnly={attached}
-                        aria-invalid={urlError ? true : undefined}
-                        aria-describedby={urlError ? urlErrorId : undefined}
-                        className="h-full pl-4! text-base md:text-lg"
-                      />
-                    }
-                  />
-                  <InputGroupAddon align="inline-start" className="cursor-default pl-[15px]">
-                    {urlError ? (
-                      <ErrorHint error={urlError} className="size-14 [&_svg]:size-6" />
-                    ) : (
-                      <ExtractorIndicator extractor={reader} faded={!urlFilled} />
-                    )}
-                    {urlError && (
-                      <span id={urlErrorId} role="alert" className="sr-only">
-                        {urlError}
-                      </span>
-                    )}
-                  </InputGroupAddon>
-                  <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
-                    {attached ? (
-                      // Once read, the address is the series': another one starts over from here.
-                      <InputGroupButton
-                        type="button"
-                        variant="ghost"
-                        aria-label={t.add.searchAgain}
-                        title={t.add.searchAgain}
-                        onClick={searchAgain}
-                        className="size-14 rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5 hover:bg-white hover:text-foreground"
-                      >
-                        <HugeiconsIcon icon={RotateLeft01Icon} className="size-6" />
-                      </InputGroupButton>
-                    ) : (
-                      /* A circle that keeps the address wide; into an existing series it is that
+                  {urlError && (
+                    <span id={urlErrorId} role="alert" className="sr-only">
+                      {urlError}
+                    </span>
+                  )}
+                </InputGroupAddon>
+                <InputGroupAddon align="inline-end" className="pr-[15px] has-[>button]:mr-0">
+                  {attached ? (
+                    // Once read, the address is the series': another one starts over from here.
+                    <InputGroupButton
+                      type="button"
+                      variant="ghost"
+                      aria-label={t.add.searchAgain}
+                      title={t.add.searchAgain}
+                      onClick={searchAgain}
+                      className="size-14 rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5 hover:bg-white hover:text-foreground"
+                    >
+                      <HugeiconsIcon icon={RotateLeft01Icon} className="size-6" />
+                    </InputGroupButton>
+                  ) : (
+                    /* A circle that keeps the address wide; into an existing series it is that
                       series' cover, and its name slides out leftwards on hover, like the reader's. */
-                      <span className="group/preview relative block size-14">
-                        <InputGroupButton
-                          type="submit"
-                          variant="default"
-                          aria-label={
-                            previewMutation.isPending
-                              ? t.add.previewing
-                              : goesInto
-                                ? t.add.previewInto(goesInto.title)
-                                : t.add.preview
-                          }
-                          className={cn(
-                            "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full border-0 p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
-                            goesInto && "p-1 group-hover/preview:pl-3",
-                          )}
-                          // A name is searched, not read: a result is picked from the list instead.
-                          disabled={!urlFilled || previewMutation.isPending || searchQuery !== null}
-                          aria-busy={previewMutation.isPending || undefined}
-                        >
-                          {goesInto && (
-                            <span
-                              aria-hidden="true"
-                              className="max-w-0 overflow-hidden text-sm font-medium whitespace-nowrap opacity-0 transition-all duration-300 ease-out group-hover/preview:mr-2 group-hover/preview:max-w-48 group-hover/preview:opacity-100"
-                            >
-                              {goesInto.title}
-                            </span>
-                          )}
+                    <span className="group/preview relative block size-14">
+                      <InputGroupButton
+                        type="submit"
+                        variant="default"
+                        aria-label={
+                          previewMutation.isPending
+                            ? t.add.previewing
+                            : goesInto
+                              ? t.add.previewInto(goesInto.title)
+                              : t.add.preview
+                        }
+                        className={cn(
+                          "absolute top-0 right-0 z-10 h-14 w-auto gap-0 rounded-full border-0 p-0 shadow-md shadow-primary/30 transition-all duration-300 ease-out",
+                          goesInto && "p-1 group-hover/preview:pl-3",
+                        )}
+                        // A name is searched, not read: a result is picked from the list instead.
+                        disabled={!urlFilled || previewMutation.isPending || searchQuery !== null}
+                        aria-busy={previewMutation.isPending || undefined}
+                      >
+                        {goesInto && (
                           <span
-                            className={cn(
-                              "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
-                              goesInto ? "size-12 bg-white/20" : "size-14",
-                            )}
+                            aria-hidden="true"
+                            className="max-w-0 overflow-hidden text-sm font-medium whitespace-nowrap opacity-0 transition-all duration-300 ease-out group-hover/preview:mr-2 group-hover/preview:max-w-48 group-hover/preview:opacity-100"
                           >
-                            {previewMutation.isPending ? (
-                              <Spinner aria-hidden="true" className="size-6" />
-                            ) : goesInto?.cover ? (
-                              <img src={goesInto.cover} alt="" className="size-full object-cover" />
-                            ) : (
-                              // The magnifier only for a new series; an existing one without a cover
-                              // keeps a folder in its place.
-                              <HugeiconsIcon
-                                icon={goesInto ? FolderCheckIcon : Search01Icon}
-                                className="size-6"
-                              />
-                            )}
+                            {goesInto.title}
                           </span>
-                        </InputGroupButton>
-                      </span>
-                    )}
-                  </InputGroupAddon>
-                </InputGroup>
-              </SiteSearch>
+                        )}
+                        <span
+                          className={cn(
+                            "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
+                            goesInto ? "size-12 bg-white/20" : "size-14",
+                          )}
+                        >
+                          {previewMutation.isPending ? (
+                            <Spinner aria-hidden="true" className="size-6" />
+                          ) : goesInto?.cover ? (
+                            <img src={goesInto.cover} alt="" className="size-full object-cover" />
+                          ) : (
+                            // The magnifier only for a new series; an existing one without a cover
+                            // keeps a folder in its place.
+                            <HugeiconsIcon
+                              icon={goesInto ? FolderCheckIcon : Search01Icon}
+                              className="size-6"
+                            />
+                          )}
+                        </span>
+                      </InputGroupButton>
+                    </span>
+                  )}
+                </InputGroupAddon>
+              </InputGroup>
               {attached && offer && (
                 // The series this one already is, offered in place of the list: the whole row says
                 // it, and the two buttons at its end take it or set it aside.
@@ -1217,6 +1258,11 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
               </NativeSelect>
             </Field>
           )}
+          {searchQuery !== null && !isSiteSearch(searchQuery) && (
+            <p role="status" className="px-4 text-sm text-muted-foreground">
+              {t.add.siteSearchShort(MIN_SITE_SEARCH_LENGTH)}
+            </p>
+          )}
           {chosen && (
             <p role="status" className="px-4 text-sm text-warning">
               {t.add.usingExplicit(chosen.name)}
@@ -1237,6 +1283,18 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
               <span className="block text-xs text-muted-foreground">{failure.detail}</span>
             )}
           </p>
+        )}
+        {showResults && (
+          // Clear of the dock below, risen or not, so the last page buttons are never under it.
+          <div className="animate-in pb-28 duration-500 fade-in-0 slide-in-from-bottom-4">
+            <SiteResults
+              query={searchQuery}
+              extractors={extractors.data ?? []}
+              series={seriesList.data ?? []}
+              reading={previewMutation.isPending ? (previewMutation.variables?.url ?? null) : null}
+              onPick={pickFound}
+            />
+          </div>
         )}
       </div>
 

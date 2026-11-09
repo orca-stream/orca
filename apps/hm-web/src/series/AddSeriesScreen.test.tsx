@@ -675,13 +675,18 @@ describe("AddSeriesScreen", () => {
     await user.type(input, "la");
     expect(await screen.findByText("Escribe al menos 3 letras para buscar.")).toBeTruthy();
     await user.type(input, " casa");
-    // A name is searched, never read: the read button waits for a web address. (Hidden from the
-    // accessibility tree while the list is open, as every popup of the bar does.)
-    const read = screen.getByRole("button", { name: "Previsualizar", hidden: true });
+    // A name is searched, never read: the read button waits for a web address.
+    const read = screen.getByRole("button", { name: "Previsualizar" });
     expect((read as HTMLButtonElement).disabled).toBe(true);
-    const result = await screen.findByRole("option", { name: /La casa/ });
+    // The results take the screen, as a grid of covers.
+    const results = await screen.findByRole("region", { name: "Resultados de los sitios" });
+    const result = await within(results).findByRole("button", {
+      name: /^La casa, 2006, The House/,
+    });
     expect(
-      await screen.findByText("En los sitios, para «la casa» · No respondió: Internet Archive"),
+      await screen.findByText(
+        "En los sitios, para «la casa» · 1 serie · No respondió: Internet Archive",
+      ),
     ).toBeTruthy();
     await user.click(result);
 
@@ -702,6 +707,51 @@ describe("AddSeriesScreen", () => {
     const fresh = screen.getByLabelText("Dirección") as HTMLInputElement;
     expect(fresh.value).toBe("");
     expect(fresh.readOnly).toBe(false);
+  });
+
+  it("shows the sites' results a page at a time", async () => {
+    const user = userEvent.setup();
+    const site = {
+      id: "site-b",
+      name: "Site B",
+      hosts: ["origin.test"],
+      example: "https://origin.test/series/x",
+      explicit: false,
+      searchable: true,
+    };
+    const results = Array.from({ length: 8 }, (_, index) => ({
+      url: `https://origin.test/series/mar-${index + 1}`,
+      title: `Mar ${index + 1}`,
+      originalTitle: null,
+      year: null,
+      plot: null,
+      posterUrl: null,
+      seriesId: null,
+    }));
+    setup({
+      extractors: [site],
+      siteFound: { mar: [{ extractorId: "site-b", failed: false, results }] },
+    });
+    await user.type(await screen.findByLabelText("Dirección"), "mar");
+    const region = await screen.findByRole("region", { name: "Resultados de los sitios" });
+    const titles = () =>
+      within(region)
+        .queryAllByRole("button", { name: /^Mar \d/ })
+        .map((button) => button.textContent);
+    // Without a width to measure (jsdom), two columns of three rows.
+    await waitFor(() =>
+      expect(titles()).toEqual(["Mar 1", "Mar 2", "Mar 3", "Mar 4", "Mar 5", "Mar 6"]),
+    );
+    expect(within(region).getByRole("button", { name: "Página anterior" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    await user.click(within(region).getByRole("button", { name: "Página 2" }));
+    expect(titles()).toEqual(["Mar 7", "Mar 8"]);
+    expect(within(region).getByRole("button", { name: "Página siguiente" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   it("opens a series already added when the sites find it, instead of reading it again", async () => {
@@ -738,7 +788,7 @@ describe("AddSeriesScreen", () => {
       },
     });
     await user.type(await screen.findByLabelText("Dirección"), "la casa");
-    const result = await screen.findByRole("option", { name: /Ya la tienes · La casa de siempre/ });
+    const result = await screen.findByRole("button", { name: /Ya la tienes · La casa de siempre/ });
     await user.click(result);
     await waitFor(() => expect(location.history.at(-1)).toBe("/series/s7"));
     expect(requests.some((r) => new URL(r.url).pathname === "/api/series/preview")).toBe(false);
