@@ -168,7 +168,12 @@ describe("JellyfinAuthenticator", () => {
 
 function mediaServer(
   route: Route,
-  roots = { mediaRoot: "/media/tv", jellyfinMediaRoot: "/data/tv" },
+  roots: {
+    mediaRoot: string;
+    jellyfinMediaRoot: string;
+    moviesRoot?: string;
+    jellyfinMoviesRoot?: string;
+  } = { mediaRoot: "/media/tv", jellyfinMediaRoot: "/data/tv" },
 ) {
   const { instance, requests } = fakeServer(route);
   return {
@@ -503,6 +508,58 @@ describe("JellyfinMediaServer, what the libraries already have", () => {
       "Path",
       "ProviderIds",
     ]);
+  });
+
+  it("lists every movie with its video, its folder being the one holding it", async () => {
+    const movies = route({
+      Movie: [
+        { Id: "a", Name: "A Film", ProductionYear: 2016, Path: "/data/movies/A Film (2016)/a.mkv" },
+        // Straight in the movies folder: no folder of its own to add to.
+        { Id: "b", Name: "Loose", Path: "/data/movies/loose.mkv" },
+        { Id: "c", Name: "Far", Path: "/elsewhere/Far/far.mkv" },
+      ],
+    });
+    const { server, requests } = mediaServer(movies, {
+      mediaRoot: "/media/tv",
+      jellyfinMediaRoot: "/data/tv",
+      moviesRoot: "/media/movies",
+      jellyfinMoviesRoot: "/data/movies",
+    });
+    expect(await server.listShows(undefined, "movie")).toEqual([
+      {
+        id: "a",
+        title: "A Film",
+        year: 2016,
+        tmdbId: null,
+        imdbId: null,
+        folderName: "A Film (2016)",
+        file: "/media/movies/A Film (2016)/a.mkv",
+      },
+      {
+        id: "b",
+        title: "Loose",
+        year: null,
+        tmdbId: null,
+        imdbId: null,
+        folderName: null,
+        file: "/media/movies/loose.mkv",
+      },
+      {
+        id: "c",
+        title: "Far",
+        year: null,
+        tmdbId: null,
+        imdbId: null,
+        folderName: null,
+        file: null,
+      },
+    ]);
+    expect(parts(requests[0]).query).toMatchObject({ includeItemTypes: "Movie" });
+    // No movies folder: none is where this server writes.
+    const without = mediaServer(movies);
+    expect(
+      (await without.server.listShows(undefined, "movie")).map((movie) => movie.folderName),
+    ).toEqual([null, null, null]);
   });
 
   it("lists one file per episode, leaving out files of several episodes and episodes without one", async () => {

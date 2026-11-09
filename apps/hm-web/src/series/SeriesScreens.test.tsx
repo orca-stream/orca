@@ -102,11 +102,9 @@ describe("SeriesListScreen", () => {
           ? jsonResponse([])
           : jsonResponse({ items: [], nextCursor: null }),
     });
-    expect(await screen.findByText(/Todavía no hay series\./)).toBeTruthy();
+    expect(await screen.findByText(/Todavía no hay nada\./)).toBeTruthy();
     expect(
-      within(screen.getByRole("list"))
-        .getByRole("link", { name: "Añadir serie" })
-        .getAttribute("href"),
+      within(screen.getByRole("list")).getByRole("link", { name: "Añadir" }).getAttribute("href"),
     ).toBe("/series/new");
   });
 
@@ -136,7 +134,7 @@ describe("SeriesListScreen", () => {
     await screen.findByRole("link", { name: "Bonanza" });
 
     await user.keyboard("/");
-    const field = screen.getByRole("searchbox", { name: "Buscar entre las series" });
+    const field = screen.getByRole("searchbox", { name: "Buscar por título" });
     expect(document.activeElement).toBe(field);
     // The slash opened it; it isn't the start of the query.
     await user.keyboard("poke/");
@@ -178,20 +176,20 @@ describe("SeriesListScreen", () => {
       "/settings",
     );
     // One "+" opens the extractors to add a series with.
-    await user.click(await within(dock).findByRole("button", { name: "Nueva serie" }));
+    await user.click(await within(dock).findByRole("button", { name: "Añadir" }));
     expect((await screen.findByRole("link", { name: "TV Anime" })).getAttribute("href")).toBe(
       "/series/new?extractor=tv-anime",
     );
     await user.keyboard("{Escape}");
 
-    await user.click(within(dock).getByRole("button", { name: "Buscar series" }));
-    const field = screen.getByRole("searchbox", { name: "Buscar entre las series" });
+    await user.click(within(dock).getByRole("button", { name: "Buscar por título" }));
+    const field = screen.getByRole("searchbox", { name: "Buscar por título" });
     await user.type(field, "pokemon");
     expect(screen.getByRole("link", { name: "Pokémon" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Bonanza" })).toBeNull();
 
     await user.type(field, "x");
-    expect(screen.getByText("Ninguna serie coincide con «pokemonx».")).toBeTruthy();
+    expect(screen.getByText("Nada coincide con «pokemonx».")).toBeTruthy();
 
     await user.click(within(dock).getByRole("button", { name: "Limpiar la búsqueda" }));
     expect((field as HTMLInputElement).value).toBe("");
@@ -199,9 +197,9 @@ describe("SeriesListScreen", () => {
 
     await user.click(within(dock).getByRole("button", { name: "Cerrar la búsqueda" }));
     expect(screen.queryByRole("searchbox")).toBeNull();
-    expect(within(dock).getByRole("button", { name: "Buscar series" })).toBeTruthy();
+    expect(within(dock).getByRole("button", { name: "Buscar por título" })).toBeTruthy();
     // The field that held focus is gone: once the pointer leaves, nothing keeps the dock up.
-    await user.hover(within(dock).getByRole("button", { name: "Buscar series" }));
+    await user.hover(within(dock).getByRole("button", { name: "Buscar por título" }));
     await user.hover(screen.getByRole("link", { name: "Bonanza" }));
     await waitFor(() => expect(dock.parentElement!.hasAttribute("data-open")).toBe(false));
   });
@@ -853,6 +851,6 @@ describe("SeriesDetailScreen", () => {
       </Route>,
       { handler: () => jsonResponse({ error: "not_found" }, 404), path: "/series/nope" },
     );
-    expect(await screen.findByText("No existe esa serie.")).toBeTruthy();
+    expect(await screen.findByText("No existe.")).toBeTruthy();
   });
 });

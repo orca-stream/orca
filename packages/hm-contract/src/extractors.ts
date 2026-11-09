@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { MediaKind } from "./common.ts";
 import { MIN_SITE_SEARCH_LENGTH } from "./rules.ts";
 
 export const ExtractorDto = z.object({
@@ -21,8 +22,12 @@ export const SiteSearchQuery = z.object({
 });
 export type SiteSearchQuery = z.infer<typeof SiteSearchQuery>;
 
-/** A series a site found by name: picking it reads its address the way a pasted one is. */
+/** A series or a movie a site found by name: picking it reads its address the way a pasted one is. */
 export const SiteSearchResultDto = z.object({
+  /** What the site says it is. */
+  kind: MediaKind,
+  /** The site's own word for it (`OVA`, `Especial`, `MOVIE`), when its search says; else null. */
+  label: z.string().nullable(),
   url: z.string(),
   title: z.string(),
   originalTitle: z.string().nullable(),

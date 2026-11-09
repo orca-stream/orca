@@ -32,7 +32,7 @@ const FOUND: SearchResult[] = [
     year: 2020,
     posterUrl: "https://site.example/uploads/the-show.webp",
   },
-  { kind: "movie", url: "https://site.example/movie/a-film", title: "A Film" },
+  { kind: "movie", url: "https://site.example/movie/a-film", title: "A Film", label: "Movie" },
   {
     kind: "series",
     url: "https://site.example/series/other",
@@ -81,7 +81,7 @@ describe("searching the sites", () => {
     ]);
   });
 
-  it("asks every searchable site, keeps the series and serves their posters through itself", async () => {
+  it("asks every searchable site, keeps series and movies, and serves their posters through itself", async () => {
     const res = await get("/api/search?q=show");
     expect(res.status).toBe(200);
     const poster = `/api/search/poster?${new URLSearchParams({
@@ -94,6 +94,8 @@ describe("searching the sites", () => {
         failed: false,
         results: [
           {
+            kind: "show",
+            label: null,
             url: "https://site.example/series/the-show",
             title: "The Show",
             originalTitle: "El Show",
@@ -103,8 +105,23 @@ describe("searching the sites", () => {
             seriesId: null,
             seasons: null,
           },
+          // A movie is offered as a movie, with the site's own word for it.
+          {
+            kind: "movie",
+            label: "Movie",
+            url: "https://site.example/movie/a-film",
+            title: "A Film",
+            originalTitle: null,
+            year: null,
+            plot: null,
+            posterUrl: null,
+            seriesId: null,
+            seasons: null,
+          },
           // A poster on another host is never fetched for the panel.
           {
+            kind: "show",
+            label: null,
             url: "https://site.example/series/other",
             title: "Other",
             originalTitle: null,

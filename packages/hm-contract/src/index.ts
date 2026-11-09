@@ -1,4 +1,4 @@
-export { ApiErrorBody, LICENSE_KINDS, LicenseKindSchema, Page } from "./common.ts";
+export { ApiErrorBody, LICENSE_KINDS, LicenseKindSchema, MediaKind, Page } from "./common.ts";
 export { LoginBody, Me } from "./auth.ts";
 export {
   ExtractorDto,
@@ -42,6 +42,7 @@ export {
   ShowSearchResultDto,
   MAX_SHOW_QUERY_LENGTH,
   ShowLookupParams,
+  LookupKindQuery,
   SourceDto,
   SourcePatch,
   SwitchSourceBody,

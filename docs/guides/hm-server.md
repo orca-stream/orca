@@ -67,6 +67,18 @@ from any device: set it up as soon as it starts.
 created first, from that same section. **Change password** ends the administrator's other sessions and
 keeps yours.
 
+**Shows, specials and movies.** Once an address is read, **Add as** says what it is: a **Series**
+(its episodes, in the shows folder), **Specials of a series** (season 0 of a show, numbered as TMDB
+lists its specials: pick the show and the first special) or a **Movie** (one video, in its own folder
+`Title (Year)/Title (Year).ext` of the movies folder, with a `movie.nfo`; never followed). It starts
+from what the site's search called it (a movie as a movie, an OVA, ONA or special as specials) and is
+changed by hand; picking a movie or a show in the title's TMDB search sets it too. Movies need the
+**movies folder** (**Settings › Movies folder**): apart from the shows folder, neither inside it nor
+holding it, and, with Jellyfin, a folder of one of its movie libraries. **Add to** offers, for a
+movie, the movies you already have and the ones Jellyfin has in a folder of their own under the
+movies folder: added to one of Jellyfin's, its video takes the server's name and isn't downloaded
+again.
+
 **Without Jellyfin.** The server only writes the folder: nothing is refreshed, and there is no Jellyfin
 show to add an address to. A TMDB id is looked up (and a show searched by name) with the server's own
 TMDB key, in the browser's language — any Latin American Spanish (`es-419`, `es-HN`…) as TMDB's `es-MX`,
@@ -146,7 +158,10 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     query parameter of a wrapper that frames the real player (`?url=`), so the player itself is opened;
     and `title`, where the season page writes the show's name (`{"selector": "h1 [itemprop=name]"}`),
     with `match` when the page adds words to it (`"^Watch (.+)$"`, its first group is the name) —
-    without it, the name is taken from the address.
+    without it, the name is taken from the address. And `movies`, when the site has movies on pages
+    of their own: their `path`, and optionally the `title` (as above) and `year` (a selector; the
+    first four digits it reads) on that page. A movie page lists its players as an episode page does,
+    and is read as one video.
   - `"api"`: its JSON API, which lists a show's seasons, episodes and players. Give its hosts, the
     show path (its first group is the slug), the API's base address and, optionally, the audio
     languages to keep, best first, and `images`, where the site serves the image paths its API gives
@@ -154,6 +169,8 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
     other source: paste `<show address>?season=N` (without `?season`, the first season is read and the
     preview lists the others), then pick its target season and first episode. Several site seasons can
     go to one season (site 1–3 → season 1, 4–5 → season 2) by adding each with the right first episode.
+    `moviePath` (optional; its first group is the slug) reads the site's movies, each as one video, from
+    the same API (`/single/movies`, its players under the movie's own post).
   - `"season-api"`: its JSON API, when every season has an address of its own and one answer holds the
     whole season (details, episodes and players). Give its hosts, the season path (its first group is
     the season's id in the API, e.g. `^/anime/[^/]*-(\\d+)/?$` for `/anime/some-show-11111`), the API's
@@ -168,8 +185,9 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   read, one after another); `items` is where the answer lists what it found (`data.posts`);
   `lastPage` (optional) is where a paged answer says its last page (`data.pagination.last_page`),
   else pages are read until one comes empty; `type` (optional) reads each item's kind (`"from": "{type}"`) and says which words
-  are a series and which a movie (only series are offered for now); and `result` builds each one from
-  its item with `{field}` slots: `url` by kind (`"series": "/series/{slug}"`, relative to the site),
+  are a series and which a movie; and `result` builds each one from
+  its item with `{field}` slots: `url` by kind (`"series": "/series/{slug}"`, relative to the site;
+  a kind without one, `"movie"` say, is left out),
   `title` and, optionally, `originalTitle`, `year` (its first four digits), `plot` and `poster`. A
   result the entry itself could not read is never offered. See `site-b` in the example file.
 
@@ -186,7 +204,8 @@ Both need Chromium, driven by Playwright (pinned to 1.64.1).
   page, with `{query}` where the name goes (and `{page}` if the site answers in pages: they are read one
   after another, up to five, until one comes short); `items` is a CSS selector for each result
   (`div.movie-item`); `type` (optional) picks what each result is and lists the words of a series
-  (`"series": ["TV Anime", "OVA"]`), leaving the rest out; and `result` picks, inside each one, `url` (a `selector` and its `attribute`,
+  (`"series": ["TV Anime", "OVA"]`) and, optionally, of a movie (`"movie": ["Movie"]`), leaving the
+  rest out; and `result` picks, inside each one, `url` (a `selector` and its `attribute`,
   `href` if absent), `title` and, optionally, `originalTitle`, `year`, `plot` and `poster` (a
   `selector`, and an `attribute` or, without one, the element's text). Without `type`, every result
   is taken as a series; one the entry could not read (a movie's page) is left out. See `site-c`, and

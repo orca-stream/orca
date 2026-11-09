@@ -59,6 +59,34 @@ export function tvshowNfo(series: Series): string {
   ]);
 }
 
+/**
+ * `movie.nfo`, in a movie's folder. As `tvshow.nfo` does: with an online id it only names the movie
+ * and Jellyfin fetches the rest from TMDB; without one it carries what is known and locks it.
+ */
+export function movieNfo(series: Series): string {
+  if (isLookedUp(series)) {
+    return document("movie", [
+      ...tag("title", series.title),
+      ...tag("year", series.year),
+      ...tag("uniqueid", series.tmdbId, ` type="tmdb" default="true"`),
+      ...tag(
+        "uniqueid",
+        series.imdbId,
+        ` type="imdb"${series.tmdbId === null ? ' default="true"' : ""}`,
+      ),
+      ...tag("tmdbid", series.tmdbId),
+      ...tag("imdbid", series.imdbId),
+    ]);
+  }
+  return document("movie", [
+    ...tag("title", series.title),
+    ...tag("originaltitle", series.title),
+    ...tag("year", series.year),
+    ...tag("plot", series.plot),
+    "  <lockdata>true</lockdata>",
+  ]);
+}
+
 /** The `.nfo` beside an episode file; null for a looked-up series, whose episodes Jellyfin names. */
 export function episodeNfo(series: Series, episode: Episode): string | null {
   if (isLookedUp(series)) return null;

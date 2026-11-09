@@ -9,6 +9,7 @@ import {
   type CreateSeriesInput,
   type EpisodeDto,
   type JobDto,
+  type MediaKind,
   type LibraryEpisodeDto,
   type LibraryShowDto,
   type ShowSearchResultDto,
@@ -41,7 +42,13 @@ import {
   sniffImage,
   TMDB_IMAGE_HOSTS,
 } from "./artwork.ts";
-import type { EpisodeSourceSwitch, FetchedImage, LibraryShow } from "./ports.ts";
+import type {
+  EpisodeFile,
+  EpisodeSourceSwitch,
+  FetchedImage,
+  LibraryShow,
+  MediaServer,
+} from "./ports.ts";
 import { createEnqueueDownloads, createEnqueueRefresh } from "./downloads.ts";
 import { createJobEvents } from "./job-events.ts";
 import {
@@ -116,6 +123,19 @@ function showOf(series: Series, shows: readonly LibraryShow[]): LibraryShow | nu
     (series.imdbId ? shows.find((show) => show.imdbId === series.imdbId) : undefined) ??
     null
   );
+}
+
+/**
+ * The files Jellyfin has of a show's episodes, or of a movie its one video (as S01E01): what adding
+ * to it keeps rather than downloads.
+ */
+async function filesOf(
+  media: MediaServer,
+  show: LibraryShow,
+  kind: MediaKind,
+): Promise<EpisodeFile[]> {
+  if (kind !== "movie") return media.listEpisodeFiles(show.id);
+  return show.file ? [{ season: 1, episode: 1, path: show.file }] : [];
 }
 
 /** What to say when the series a new one would duplicate already exists. */
@@ -270,7 +290,7 @@ export function createUseCases(deps: Deps) {
 
     /**
      * A name searched on every site that can be searched, at once: each answers on its own, and one
-     * that fails says so without taking the others down. Only series: H&M reads no movies yet.
+     * that fails says so without taking the others down. Series and movies, each as its site says.
      */
     async searchSites(query: string, signal?: AbortSignal): Promise<SiteSearchDto[]> {
       const searchable = deps.extractors.list().filter((extractor) => extractor.search);
@@ -285,16 +305,20 @@ export function createUseCases(deps: Deps) {
         searchable.map(async (extractor): Promise<SiteSearchDto> => {
           try {
             const asked = signal ? { signal } : undefined;
-            const series = (await extractor.search!(query, asked)).filter(
-              (result) => result.kind === "series",
+            const found = await extractor.search!(query, asked);
+            const seasons = await seasonsOfTwins(
+              extractor,
+              found.filter((result) => result.kind === "series"),
+              asked,
             );
-            const seasons = await seasonsOfTwins(extractor, series, asked);
             return {
               extractorId: extractor.id,
               failed: false,
-              results: series.map((result) => {
+              results: found.map((result) => {
                 const poster = trustedPosterUrl(result.posterUrl, searchPosterHosts(extractor));
                 return {
+                  kind: result.kind === "movie" ? ("movie" as const) : ("show" as const),
+                  label: result.label ?? null,
                   url: result.url,
                   title: result.title,
                   originalTitle: result.originalTitle ?? null,
@@ -391,13 +415,30 @@ export function createUseCases(deps: Deps) {
             .map((a) => [`${a.season}:${a.episode}`, a] as const),
         ).values(),
       ];
+      const movie = body.kind === "movie";
+      if (movie && !deps.library.hasMovies()) {
+        throw new AppError(
+          "bad_request",
+          "There is no movies folder: choose one in Settings › Library to add movies",
+        );
+      }
+      if (movie && chosen.length !== 1) {
+        throw new AppError("bad_request", "A movie is one video: choose one");
+      }
       // Measured on everything the address lists, not only what was chosen: a check later on finds
-      // the same lowest number, so the episodes it adds move by the same amount.
-      const mapping = {
-        season: body.season ?? null,
-        episodeOffset: episodeOffset(body.firstEpisode ?? null, extraction.episodes, adjustments),
-        adjustments,
-      };
+      // the same lowest number, so the episodes it adds move by the same amount. A movie's one video
+      // is its S01E01, whatever the site numbers it.
+      const mapping = movie
+        ? { season: 1, episodeOffset: 1 - (chosen[0]?.episode ?? 1), adjustments: [] }
+        : {
+            season: body.season ?? null,
+            episodeOffset: episodeOffset(
+              body.firstEpisode ?? null,
+              extraction.episodes,
+              adjustments,
+            ),
+            adjustments,
+          };
       assertDistinctNumbers(chosen.map((episode) => numberOf(mapping, episode)));
 
       const now = deps.clock.now();
@@ -421,7 +462,7 @@ export function createUseCases(deps: Deps) {
           extraction.series.externalId,
         );
         if (!taken) return;
-        const title = (await deps.series.seriesTitles([taken.seriesId])).get(taken.seriesId);
+        const title = (await deps.series.seriesTitles([taken.seriesId])).get(taken.seriesId)?.title;
         throw new AppError(
           "conflict",
           title ? `This address was already added to “${title}”` : "This address was already added",
@@ -435,6 +476,15 @@ export function createUseCases(deps: Deps) {
           async () => {
             const series = await deps.series.get(seriesId);
             if (!series) throw new AppError("not_found", "No such series");
+            // A movie's address goes to a movie (another source of its one video), a show's to a show.
+            if ((series.kind === "movie") !== movie) {
+              throw new AppError(
+                "bad_request",
+                series.kind === "movie"
+                  ? "That is a movie: add this address to it as a movie"
+                  : "That is a show: a movie's address can't be added to it",
+              );
+            }
             await assertNewAddress();
             const source = sourceFor(series.id);
             const existing = await deps.series.listEpisodes(series.id);
@@ -472,10 +522,12 @@ export function createUseCases(deps: Deps) {
               episodes.map((episode) => `${episode.season}:${episode.episode}`),
             );
             const media = deps.mediaServer;
-            const show = media ? showOf(series, await media.listShows()) : null;
+            const show = media
+              ? showOf(series, await media.listShows(undefined, series.kind))
+              : null;
             const files =
               media && show
-                ? (await media.listEpisodeFiles(show.id)).filter((file) =>
+                ? (await filesOf(media, show, series.kind)).filter((file) =>
                     wanted.has(`${file.season}:${file.episode}`),
                   )
                 : [];
@@ -494,7 +546,10 @@ export function createUseCases(deps: Deps) {
               }),
             );
             await deps.series.addSource(source, placed, switches);
-            await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
+            // A movie's sources are the same video on other sites: none is ever finished.
+            if (series.kind !== "movie") {
+              await closeFinishedSources(deps.series, series.id, source.id, placed, existing);
+            }
             return { series, episodes: placed, switched: switches.map((change) => change.id) };
           },
         );
@@ -513,24 +568,30 @@ export function createUseCases(deps: Deps) {
       if (body.jellyfinId !== undefined) {
         const media = deps.mediaServer;
         if (!media) throw new AppError("bad_request", "There is no Jellyfin to take a show from");
-        const show = (await media.listShows()).find((item) => item.id === body.jellyfinId);
-        if (!show) throw new AppError("not_found", "Jellyfin has no such show");
+        const kind: MediaKind = movie ? "movie" : "show";
+        const show = (await media.listShows(undefined, kind)).find(
+          (item) => item.id === body.jellyfinId,
+        );
+        if (!show) {
+          throw new AppError("not_found", `Jellyfin has no such ${movie ? "movie" : "show"}`);
+        }
         const folderName = show.folderName;
         if (folderName === null) {
           throw new AppError(
             "bad_request",
-            `“${show.title}” is outside this server's media folder, so it can't add to it`,
+            `“${show.title}” is outside this server's ${movie ? "movies" : "media"} folder, so it can't add to it`,
           );
         }
         const { series, episodes } = await withFolderLock(folderName, async () => {
           await assertNewAddress();
           const tracked =
-            (await deps.series.findByFolder(folderName)) ??
-            (await deps.series.findByProviderIds(show));
+            (await deps.series.findByFolder(folderName, kind)) ??
+            (await deps.series.findByProviderIds(show, kind));
           if (tracked) throw alreadyHave(tracked);
 
           const series: Series = {
             id: uuidv7(now),
+            kind,
             title: show.title,
             year: show.year,
             plot: null,
@@ -559,7 +620,7 @@ export function createUseCases(deps: Deps) {
           // The show's own files take this server's names first, so the ones the address also lists
           // are known to be there and aren't downloaded again. Its nfo and images are left alone.
           // Renamed files stay renamed if saving then fails: they are the same files, better named.
-          const files = await media.listEpisodeFiles(show.id);
+          const files = await filesOf(media, show, kind);
           const onDisk = new Map(
             (await deps.library.renameEpisodes(series, files)).map((file) => [
               `${file.season}:${file.episode}`,
@@ -583,6 +644,7 @@ export function createUseCases(deps: Deps) {
         return this.getSeries(series.id);
       }
 
+      const kind: MediaKind = movie ? "movie" : "show";
       const title = body.title ?? extraction.series.title;
       const year = body.year ?? null;
       const folderName = seriesFolderName(title, year);
@@ -590,19 +652,22 @@ export function createUseCases(deps: Deps) {
       const imdbId = body.imdbId ?? null;
       // Two submits for the same folder must not interleave: the check, the write and the save run
       // one after the other, so the second sees the first and a failed save only undoes its own files.
-      const { series, episodes } = await withFolderLock(folderName, async () => {
+      const { series, episodes } = await withFolderLock(`${kind}:${folderName}`, async () => {
         await assertNewAddress();
-        const same = await deps.series.findByProviderIds({ tmdbId, imdbId });
+        const same = await deps.series.findByProviderIds({ tmdbId, imdbId }, kind);
         if (same) throw alreadyHave(same);
-        if (await deps.series.findByFolder(folderName)) {
+        if (await deps.series.findByFolder(folderName, kind)) {
           throw new AppError(
             "conflict",
-            `A series already uses the folder “${folderName}”: change the title or the year, or add this address to that series`,
+            movie
+              ? `A movie already uses the folder “${folderName}”: change the title or the year`
+              : `A series already uses the folder “${folderName}”: change the title or the year, or add this address to that series`,
           );
         }
 
         const series: Series = {
           id: uuidv7(now),
+          kind,
           title,
           year,
           plot: extraction.series.plot ?? null,
@@ -614,7 +679,8 @@ export function createUseCases(deps: Deps) {
           hasLogo: false,
           artworkVersion: 0,
           artworkFrom: {},
-          follow: body.follow ?? false,
+          // A movie brings nothing new: there is nothing to follow.
+          follow: movie ? false : (body.follow ?? false),
           paused: false,
           checkIntervalHours: 12,
           lastCheckedAt: null,
@@ -694,23 +760,26 @@ export function createUseCases(deps: Deps) {
       tmdbId: string,
       signal?: AbortSignal,
       language?: string,
+      kind: MediaKind = "show",
     ): Promise<ShowLookupDto> {
       const find = deps.mediaServer
-        ? deps.mediaServer.findShowByTmdbId(tmdbId, signal)
+        ? deps.mediaServer.findShowByTmdbId(tmdbId, signal, kind)
         : deps.episodeGuide
-          ? deps.episodeGuide.match(tmdbId, language, signal)
+          ? deps.episodeGuide.match(tmdbId, language, signal, kind)
           : Promise.reject(
               new AppError("unavailable", "Looking a show up needs Jellyfin or a TMDB key"),
             );
       const [show, guide] = await Promise.all([
         find,
         // Only with a TMDB key of our own, and only extras: without them the lookup still answers.
-        deps.episodeGuide?.show(tmdbId, signal, language).catch((error: unknown) => {
+        deps.episodeGuide?.show(tmdbId, signal, language, kind).catch((error: unknown) => {
           if (signal?.aborted) throw error;
           return null;
         }) ?? null,
       ]);
-      if (!show) throw new AppError("not_found", `TMDB has no show with the id ${tmdbId}`);
+      if (!show) {
+        throw new AppError("not_found", `TMDB has no ${kind} with the id ${tmdbId}`);
+      }
       const imdbId = show.imdbId !== null && IMDB_ID_PATTERN.test(show.imdbId) ? show.imdbId : null;
       return {
         tmdbId,
@@ -736,9 +805,10 @@ export function createUseCases(deps: Deps) {
       year: number | undefined,
       language: string | undefined,
       signal?: AbortSignal,
+      kind: MediaKind = "show",
     ): Promise<ShowSearchResultDto[]> {
-      if (deps.mediaServer) return deps.mediaServer.searchShows(query, year, signal);
-      if (deps.episodeGuide) return deps.episodeGuide.search(query, year, language, signal);
+      if (deps.mediaServer) return deps.mediaServer.searchShows(query, year, signal, kind);
+      if (deps.episodeGuide) return deps.episodeGuide.search(query, year, language, signal, kind);
       throw new AppError("unavailable", "Searching TMDB needs Jellyfin or a TMDB key");
     },
 
@@ -771,12 +841,19 @@ export function createUseCases(deps: Deps) {
      * Every show in Jellyfin, and the series this server has for it: by folder first, else by TMDB or
      * IMDb id. The panel offers the ones it doesn't have to add an address to.
      */
-    async listLibraryShows(signal?: AbortSignal): Promise<LibraryShowDto[]> {
+    async listLibraryShows(
+      signal?: AbortSignal,
+      kind: MediaKind = "show",
+    ): Promise<LibraryShowDto[]> {
       if (!deps.mediaServer) return [];
-      const [shows, all] = await Promise.all([
-        deps.mediaServer.listShows(signal),
+      // No movies folder: Jellyfin's movies are nowhere this server writes.
+      if (kind === "movie" && !deps.library.hasMovies()) return [];
+      const [shows, every] = await Promise.all([
+        deps.mediaServer.listShows(signal, kind),
         deps.series.list(),
       ]);
+      // Matched against the series of the same kind: a movie's TMDB id is another numbering.
+      const all = every.filter((series) => series.kind === kind);
       const byFolder = new Map(all.map((series) => [series.folderName, series.id]));
       const byTmdb = new Map(all.flatMap((s) => (s.tmdbId ? [[s.tmdbId, s.id] as const] : [])));
       const byImdb = new Map(all.flatMap((s) => (s.imdbId ? [[s.imdbId, s.id] as const] : [])));
@@ -828,6 +905,9 @@ export function createUseCases(deps: Deps) {
           throw new AppError("bad_request", "A preferred source must be one of the series'");
         }
       }
+      if (current.kind === "movie" && patch.follow === true) {
+        throw new AppError("bad_request", "A movie brings nothing new: there is nothing to follow");
+      }
       const updated = await deps.series.update(id, patch);
       if (patch.paused === true && !current.paused) {
         // What is downloading stops now and waits in the queue with what it has fetched.
@@ -864,6 +944,9 @@ export function createUseCases(deps: Deps) {
     async patchSource(seriesId: string, sourceId: string, patch: SourcePatch): Promise<SeriesDto> {
       const source = (await deps.series.listSources([seriesId])).find((s) => s.id === sourceId);
       if (!source) throw new AppError("not_found", "No such source");
+      if (patch.closed && (await deps.series.get(seriesId))?.kind === "movie") {
+        throw new AppError("bad_request", "A movie's sources are never checked: none is closed");
+      }
       await deps.series.updateSource(sourceId, { closed: patch.closed });
       deps.events.publish({ type: "series.updated", seriesId });
       return this.getSeries(seriesId);
@@ -1216,7 +1299,7 @@ export function createUseCases(deps: Deps) {
           "Without a TMDB id the series' artwork can only be uploaded",
         );
       }
-      return this.showArtworkOptions(series.tmdbId, language, signal);
+      return this.showArtworkOptions(series.tmdbId, language, signal, series.kind);
     },
 
     /** The same choice for a show by its TMDB id, before it is a series: to pick while adding it. */
@@ -1224,12 +1307,13 @@ export function createUseCases(deps: Deps) {
       tmdbId: string,
       language: string | undefined,
       signal?: AbortSignal,
+      kind: MediaKind = "show",
     ): Promise<ArtworkOptionsDto> {
       if (!deps.episodeGuide) {
         throw new AppError("unavailable", "No TMDB key: set one in Settings to choose from TMDB");
       }
-      const options = await deps.episodeGuide.artwork(tmdbId, language, signal);
-      if (!options) throw new AppError("not_found", `TMDB has no show with the id ${tmdbId}`);
+      const options = await deps.episodeGuide.artwork(tmdbId, language, signal, kind);
+      if (!options) throw new AppError("not_found", `TMDB has no ${kind} with the id ${tmdbId}`);
       return options;
     },
 

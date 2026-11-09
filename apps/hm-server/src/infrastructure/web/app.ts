@@ -19,6 +19,7 @@ import {
   SourcePatch,
   SwitchSourceBody,
   ShowLookupParams,
+  LookupKindQuery,
   ShowSearchQuery,
   SiteSearchPosterQuery,
   SiteSearchQuery,
@@ -253,38 +254,51 @@ export function createApp(deps: AppDeps) {
   api.get("/extractors", (c) => c.json(useCases.listExtractors()));
 
   api.get("/lookup/tmdb", validate("query", ShowSearchQuery), async (c) => {
-    const { query, year } = c.req.valid("query");
+    const { query, year, kind } = c.req.valid("query");
     return c.json(
       await useCases.searchShows(
         query,
         year,
         firstLanguage(c.req.header("accept-language")),
         c.req.raw.signal,
+        kind,
       ),
     );
   });
 
-  api.get("/lookup/tmdb/:tmdbId", validate("param", ShowLookupParams), async (c) => {
-    const { tmdbId } = c.req.valid("param");
-    return c.json(
-      await useCases.lookupShow(
-        tmdbId,
-        c.req.raw.signal,
-        firstLanguage(c.req.header("accept-language")),
-      ),
-    );
-  });
+  api.get(
+    "/lookup/tmdb/:tmdbId",
+    validate("param", ShowLookupParams),
+    validate("query", LookupKindQuery),
+    async (c) => {
+      const { tmdbId } = c.req.valid("param");
+      return c.json(
+        await useCases.lookupShow(
+          tmdbId,
+          c.req.raw.signal,
+          firstLanguage(c.req.header("accept-language")),
+          c.req.valid("query").kind,
+        ),
+      );
+    },
+  );
 
-  api.get("/lookup/tmdb/:tmdbId/artwork", validate("param", ShowLookupParams), async (c) => {
-    const { tmdbId } = c.req.valid("param");
-    return c.json(
-      await useCases.showArtworkOptions(
-        tmdbId,
-        firstLanguage(c.req.header("accept-language")),
-        c.req.raw.signal,
-      ),
-    );
-  });
+  api.get(
+    "/lookup/tmdb/:tmdbId/artwork",
+    validate("param", ShowLookupParams),
+    validate("query", LookupKindQuery),
+    async (c) => {
+      const { tmdbId } = c.req.valid("param");
+      return c.json(
+        await useCases.showArtworkOptions(
+          tmdbId,
+          firstLanguage(c.req.header("accept-language")),
+          c.req.raw.signal,
+          c.req.valid("query").kind,
+        ),
+      );
+    },
+  );
 
   api.get(
     "/lookup/tmdb/:tmdbId/seasons",
@@ -308,7 +322,9 @@ export function createApp(deps: AppDeps) {
     },
   );
 
-  api.get("/library/shows", async (c) => c.json(await useCases.listLibraryShows(c.req.raw.signal)));
+  api.get("/library/shows", validate("query", LookupKindQuery), async (c) =>
+    c.json(await useCases.listLibraryShows(c.req.raw.signal, c.req.valid("query").kind)),
+  );
   api.get("/library/shows/:id/episodes", async (c) =>
     c.json(await useCases.listLibraryEpisodes(c.req.param("id"), c.req.raw.signal)),
   );

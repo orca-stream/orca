@@ -244,7 +244,7 @@ export function BarPicker({
               {item.label}
             </span>
             {item.detail && (
-              <span className="ml-auto shrink-0 pl-6 text-sm text-muted-foreground">
+              <span className="ml-auto shrink-0 self-center pl-6 text-sm text-muted-foreground">
                 {item.detail}
               </span>
             )}
@@ -307,7 +307,7 @@ export function BarMultiPicker({
           >
             <span className="min-w-0 truncate">{item.label}</span>
             {item.detail && (
-              <span className="ml-auto shrink-0 pl-6 text-sm text-muted-foreground">
+              <span className="ml-auto shrink-0 self-center pl-6 text-sm text-muted-foreground">
                 {item.detail}
               </span>
             )}

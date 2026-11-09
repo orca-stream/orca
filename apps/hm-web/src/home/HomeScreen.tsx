@@ -35,7 +35,7 @@ function Covers({ series }: { series: SeriesDto[] }) {
     queries: candidates
       .filter((s) => !s.hasPoster)
       .slice(0, FANNED * 2)
-      .map((s) => queries.showLookup(api, s.tmdbId ?? "")),
+      .map((s) => queries.showLookup(api, s.tmdbId ?? "", s.kind)),
   });
   const tmdbPoster = new Map(
     lookups.flatMap((q) => (q.data?.posterUrl ? [[q.data.tmdbId, q.data.posterUrl] as const] : [])),
@@ -106,7 +106,10 @@ function SeriesTile() {
             {list.isSuccess
               ? series.length === 0
                 ? t.home.seriesEmpty
-                : t.home.seriesCount(series.length)
+                : t.home.libraryCount(
+                    series.filter((one) => one.kind !== "movie").length,
+                    series.filter((one) => one.kind === "movie").length,
+                  )
               : list.isError
                 ? t.dashboard.loadFailed
                 : t.common.loading}

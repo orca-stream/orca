@@ -32,7 +32,7 @@ import { currentArtwork } from "./artwork";
 import { CurrentDownloads } from "./CurrentDownloads";
 import { DeleteSeries } from "./DeleteSeries";
 import { PosterImage } from "./Poster";
-import { guideKey } from "./preview-form";
+import { guideKey, movieStill } from "./preview-form";
 import { absentSeasons } from "./tmdb-match";
 import { AiringChip } from "./AiringChip";
 import { airingHint } from "./airing";
@@ -41,6 +41,7 @@ import { EpisodeSourceMark, PreferredSourceSelect, SwitchSourceButton } from "./
 import { sourcesFor } from "./source-spans";
 import { addSourceHref } from "./add-source";
 import { SeriesSettings } from "./SeriesSettings";
+import { MovieVideo } from "./MovieVideo";
 import { ShowBackdrop } from "./ShowBackdrop";
 import { groupBySeason, missingIds, pruneSelection, setSeason, toggleSelected } from "./selection";
 
@@ -119,9 +120,11 @@ function SeriesHero({
   const logo = currentArtwork(series, tmdb, "logo");
   const showLogo = logo !== null && logo !== brokenLogo;
   const overview = series.plot ?? tmdb?.overview ?? null;
+  const movie = series.kind === "movie";
   const facts = [
+    movie ? t.add.asMovie : null,
     series.year === null ? null : String(series.year),
-    seasons === null ? null : t.series.detail.seasons(seasons),
+    seasons === null || movie ? null : t.series.detail.seasons(seasons),
   ].filter((fact) => fact !== null);
   const share = series.episodeCount === 0 ? 0 : series.availableCount / series.episodeCount;
   const hint = airingHint(series.follow, tmdb?.status ?? null);
@@ -250,58 +253,65 @@ function SeriesHero({
         </div>
       </div>
 
-      {/* How much of it is here, as the bar under the card; holding it gets a column of its own. */}
-      <div className="mt-4 flex items-center gap-4 px-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="font-medium tabular-nums">
-              {t.series.available(series.availableCount, series.episodeCount)}
-            </span>
-            {series.paused ? (
-              <span className="flex items-center gap-1 text-warning">
-                <HugeiconsIcon icon={PauseIcon} className="size-4" />
-                {t.series.pausedLine(series.downloadingCount)}
-              </span>
-            ) : (
-              series.downloadingCount > 0 && (
-                <span className="flex items-center gap-1 text-primary">
-                  <HugeiconsIcon icon={Download04Icon} className="size-4" />
-                  {t.series.downloading(series.downloadingCount)}
+      {/* How much of it is here, as the bar under the card; holding it gets a column of its own. A
+          movie's one video says that in its own row: here only whether its download is held. */}
+      {(!movie || series.paused || series.downloadingCount > 0) && (
+        <div className="mt-4 flex items-center gap-4 px-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              {!movie && (
+                <span className="font-medium tabular-nums">
+                  {t.series.available(series.availableCount, series.episodeCount)}
                 </span>
-              )
+              )}
+              {series.paused ? (
+                <span className="flex items-center gap-1 text-warning">
+                  <HugeiconsIcon icon={PauseIcon} className="size-4" />
+                  {t.series.pausedLine(series.downloadingCount)}
+                </span>
+              ) : (
+                series.downloadingCount > 0 && (
+                  <span className="flex items-center gap-1 text-primary">
+                    <HugeiconsIcon icon={Download04Icon} className="size-4" />
+                    {t.series.downloading(series.downloadingCount)}
+                  </span>
+                )
+              )}
+            </div>
+            {!movie && (
+              <div
+                aria-hidden="true"
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-foreground/8"
+              >
+                <div
+                  className="h-full rounded-full bg-linear-to-r from-primary to-sky-400 transition-[width] duration-500"
+                  style={{ width: `${Math.round(share * 100)}%` }}
+                />
+              </div>
             )}
           </div>
-          <div
-            aria-hidden="true"
-            className="mt-2 h-1.5 overflow-hidden rounded-full bg-foreground/8"
-          >
-            <div
-              className="h-full rounded-full bg-linear-to-r from-primary to-sky-400 transition-[width] duration-500"
-              style={{ width: `${Math.round(share * 100)}%` }}
-            />
-          </div>
+          {/* Only where there is something to hold, or something held. */}
+          {(series.paused || series.downloadingCount > 0) && (
+            <button
+              type="button"
+              aria-label={series.paused ? t.series.resume : t.series.pause}
+              title={series.paused ? t.series.resume : t.series.pauseHint}
+              disabled={patchSeries.isPending}
+              aria-busy={patchSeries.isPending || undefined}
+              onClick={() =>
+                patchSeries.mutate({ seriesId: series.id, patch: { paused: !series.paused } })
+              }
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/70 ring-1 ring-black/5 transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-60"
+            >
+              {patchSeries.isPending ? (
+                <Spinner aria-hidden="true" className="size-5" />
+              ) : (
+                <HugeiconsIcon icon={series.paused ? PlayIcon : PauseIcon} className="size-5" />
+              )}
+            </button>
+          )}
         </div>
-        {/* Only where there is something to hold, or something held. */}
-        {(series.paused || series.downloadingCount > 0) && (
-          <button
-            type="button"
-            aria-label={series.paused ? t.series.resume : t.series.pause}
-            title={series.paused ? t.series.resume : t.series.pauseHint}
-            disabled={patchSeries.isPending}
-            aria-busy={patchSeries.isPending || undefined}
-            onClick={() =>
-              patchSeries.mutate({ seriesId: series.id, patch: { paused: !series.paused } })
-            }
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/70 ring-1 ring-black/5 transition-colors hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none disabled:opacity-60"
-          >
-            {patchSeries.isPending ? (
-              <Spinner aria-hidden="true" className="size-5" />
-            ) : (
-              <HugeiconsIcon icon={series.paused ? PlayIcon : PauseIcon} className="size-5" />
-            )}
-          </button>
-        )}
-      </div>
+      )}
     </section>
   );
 }
@@ -329,10 +339,15 @@ export function SeriesDetailScreen() {
   // What TMDB says of the show, once it has an id: its picture behind the glass, its seasons, and
   // a frame and a name for each episode (the same cached answers adding a series asked for).
   const tmdbId = series.data?.tmdbId ?? "";
-  const lookup = useQuery({ ...queries.showLookup(api, tmdbId), enabled: tmdbId !== "" });
+  const mediaKind = series.data?.kind ?? "show";
+  const lookup = useQuery({
+    ...queries.showLookup(api, tmdbId, mediaKind),
+    enabled: tmdbId !== "",
+  });
+  // A movie has no seasons on TMDB.
   const guide = useQuery({
     ...queries.guideSeasons(api, tmdbId, locale),
-    enabled: tmdbId !== "",
+    enabled: tmdbId !== "" && mediaKind === "show",
   });
   const guideSeasons = new Set((guide.data ?? []).map((season) => season.number));
   const had = new Set((episodes ?? []).map((episode) => episode.season));
@@ -352,12 +367,17 @@ export function SeriesDetailScreen() {
       return listed ? [[season, listed] as const] : [];
     }),
   );
+  // A movie has no episodes on TMDB: its one video shows the movie's backdrop.
+  const movieFrame =
+    mediaKind === "movie" && lookup.data?.tmdbId === tmdbId ? movieStill(lookup.data) : null;
   const stills = new Map(
-    seasons.flatMap((season, index) =>
-      (guideEpisodes[index]?.data ?? []).map(
-        (episode) => [guideKey(season, episode.number), episode] as const,
-      ),
-    ),
+    movieFrame
+      ? [[guideKey(1, 1), movieFrame] as const]
+      : seasons.flatMap((season, index) =>
+          (guideEpisodes[index]?.data ?? []).map(
+            (episode) => [guideKey(season, episode.number), episode] as const,
+          ),
+        ),
   );
 
   // Live updates can finish or start a download under a pick: what no longer applies is dropped.
@@ -391,6 +411,7 @@ export function SeriesDetailScreen() {
   }
 
   const data = series.data;
+  const isMovie = data.kind === "movie";
   const tmdb = lookup.data?.tmdbId === tmdbId ? lookup.data : null;
   const groups = groupBySeason(episodes);
   const missing = missingIds(episodes);
@@ -416,7 +437,15 @@ export function SeriesDetailScreen() {
     : { src: currentArtwork(data, tmdb, "poster"), poster: true };
 
   return (
-    <div className="flex w-full flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,38rem)_minmax(0,1fr)] xl:items-start">
+    <div
+      className={cn(
+        "flex w-full flex-col gap-4",
+        // A movie is one video: no list of episodes beside it, the card alone in one column.
+        isMovie
+          ? "mx-auto max-w-3xl"
+          : "xl:grid xl:grid-cols-[minmax(0,38rem)_minmax(0,1fr)] xl:items-start",
+      )}
+    >
       <ShowBackdrop src={backdrop.src} poster={backdrop.poster} />
 
       {/* The card and the bar stay in sight beside a long season. Taller than the window, they
@@ -427,85 +456,110 @@ export function SeriesDetailScreen() {
         style={{ "--panel-h": `${panelHeight}px` } as CSSProperties}
         className={cn(
           GLASS_PANEL,
-          "min-w-0 overflow-clip xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
+          "min-w-0 overflow-clip",
+          !isMovie &&
+            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
         )}
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />
+        {isMovie && (
+          <MovieVideo
+            series={data}
+            episode={episodes[0]}
+            downloading={enqueue.isPending}
+            onDownload={() => enqueue.mutate(missing)}
+            onDelete={() => {
+              const video = episodes[0];
+              if (video) deleteEpisodeFile.mutate({ seriesId: data.id, episodeId: video.id });
+            }}
+            deleting={deleteEpisodeFile.isPending}
+            onSourceFailed={() => setSourceFailed(true)}
+          />
+        )}
         <SeriesSettings series={data} checkSeries={checkSeries} showStatus={tmdb?.status ?? null} />
-        <CurrentDownloads episodes={episodes} guide={stills} />
+        {!isMovie && <CurrentDownloads episodes={episodes} guide={stills} />}
+        {isMovie && (enqueue.isError || deleteEpisodeFile.isError || sourceFailed) && (
+          <p role="alert" className="border-t border-t-(--glass-edge) p-4 text-sm text-warning">
+            {t.series.actionFailed}
+          </p>
+        )}
       </div>
 
-      <SeriesEpisodes
-        groups={groups}
-        episodes={episodes}
-        availableCount={data.availableCount}
-        paused={data.paused}
-        selection={selection}
-        guide={stills}
-        guideSeasons={guideBySeason}
-        absentSeasons={absent}
-        missingCount={missing.length}
-        busy={bulk}
-        failed={enqueue.isError || deleteEpisodeFile.isError || sourceFailed}
-        notice={notice}
-        onToggle={(episodeId) => setPicked(() => toggleSelected(selection, episodes, episodeId))}
-        onToggleSeason={(season, on) => setPicked(() => setSeason(selection, episodes, season, on))}
-        onClear={() => {
-          setPicked(new Set());
-          setNotice(null);
-        }}
-        sourceMark={(episode) =>
-          data.sources.length > 1 && (
-            <EpisodeSourceMark series={data} episodes={episodes} episode={episode} />
-          )
-        }
-        seasonTools={(season, half) =>
-          // A preference needs two sources that can bring the season.
-          sourcesFor(data, episodes, [season]).length > 1 && (
-            <PreferredSourceSelect
-              series={data}
-              episodes={episodes}
-              season={season}
-              onFailed={() => setSourceFailed(true)}
-              className={half}
-            />
-          )
-        }
-        selectionTools={
-          sourcesFor(data, episodes, pickedSeasons).length > 1 && (
-            <SwitchSourceButton
-              series={data}
-              episodes={episodes}
-              selection={selection}
-              disabled={bulk !== null}
-              onDone={(message) => {
-                setSourceFailed(false);
-                setNotice(message);
-              }}
-              onFailed={() => {
-                setNotice(null);
-                setSourceFailed(true);
-              }}
-            />
-          )
-        }
-        onDownloadSelected={() => {
-          setBulk("selected");
-          enqueue.mutate(orderedSelection, {
-            onSuccess: () => setPicked(new Set()),
-            onSettled: () => setBulk(null),
-          });
-        }}
-        onDownloadMissing={downloadMissing}
-        onRetry={(episodeId) => enqueue.mutate([episodeId])}
-        retryingId={
-          enqueue.isPending && enqueue.variables?.length === 1
-            ? (enqueue.variables[0] ?? null)
-            : null
-        }
-        onDelete={(episodeId) => deleteEpisodeFile.mutate({ seriesId: data.id, episodeId })}
-        deletingId={deleteEpisodeFile.isPending ? deleteEpisodeFile.variables.episodeId : null}
-      />
+      {!isMovie && (
+        <SeriesEpisodes
+          groups={groups}
+          episodes={episodes}
+          availableCount={data.availableCount}
+          paused={data.paused}
+          selection={selection}
+          guide={stills}
+          guideSeasons={guideBySeason}
+          absentSeasons={absent}
+          missingCount={missing.length}
+          busy={bulk}
+          failed={enqueue.isError || deleteEpisodeFile.isError || sourceFailed}
+          notice={notice}
+          onToggle={(episodeId) => setPicked(() => toggleSelected(selection, episodes, episodeId))}
+          onToggleSeason={(season, on) =>
+            setPicked(() => setSeason(selection, episodes, season, on))
+          }
+          onClear={() => {
+            setPicked(new Set());
+            setNotice(null);
+          }}
+          sourceMark={(episode) =>
+            data.sources.length > 1 && (
+              <EpisodeSourceMark series={data} episodes={episodes} episode={episode} />
+            )
+          }
+          seasonTools={(season, half) =>
+            // A preference needs two sources that can bring the season.
+            sourcesFor(data, episodes, [season]).length > 1 && (
+              <PreferredSourceSelect
+                series={data}
+                episodes={episodes}
+                season={season}
+                onFailed={() => setSourceFailed(true)}
+                className={half}
+              />
+            )
+          }
+          selectionTools={
+            sourcesFor(data, episodes, pickedSeasons).length > 1 && (
+              <SwitchSourceButton
+                series={data}
+                episodes={episodes}
+                selection={selection}
+                disabled={bulk !== null}
+                onDone={(message) => {
+                  setSourceFailed(false);
+                  setNotice(message);
+                }}
+                onFailed={() => {
+                  setNotice(null);
+                  setSourceFailed(true);
+                }}
+              />
+            )
+          }
+          onDownloadSelected={() => {
+            setBulk("selected");
+            enqueue.mutate(orderedSelection, {
+              onSuccess: () => setPicked(new Set()),
+              onSettled: () => setBulk(null),
+            });
+          }}
+          onDownloadMissing={downloadMissing}
+          onRetry={(episodeId) => enqueue.mutate([episodeId])}
+          retryingId={
+            enqueue.isPending && enqueue.variables?.length === 1
+              ? (enqueue.variables[0] ?? null)
+              : null
+          }
+          onDelete={(episodeId) => deleteEpisodeFile.mutate({ seriesId: data.id, episodeId })}
+          deletingId={deleteEpisodeFile.isPending ? deleteEpisodeFile.variables.episodeId : null}
+        />
+      )}
       <Dock label={t.dock.label}>
         <DockPlaces here="series" />
         <DockAdd />
@@ -522,13 +576,16 @@ export function SeriesDetailScreen() {
           disabled={missing.length === 0 || bulk !== null}
           onClick={downloadMissing}
         />
-        <DockButton
-          label={t.dock.checkNow}
-          icon={RefreshIcon}
-          tone="primary"
-          pending={checkSeries.isPending}
-          onClick={() => checkSeries.mutate(data.id)}
-        />
+        {/* A movie brings nothing new to check for. */}
+        {!isMovie && (
+          <DockButton
+            label={t.dock.checkNow}
+            icon={RefreshIcon}
+            tone="primary"
+            pending={checkSeries.isPending}
+            onClick={() => checkSeries.mutate(data.id)}
+          />
+        )}
       </Dock>
     </div>
   );

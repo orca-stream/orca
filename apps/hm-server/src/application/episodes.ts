@@ -152,7 +152,7 @@ export async function repairEpisodePaths(deps: {
 
 /**
  * Gives a series and its episode files the names its title and year call for now: the folder
- * `Title (Year)` and `Season 01/Title S01E01.ext`. A folder whose new name is taken keeps its name,
+ * `Title (Year)` and `Season 01/Title S01E01.ext` (a movie's video, `Title (Year).ext`). A folder whose new name is taken keeps its name,
  * but its files are still renamed. Returns whether anything moved.
  */
 export async function normalizeSeries(
@@ -163,7 +163,10 @@ export async function normalizeSeries(
   let changed = false;
   const folderName = seriesFolderName(series.title, series.year);
   const episodes = await deps.series.listEpisodes(series.id);
-  if (folderName !== series.folderName && !(await deps.series.findByFolder(folderName))) {
+  if (
+    folderName !== series.folderName &&
+    !(await deps.series.findByFolder(folderName, series.kind))
+  ) {
     const moved = await deps.library.moveSeries(series, folderName);
     if (moved !== "taken") {
       current = { ...series, folderName };

@@ -8,6 +8,7 @@ import {
   type SetupBody,
   type SignIn,
 } from "@orca/hm-contract";
+import { resolve, sep } from "node:path";
 import type { SettingsRepository } from "../application/ports.ts";
 import { AppError } from "../domain/errors.ts";
 import { ConfigError, configFrom, type Config } from "./config.ts";
@@ -143,7 +144,15 @@ export class ServerSetup implements SettingsRoutes {
     return {
       ...rest,
       ...(jellyfin
-        ? { jellyfin: { url: jellyfin.url, jellyfinMediaRoot: jellyfin.jellyfinMediaRoot } }
+        ? {
+            jellyfin: {
+              url: jellyfin.url,
+              jellyfinMediaRoot: jellyfin.jellyfinMediaRoot,
+              ...(jellyfin.jellyfinMoviesRoot
+                ? { jellyfinMoviesRoot: jellyfin.jellyfinMoviesRoot }
+                : {}),
+            },
+          }
         : {}),
       hasTmdbApiKey: tmdbApiKey !== undefined,
       localAdmin: this.admin ? { username: this.admin.username } : null,
@@ -227,6 +236,12 @@ export class ServerSetup implements SettingsRoutes {
         "Signing in with the server's own administrator needs that administrator: create it first",
       );
     }
+    if (settings.moviesRoot !== undefined && overlaps(settings.mediaRoot, settings.moviesRoot)) {
+      throw new AppError(
+        "bad_request",
+        "The movies folder has to be apart from the series folder: neither inside the other",
+      );
+    }
     if (hasSites && settings.browser === undefined) {
       throw new AppError(
         "bad_request",
@@ -276,6 +291,13 @@ export class ServerSetup implements SettingsRoutes {
     this.changing = next.catch(() => undefined);
     return next;
   }
+}
+
+/** Whether two folders are one, or one holds the other: a library would then read the other's files. */
+export function overlaps(a: string, b: string): boolean {
+  const one = resolve(a);
+  const other = resolve(b);
+  return one === other || one.startsWith(`${other}${sep}`) || other.startsWith(`${one}${sep}`);
 }
 
 async function toAccount(body: LocalAdminBody): Promise<LocalAdmin> {

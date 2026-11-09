@@ -35,7 +35,8 @@
       "items": "article.anime-card",
       "type": {
         "selector": ".anime-card-type",
-        "series": ["TV Anime", "ONA", "OVA", "Especial"]
+        "series": ["TV Anime", "ONA", "OVA", "Especial"],
+        "movie": ["Película"]
       },
       "result": {
         "url": { "selector": "h2.anime-card-title a" },
@@ -51,6 +52,7 @@
     "hosts": ["origin.test"],
     "example": "https://origin.test/series/some-show?season=1",
     "showPath": "^/series/([^/]+)/?$",
+    "moviePath": "^/(?:peliculas|pelicula|movies)/([^/]+)/?$",
     "api": "https://origin.test/api-prefix/v1",
     "images": "https://origin.test/wp-content/uploads",
     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
@@ -71,7 +73,8 @@
       },
       "result": {
         "url": {
-          "series": "/series/{slug}"
+          "series": "/series/{slug}",
+          "movie": "/peliculas/{slug}"
         },
         "title": "{title}",
         "originalTitle": "{original_title}",
@@ -114,6 +117,14 @@
         "attribute": "href"
       },
       "number": "-(\\d+)$"
+    },
+    "movies": {
+      "path": "^/pelicula/[^/]+$",
+      "title": {
+        "selector": "h1.title [itemprop=name]",
+        "match": "^Ver Película (.+)$"
+      },
+      "year": { "selector": "p.meta" }
     },
     "mirrors": {
       "selector": ".tab-video-item > ul > li[role=presentation]",
@@ -162,7 +173,8 @@
       },
       "result": {
         "url": {
-          "series": "/anime/{title.english|title.romaji|title.native|'anime':slug(60)}-{id}"
+          "series": "/anime/{title.english|title.romaji|title.native|'anime':slug(60)}-{id}",
+          "movie": "/anime/{title.english|title.romaji|title.native|'anime':slug(60)}-{id}"
         },
         "title": "{title.english|title.romaji|title.native}",
         "originalTitle": "{title.romaji}",

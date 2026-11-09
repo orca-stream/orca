@@ -16,7 +16,7 @@ import type { ArtworkKind } from "@orca/hm-contract";
 import type { EpisodeFile, FetchedImage, LibraryWriter, Sidecar } from "../../application/ports.ts";
 import type { Episode, Series } from "../../domain/series.ts";
 import { episodeFileName, seasonFolderName } from "../../domain/naming.ts";
-import { episodeNfo, tvshowNfo } from "./nfo.ts";
+import { episodeNfo, movieNfo, tvshowNfo } from "./nfo.ts";
 
 const STAGING = ".hm-staging";
 const IMAGE_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
@@ -89,17 +89,66 @@ function nameSidecars(
   return { named, dropped };
 }
 
-/** Writes the library on disk the way Jellyfin reads it: `Show (Year)/Season 01/Show S01E01.ext`. */
+/** A movie's metadata file, in its folder. */
+const MOVIE_NFO = "movie.nfo";
+
+/**
+ * Writes the library on disk the way Jellyfin reads it: `Show (Year)/Season 01/Show S01E01.ext` in
+ * the series folder, and `Movie (Year)/Movie (Year).ext` in the movies folder.
+ */
 export class FsLibraryWriter implements LibraryWriter {
+  /** The series folder; downloads are staged in it, whatever they are. */
   private readonly root: string;
+  private readonly moviesRoot: string | null;
   private readonly move: typeof rename;
   private readonly copy: typeof copyFile;
 
-  /** `fs` is for tests that need to simulate a library on another file system. */
-  constructor(mediaRoot: string, fs: { rename?: typeof rename; copyFile?: typeof copyFile } = {}) {
+  /**
+   * `fs` is for tests that need to simulate a library on another file system. Without `moviesRoot`
+   * there is nowhere to put a movie: writing one fails.
+   */
+  constructor(
+    mediaRoot: string,
+    fs: { rename?: typeof rename; copyFile?: typeof copyFile } = {},
+    moviesRoot: string | null = null,
+  ) {
     this.root = mediaRoot;
+    this.moviesRoot = moviesRoot;
     this.move = fs.rename ?? rename;
     this.copy = fs.copyFile ?? copyFile;
+  }
+
+  hasMovies(): boolean {
+    return this.moviesRoot !== null;
+  }
+
+  /** The library folder a series lives in: the series folder, or the movies folder for a movie. */
+  private rootOf(series: Pick<Series, "kind">): string {
+    if (series.kind !== "movie") return this.root;
+    if (this.moviesRoot === null) {
+      throw new Error("There is no movies folder: choose one in Settings to add movies");
+    }
+    return this.moviesRoot;
+  }
+
+  /** Where an episode's video goes: in its season's folder, or right in a movie's, named after it. */
+  private videoPath(
+    series: Series,
+    number: { season: number; episode: number },
+    extension: string,
+  ): string {
+    if (series.kind === "movie") {
+      return join(this.seriesPath(series), `${series.folderName}${extension}`);
+    }
+    return join(
+      this.seriesPath(series),
+      seasonFolderName(number.season),
+      episodeFileName(series.title, number.season, number.episode, extension),
+    );
+  }
+
+  private relativeOf(series: Series, path: string): string {
+    return relative(this.rootOf(series), path).split(sep).join("/");
   }
 
   stagingPath(episode: Episode): string {
@@ -111,12 +160,16 @@ export class FsLibraryWriter implements LibraryWriter {
   }
 
   seriesPath(series: Series): string {
-    return join(this.root, series.folderName);
+    return join(this.rootOf(series), series.folderName);
   }
 
   async writeSeries(series: Series): Promise<{ createdFolder: boolean }> {
     const createdFolder = !(await stat(this.seriesPath(series)).catch(() => null));
-    await this.atomicWrite(join(this.seriesPath(series), "tvshow.nfo"), tvshowNfo(series));
+    if (series.kind === "movie") {
+      await this.atomicWrite(join(this.seriesPath(series), MOVIE_NFO), movieNfo(series));
+    } else {
+      await this.atomicWrite(join(this.seriesPath(series), "tvshow.nfo"), tvshowNfo(series));
+    }
     return { createdFolder };
   }
 
@@ -161,7 +214,7 @@ export class FsLibraryWriter implements LibraryWriter {
 
   async removeSeries(series: Series): Promise<void> {
     const folder = this.seriesPath(series);
-    await rm(join(folder, "tvshow.nfo"), { force: true });
+    await rm(join(folder, series.kind === "movie" ? MOVIE_NFO : "tvshow.nfo"), { force: true });
     for (const kind of ARTWORK_KINDS) await this.removeArtwork(series, kind);
     // rmdir, not rm -r: a folder with episodes in it stays.
     if ((await readdir(folder).catch(() => [])).length === 0)
@@ -175,16 +228,13 @@ export class FsLibraryWriter implements LibraryWriter {
     sidecars: Sidecar[] = [],
   ): Promise<{ relativePath: string; kept?: boolean }> {
     const extension = extname(stagedPath);
-    const folder = join(this.seriesPath(series), seasonFolderName(episode.season));
-    const destination = join(
-      folder,
-      episodeFileName(series.title, episode.season, episode.episode, extension),
-    );
+    const destination = this.videoPath(series, episode, extension);
+    const folder = dirname(destination);
     if (await exists(destination)) {
       // Someone else's file under this name: it stays, with whatever is named after it.
       await rm(stagedPath, { force: true });
       await Promise.all(sidecars.map((sidecar) => rm(sidecar.path, { force: true })));
-      return { relativePath: relative(this.root, destination).split(sep).join("/"), kept: true };
+      return { relativePath: this.relativeOf(series, destination), kept: true };
     }
     const base = destination.slice(0, destination.length - extension.length);
     // Every name is settled before anything moves: a bad subtitle must not leave a half-made episode.
@@ -193,11 +243,14 @@ export class FsLibraryWriter implements LibraryWriter {
     await this.place(stagedPath, destination);
     for (const { sidecar, name } of named) await this.place(sidecar.path, join(folder, name));
     await Promise.all(dropped.map((sidecar) => rm(sidecar.path, { force: true })));
-    const nfo = episodeNfo(series, episode);
-    // A series Jellyfin looks up online gets its episodes' metadata from there; a stale file is removed.
-    if (nfo === null) await rm(`${base}.nfo`, { force: true });
-    else await this.atomicWrite(`${base}.nfo`, nfo);
-    return { relativePath: relative(this.root, destination).split(sep).join("/") };
+    // A movie's metadata is its folder's `movie.nfo`.
+    if (series.kind !== "movie") {
+      const nfo = episodeNfo(series, episode);
+      // A series Jellyfin looks up online gets its episodes' metadata from there; a stale file is removed.
+      if (nfo === null) await rm(`${base}.nfo`, { force: true });
+      else await this.atomicWrite(`${base}.nfo`, nfo);
+    }
+    return { relativePath: this.relativeOf(series, destination) };
   }
 
   async renameEpisodes(
@@ -211,11 +264,8 @@ export class FsLibraryWriter implements LibraryWriter {
       // Only what is inside the series' own folder is this series' to move.
       if (!isUnder(file.path, folder)) continue;
       const extension = extname(file.path);
-      const seasonFolder = join(folder, seasonFolderName(file.season));
-      const target = join(
-        seasonFolder,
-        episodeFileName(series.title, file.season, file.episode, extension),
-      );
+      const target = this.videoPath(series, file, extension);
+      const seasonFolder = dirname(target);
       let path = file.path;
       // An earlier rename already moved it, and Jellyfin hasn't looked at the folder since.
       if (target !== file.path && (await exists(target)) && !(await exists(file.path))) {
@@ -238,7 +288,7 @@ export class FsLibraryWriter implements LibraryWriter {
       placed.push({
         season: file.season,
         episode: file.episode,
-        relativePath: relative(this.root, path).split(sep).join("/"),
+        relativePath: this.relativeOf(series, path),
       });
     }
     // A season folder under another name (`Season 1`, `S1`) goes once nothing is left in it; rmdir,
@@ -253,7 +303,7 @@ export class FsLibraryWriter implements LibraryWriter {
 
   async moveSeries(series: Series, folderName: string): Promise<"moved" | "absent" | "taken"> {
     const from = this.seriesPath(series);
-    const to = join(this.root, folderName);
+    const to = join(this.rootOf(series), folderName);
     if (!(await exists(from))) return "absent";
     // A name that differs only in case is the same folder on a case-insensitive share.
     if (from.toLowerCase() !== to.toLowerCase() && (await exists(to))) return "taken";
@@ -262,9 +312,18 @@ export class FsLibraryWriter implements LibraryWriter {
   }
 
   async locateEpisode(series: Series, episode: Episode): Promise<string | null> {
-    const toRelative = (path: string) => relative(this.root, path).split(sep).join("/");
-    if (episode.filePath !== null && (await exists(join(this.root, episode.filePath)))) {
+    const root = this.rootOf(series);
+    const toRelative = (path: string) => this.relativeOf(series, path);
+    if (episode.filePath !== null && (await exists(join(root, episode.filePath)))) {
       return episode.filePath;
+    }
+    if (series.kind === "movie") {
+      // A movie's folder holds one video, whatever it is called.
+      const folder = this.seriesPath(series);
+      const videos = (await readdir(folder).catch(() => [])).filter((name) =>
+        VIDEO_EXTENSIONS.has(extname(name).toLowerCase()),
+      );
+      return videos.length === 1 ? toRelative(join(folder, videos[0]!)) : null;
     }
     const folder = join(this.seriesPath(series), seasonFolderName(episode.season));
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -282,7 +341,7 @@ export class FsLibraryWriter implements LibraryWriter {
   async deleteEpisode(series: Series, episode: Episode): Promise<"deleted" | "absent" | "outside"> {
     const relativePath = await this.locateEpisode(series, episode);
     if (relativePath === null) return "absent";
-    const video = join(this.root, relativePath);
+    const video = join(this.rootOf(series), relativePath);
     if (!isUnder(video, this.seriesPath(series))) return "outside";
     const folder = dirname(video);
     const base = basename(video, extname(video));
@@ -302,9 +361,9 @@ export class FsLibraryWriter implements LibraryWriter {
   }
 
   async deleteSeriesFolder(series: Series): Promise<"deleted" | "absent"> {
-    const root = resolve(this.root);
+    const root = resolve(this.rootOf(series));
     const folder = resolve(this.seriesPath(series));
-    // Never the media root itself, nor anything outside it: only a folder right inside it.
+    // Never the library folder itself, nor anything outside it: only a folder right inside it.
     if (folder === root || dirname(folder) !== root) {
       throw new Error(`${folder} is not a series folder under ${root}`);
     }

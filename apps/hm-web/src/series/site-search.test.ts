@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { isSiteSearch, pagesAround } from "./site-search";
+import { isSiteSearch, pagesAround, readableLabel } from "./site-search";
 
 describe("pagesAround", () => {
   it("offers every page when there are few", () => {
@@ -22,5 +22,16 @@ describe("isSiteSearch", () => {
   it("asks the sites only with enough letters", () => {
     expect(isSiteSearch(" de ")).toBe(false);
     expect(isSiteSearch("demon")).toBe(true);
+  });
+});
+
+describe("readableLabel", () => {
+  it("keeps a site's word as people read it, and drops a code word", () => {
+    expect(readableLabel("OVA")).toBe("OVA");
+    expect(readableLabel("TV Anime")).toBe("TV Anime");
+    expect(readableLabel("TV_SHORT")).toBe("TV SHORT");
+    expect(readableLabel("tvshows")).toBeNull();
+    expect(readableLabel("animes")).toBeNull();
+    expect(readableLabel(null)).toBeNull();
   });
 });

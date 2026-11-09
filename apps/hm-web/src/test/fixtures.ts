@@ -100,6 +100,7 @@ export function makeEpisode(over: Partial<EpisodeDto> = {}): EpisodeDto {
 export function makeSeries(over: Partial<SeriesDto> = {}): SeriesDto {
   return {
     id: "s1",
+    kind: "show",
     title: "Beverly Hillbillies",
     year: 1962,
     plot: "A family strikes oil.",

@@ -1,4 +1,4 @@
-import type { ArtworkKind, ShowLookupDto } from "@orca/hm-contract";
+import type { ArtworkKind, MediaKind, ShowLookupDto } from "@orca/hm-contract";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Image02Icon, PencilEdit02Icon } from "@hugeicons/core-free-icons";
 import { type RefObject, useState } from "react";
@@ -25,10 +25,13 @@ export function TmdbShowSection({
   chosen,
   anchor,
   onChosenChange,
+  mediaKind = "show",
 }: {
   caption: string;
   show: ShowCardData;
   tmdb: ShowLookupDto;
+  /** A show's TMDB id, or a movie's: the images are asked for by it. */
+  mediaKind?: MediaKind;
   chosen: DraftArtworks;
   /** What the artwork opens beside: the whole bar. */
   anchor: RefObject<Element | null>;
@@ -81,6 +84,7 @@ export function TmdbShowSection({
         </p>
         <DraftArtworkPicker
           tmdb={tmdb}
+          mediaKind={mediaKind}
           chosen={chosen}
           onChange={onChosenChange}
           open={picking}

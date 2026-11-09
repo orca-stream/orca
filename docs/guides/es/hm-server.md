@@ -69,6 +69,18 @@ sesiones abiertas (también la tuya: vuelves a entrar con la otra cuenta); pasar
 H&M pide crearlo antes, en esa misma sección. **Cambiar contraseña** cierra las demás sesiones del
 administrador y conserva la tuya.
 
+**Series, especiales y películas.** Leída una dirección, **Añadir como** dice qué es: una **Serie**
+(sus episodios, en la carpeta de series), **Especiales de una serie** (la temporada 0 de una serie,
+numerada como TMDB lista sus especiales: elige la serie y el primer especial) o una **Película** (un
+solo vídeo, en su carpeta `Título (Año)/Título (Año).ext` de la carpeta de películas, con un
+`movie.nfo`; nunca se sigue). Empieza por lo que dijo la búsqueda del sitio (una película como
+película; una OVA, ONA o especial como especiales) y se cambia a mano; elegir una película o una serie
+en la búsqueda de TMDB del título también lo fija. Las películas necesitan la **carpeta de películas**
+(**Ajustes › Carpeta de películas**): aparte de la de series, ni dentro ni encima de ella, y, con
+Jellyfin, la carpeta de una de sus bibliotecas de películas. **Añadir a** ofrece, para una película,
+las que ya tienes y las que Jellyfin tiene en una carpeta propia dentro de la carpeta de películas:
+añadida a una de Jellyfin, su vídeo toma el nombre del servidor y no se vuelve a descargar.
+
 **Sin Jellyfin.** El servidor solo escribe la carpeta: no se actualiza nada, y no hay series de
 Jellyfin a las que añadir una dirección. Un id de TMDB (y una serie por su nombre) se busca con la
 clave de TMDB del propio servidor, en el idioma del navegador — cualquier español latinoamericano
@@ -150,7 +162,10 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     envoltorio que enmarca el reproductor real (`?url=`), para abrir el reproductor en sí; y `title`,
     dónde escribe la página de temporada el nombre de la serie (`{"selector": "h1 [itemprop=name]"}`),
     con `match` si la página le añade palabras (`"^Ver (.+)$"`, su primer grupo es el nombre) — sin
-    él, el nombre sale de la dirección.
+    él, el nombre sale de la dirección. Y `movies`, cuando el sitio tiene las películas en páginas
+    propias: su `path` y, si quieres, el `title` (como arriba) y el `year` (un selector; las cuatro
+    primeras cifras que lea) en esa página. La página de una película lista sus reproductores como la
+    de un episodio, y se lee como un solo vídeo.
   - `"api"`: su API JSON, que lista las temporadas, episodios y reproductores de una serie. Dale sus
     hosts, la ruta de la serie (su primer grupo es el slug), la dirección base de la API y, si quieres,
     los idiomas de audio que conservar, el mejor primero, e `images`, dónde sirve el sitio las rutas de
@@ -158,6 +173,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
     `<dirección de la serie>?season=N` (sin `?season` se lee la primera y la vista previa avisa de las
     demás) y elige su temporada destino y primer episodio. Varias temporadas del sitio pueden ir a una
     sola (sitio 1–3 → temporada 1, 4–5 → temporada 2) agregando cada una con su primer episodio.
+    `moviePath` (opcional; su primer grupo es el slug) lee las películas del sitio, cada una como un solo
+    vídeo, de la misma API (`/single/movies`, con sus reproductores bajo el post de la película).
   - `"season-api"`: su API JSON, cuando cada temporada tiene su propia dirección y una sola respuesta
     trae la temporada entera (datos, episodios y reproductores). Dale sus hosts, la ruta de una
     temporada (su primer grupo es el id de la temporada en la API, p. ej. `^/anime/[^/]*-(\\d+)/?$` para
@@ -174,9 +191,9 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   la respuesta lo encontrado (`data.posts`); `lastPage` (opcional), dónde dice una respuesta por
   páginas cuál es la última (`data.pagination.last_page`), si no se leen hasta que una llegue vacía;
   `type` (opcional) lee el tipo de cada
-  elemento (`"from": "{type}"`) y dice qué palabras son serie y cuáles película (por ahora solo se
-  ofrecen series); y `result` arma cada resultado con huecos `{campo}`: `url` por tipo
-  (`"series": "/series/{slug}"`, relativa al sitio), `title` y, si quieres, `originalTitle`, `year`
+  elemento (`"from": "{type}"`) y dice qué palabras son serie y cuáles película; y `result` arma cada
+  resultado con huecos `{campo}`: `url` por tipo (`"series": "/series/{slug}"`, relativa al sitio; un
+  tipo sin ella, `"movie"` por ejemplo, se deja fuera), `title` y, si quieres, `originalTitle`, `year`
   (sus cuatro primeras cifras), `plot` y `poster`. Nunca se ofrece un resultado que la propia entrada
   no sepa leer. Mira `site-b` en el archivo de ejemplo.
 
@@ -194,7 +211,8 @@ Los dos necesitan Chromium, manejado por Playwright (fijado en 1.64.1).
   es esa página, con `{query}` donde va el nombre (y `{page}` si el sitio responde por páginas: se leen una tras
   otra, hasta cinco, hasta que una venga incompleta); `items`, un selector CSS de cada resultado
   (`div.movie-item`); `type` (opcional) toma qué es cada resultado y lista las palabras de una serie
-  (`"series": ["TV Anime", "OVA"]`), y deja fuera el resto; y `result` toma, dentro de cada uno, `url` (un `selector` y su `attribute`,
+  (`"series": ["TV Anime", "OVA"]`) y, si quieres, las de una película (`"movie": ["Película"]`), y
+  deja fuera el resto; y `result` toma, dentro de cada uno, `url` (un `selector` y su `attribute`,
   `href` si falta), `title` y, si quieres, `originalTitle`, `year`, `plot` y `poster` (un `selector`, y
   un `attribute` o, sin él, el texto del elemento). Sin `type`, todo resultado se toma como
   serie; el que la entrada no sepa leer (la página de una película) se deja fuera. Mira `site-c`, y

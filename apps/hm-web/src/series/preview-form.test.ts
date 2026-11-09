@@ -2,7 +2,9 @@ import { CreateSeriesBody } from "@orca/hm-contract";
 import { describe, expect, it } from "vite-plus/test";
 import { makePreview } from "@/test/fixtures";
 import {
+  addAs,
   canConfirm,
+  suggestedAs,
   clashingCodes,
   episodeCode,
   episodeRanges,
@@ -88,6 +90,7 @@ describe("toCreateBody", () => {
     });
     expect(CreateSeriesBody.parse(body)).toEqual({
       previewId: "p1",
+      kind: "show",
       title: "Beverly",
       year: 1962,
       tmdbId: null,
@@ -99,6 +102,71 @@ describe("toCreateBody", () => {
       follow: true,
       downloadNow: false,
     });
+  });
+
+  it("sends a movie as one video, new, with nothing of a show's numbering", () => {
+    const preview = makePreview();
+    const form = addAs(
+      { ...initialForm(preview), title: "A Film", tmdbId: "1429", season: "2", follow: true },
+      "movie",
+    );
+    // TMDB numbers movies apart: the show's id doesn't carry over.
+    expect(form.tmdbId).toBe("");
+    expect(form.included).toEqual(["e1"]);
+    expect(CreateSeriesBody.parse(toCreateBody(preview, form))).toMatchObject({
+      kind: "movie",
+      title: "A Film",
+      season: null,
+      firstEpisode: null,
+      adjustments: [],
+      episodeKeys: ["e1"],
+      follow: false,
+    });
+    // Another video takes the place of the one picked.
+    expect(toggleEpisode(form, "e2").included).toEqual(["e2"]);
+    expect(canConfirm(form)).toBe(true);
+    expect(canConfirm({ ...form, included: ["e1", "e2"] })).toBe(false);
+  });
+
+  it("adds a movie's address to a movie already here as another source, keeping its ids", () => {
+    const preview = makePreview();
+    const form = { ...addAs(initialForm(preview), "movie"), addTo: "m1", title: "ignored" };
+    const body = CreateSeriesBody.parse(toCreateBody(preview, form));
+    expect(body).toMatchObject({
+      kind: "movie",
+      seriesId: "m1",
+      tmdbId: null,
+      episodeKeys: ["e1"],
+    });
+    expect(body.title).toBeUndefined();
+    // A show's target is no movie's: switching kinds forgets it.
+    expect(addAs({ ...initialForm(preview), addTo: "s1" }, "movie").addTo).toBe("");
+  });
+
+  it("takes a movie Jellyfin has over, its title and ids coming from Jellyfin", () => {
+    const preview = makePreview();
+    const form = { ...addAs(initialForm(preview), "movie"), addTo: jellyfinTarget("jf-film") };
+    const body = CreateSeriesBody.parse(toCreateBody(preview, form));
+    expect(body).toMatchObject({ kind: "movie", jellyfinId: "jf-film", tmdbId: null });
+    expect(body.seriesId).toBeUndefined();
+    expect(body.title).toBeUndefined();
+  });
+
+  it("sends specials to season 0, and takes them out of it when they stop being specials", () => {
+    const preview = makePreview();
+    const specials = addAs(initialForm(preview), "specials");
+    expect(specials.season).toBe("0");
+    expect(toCreateBody(preview, specials)).toMatchObject({ kind: "show", season: 0 });
+    expect(addAs(specials, "show").season).toBe("");
+  });
+
+  it("suggests what a site's search said, an OVA or a special being specials", () => {
+    expect(suggestedAs(null)).toBe("show");
+    expect(suggestedAs({ kind: "movie", label: "Especial" })).toBe("movie");
+    expect(suggestedAs({ kind: "show", label: " OVA " })).toBe("specials");
+    expect(suggestedAs({ kind: "show", label: "SPECIAL" })).toBe("specials");
+    expect(suggestedAs({ kind: "show", label: "TV Anime" })).toBe("show");
+    expect(initialForm(makePreview(), "specials").season).toBe("0");
   });
 
   it("sends the ids and the numbering of a new series, trimmed", () => {

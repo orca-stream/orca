@@ -181,7 +181,9 @@ export function createCheckSeries(deps: Deps) {
         .filter((ref) => kept.has(ref));
       const placed = await placeOnDisk(deps.library, series, fresh);
       await deps.series.addSource(source, placed);
-      await closeFinishedSources(deps.series, series.id, source.id, placed, episodes);
+      if (series.kind !== "movie") {
+        await closeFinishedSources(deps.series, series.id, source.id, placed, episodes);
+      }
       addresses.add(source.sourceUrl);
       episodes.push(...placed);
       added.push(...placed);

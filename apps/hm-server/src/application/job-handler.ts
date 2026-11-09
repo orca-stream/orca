@@ -415,13 +415,15 @@ export function createJobHandler(deps: Deps): JobHandler {
 
   /** A job that gave up (permanent error, or retries spent) is worth a notification; a retry is not. */
   async function notifyFailure(job: Job): Promise<void> {
-    const titles = job.seriesId
-      ? await deps.series.seriesTitles([job.seriesId])
-      : new Map<string, string>();
+    const of = job.seriesId
+      ? (await deps.series.seriesTitles([job.seriesId])).get(job.seriesId)
+      : null;
     const episode = job.episodeId ? await deps.series.getEpisode(job.episodeId) : null;
     await deps.notifications.jobFailed(job, {
-      seriesTitle: (job.seriesId && titles.get(job.seriesId)) || null,
-      episodeCode: episode ? episodeCode(episode.season, episode.episode) : null,
+      seriesTitle: of?.title ?? null,
+      // A movie's one video has no code: its title says it.
+      episodeCode:
+        episode && of?.kind !== "movie" ? episodeCode(episode.season, episode.episode) : null,
     });
   }
 
@@ -433,7 +435,7 @@ export function createJobHandler(deps: Deps): JobHandler {
     if (!series) return;
     const episodes = await deps.series.listEpisodes(series.id);
     await deps.notifications.seriesDownloaded(
-      { id: series.id, title: series.title },
+      { id: series.id, title: series.title, kind: series.kind },
       {
         available: episodes.filter((episode) => episode.status === "available").length,
         total: episodes.length,

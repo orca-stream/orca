@@ -1,4 +1,4 @@
-import type { EpisodeAdjustment, EpisodeStatus } from "@orca/hm-contract";
+import type { EpisodeAdjustment, EpisodeStatus, MediaKind } from "@orca/hm-contract";
 
 /** Where the bytes of an episode come from. `page` needs the StreamDetector to find a stream first. */
 export type Source =
@@ -19,13 +19,18 @@ export type Source =
 
 export interface Series {
   id: string;
+  /**
+   * A show, or a movie: one episode, in its own folder of the movies folder, named after the folder;
+   * its TMDB id is a movie's. A movie is never followed.
+   */
+  kind: MediaKind;
   title: string;
   year: number | null;
   plot: string | null;
   /** Ids Jellyfin looks the show up by; with one, Jellyfin fetches the metadata and the images. */
   tmdbId: string | null;
   imdbId: string | null;
-  /** Folder under MEDIA_ROOT, e.g. `The Beverly Hillbillies (1962)`. */
+  /** Folder under the series folder (or the movies folder, for a movie), e.g. `The Beverly Hillbillies (1962)`. */
   folderName: string;
   /**
    * Artwork in its folder, under the names Jellyfin reads (`poster`, `backdrop`, `logo`): chosen in
@@ -101,7 +106,7 @@ export interface Episode {
   sizeBytes: number | null;
   format: string | null;
   status: EpisodeStatus;
-  /** Path of the file under MEDIA_ROOT once it is in the library. */
+  /** Path of the file under its library folder (series or movies) once it is in the library. */
   filePath: string | null;
   /**
    * The source its file came from, when that is not the one it takes its video from now (its source

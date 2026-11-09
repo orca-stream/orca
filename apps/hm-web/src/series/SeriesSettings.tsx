@@ -145,7 +145,9 @@ export function SeriesSettings({
 
   return (
     <form
-      aria-label={t.series.detail.settings}
+      aria-label={
+        series.kind === "movie" ? t.series.detail.settingsMovie : t.series.detail.settings
+      }
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -155,66 +157,69 @@ export function SeriesSettings({
     >
       <SeriesSources series={series} showStatus={showStatus} />
 
-      <div className={PAIR}>
-        <BarToggle
-          icon={RssIcon}
-          label={t.series.follow}
-          hint={t.add.followHint}
-          checked={form.follow}
-          onChange={(follow) => update({ follow })}
-        />
-        <div className={cn(SECOND, "flex min-h-18 min-w-0 items-center pr-4")}>
-          <BarField
-            icon={Clock01Icon}
-            label={t.series.checkEvery}
-            placeholder={t.series.detail.intervalPlaceholder}
-            type="number"
-            min={1}
-            max={MAX_CHECK_HOURS}
-            step={1}
-            suffix={t.series.detail.hours}
-            alignEnd
-            error={invalid.has("interval") ? t.series.detail.intervalInvalid : undefined}
-            value={form.interval}
-            onChange={(event) => update({ interval: digitsOf(event.target.value) }, true)}
-            onBlur={() => save(form)}
-            className="min-w-0 flex-1"
+      {/* A movie brings nothing new: there is nothing to follow or check. */}
+      {series.kind !== "movie" && (
+        <div className={PAIR}>
+          <BarToggle
+            icon={RssIcon}
+            label={t.series.follow}
+            hint={t.add.followHint}
+            checked={form.follow}
+            onChange={(follow) => update({ follow })}
           />
-          {/* Looking now, beside how often: when it was and when it will be, on hover. */}
-          <HoverCard>
-            <HoverCardTrigger
-              delay={0}
-              closeDelay={100}
-              render={
-                <button
-                  type="button"
-                  aria-label={t.series.checkNow}
-                  disabled={checkSeries.isPending}
-                  aria-busy={checkSeries.isPending || undefined}
-                  onClick={() => checkSeries.mutate(series.id)}
-                />
-              }
-              className={cn(ROW_BUTTON, "size-10 justify-center px-0", queued && "text-primary")}
-            >
-              {checkSeries.isPending ? (
-                <Spinner aria-hidden="true" />
-              ) : (
-                <HugeiconsIcon icon={RefreshIcon} className="size-4" aria-hidden="true" />
-              )}
-            </HoverCardTrigger>
-            <HoverCardContent side="top" align="end" sideOffset={6} className={HINT_CARD}>
-              {checkStatus.map((line, index) => (
-                <p key={line} className={cn(index > 0 && "text-muted-foreground")}>
-                  {line}
-                </p>
-              ))}
-            </HoverCardContent>
-          </HoverCard>
-          <p role="status" className="sr-only">
-            {checkStatus.join(". ")}
-          </p>
+          <div className={cn(SECOND, "flex min-h-18 min-w-0 items-center pr-4")}>
+            <BarField
+              icon={Clock01Icon}
+              label={t.series.checkEvery}
+              placeholder={t.series.detail.intervalPlaceholder}
+              type="number"
+              min={1}
+              max={MAX_CHECK_HOURS}
+              step={1}
+              suffix={t.series.detail.hours}
+              alignEnd
+              error={invalid.has("interval") ? t.series.detail.intervalInvalid : undefined}
+              value={form.interval}
+              onChange={(event) => update({ interval: digitsOf(event.target.value) }, true)}
+              onBlur={() => save(form)}
+              className="min-w-0 flex-1"
+            />
+            {/* Looking now, beside how often: when it was and when it will be, on hover. */}
+            <HoverCard>
+              <HoverCardTrigger
+                delay={0}
+                closeDelay={100}
+                render={
+                  <button
+                    type="button"
+                    aria-label={t.series.checkNow}
+                    disabled={checkSeries.isPending}
+                    aria-busy={checkSeries.isPending || undefined}
+                    onClick={() => checkSeries.mutate(series.id)}
+                  />
+                }
+                className={cn(ROW_BUTTON, "size-10 justify-center px-0", queued && "text-primary")}
+              >
+                {checkSeries.isPending ? (
+                  <Spinner aria-hidden="true" />
+                ) : (
+                  <HugeiconsIcon icon={RefreshIcon} className="size-4" aria-hidden="true" />
+                )}
+              </HoverCardTrigger>
+              <HoverCardContent side="top" align="end" sideOffset={6} className={HINT_CARD}>
+                {checkStatus.map((line, index) => (
+                  <p key={line} className={cn(index > 0 && "text-muted-foreground")}>
+                    {line}
+                  </p>
+                ))}
+              </HoverCardContent>
+            </HoverCard>
+            <p role="status" className="sr-only">
+              {checkStatus.join(". ")}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* The name it goes by in Jellyfin: a new one makes Jellyfin reread the series. */}
       <div className="flex">

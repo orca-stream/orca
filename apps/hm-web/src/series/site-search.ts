@@ -14,3 +14,9 @@ export function pagesAround(page: number, count: number): (number | null)[] {
     at > 0 && index - shown[at - 1]! > 1 ? [null, index] : [index],
   );
 }
+
+/** A site's word for a result, as people read it (`TV_SHORT` → `TV SHORT`); none for a code word. */
+export function readableLabel(label: string | null): string | null {
+  if (label === null || /^[a-z_]+$/.test(label)) return null;
+  return label.replace(/_/g, " ");
+}

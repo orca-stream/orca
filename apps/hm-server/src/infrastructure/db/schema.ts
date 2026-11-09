@@ -1,11 +1,12 @@
 import { sql } from "drizzle-orm";
-import type { ArtworkKind, EpisodeAdjustment } from "@orca/hm-contract";
+import type { ArtworkKind, EpisodeAdjustment, MediaKind } from "@orca/hm-contract";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const series = sqliteTable(
   "series",
   {
     id: text("id").primaryKey(),
+    kind: text("kind").$type<MediaKind>().notNull().default("show"),
     title: text("title").notNull(),
     year: integer("year"),
     plot: text("plot"),
@@ -33,7 +34,8 @@ export const series = sqliteTable(
       .default(sql`'{}'`),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [uniqueIndex("series_folder").on(t.folderName)],
+  // A show and a movie live in different folders: the same name may be both.
+  (t) => [uniqueIndex("series_folder").on(t.kind, t.folderName)],
 );
 
 export const seriesSources = sqliteTable(

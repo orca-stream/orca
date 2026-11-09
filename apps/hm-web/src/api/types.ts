@@ -17,6 +17,7 @@ export type {
   LibraryShowDto,
   LicenseDto,
   LoginBody,
+  MediaKind,
   Me,
   NotificationDto,
   NotificationKind,

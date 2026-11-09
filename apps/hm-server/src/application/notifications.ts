@@ -1,3 +1,4 @@
+import type { MediaKind } from "@orca/hm-contract";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Job } from "../domain/job.ts";
 import type { Notification } from "../domain/notification.ts";
@@ -96,7 +97,7 @@ export class NotificationService {
    * notification made since then already covers it (two episodes ended together).
    */
   seriesDownloaded(
-    series: { id: string; title: string },
+    series: { id: string; title: string; kind?: MediaKind },
     counts: { available: number; total: number },
     finishedAt: number,
   ): Promise<void> {
@@ -106,13 +107,17 @@ export class NotificationService {
       .then(async () => {
         const latest = await this.options.repository.latest("series_downloaded", series.id);
         if (latest && latest.createdAt >= finishedAt) return;
+        const movie = series.kind === "movie";
         await this.send({
           kind: "series_downloaded",
           title: "Downloads finished",
-          body: `${series.title}: ${counts.available} of ${counts.total} episodes are available`,
+          // A movie is its one video: no count of episodes.
+          body: movie
+            ? `${series.title} is available`
+            : `${series.title}: ${counts.available} of ${counts.total} episodes are available`,
           seriesId: series.id,
           jobId: null,
-          data: { seriesTitle: series.title, ...counts },
+          data: { seriesTitle: series.title, ...counts, ...(movie ? { mediaKind: "movie" } : {}) },
         });
       });
     this.tails.set(series.id, run);

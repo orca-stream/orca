@@ -5,6 +5,7 @@ import type {
   JellyfinConnectBody,
   JellyfinConnection,
   LocalAdminBody,
+  MediaKind,
   SettingsUpdate,
   SettingsView,
   SignIn,
@@ -107,6 +108,8 @@ export class FakeMediaServer implements MediaServer {
 
   /** What TMDB knows, by TMDB id. */
   readonly shows = new Map<string, ShowMatch>();
+  /** TMDB's movies, by their own TMDB id (another numbering than the shows'). */
+  readonly movies = new Map<string, ShowMatch>();
   /** The shows in Jellyfin's libraries. */
   library: LibraryShow[] = [];
   /** Their episode files, by show id. */
@@ -122,19 +125,28 @@ export class FakeMediaServer implements MediaServer {
     if (options?.removed) this.removed.push(path);
   }
 
-  async findShowByTmdbId(tmdbId: string): Promise<ShowMatch | null> {
+  async findShowByTmdbId(
+    tmdbId: string,
+    _signal?: AbortSignal,
+    kind: "show" | "movie" = "show",
+  ): Promise<ShowMatch | null> {
     if (this.fail) throw this.fail;
-    return this.shows.get(tmdbId) ?? null;
+    return (kind === "movie" ? this.movies : this.shows).get(tmdbId) ?? null;
   }
 
   /** The searches made, as `<query>|<year>`. */
   readonly searches: string[] = [];
 
   /** TMDB's shows whose title holds the query, as Jellyfin's provider would list them. */
-  async searchShows(query: string, year: number | undefined): Promise<ShowFound[]> {
+  async searchShows(
+    query: string,
+    year: number | undefined,
+    _signal?: AbortSignal,
+    kind: "show" | "movie" = "show",
+  ): Promise<ShowFound[]> {
     if (this.fail) throw this.fail;
     this.searches.push(`${query}|${year ?? ""}`);
-    return [...this.shows]
+    return [...(kind === "movie" ? this.movies : this.shows)]
       .filter(([, show]) => show.title.toLowerCase().includes(query.toLowerCase()))
       .filter(([, show]) => year === undefined || show.year === year)
       .map(([tmdbId, show]) => ({
@@ -147,9 +159,12 @@ export class FakeMediaServer implements MediaServer {
       }));
   }
 
-  async listShows(): Promise<LibraryShow[]> {
+  /** Jellyfin's movies, as `listShows` answers them for `kind` movie. */
+  libraryMovies: LibraryShow[] = [];
+
+  async listShows(_signal?: AbortSignal, kind?: MediaKind): Promise<LibraryShow[]> {
     if (this.fail) throw this.fail;
-    return this.library;
+    return kind === "movie" ? this.libraryMovies : this.library;
   }
 
   async listEpisodeFiles(showId: string): Promise<EpisodeFile[]> {

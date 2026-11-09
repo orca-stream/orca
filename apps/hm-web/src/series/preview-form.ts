@@ -3,6 +3,8 @@ import type {
   EpisodeAdjustment,
   EpisodeDto,
   ExtractorDto,
+  GuideEpisodeDto,
+  ShowLookupDto,
   PreviewDto,
   PreviewWarning,
 } from "@orca/hm-contract";
@@ -14,8 +16,37 @@ import {
   TMDB_ID_PATTERN,
 } from "@orca/hm-contract/rules";
 
+/**
+ * What an address is added as: episodes of a show, specials of a show (its season 0, as TMDB numbers
+ * them), or a movie (one video, in the movies folder).
+ */
+export type AddAs = "show" | "specials" | "movie";
+
+/** What a site's search said a result is: its kind, and its own word for it. */
+export interface SiteHint {
+  kind: "show" | "movie";
+  label: string | null;
+}
+
+/** The words sites use for a show's extras, which TMDB keeps among its specials. */
+const SPECIAL_WORDS = /^(ova|ovas|ona|especial|especiales|special|specials|tv special)$/i;
+
+/**
+ * What an address most likely is, from what the site's search said of it: a movie as a movie, an
+ * OVA, ONA or special as specials of a show, the rest a show. Only a start: a site calls a film an
+ * OVA and a TV special a movie, so it is always changed by hand, or by what is picked on TMDB.
+ */
+export function suggestedAs(hint: SiteHint | null): AddAs {
+  if (!hint) return "show";
+  if (hint.kind === "movie") return "movie";
+  const label = hint.label?.trim() ?? "";
+  return SPECIAL_WORDS.test(label) ? "specials" : "show";
+}
+
 /** What the person edits in the preview before adding the series. Numbers stay text while typed. */
 export interface PreviewForm {
+  /** What the address is added as. */
+  as: AddAs;
   /**
    * "" makes a new series; a series id adds the address to that series (another season, or a part);
    * `jellyfin:<id>` (see `jellyfinTarget`) adds it to a show Jellyfin has and this server doesn't.
@@ -66,7 +97,7 @@ function leadingExtras(preview: PreviewDto): EpisodeAdjustment[] {
     }));
 }
 
-export function initialForm(preview: PreviewDto): PreviewForm {
+export function initialForm(preview: PreviewDto, as: AddAs = "show"): PreviewForm {
   const only = preview.selectedKey;
   const adjustments = leadingExtras(preview);
   const extras = new Set(
@@ -76,7 +107,8 @@ export function initialForm(preview: PreviewDto): PreviewForm {
       )
       .map((found) => found.key),
   );
-  return {
+  const base: PreviewForm = {
+    as: "show",
     addTo: "",
     // Empty on purpose: the TMDB id fills it in with the show's real name, never the site's.
     title: "",
@@ -92,6 +124,37 @@ export function initialForm(preview: PreviewDto): PreviewForm {
     follow: false,
     downloadNow: false,
   };
+  return addAs(base, as);
+}
+
+/**
+ * The form as something else: specials go to season 0 (and leave it when they stop being specials),
+ * a movie keeps one video, the first chosen. Between a movie and a show, where it goes and what is
+ * TMDB's (the id and what it filled in) are forgotten: a movie goes to a movie, and TMDB numbers
+ * each apart.
+ */
+export function addAs(form: PreviewForm, as: AddAs): PreviewForm {
+  if (form.as === as) return form;
+  const wasMovie = form.as === "movie";
+  const isMovie = as === "movie";
+  const next: PreviewForm = { ...form, as };
+  if (as === "specials") {
+    next.season = String(SPECIALS_SEASON);
+    next.firstEpisode = "";
+  } else if (form.as === "specials" && form.season === String(SPECIALS_SEASON)) {
+    next.season = "";
+    next.firstEpisode = "";
+  }
+  if (isMovie) {
+    next.follow = false;
+    next.included = form.included.slice(0, 1);
+  }
+  if (wasMovie !== isMovie) {
+    next.addTo = "";
+    next.tmdbId = "";
+    next.imdbId = "";
+  }
+  return next;
 }
 
 const MIN_YEAR = 1800;
@@ -139,8 +202,11 @@ export function invalidFields(
   form: PreviewForm,
 ): Set<"year" | "season" | "firstEpisode" | "tmdbId" | "imdbId"> {
   const invalid = new Set<"year" | "season" | "firstEpisode" | "tmdbId" | "imdbId">();
-  if (parseSeason(form.season) === "invalid") invalid.add("season");
-  if (parseFirstEpisode(form.firstEpisode) === "invalid") invalid.add("firstEpisode");
+  // A movie has no season nor numbers of its own.
+  if (form.as !== "movie") {
+    if (parseSeason(form.season) === "invalid") invalid.add("season");
+    if (parseFirstEpisode(form.firstEpisode) === "invalid") invalid.add("firstEpisode");
+  }
   // A series that exists keeps its own title, year and ids.
   if (form.addTo === "") {
     if (parseYear(form.year) === "invalid") invalid.add("year");
@@ -153,6 +219,7 @@ export function invalidFields(
 export function canConfirm(form: PreviewForm, clashes: readonly string[] = []): boolean {
   if (form.addTo === "" && form.title.trim() === "") return false;
   if (form.included.length === 0) return false;
+  if (form.as === "movie" && form.included.length !== 1) return false;
   if (clashes.length > 0) return false;
   return invalidFields(form).size === 0;
 }
@@ -167,6 +234,8 @@ export function numberer(
   preview: PreviewDto,
   form: PreviewForm,
 ): (episode: { season: number; episode: number }) => { season: number; episode: number } {
+  // A movie's one video is its S01E01, whatever the site numbers it.
+  if (form.as === "movie") return () => ({ season: 1, episode: 1 });
   const mapping = {
     season: valueOr(parseSeason(form.season)),
     offset: episodeOffset(
@@ -254,6 +323,8 @@ export function nextOpenSeason(
  * its video from this address from now on.
  */
 export function clashingCodes(preview: PreviewDto, form: PreviewForm): string[] {
+  // A movie keeps one video: more than one is said otherwise.
+  if (form.as === "movie") return [];
   const taken = new Set<string>();
   const number = numberer(preview, form);
   const chosen = new Set(form.included);
@@ -270,7 +341,34 @@ export function clashingCodes(preview: PreviewDto, form: PreviewForm): string[] 
 
 export function toCreateBody(preview: PreviewDto, form: PreviewForm): CreateSeriesBody {
   const chosen = new Set(form.included);
+  if (form.as === "movie") {
+    const movie = {
+      previewId: preview.previewId,
+      kind: "movie" as const,
+      season: null,
+      firstEpisode: null,
+      adjustments: [],
+      episodeKeys: preview.episodes.map((e) => e.key).filter((key) => chosen.has(key)),
+      downloadNow: form.downloadNow,
+      follow: false,
+    };
+    // A movie Jellyfin has: its title, year and ids come from Jellyfin.
+    const jellyfinMovie = jellyfinShowOf(form.addTo);
+    if (jellyfinMovie !== null) {
+      return { ...movie, jellyfinId: jellyfinMovie, tmdbId: null, imdbId: null };
+    }
+    // Another address of a movie already here: the movie's own title, year and ids stay.
+    if (form.addTo !== "") return { ...movie, seriesId: form.addTo, tmdbId: null, imdbId: null };
+    return {
+      ...movie,
+      title: form.title.trim(),
+      year: valueOr(parseYear(form.year)),
+      tmdbId: parseTmdbId(form.tmdbId),
+      imdbId: parseImdbId(form.imdbId),
+    };
+  }
   const common = {
+    kind: "show" as const,
     previewId: preview.previewId,
     season: valueOr(parseSeason(form.season)),
     firstEpisode: valueOr(parseFirstEpisode(form.firstEpisode)),
@@ -298,15 +396,17 @@ export function toCreateBody(preview: PreviewDto, form: PreviewForm): CreateSeri
 }
 
 export function toggleEpisode(form: PreviewForm, key: string): PreviewForm {
-  return {
-    ...form,
-    included: form.included.includes(key)
-      ? form.included.filter((item) => item !== key)
-      : [...form.included, key],
-  };
+  if (form.included.includes(key)) {
+    return { ...form, included: form.included.filter((item) => item !== key) };
+  }
+  // A movie is one video: picking another takes its place.
+  return { ...form, included: form.as === "movie" ? [key] : [...form.included, key] };
 }
 
 export function setAllIncluded(preview: PreviewDto, form: PreviewForm, on: boolean): PreviewForm {
+  if (form.as === "movie") {
+    return { ...form, included: on ? preview.episodes.slice(0, 1).map((e) => e.key) : [] };
+  }
   return { ...form, included: on ? preview.episodes.map((episode) => episode.key) : [] };
 }
 
@@ -372,3 +472,21 @@ export function matchExtractor(
 
 /** What a field that only takes a number keeps of what was typed or pasted. */
 export const digitsOf = (text: string) => text.replace(/\D/g, "");
+
+/**
+ * A movie's one video as TMDB would show an episode: TMDB lists no episodes of a movie, so its frame
+ * is the movie's backdrop, and its name and synopsis the movie's. Null without a lookup.
+ */
+export function movieStill(
+  show: Pick<ShowLookupDto, "title" | "overview" | "backdropUrl"> | null,
+): GuideEpisodeDto | null {
+  if (!show) return null;
+  return {
+    number: 1,
+    name: show.title,
+    airDate: null,
+    overview: show.overview,
+    runtimeMin: null,
+    stillUrl: show.backdropUrl,
+  };
+}

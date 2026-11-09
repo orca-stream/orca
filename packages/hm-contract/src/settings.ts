@@ -27,6 +27,8 @@ export const JellyfinSettings = z.object({
   apiKey: z.string().min(1),
   /** The series folder (`mediaRoot`) as Jellyfin sees it: the same path when both run on one machine. */
   jellyfinMediaRoot: z.string().min(1),
+  /** The movies folder (`moviesRoot`) as Jellyfin sees it; absent: the same path as here. */
+  jellyfinMoviesRoot: z.string().min(1).optional(),
 });
 export type JellyfinSettings = z.infer<typeof JellyfinSettings>;
 
@@ -97,6 +99,11 @@ export const Settings = z.object({
   signIn: SignIn.default("jellyfin"),
   /** The series library folder as this server sees it: where the episodes go. */
   mediaRoot: z.string().min(1),
+  /**
+   * The movies library folder as this server sees it: where the movies go, each in its own folder.
+   * Absent: no movies are added. Never the series folder, nor inside it, nor holding it.
+   */
+  moviesRoot: z.string().min(1).optional(),
   /** Absent: no Jellyfin. The library is still written for any player that reads nfo files. */
   jellyfin: JellyfinSettings.optional(),
   /** A TMDB v3 key or v4 read token: lists a show's seasons and episodes. */

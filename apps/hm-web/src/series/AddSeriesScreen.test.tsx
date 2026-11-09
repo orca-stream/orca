@@ -74,7 +74,10 @@ function setup({
   series,
   episodesOf = {},
   path,
+  moviesRoot,
 }: Options & {
+  /** The movies folder the server's settings name; absent, it has none. */
+  moviesRoot?: string;
   /** Where the screen opens, with its query (by default, the bare add screen). */
   path?: string;
   /** The series the panel already has; absent, the list is not served at all. */
@@ -86,8 +89,12 @@ function setup({
   const handler: Handler = async (request) => {
     const { pathname } = new URL(request.url);
     if (pathname === "/api/extractors") return jsonResponse(extractors);
-    if (pathname === "/api/library/shows")
+    if (pathname === "/api/settings") return jsonResponse({ mediaRoot: "/series", moviesRoot });
+    if (pathname === "/api/library/shows") {
+      // Jellyfin's movies are another list.
+      if (new URL(request.url).searchParams.get("kind") === "movie") return jsonResponse([]);
       return library ? jsonResponse(library) : jsonResponse({ error: "upstream" }, 502);
+    }
     const files = /^\/api\/library\/shows\/([^/]+)\/episodes$/.exec(pathname);
     if (files) return jsonResponse(libraryEpisodes[decodeURIComponent(files[1]!)] ?? []);
     const seasons = /^\/api\/lookup\/tmdb\/(\d+)\/seasons(?:\/(\d+))?$/.exec(pathname);
@@ -101,8 +108,12 @@ function setup({
     }
     if (pathname === "/api/search")
       return jsonResponse(siteFound[new URL(request.url).searchParams.get("q") ?? ""] ?? []);
-    if (pathname === "/api/lookup/tmdb")
-      return jsonResponse(found[new URL(request.url).searchParams.get("query") ?? ""] ?? []);
+    if (pathname === "/api/lookup/tmdb") {
+      const params = new URL(request.url).searchParams;
+      // TMDB's movies are another list: these are shows.
+      if (params.get("kind") === "movie") return jsonResponse([]);
+      return jsonResponse(found[params.get("query") ?? ""] ?? []);
+    }
     const images = /^\/api\/lookup\/tmdb\/(\d+)\/artwork$/.exec(pathname);
     if (images) {
       const options = artwork[images[1]!];
@@ -393,7 +404,7 @@ describe("AddSeriesScreen", () => {
     const title = () => screen.getByLabelText("Título") as HTMLInputElement;
     await waitFor(() => expect(title().value).toBe("Cowboy Bebop"), { timeout: 2000 });
     // Read again: a fresh form, and the cached answer for the same id must still fill it in.
-    await user.click(screen.getByRole("button", { name: "Buscar otra serie" }));
+    await user.click(screen.getByRole("button", { name: "Buscar otro título" }));
     await waitFor(() => expect(screen.queryByLabelText("Título")).toBeNull());
     await previewIt(user);
     expect(title().value).toBe("");
@@ -635,6 +646,76 @@ describe("AddSeriesScreen", () => {
     expect(input.getAttribute("aria-invalid")).toBeNull();
   });
 
+  it("adds what a site's search calls a movie as a movie: one video, no season, never followed", async () => {
+    const user = userEvent.setup();
+    const site = {
+      id: "site-b",
+      name: "Site B",
+      hosts: ["origin.test"],
+      example: "https://origin.test/series/x",
+      explicit: false,
+      searchable: true,
+    };
+    const { requests } = setup({
+      extractors: [...EXTRACTORS, site],
+      moviesRoot: "/movies",
+      siteFound: {
+        "un film": [
+          {
+            extractorId: "site-b",
+            failed: false,
+            results: [
+              {
+                kind: "movie",
+                label: "Película",
+                url: "https://origin.test/series/un-film",
+                title: "Un film",
+                originalTitle: null,
+                year: 2016,
+                plot: null,
+                posterUrl: null,
+                seriesId: null,
+                seasons: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await user.type(await screen.findByLabelText("Dirección"), "un film");
+    const results = await screen.findByRole("region", { name: "Resultados de los sitios" });
+    await user.click(await within(results).findByRole("button", { name: /^Un film, Película/ }));
+
+    await screen.findByLabelText("Título");
+    expect(screen.getByRole("combobox", { name: "Añadir como" }).textContent).toContain("Película");
+    // Nothing of a show's: its season and numbers, following it. It may go to a movie already here.
+    expect((screen.getByLabelText("Añadir a") as HTMLInputElement).placeholder).toBe(
+      "Película nueva, o busca una que ya tengas",
+    );
+    expect(screen.queryByLabelText("Temporada")).toBeNull();
+    expect(screen.queryByText("Seguir la serie")).toBeNull();
+    await user.type(screen.getByLabelText("Título"), "Un film");
+    await user.keyboard("{Escape}");
+    const add = screen.getByRole("button", { name: "Añadir película" }) as HTMLButtonElement;
+    await waitFor(() => expect(add.disabled).toBe(false));
+    await user.click(add);
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === "POST" && new URL(r.url).pathname === "/api/series"),
+      ).toBe(true),
+    );
+    const post = requests.find(
+      (r) => r.method === "POST" && new URL(r.url).pathname === "/api/series",
+    )!;
+    expect(await post.json()).toMatchObject({
+      kind: "movie",
+      title: "Un film",
+      season: null,
+      follow: false,
+      episodeKeys: ["e1"],
+    });
+  });
+
   it("searches the sites by a name typed in the address, and reads the one picked", async () => {
     const user = userEvent.setup();
     const site = {
@@ -686,7 +767,7 @@ describe("AddSeriesScreen", () => {
     });
     expect(
       await screen.findByText(
-        "En los sitios, para «la casa» · 1 serie · No respondió: Internet Archive",
+        "En los sitios, para «la casa» · 1 resultado · No respondió: Internet Archive",
       ),
     ).toBeTruthy();
     await user.click(result);
@@ -706,7 +787,7 @@ describe("AddSeriesScreen", () => {
 
     // Read: the address is the series' until it is searched again, which empties it.
     expect((input as HTMLInputElement).readOnly).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Buscar otra serie" }));
+    await user.click(screen.getByRole("button", { name: "Buscar otro título" }));
     await waitFor(() => expect(screen.queryByLabelText("Título")).toBeNull());
     const fresh = screen.getByLabelText("Dirección") as HTMLInputElement;
     expect(fresh.value).toBe("");
@@ -863,6 +944,7 @@ describe("AddSeriesScreen", () => {
     )!;
     expect(await post.json()).toEqual({
       previewId: "p1",
+      kind: "show",
       title: "The Beverly Hillbillies",
       year: 1962,
       tmdbId: null,

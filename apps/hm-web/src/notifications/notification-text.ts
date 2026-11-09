@@ -43,7 +43,11 @@ export function notificationText(
       if (series === null || available === null || total === null) return fallback;
       return {
         title: t.seriesDownloadedTitle,
-        body: t.seriesDownloaded(series, available, total),
+        // A movie is its one video: no count of episodes.
+        body:
+          text(data.mediaKind) === "movie"
+            ? t.movieDownloaded(series)
+            : t.seriesDownloaded(series, available, total),
       };
     }
     case "job_failed": {

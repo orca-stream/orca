@@ -98,6 +98,8 @@ export async function startRuntime(
   const agent = userAgent(shared.version, config.contactEmail);
   mkdirSync(resolve(config.mediaRoot), { recursive: true });
   const mediaRoot = resolve(config.mediaRoot);
+  const moviesRoot = config.moviesRoot === null ? null : resolve(config.moviesRoot);
+  if (moviesRoot !== null) mkdirSync(moviesRoot, { recursive: true });
 
   // Every address a page or a stream gives us goes through this before anything connects to it.
   const guard = new AddressGuard();
@@ -149,7 +151,7 @@ export async function startRuntime(
         )
       : null;
   if (detector && config.genericExtractor) extractors.push(new GenericPageExtractor({ guard }));
-  const library = new FsLibraryWriter(mediaRoot);
+  const library = new FsLibraryWriter(mediaRoot, {}, moviesRoot);
   const series = new DrizzleSeriesRepository(database.db);
   const notificationRepository = new DrizzleNotificationRepository(database.db);
 
@@ -180,6 +182,8 @@ export async function startRuntime(
           apiKey: config.jellyfin.apiKey,
           mediaRoot,
           jellyfinMediaRoot: config.jellyfin.mediaRoot,
+          moviesRoot: moviesRoot ?? undefined,
+          jellyfinMoviesRoot: config.jellyfin.moviesRoot ?? undefined,
         })
       : null,
     episodeGuide: config.tmdbApiKey

@@ -9,7 +9,7 @@ import type { RemoteSearchResult } from "@jellyfin/sdk/lib/generated-client/mode
 import { getItemLookupApi } from "@jellyfin/sdk/lib/utils/api/item-lookup-api.js";
 import { getLibraryApi } from "@jellyfin/sdk/lib/utils/api/library-api.js";
 import { getLibraryStructureApi } from "@jellyfin/sdk/lib/utils/api/library-structure-api.js";
-import { TMDB_ID_PATTERN } from "@orca/hm-contract";
+import { TMDB_ID_PATTERN, type MediaKind } from "@orca/hm-contract";
 import { isAxiosError, type AxiosInstance } from "axios";
 import {
   MAX_SHOWS_FOUND,
@@ -36,6 +36,10 @@ export interface JellyfinMediaServerOptions {
   mediaRoot: string;
   /** Where the same folder is, as Jellyfin sees it (differs when the containers mount it elsewhere). */
   jellyfinMediaRoot: string;
+  /** Where the movies are, as this server sees it; absent when there is no movies folder. */
+  moviesRoot?: string | undefined;
+  /** The movies folder as Jellyfin sees it; absent: the same path. */
+  jellyfinMoviesRoot?: string | undefined;
   axiosInstance?: AxiosInstance;
   /** Only used when no `axiosInstance` is given. */
   timeoutMs?: number;
@@ -98,16 +102,17 @@ export class JellyfinMediaServer implements MediaServer {
       removed?: boolean | undefined;
     } = {},
   ): Promise<void> {
-    const { jellyfin, serverUrl, apiKey, mediaRoot, jellyfinMediaRoot } = this.options;
+    const { jellyfin, serverUrl, apiKey } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
-    const root = trimSlashes(mediaRoot);
-    if (!isUnder(path, root)) {
-      throw new PermanentError(`${path} is not under the media root ${root}`);
-    }
-    const jellyfinPath = trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length));
+    const { jellyfinPath, kind } = this.toJellyfin(path);
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
     try {
-      const { itemId, isSeries } = await this.findItem(api, jellyfinPath, options.removed === true);
+      const { itemId, isSeries } = await this.findItem(
+        api,
+        jellyfinPath,
+        kind,
+        options.removed === true,
+      );
       // Default: only what is new or changed. Replacing is for the series alone, never its library.
       await getLibraryApi(api).refreshItem(
         options.replaceMetadata && isSeries
@@ -146,13 +151,38 @@ export class JellyfinMediaServer implements MediaServer {
     }
   }
 
+  /** A path of this server's, as Jellyfin sees it, and which library folder holds it. */
+  private toJellyfin(path: string): { jellyfinPath: string; kind: MediaKind } {
+    const { mediaRoot, jellyfinMediaRoot, moviesRoot, jellyfinMoviesRoot } = this.options;
+    const root = trimSlashes(mediaRoot);
+    if (isUnder(path, root)) {
+      return {
+        jellyfinPath: trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length)),
+        kind: "show",
+      };
+    }
+    const movies = moviesRoot ? trimSlashes(moviesRoot) : null;
+    if (movies !== null && isUnder(path, movies)) {
+      const theirs = trimSlashes(jellyfinMoviesRoot ?? movies);
+      return { jellyfinPath: trimSlashes(theirs + path.slice(movies.length)), kind: "movie" };
+    }
+    throw new PermanentError(
+      `${path} is not under the series folder ${root} nor the movies folder`,
+    );
+  }
+
   /**
    * Jellyfin's "Identify" search, narrowed to its TMDB provider: with a TMDB id it fetches that show
-   * (external ids included) in the server's preferred metadata language, and answers an empty list
-   * when TMDB has none. Disabled providers are included so a library that turned TMDB off still works.
+   * (or movie: TMDB numbers them apart) with its external ids, in the server's preferred metadata
+   * language, and answers an empty list when TMDB has none. Disabled providers are included so a
+   * library that turned TMDB off still works.
    */
-  async findShowByTmdbId(tmdbId: string, signal?: AbortSignal): Promise<ShowMatch | null> {
-    const results = await this.remoteSearch({ ProviderIds: { [TMDB]: tmdbId } }, signal);
+  async findShowByTmdbId(
+    tmdbId: string,
+    signal?: AbortSignal,
+    kind: MediaKind = "show",
+  ): Promise<ShowMatch | null> {
+    const results = await this.remoteSearch({ ProviderIds: { [TMDB]: tmdbId } }, signal, kind);
     const show = results.find((result) => result.ProviderIds?.[TMDB] === tmdbId);
     if (!show?.Name) return null;
     return {
@@ -169,10 +199,12 @@ export class JellyfinMediaServer implements MediaServer {
     query: string,
     year: number | undefined,
     signal?: AbortSignal,
+    kind: MediaKind = "show",
   ): Promise<ShowFound[]> {
     const results = await this.remoteSearch(
       { Name: query, ...(year === undefined ? {} : { Year: year }) },
       signal,
+      kind,
     );
     const seen = new Set<string>();
     return results
@@ -199,40 +231,50 @@ export class JellyfinMediaServer implements MediaServer {
   private async remoteSearch(
     searchInfo: { ProviderIds?: Record<string, string>; Name?: string; Year?: number },
     signal: AbortSignal | undefined,
+    kind: MediaKind,
   ): Promise<RemoteSearchResult[]> {
     const { jellyfin, serverUrl, apiKey } = this.options;
     const axiosInstance = this.options.axiosInstance ?? createJellyfinHttp(this.options.timeoutMs);
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
+    const query = {
+      SearchInfo: searchInfo,
+      SearchProviderName: TMDB_PROVIDER,
+      IncludeDisabledProviders: true,
+    };
+    const asked = signal ? { signal } : undefined;
     try {
-      const { data } = await getItemLookupApi(api).getSeriesRemoteSearchResults(
-        {
-          seriesInfoRemoteSearchQuery: {
-            SearchInfo: searchInfo,
-            SearchProviderName: TMDB_PROVIDER,
-            IncludeDisabledProviders: true,
-          },
-        },
-        signal ? { signal } : undefined,
-      );
+      const lookup = getItemLookupApi(api);
+      const { data } =
+        kind === "movie"
+          ? await lookup.getMovieRemoteSearchResults({ movieInfoRemoteSearchQuery: query }, asked)
+          : await lookup.getSeriesRemoteSearchResults(
+              { seriesInfoRemoteSearchQuery: query },
+              asked,
+            );
       return data;
     } catch (error) {
       upstream(error);
     }
   }
 
-  async listShows(signal?: AbortSignal): Promise<LibraryShow[]> {
+  async listShows(signal?: AbortSignal, kind: MediaKind = "show"): Promise<LibraryShow[]> {
+    const movie = kind === "movie";
     const items = await this.items(
       {
         recursive: true,
-        includeItemTypes: [BaseItemKind.Series],
+        includeItemTypes: [movie ? BaseItemKind.Movie : BaseItemKind.Series],
         fields: [ItemFields.Path, ItemFields.ProviderIds],
       },
       signal,
     );
+    const rootOf = movie ? this.options.moviesRoot : this.options.mediaRoot;
+    // No movies folder: none of Jellyfin's movies is where this server writes.
+    const root = rootOf ? trimSlashes(rootOf) : null;
     return items.flatMap((item) => {
       if (!item.Id || !item.Name) return [];
-      const local = item.Path ? this.toLocal(item.Path) : null;
-      const root = trimSlashes(this.options.mediaRoot);
+      const local = item.Path ? this.toLocal(item.Path, kind) : null;
+      // A movie's item is its video: its folder is the one holding it.
+      const folder = local !== null && movie ? local.slice(0, local.lastIndexOf("/")) : local;
       return [
         {
           id: item.Id,
@@ -240,8 +282,12 @@ export class JellyfinMediaServer implements MediaServer {
           year: item.ProductionYear ?? null,
           tmdbId: item.ProviderIds?.[TMDB] || null,
           imdbId: item.ProviderIds?.[IMDB] || null,
-          // The root itself is no series' folder.
-          folderName: local && local !== root ? local.slice(root.length + 1) : null,
+          // The root itself is no series' (nor movie's) folder.
+          folderName:
+            root !== null && folder !== null && folder !== root && isUnder(folder, root)
+              ? folder.slice(root.length + 1)
+              : null,
+          ...(movie ? { file: local } : {}),
         },
       ];
     });
@@ -297,21 +343,29 @@ export class JellyfinMediaServer implements MediaServer {
     }
   }
 
-  /** A path as Jellyfin sees it, as this server does; null when it is outside the media root. */
-  private toLocal(jellyfinPath: string): string | null {
-    const jellyfinRoot = trimSlashes(this.options.jellyfinMediaRoot);
+  /**
+   * A path as Jellyfin sees it, as this server does; null when it is outside the series folder (or,
+   * for a movie, the movies folder).
+   */
+  private toLocal(jellyfinPath: string, kind: MediaKind = "show"): string | null {
+    const { mediaRoot, jellyfinMediaRoot, moviesRoot, jellyfinMoviesRoot } = this.options;
+    const local = kind === "movie" ? moviesRoot : mediaRoot;
+    if (!local) return null;
+    const theirs = kind === "movie" ? (jellyfinMoviesRoot ?? moviesRoot) : jellyfinMediaRoot;
+    const jellyfinRoot = trimSlashes(theirs ?? local);
     const path = trimSlashes(jellyfinPath);
     if (!isUnder(path, jellyfinRoot)) return null;
-    return trimSlashes(this.options.mediaRoot) + path.slice(jellyfinRoot.length);
+    return trimSlashes(local) + path.slice(jellyfinRoot.length);
   }
 
   /**
-   * The series whose folder is `path`, else the library whose folder holds it. With `libraryOnly`,
-   * always the library (the series' folder is gone).
+   * The series (or movie) whose folder is `path`, else the library whose folder holds it. With
+   * `libraryOnly`, always the library (the folder is gone).
    */
   private async findItem(
     api: Api,
     path: string,
+    kind: MediaKind,
     libraryOnly = false,
   ): Promise<{ itemId: string; isSeries: boolean }> {
     const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
@@ -326,12 +380,18 @@ export class JellyfinMediaServer implements MediaServer {
     if (libraryOnly) return { itemId: library.ItemId, isSeries: false };
     const { data } = await getLibraryApi(api).getItems({
       parentId: library.ItemId,
-      includeItemTypes: [BaseItemKind.Series],
+      includeItemTypes: [kind === "movie" ? BaseItemKind.Movie : BaseItemKind.Series],
+      // A movie's item is its video, inside its folder (and the folder may be nested in others).
+      ...(kind === "movie" ? { recursive: true } : {}),
       fields: [ItemFields.Path],
       enableImages: false,
       enableTotalRecordCount: false,
     });
-    const series = (data.Items ?? []).find((item) => item.Path && trimSlashes(item.Path) === path);
+    const folderOf = (item: BaseItemDto) =>
+      kind === "movie"
+        ? trimSlashes(item.Path!.slice(0, item.Path!.lastIndexOf("/")))
+        : trimSlashes(item.Path!);
+    const series = (data.Items ?? []).find((item) => item.Path && folderOf(item) === path);
     return series?.Id
       ? { itemId: series.Id, isSeries: true }
       : { itemId: library.ItemId, isSeries: false };

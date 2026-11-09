@@ -10,6 +10,7 @@ import {
   Link01Icon,
   Search01Icon,
   Tv01Icon,
+  Film01Icon,
 } from "@hugeicons/core-free-icons";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useApi } from "@/api/context";
@@ -44,7 +45,10 @@ const CHIP = "flex h-6 items-center rounded-full px-2.5 text-xs font-medium ring
 function useShow(series: SeriesDto) {
   const api = useApi();
   const tmdbId = series.tmdbId ?? "";
-  const lookup = useQuery({ ...queries.showLookup(api, tmdbId), enabled: tmdbId !== "" });
+  const lookup = useQuery({
+    ...queries.showLookup(api, tmdbId, series.kind),
+    enabled: tmdbId !== "",
+  });
   const show = lookup.data?.tmdbId === tmdbId ? lookup.data : null;
   return {
     cover: series.hasPoster ? posterUrl(series) : (show?.posterUrl ?? null),
@@ -202,7 +206,10 @@ function SeriesTile({ series }: { series: SeriesDto }) {
       <div className="flex flex-1 items-center justify-center">
         {!cover && (
           <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
-            <HugeiconsIcon icon={Tv01Icon} className="size-10" />
+            <HugeiconsIcon
+              icon={series.kind === "movie" ? Film01Icon : Tv01Icon}
+              className="size-10"
+            />
           </span>
         )}
       </div>
@@ -221,7 +228,10 @@ function SeriesTile({ series }: { series: SeriesDto }) {
             )}
           >
             {series.year ? `${series.year} · ` : ""}
-            {series.availableCount}/{series.episodeCount}
+            {/* A movie is one video: what it is, not a count of one. */}
+            {series.kind === "movie"
+              ? t.add.asMovie
+              : `${series.availableCount}/${series.episodeCount}`}
           </p>
         </div>
         <span aria-hidden="true" className={cn(ROUND_ACTION, "group-hover/tile:scale-105")}>

@@ -1,5 +1,6 @@
 import type {
   ArtworkKind,
+  MediaKind,
   ExtractorDto,
   GuideEpisodeDto,
   PreviewDto,
@@ -28,6 +29,7 @@ import {
   Folder01Icon,
   Layers01Icon,
   PlayListIcon,
+  SparklesIcon,
   FolderAddIcon,
   FolderCheckIcon,
   Link01Icon,
@@ -61,6 +63,7 @@ import {
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
+import { useSettings } from "@/settings/api";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useElementHeight } from "@/hooks/use-element-height";
 import { useLocale, useT } from "@/i18n/locale";
@@ -71,6 +74,7 @@ import { SiteResults, type SiteFound } from "./SiteSearch";
 import { BAR_POPUP, BAR_ROW, BarField, BarPicker, BarToggle, ErrorHint, GLASS_PANEL } from "./bar";
 import { EpisodeGrid } from "./EpisodeGrid";
 import {
+  addAs,
   canConfirm,
   clashingCodes,
   digitsOf,
@@ -78,6 +82,7 @@ import {
   guideKey,
   initialForm,
   invalidFields,
+  movieStill,
   jellyfinShowOf,
   jellyfinTarget,
   matchExtractor,
@@ -86,8 +91,11 @@ import {
   numberer,
   parseSeason,
   shortRanges,
+  suggestedAs,
   toCreateBody,
+  type AddAs,
   type PreviewForm,
+  type SiteHint,
 } from "./preview-form";
 import { draftArtwork, type DraftArtwork, type DraftArtworks } from "./artwork";
 import { ShowBackdrop } from "./ShowBackdrop";
@@ -131,8 +139,10 @@ function previewError(error: unknown, t: Messages): string {
   return t.add.previewFailed;
 }
 
-function lookupError(error: unknown, t: Messages): string {
-  if (error instanceof ApiError && error.status === 404) return t.add.tmdbNotFound;
+function lookupError(error: unknown, t: Messages, movie: boolean): string {
+  if (error instanceof ApiError && error.status === 404) {
+    return movie ? t.add.tmdbNotFoundMovie : t.add.tmdbNotFound;
+  }
   if (error instanceof ApiError && error.status === 503) return t.add.tmdbUnavailable;
   return t.add.tmdbLookupFailed;
 }
@@ -253,6 +263,8 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
     chosen: {},
   });
   const [notice, setNotice] = useState<string | null>(null);
+  // What the address was suggested as when it was read; marked on its choice.
+  const [suggested, setSuggested] = useState<AddAs>("show");
   // Set when Preview is pressed on something that is not a web address; typing again clears it.
   const [urlInvalid, setUrlInvalid] = useState(false);
   const urlErrorId = useId();
@@ -347,12 +359,13 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       url: found.url,
       extractorId: found.extractorId,
       title: found.title,
+      hint: { kind: found.kind, label: found.label },
     });
   }
 
   function runPreview(
     event?: FormEvent,
-    picked?: { url: string; extractorId: string; title: string },
+    picked?: { url: string; extractorId: string; title: string; hint: SiteHint },
   ) {
     event?.preventDefault();
     const address = picked?.url ?? url.trim();
@@ -378,7 +391,15 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
             if (showResults) barWas.current = form$.current?.getBoundingClientRect() ?? null;
           }
           setPreview(next);
-          setForm({ ...initialForm(next), ...(intoSeries ? { addTo: intoSeries.id } : {}) });
+          // What the site's search said it is starts the choice; adding into a series, it is a show.
+          // Into a series it is that series' kind; else what the site's search said it is.
+          const as: AddAs = intoSeries
+            ? intoSeries.kind === "movie"
+              ? "movie"
+              : "show"
+            : suggestedAs(picked?.hint ?? null);
+          setSuggested(as);
+          setForm({ ...initialForm(next, as), ...(intoSeries ? { addTo: intoSeries.id } : {}) });
           setEdited(new Set());
           // A lookup answered for an earlier preview comes back from the cache as the same object:
           // forgotten here, it fills in this one too.
@@ -420,7 +441,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                 setForm((current) =>
                   current
                     ? { ...current, included: current.included.filter((key) => known.has(key)) }
-                    : initialForm(next),
+                    : initialForm(next, suggested),
                 );
                 setNotice(t.add.expired);
               },
@@ -439,13 +460,24 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   // A new series asks for its name and ids right there, as the bar's last part.
   const asksNew = attached && form.addTo === "";
   const invalid = form ? invalidFields(form) : new Set<string>();
+  // A movie is looked up on TMDB as one, and is always a new entry of one video.
+  const movie = form?.as === "movie";
+  // A movie whose address holds one video: nothing to pick, so no list of episodes beside it.
+  const loneVideo = movie && preview !== null && preview.episodes.length === 1;
+  const tmdbKind: MediaKind = movie ? "movie" : "show";
+  // Without a movies folder there is nowhere to put a movie: it is not offered.
+  const settingsView = useSettings();
+  const moviesOn = settingsView.data?.moviesRoot !== undefined;
 
   // The TMDB id of a new series, looked up once it stops changing and only while it is still the one shown.
   const typedTmdbId = asksNew ? form.tmdbId.trim() : "";
   const settledTmdbId = useDebounced(typedTmdbId, LOOKUP_DELAY_MS);
   const lookupId =
     settledTmdbId === typedTmdbId && TMDB_ID_PATTERN.test(settledTmdbId) ? settledTmdbId : "";
-  const lookup = useQuery({ ...queries.showLookup(api, lookupId), enabled: lookupId !== "" });
+  const lookup = useQuery({
+    ...queries.showLookup(api, lookupId, tmdbKind),
+    enabled: lookupId !== "",
+  });
   // Each answer is applied once, while rendering (not in an effect), and only to the id still shown.
   const [appliedShow, setAppliedShow] = useState<ShowLookupDto | null>(null);
   if (lookup.data && lookup.data !== appliedShow) {
@@ -464,12 +496,14 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   }
   const typedBy = (field: LookupField) => setEdited((fields) => new Set(fields).add(field));
   // A show picked from TMDB's search is the series: its id, and the lookup fills in all the rest.
-  function pickShow(show: ShowSearchResultDto) {
+  // Picking a movie makes it a movie; picking a show, what it was unless that was a movie.
+  function pickShow(show: ShowSearchResultDto, kind: MediaKind) {
     if (!form) return;
     setAppliedShow(null);
     setEdited(new Set());
+    const as: AddAs = kind === "movie" ? "movie" : form.as === "movie" ? "show" : form.as;
     setForm({
-      ...form,
+      ...addAs(form, as),
       title: show.title,
       year: show.year === null ? "" : String(show.year),
       tmdbId: show.tmdbId,
@@ -479,23 +513,30 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const tmdbError = invalid.has("tmdbId")
     ? t.add.tmdbInvalid
     : lookupId !== "" && lookup.isError
-      ? lookupError(lookup.error, t)
+      ? lookupError(lookup.error, t, movie)
       : undefined;
   // Asked once the address is read: without Jellyfin, only this server's own series are offered.
-  const libraryShows = useQuery({ ...queries.libraryShows(api), enabled: attached });
+  const libraryShows = useQuery({
+    ...queries.libraryShows(api, movie ? "movie" : "show"),
+    enabled: attached,
+  });
   // The series that exist, then the shows Jellyfin has that none of them is: left empty, the
   // address makes a new series.
+  // Of the kind being added: a movie's address goes to a movie (another source of its video), a
+  // show's to a show; Jellyfin's of that kind too.
   const targets: AddTarget[] = [
-    ...(seriesList.data ?? []).map((series) => ({
-      value: series.id,
-      label: series.title,
-      year: series.year,
-      name: nameOf(series),
-      inJellyfin: false,
-      tmdbId: series.tmdbId,
-      imdbId: series.imdbId,
-      series,
-    })),
+    ...(seriesList.data ?? [])
+      .filter((series) => (series.kind === "movie") === movie)
+      .map((series) => ({
+        value: series.id,
+        label: series.title,
+        year: series.year,
+        name: nameOf(series),
+        inJellyfin: false,
+        tmdbId: series.tmdbId,
+        imdbId: series.imdbId,
+        series,
+      })),
     ...(libraryShows.data ?? [])
       .filter((show) => show.seriesId === null && show.adoptable)
       .map((show) => ({
@@ -527,7 +568,8 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const locale = useLocale();
   const chosenTarget =
     attached && !asksNew ? targets.find((target) => target.value === form.addTo) : undefined;
-  const guideTmdbId = asksNew ? lookupId : (chosenTarget?.tmdbId ?? "");
+  // A movie has no seasons to pick from.
+  const guideTmdbId = movie ? "" : asksNew ? lookupId : (chosenTarget?.tmdbId ?? "");
   const guide = useQuery({
     ...queries.guideSeasons(api, guideTmdbId, locale),
     enabled: guideTmdbId !== "",
@@ -558,7 +600,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const [listOpen, setListOpen] = useState(false);
   const cardTmdbId = asksNew ? lookupId : (chosenTarget?.tmdbId ?? "");
   const cardLookup = useQuery({
-    ...queries.showLookup(api, cardTmdbId),
+    ...queries.showLookup(api, cardTmdbId, tmdbKind),
     enabled: cardTmdbId !== "",
   });
   const tmdbShow =
@@ -577,12 +619,14 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
         tmdbId: chosenTarget.tmdbId,
         imdbId: chosenTarget.imdbId,
         seasons: seasonCount,
-        episodes: chosenTarget.series
-          ? {
-              available: chosenTarget.series.availableCount,
-              total: chosenTarget.series.episodeCount,
-            }
-          : null,
+        // A movie's one video is no count of episodes.
+        episodes:
+          chosenTarget.series && !movie
+            ? {
+                available: chosenTarget.series.availableCount,
+                total: chosenTarget.series.episodeCount,
+              }
+            : null,
         inJellyfin: chosenTarget.inJellyfin,
       }
     : null;
@@ -634,7 +678,8 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
               posterUrl: preview.posterUrl,
               tmdbId: null,
               imdbId: null,
-              seasons: preview.seasons.length || null,
+              // A movie has no seasons, whatever the site lists.
+              seasons: movie ? null : preview.seasons.length || null,
               episodes: null,
               inJellyfin: false,
             },
@@ -667,12 +712,16 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       queries.guideEpisodes(api, guideTmdbId, season, locale),
     ),
   });
+  // A movie has no episodes on TMDB: its one video shows the movie's backdrop.
+  const movieFrame = movie && tmdbShow ? movieStill(tmdbShow) : null;
   const stills = new Map(
-    landingSeasons.flatMap((season, index) =>
-      (landingGuides[index]?.data ?? []).map(
-        (episode) => [guideKey(season, episode.number), episode] as const,
-      ),
-    ),
+    movieFrame
+      ? [[guideKey(1, 1), movieFrame] as const]
+      : landingSeasons.flatMap((season, index) =>
+          (landingGuides[index]?.data ?? []).map(
+            (episode) => [guideKey(season, episode.number), episode] as const,
+          ),
+        ),
   );
   // Each season it lands in as TMDB lists it, once known, to compare with the address: empty for
   // one TMDB doesn't have.
@@ -771,18 +820,26 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const ready =
     form !== null &&
     canConfirm(form, clashes) &&
+    (!movie || moviesOn) &&
     (targetSeriesId === "" || targetEpisodes.isSuccess);
   const blocker = !form
     ? null
     : asksNew && form.title.trim() === ""
       ? t.add.needsTitle
       : form.included.length === 0
-        ? t.add.needsEpisodes
+        ? movie
+          ? t.add.needsMovieVideo
+          : t.add.needsEpisodes
         : clashes.length > 0
           ? t.add.clashes(clashes.join(", "))
           : null;
-  // Following belongs to the series: one that exists keeps its own setting.
-  const asksFollow = asksNew || chosenTarget?.inJellyfin === true;
+  // Following belongs to the series: one that exists keeps its own setting. A movie brings nothing new.
+  const asksFollow = !movie && (asksNew || chosenTarget?.inJellyfin === true);
+  const asItems = [
+    { value: "show", label: t.add.asShow },
+    { value: "specials", label: t.add.asSpecials },
+    ...(moviesOn || movie ? [{ value: "movie", label: t.add.asMovie }] : []),
+  ].map((item) => (item.value === suggested ? { ...item, detail: t.add.asSuggested } : item));
 
   const numbered =
     preview && form && invalid.size === 0
@@ -797,13 +854,16 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
     <div
       className={cn(
         "mx-auto flex w-full flex-col gap-4",
-        // Once read: the bar on the left, the episodes on the right, each taking half the width.
-        attached
-          ? "xl:grid xl:grid-cols-2 xl:items-start xl:gap-4"
-          : // Searching: from the window's top, across all of it.
-            showResults
-            ? "self-start"
-            : "max-w-5xl",
+        // Once read: the bar on the left, the episodes on the right, each taking half the width. A
+        // movie of one video has nothing to pick: the bar alone, in one column.
+        attached && loneVideo
+          ? "max-w-3xl"
+          : attached
+            ? "xl:grid xl:grid-cols-2 xl:items-start xl:gap-4"
+            : // Searching: from the window's top, across all of it.
+              showResults
+              ? "self-start"
+              : "max-w-5xl",
       )}
     >
       <ShowBackdrop src={backdrop?.src ?? null} poster={backdrop?.poster} />
@@ -959,6 +1019,26 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                   )}
                 </InputGroupAddon>
               </InputGroup>
+              {attached && (
+                // What the address is: episodes of a show, its specials, or a movie.
+                <div className="border-t border-t-(--glass-edge)">
+                  <BarPicker
+                    icon={
+                      form.as === "movie"
+                        ? Film01Icon
+                        : form.as === "specials"
+                          ? SparklesIcon
+                          : Tv01Icon
+                    }
+                    label={t.add.addAs}
+                    placeholder={t.add.addAs}
+                    items={asItems}
+                    value={form.as}
+                    fallback={form.as}
+                    onChange={(as) => setForm(addAs(form, as as AddAs))}
+                  />
+                </div>
+              )}
               {attached && offer && (
                 // The series this one already is, offered in place of the list: the whole row says
                 // it, and the two buttons at its end take it or set it aside.
@@ -976,8 +1056,8 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                   </p>
                   <button
                     type="button"
-                    aria-label={t.add.dismissTwin}
-                    title={t.add.dismissTwin}
+                    aria-label={movie ? t.add.dismissTwinMovie : t.add.dismissTwin}
+                    title={movie ? t.add.dismissTwinMovie : t.add.dismissTwin}
                     onClick={() => setDismissedTwin(offer.value)}
                     className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/70 text-muted-foreground ring-1 ring-black/5 transition-colors hover:bg-destructive/10 hover:text-destructive hover:ring-destructive/20 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
                   >
@@ -985,8 +1065,8 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                   </button>
                   <button
                     type="button"
-                    aria-label={t.add.addToIt}
-                    title={t.add.addToIt}
+                    aria-label={movie ? t.add.addToItMovie : t.add.addToIt}
+                    title={movie ? t.add.addToItMovie : t.add.addToIt}
                     onClick={() => setForm({ ...form, addTo: offer.value })}
                     className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
                   >
@@ -1005,7 +1085,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                   <ComboboxInput
                     id="add-to"
                     aria-label={t.add.addTo}
-                    placeholder={t.add.addToSearch}
+                    placeholder={movie ? t.add.addToSearchMovie : t.add.addToSearch}
                     showClear={form.addTo !== ""}
                     className={cn(
                       BAR_ROW,
@@ -1062,6 +1142,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                       <TitleSearch
                         value={form.title}
                         siteTitle={preview.series.title}
+                        kind={tmdbKind}
                         onType={(title) => {
                           typedBy("title");
                           setForm({ ...form, title });
@@ -1113,73 +1194,77 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                     </div>
                   </>
                 )}
-                <div className="flex">
-                  {guided ? (
-                    <BarPicker
-                      icon={Layers01Icon}
-                      label={t.add.season}
-                      placeholder={t.add.seasonPlaceholder(siteSeason)}
-                      items={(guide.data ?? []).map((season) => ({
-                        value: String(season.number),
-                        label: t.add.seasonOption(season.number),
-                        detail: t.add.seasonDetail(season.episodeCount, season.year),
-                      }))}
-                      value={form.season}
-                      fallback={oneSiteSeason}
-                      onChange={(season) => {
-                        // Picking the season it already has changes nothing.
-                        if (season !== form.season) setForm({ ...form, season, firstEpisode: "" });
-                      }}
-                      className="w-1/2 shrink-0"
-                    />
-                  ) : (
-                    <BarField
-                      icon={Layers01Icon}
-                      label={t.add.season}
-                      placeholder={t.add.seasonPlaceholder(siteSeason)}
-                      inputMode="numeric"
-                      maxLength={3}
-                      busy={guide.isFetching ? t.add.guideSeasonsLoading : undefined}
-                      error={invalid.has("season") ? t.add.countInvalid : undefined}
-                      value={form.season}
-                      onChange={(event) =>
-                        setForm({ ...form, season: digitsOf(event.target.value) })
-                      }
-                      className="w-1/2 shrink-0"
-                    />
-                  )}
-                  {episodesGuided ? (
-                    <BarPicker
-                      icon={PlayListIcon}
-                      label={t.add.firstEpisode}
-                      placeholder={t.add.firstEpisode}
-                      items={(guideEpisodes.data ?? []).map((episode) => ({
-                        value: String(episode.number),
-                        label: t.add.episodeOption(episode.number, episode.name),
-                      }))}
-                      value={form.firstEpisode}
-                      fallback={siteFirstEpisode}
-                      onChange={(firstEpisode) => setForm({ ...form, firstEpisode })}
-                      busy={guideEpisodes.isFetching ? t.add.guideEpisodesLoading : undefined}
-                      className="border-l border-l-(--glass-edge)"
-                    />
-                  ) : (
-                    <BarField
-                      icon={PlayListIcon}
-                      label={t.add.firstEpisode}
-                      placeholder={t.add.firstEpisodePlaceholder}
-                      inputMode="numeric"
-                      maxLength={4}
-                      busy={guideEpisodes.isFetching ? t.add.guideEpisodesLoading : undefined}
-                      error={invalid.has("firstEpisode") ? t.add.countInvalid : undefined}
-                      value={form.firstEpisode}
-                      onChange={(event) =>
-                        setForm({ ...form, firstEpisode: digitsOf(event.target.value) })
-                      }
-                      className="border-l border-l-(--glass-edge)"
-                    />
-                  )}
-                </div>
+                {/* A movie has no season nor numbers of its own. */}
+                {!movie && (
+                  <div className="flex">
+                    {guided ? (
+                      <BarPicker
+                        icon={Layers01Icon}
+                        label={t.add.season}
+                        placeholder={t.add.seasonPlaceholder(siteSeason)}
+                        items={(guide.data ?? []).map((season) => ({
+                          value: String(season.number),
+                          label: t.add.seasonOption(season.number),
+                          detail: t.add.seasonDetail(season.episodeCount, season.year),
+                        }))}
+                        value={form.season}
+                        fallback={oneSiteSeason}
+                        onChange={(season) => {
+                          // Picking the season it already has changes nothing.
+                          if (season !== form.season)
+                            setForm({ ...form, season, firstEpisode: "" });
+                        }}
+                        className="w-1/2 shrink-0"
+                      />
+                    ) : (
+                      <BarField
+                        icon={Layers01Icon}
+                        label={t.add.season}
+                        placeholder={t.add.seasonPlaceholder(siteSeason)}
+                        inputMode="numeric"
+                        maxLength={3}
+                        busy={guide.isFetching ? t.add.guideSeasonsLoading : undefined}
+                        error={invalid.has("season") ? t.add.countInvalid : undefined}
+                        value={form.season}
+                        onChange={(event) =>
+                          setForm({ ...form, season: digitsOf(event.target.value) })
+                        }
+                        className="w-1/2 shrink-0"
+                      />
+                    )}
+                    {episodesGuided ? (
+                      <BarPicker
+                        icon={PlayListIcon}
+                        label={t.add.firstEpisode}
+                        placeholder={t.add.firstEpisode}
+                        items={(guideEpisodes.data ?? []).map((episode) => ({
+                          value: String(episode.number),
+                          label: t.add.episodeOption(episode.number, episode.name),
+                        }))}
+                        value={form.firstEpisode}
+                        fallback={siteFirstEpisode}
+                        onChange={(firstEpisode) => setForm({ ...form, firstEpisode })}
+                        busy={guideEpisodes.isFetching ? t.add.guideEpisodesLoading : undefined}
+                        className="border-l border-l-(--glass-edge)"
+                      />
+                    ) : (
+                      <BarField
+                        icon={PlayListIcon}
+                        label={t.add.firstEpisode}
+                        placeholder={t.add.firstEpisodePlaceholder}
+                        inputMode="numeric"
+                        maxLength={4}
+                        busy={guideEpisodes.isFetching ? t.add.guideEpisodesLoading : undefined}
+                        error={invalid.has("firstEpisode") ? t.add.countInvalid : undefined}
+                        value={form.firstEpisode}
+                        onChange={(event) =>
+                          setForm({ ...form, firstEpisode: digitsOf(event.target.value) })
+                        }
+                        className="border-l border-l-(--glass-edge)"
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="flex">
                   {asksFollow && (
                     <BarToggle
@@ -1212,7 +1297,13 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                     title={blocker ?? undefined}
                   >
                     {blocker ??
-                      (numbered === "" ? null : t.add.readyToAdd(form.included.length, numbered))}
+                      (movie
+                        ? asksNew
+                          ? t.add.readyMovie
+                          : t.add.readyMovieSource
+                        : numbered === ""
+                          ? null
+                          : t.add.readyToAdd(form.included.length, numbered))}
                   </p>
                   <button
                     type="button"
@@ -1222,13 +1313,20 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                     className="flex h-14 shrink-0 items-center gap-2 rounded-full bg-primary px-6 text-base font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/85 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                   >
                     {adding && <Spinner aria-hidden="true" />}
-                    {adding ? t.add.confirming : t.add.confirm}
+                    {adding
+                      ? t.add.confirming
+                      : movie
+                        ? asksNew
+                          ? t.add.confirmMovie
+                          : t.add.confirmMovieSource
+                        : t.add.confirm}
                   </button>
                 </div>
               </div>
             )}
             {attached && sideCard && tmdbShow && sideCard.show === tmdbCard && (
               <TmdbShowSection
+                mediaKind={tmdbKind}
                 caption={sideCard.caption}
                 show={sideCard.show}
                 tmdb={tmdbShow}
@@ -1312,7 +1410,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
         )}
       </div>
 
-      {attached && (
+      {attached && !loneVideo && (
         <EpisodeGrid
           preview={preview}
           form={form}

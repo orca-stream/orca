@@ -1,12 +1,12 @@
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { TextFontIcon, Tv01Icon } from "@hugeicons/core-free-icons";
+import { Film01Icon, TextFontIcon, Tv01Icon } from "@hugeicons/core-free-icons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
-import type { ShowSearchResultDto } from "@/api/types";
+import type { MediaKind, ShowSearchResultDto } from "@/api/types";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { useDebounced } from "@/hooks/use-debounced";
@@ -17,34 +17,60 @@ import { searchQuery } from "./title-search";
 
 /** How long the title has to stay put before TMDB is asked. */
 const SEARCH_DELAY_MS = 350;
+/** A TMDB result and whether it is a show or a movie: TMDB numbers each apart. */
+type Found = ShowSearchResultDto & { kind: MediaKind };
+
 /**
  * The title of a new series, which is also where it is looked up on TMDB: what is typed (or, with
- * nothing typed, the site's name for it) lists TMDB's shows of that name below the row, and picking
- * one fills in its title, year and TMDB id. Typing alone stays a title of one's own.
+ * nothing typed, the site's name for it) lists TMDB's shows and movies of that name below the row,
+ * the kind being added first, and picking one fills in its title, year and TMDB id — and says
+ * whether it is a show or a movie. Typing alone stays a title of one's own.
  */
 export function TitleSearch({
   value,
   siteTitle,
+  kind,
   onType,
   onPick,
 }: {
   value: string;
   siteTitle: string | null;
+  /** What is being added: its results go first. */
+  kind: MediaKind;
   onType: (title: string) => void;
-  onPick: (show: ShowSearchResultDto) => void;
+  onPick: (show: ShowSearchResultDto, kind: MediaKind) => void;
 }) {
   const t = useT();
   const api = useApi();
   const row = useRef<HTMLDivElement>(null);
   const wanted = searchQuery(value, siteTitle);
   const query = useDebounced(wanted, SEARCH_DELAY_MS);
-  const search = useQuery({
-    ...queries.showSearch(api, query),
+  const asked = {
     enabled: query !== "",
     // The list stays while the next answer comes, instead of blinking empty on every key.
     placeholderData: keepPreviousData,
-  });
-  const results = query !== "" ? (search.data ?? []) : [];
+  };
+  const shows = useQuery({ ...queries.showSearch(api, query, "show"), ...asked });
+  const movies = useQuery({ ...queries.showSearch(api, query, "movie"), ...asked });
+  const [first, second] = kind === "movie" ? [movies, shows] : [shows, movies];
+  const firstKind: MediaKind = kind === "movie" ? "movie" : "show";
+  const secondKind: MediaKind = kind === "movie" ? "show" : "movie";
+  const results: Found[] =
+    query !== ""
+      ? [
+          ...(first.data ?? []).map((found) => ({ ...found, kind: firstKind })),
+          ...(second.data ?? []).map((found) => ({ ...found, kind: secondKind })),
+        ]
+      : [];
+  // The kind being added says how the search went; the other only adds to it.
+  const search = {
+    isError: first.isError && second.isError,
+    error: first.error,
+    isSuccess: first.isSuccess || second.isSuccess,
+    isPlaceholderData: first.isPlaceholderData,
+    isPending: first.isPending,
+    isFetching: first.isFetching || second.isFetching,
+  };
 
   // Said above the list: what it is for, or why it is empty.
   const status =
@@ -68,7 +94,7 @@ export function TitleSearch({
         // Only typing writes the title: a pick fills it in through `onPick`, with the rest.
         if (details.reason === "input-change" || details.reason === "input-clear") onType(next);
       }}
-      itemToStringValue={(show: ShowSearchResultDto) => show.title}
+      itemToStringValue={(show: Found) => show.title}
       filter={null}
       openOnInputClick
     >
@@ -103,14 +129,17 @@ export function TitleSearch({
               {status}
             </Autocomplete.Status>
             <Autocomplete.List className="no-scrollbar max-h-[min(26rem,calc(var(--available-height)-3rem))] scroll-py-1 overflow-y-auto overscroll-contain">
-              {(show: ShowSearchResultDto) => (
+              {(show: Found) => (
                 <Autocomplete.Item
-                  key={show.tmdbId}
+                  key={`${show.kind}:${show.tmdbId}`}
                   value={show}
-                  onClick={() => onPick(show)}
+                  onClick={() => {
+                    const { kind: picked, ...found } = show;
+                    onPick(found, picked);
+                  }}
                   className="flex cursor-default items-center gap-3 rounded-xl p-2 outline-hidden select-none data-highlighted:bg-black/6"
                 >
-                  <ResultPoster url={show.posterUrl} />
+                  <ResultPoster url={show.posterUrl} kind={show.kind} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-base">{show.title}</span>
                     {show.originalTitle && (
@@ -124,11 +153,10 @@ export function TitleSearch({
                       </span>
                     )}
                   </span>
-                  {show.year !== null && (
-                    <span className="shrink-0 pr-2 text-sm text-muted-foreground tabular-nums">
-                      {show.year}
-                    </span>
-                  )}
+                  <span className="flex shrink-0 flex-col items-end gap-0.5 pr-2 text-sm text-muted-foreground tabular-nums">
+                    <span>{show.kind === "movie" ? t.add.asMovie : t.add.asShow}</span>
+                    {show.year !== null && <span>{show.year}</span>}
+                  </span>
                 </Autocomplete.Item>
               )}
             </Autocomplete.List>
@@ -139,14 +167,14 @@ export function TitleSearch({
   );
 }
 
-/** A result's poster as a small card; without one, a TV in its place. */
-function ResultPoster({ url }: { url: string | null }) {
+/** A result's poster as a small card; without one, a TV (or a film) in its place. */
+function ResultPoster({ url, kind }: { url: string | null; kind: MediaKind }) {
   return (
     <span className="flex h-15 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-black/5 text-muted-foreground">
       {url ? (
         <img src={url} alt="" loading="lazy" className="size-full object-cover" />
       ) : (
-        <HugeiconsIcon icon={Tv01Icon} className="size-5" />
+        <HugeiconsIcon icon={kind === "movie" ? Film01Icon : Tv01Icon} className="size-5" />
       )}
     </span>
   );

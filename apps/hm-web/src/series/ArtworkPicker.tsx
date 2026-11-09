@@ -2,6 +2,7 @@ import type {
   ArtworkKind,
   ArtworkOptionDto,
   ArtworkOptionsDto,
+  MediaKind,
   SeriesDto,
   ShowLookupDto,
 } from "@orca/hm-contract";
@@ -437,11 +438,13 @@ export function ArtworkPicker({
  */
 export function DraftArtworkPicker({
   tmdb,
+  mediaKind = "show",
   chosen,
   onChange,
   ...frame
 }: PickerFrame & {
   tmdb: ShowLookupDto;
+  mediaKind?: MediaKind;
   chosen: DraftArtworks;
   onChange: (chosen: DraftArtworks) => void;
 }) {
@@ -449,7 +452,7 @@ export function DraftArtworkPicker({
   const api = useApi();
   const { kind } = frame;
   const options = useQuery({
-    ...queries.showArtworkOptions(api, tmdb.tmdbId),
+    ...queries.showArtworkOptions(api, tmdb.tmdbId, mediaKind),
     enabled: frame.open,
   });
   const state = (k: ArtworkKind): KindState => {

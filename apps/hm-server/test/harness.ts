@@ -43,6 +43,8 @@ export async function createHarness(
     skipPlayers?: string[];
     /** A server set up without Jellyfin. */
     noJellyfin?: boolean;
+    /** A movies folder beside the series folder (`<root>/movies`, the series in `<root>/series`). */
+    movies?: boolean;
   } = {},
 ) {
   const db = testDatabase();
@@ -57,7 +59,9 @@ export async function createHarness(
   const authenticator = new FakeAuthenticator();
   const images = new FakeImageFetcher();
   const detector = new FakeStreamDetector();
-  const library = new FsLibraryWriter(root);
+  const library = options.movies
+    ? new FsLibraryWriter(join(root, "series"), {}, join(root, "movies"))
+    : new FsLibraryWriter(root);
   const extraNotifier = new RecordingNotifier();
 
   const deps: Deps = {

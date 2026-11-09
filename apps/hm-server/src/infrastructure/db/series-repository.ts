@@ -1,6 +1,6 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { AppError } from "../../domain/errors.ts";
-import type { EpisodeStatus } from "@orca/hm-contract";
+import type { EpisodeStatus, MediaKind } from "@orca/hm-contract";
 import type {
   EpisodeSourceSwitch,
   SeriesRepository,
@@ -119,21 +119,29 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     this.db.delete(series).where(eq(series.id, id)).run();
   }
 
-  async findByFolder(folderName: string): Promise<Series | null> {
-    const row = this.db.select().from(series).where(eq(series.folderName, folderName)).get();
+  async findByFolder(folderName: string, kind: MediaKind = "show"): Promise<Series | null> {
+    const row = this.db
+      .select()
+      .from(series)
+      .where(and(eq(series.folderName, folderName), eq(series.kind, kind)))
+      .get();
     return row ? toSeries(row) : null;
   }
 
-  async findByProviderIds(ids: {
-    tmdbId: string | null;
-    imdbId: string | null;
-  }): Promise<Series | null> {
+  async findByProviderIds(
+    ids: { tmdbId: string | null; imdbId: string | null },
+    kind: MediaKind = "show",
+  ): Promise<Series | null> {
     for (const [column, value] of [
       [series.tmdbId, ids.tmdbId],
       [series.imdbId, ids.imdbId],
     ] as const) {
       if (value === null) continue;
-      const row = this.db.select().from(series).where(eq(column, value)).get();
+      const row = this.db
+        .select()
+        .from(series)
+        .where(and(eq(column, value), eq(series.kind, kind)))
+        .get();
       if (row) return toSeries(row);
     }
     return null;
@@ -277,13 +285,13 @@ export class DrizzleSeriesRepository implements SeriesRepository {
     }
   }
 
-  async seriesTitles(ids: string[]): Promise<Map<string, string>> {
+  async seriesTitles(ids: string[]): Promise<Map<string, { title: string; kind: MediaKind }>> {
     if (ids.length === 0) return new Map();
     const rows = this.db
-      .select({ id: series.id, title: series.title })
+      .select({ id: series.id, title: series.title, kind: series.kind })
       .from(series)
       .where(inArray(series.id, ids))
       .all();
-    return new Map(rows.map((row) => [row.id, row.title]));
+    return new Map(rows.map((row) => [row.id, { title: row.title, kind: row.kind }]));
   }
 }

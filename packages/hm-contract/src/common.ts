@@ -21,3 +21,10 @@ export const LICENSE_KINDS = [
   "unknown",
 ] as const satisfies readonly LicenseKind[];
 export const LicenseKindSchema = z.enum(LICENSE_KINDS);
+
+/**
+ * What an entry is: a show (seasons of episodes, in the series folder) or a movie (one video, in
+ * the movies folder). A show's specials are a show's episodes in season 0.
+ */
+export const MediaKind = z.enum(["show", "movie"]);
+export type MediaKind = z.infer<typeof MediaKind>;

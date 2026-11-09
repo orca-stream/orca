@@ -29,6 +29,10 @@ export interface Draft {
   sameMachine: boolean;
   /** The folder as this server sees it: the only one without Jellyfin, a mount of Jellyfin's otherwise. */
   mediaRoot: string;
+  /** The movies folder as Jellyfin sees it; empty: no movies. */
+  jellyfinMoviesRoot: string;
+  /** The movies folder as this server sees it (as `mediaRoot` is); empty: no movies. */
+  moviesRoot: string;
   /** A new TMDB key; empty keeps the stored one, unless `removeTmdb`. */
   tmdbApiKey: string;
   hasTmdbApiKey: boolean;
@@ -84,6 +88,8 @@ export function suggestedDraft(): Draft {
     jellyfinMediaRoot: "",
     sameMachine: true,
     mediaRoot: "",
+    jellyfinMoviesRoot: "",
+    moviesRoot: "",
     tmdbApiKey: "",
     hasTmdbApiKey: false,
     removeTmdb: false,
@@ -129,6 +135,8 @@ export function draftFromView(view: SettingsView): Draft {
     jellyfinMediaRoot: jellyfin?.jellyfinMediaRoot ?? "",
     sameMachine: jellyfin === undefined || view.mediaRoot === jellyfin.jellyfinMediaRoot,
     mediaRoot: view.mediaRoot,
+    moviesRoot: view.moviesRoot ?? "",
+    jellyfinMoviesRoot: jellyfin?.jellyfinMoviesRoot ?? view.moviesRoot ?? "",
     hasTmdbApiKey: view.hasTmdbApiKey,
     contactEmail: view.contactEmail ?? "",
     // One at a time is how the careful way (players in order) shows: "1".
@@ -214,6 +222,16 @@ export function settingsFromDraft(
     : "";
   const mediaRoot =
     jellyfinOn && draft.sameMachine ? jellyfinMediaRoot : required("mediaRoot", draft.mediaRoot);
+  // Optional: without one, no movies are added. With Jellyfin, the folder it reads them from; this
+  // server's own path is that one on the same machine, else the one it had (or that one).
+  const jellyfinMoviesRoot = jellyfinOn ? draft.jellyfinMoviesRoot.trim() : "";
+  const moviesRoot = jellyfinOn
+    ? draft.sameMachine
+      ? jellyfinMoviesRoot
+      : jellyfinMoviesRoot === ""
+        ? ""
+        : draft.moviesRoot.trim() || jellyfinMoviesRoot
+    : draft.moviesRoot.trim();
   const contactEmail = draft.contactEmail.trim();
   if (contactEmail !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
     errors.contactEmail = "email";
@@ -234,11 +252,13 @@ export function settingsFromDraft(
   const update: SettingsUpdate = {
     signIn: draft.signIn,
     mediaRoot,
+    ...(moviesRoot !== "" ? { moviesRoot } : {}),
     ...(jellyfinOn
       ? {
           jellyfin: {
             url,
             jellyfinMediaRoot,
+            ...(jellyfinMoviesRoot !== "" ? { jellyfinMoviesRoot } : {}),
             ...(draft.apiKey ? { apiKey: draft.apiKey } : {}),
           },
         }

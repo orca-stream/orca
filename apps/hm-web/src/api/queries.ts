@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
+  MediaKind,
   ArtworkKind,
   ArtworkOptionsDto,
   EpisodeDto,
@@ -17,6 +18,9 @@ import type {
 } from "./types";
 import type { ApiClient } from "./client";
 import { keys } from "./keys";
+
+/** A movie is asked for as one; a show, as before (the server's default). */
+const kindQuery = (kind: MediaKind) => (kind === "movie" ? "?kind=movie" : "");
 
 interface Page<T> {
   items: T[];
@@ -101,11 +105,12 @@ export const queries = {
         api.get<EpisodeDto[]>(`/series/${id(seriesId)}/episodes`, { signal }),
     }),
 
-  /** The shows Jellyfin already has, and the series this server has for each. */
-  libraryShows: (api: ApiClient) =>
+  /** The shows (or movies) Jellyfin already has, and the series this server has for each. */
+  libraryShows: (api: ApiClient, kind: MediaKind = "show") =>
     queryOptions({
-      queryKey: keys.libraryShows,
-      queryFn: ({ signal }) => api.get<LibraryShowDto[]>("/library/shows", { signal }),
+      queryKey: keys.libraryShows(kind),
+      queryFn: ({ signal }) =>
+        api.get<LibraryShowDto[]>(`/library/shows${kindQuery(kind)}`, { signal }),
       staleTime: 60_000,
       // Without Jellyfin the panel still adds series; it just can't offer its shows.
       retry: false,
@@ -124,10 +129,11 @@ export const queries = {
    * What TMDB says of a show. Its name holds still, but whether it airs and its next episode change,
    * and the server answers without them when TMDB fails it once: kept for an hour, not for good.
    */
-  showLookup: (api: ApiClient, tmdbId: string) =>
+  showLookup: (api: ApiClient, tmdbId: string, kind: MediaKind = "show") =>
     queryOptions({
-      queryKey: keys.showLookup(tmdbId),
-      queryFn: ({ signal }) => api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}`, { signal }),
+      queryKey: keys.showLookup(tmdbId, kind),
+      queryFn: ({ signal }) =>
+        api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}${kindQuery(kind)}`, { signal }),
       staleTime: SHOW_LOOKUP_STALE_MS,
       // A 404 is the answer, not a hiccup; and nobody waits through retries while typing.
       retry: false,
@@ -145,13 +151,14 @@ export const queries = {
     }),
 
   /** The shows TMDB has by a name, to pick a new series' TMDB id from. */
-  showSearch: (api: ApiClient, query: string) =>
+  showSearch: (api: ApiClient, query: string, kind: MediaKind = "show") =>
     queryOptions({
-      queryKey: keys.showSearch(query),
+      queryKey: keys.showSearch(query, kind),
       queryFn: ({ signal }) =>
-        api.get<ShowSearchResultDto[]>(`/lookup/tmdb?${new URLSearchParams({ query })}`, {
-          signal,
-        }),
+        api.get<ShowSearchResultDto[]>(
+          `/lookup/tmdb?${new URLSearchParams({ query, ...(kind === "movie" ? { kind } : {}) })}`,
+          { signal },
+        ),
       staleTime: SHOW_LOOKUP_STALE_MS,
       // Nobody waits through retries while typing: the next key asks again.
       retry: false,
@@ -169,11 +176,13 @@ export const queries = {
     }),
 
   /** The same images for a show by its TMDB id, to choose them while adding it as a series. */
-  showArtworkOptions: (api: ApiClient, tmdbId: string) =>
+  showArtworkOptions: (api: ApiClient, tmdbId: string, kind: MediaKind = "show") =>
     queryOptions({
-      queryKey: keys.showArtworkOptions(tmdbId),
+      queryKey: keys.showArtworkOptions(tmdbId, kind),
       queryFn: ({ signal }) =>
-        api.get<ArtworkOptionsDto>(`/lookup/tmdb/${id(tmdbId)}/artwork`, { signal }),
+        api.get<ArtworkOptionsDto>(`/lookup/tmdb/${id(tmdbId)}/artwork${kindQuery(kind)}`, {
+          signal,
+        }),
       staleTime: 10 * 60_000,
       // A 503 (no key) is the answer: only uploading is offered then.
       retry: false,

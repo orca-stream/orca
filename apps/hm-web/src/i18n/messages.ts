@@ -52,15 +52,15 @@ const es = {
   },
   dock: {
     label: "Atajos",
-    search: "Buscar series",
-    searchField: "Buscar entre las series",
-    searchPlaceholder: "Buscar una serie…",
+    search: "Buscar por título",
+    searchField: "Buscar por título",
+    searchPlaceholder: "Buscar por título…",
     clear: "Limpiar la búsqueda",
     close: "Cerrar la búsqueda",
     startOver: "Empezar de nuevo",
-    add: "Nueva serie",
+    add: "Añadir",
     checkNow: "Buscar episodios nuevos ahora",
-    noMatch: (query: string) => `Ninguna serie coincide con «${query}».`,
+    noMatch: (query: string) => `Nada coincide con «${query}».`,
   },
   live: {
     open: "En vivo",
@@ -94,8 +94,14 @@ const es = {
     },
   },
   home: {
-    seriesCount: (n: number) => (n === 1 ? "1 serie" : `${n} series`),
-    seriesEmpty: "Aún no hay series",
+    libraryCount: (shows: number, movies: number) =>
+      [
+        shows === 0 ? null : shows === 1 ? "1 serie" : `${shows} series`,
+        movies === 0 ? null : movies === 1 ? "1 película" : `${movies} películas`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    seriesEmpty: "Aún no hay nada",
     anyPage: "Cualquier página",
   },
   dashboard: {
@@ -154,9 +160,9 @@ const es = {
   },
   series: {
     title: "Series",
-    add: "Añadir serie",
-    empty: "Todavía no hay series.",
-    emptyHint: "Pega la dirección de una serie para añadirla.",
+    add: "Añadir",
+    empty: "Todavía no hay nada.",
+    emptyHint: "Pega la dirección de una serie o de una película para añadirla.",
     available: (have: number, total: number) => `${have}/${total} disponibles`,
     gaps: (count: number) => (count === 1 ? "Falta 1" : `Faltan ${count}`),
     gapsTitle: "En TMDB y en ninguna fuente",
@@ -188,9 +194,9 @@ const es = {
     pausedLine: (n: number) => (n > 0 ? `En pausa · ${n} en cola` : "En pausa"),
     pause: "Pausar",
     resume: "Reanudar",
-    pauseHint: "Detiene las descargas de esta serie; lo descargado se conserva",
+    pauseHint: "Detiene sus descargas; lo descargado se conserva",
     paused: "En pausa",
-    notFound: "No existe esa serie.",
+    notFound: "No existe.",
     back: "Volver a las series",
     sourceNumbering: (season: number | null, offset: number) =>
       [
@@ -263,11 +269,16 @@ const es = {
     preferredHint: (season: number) =>
       `Los episodios nuevos de la temporada ${season} llegan solo de esta fuente mientras esté abierta.`,
     retryEpisode: "Reintentar",
+    movieVideo: "Vídeo",
+    movieDownload: "Descargar",
+    movieDelete: "Borrar el archivo de la película",
+    movieSource: "Fuente en uso",
     deleteEpisode: (code: string) => `Borrar el archivo de ${code}`,
     deleteEpisodeConfirm: "Borrar",
     deleteEpisodeHint:
       "Se borra el vídeo con sus subtítulos; el episodio queda «Falta» y se puede volver a descargar.",
     deleteSeries: "Borrar la serie",
+    deleteMovie: "Borrar la película",
     deleteSeriesTitle: (title: string) => `¿Borrar «${title}»?`,
     deleteSeriesHint:
       "H&M deja de seguirla: se quitan sus fuentes y episodios y se cancelan sus descargas.",
@@ -276,7 +287,7 @@ const es = {
       "Se borra su carpeta entera del disco: vídeos, subtítulos y carátulas. No se puede deshacer.",
     deleteSeriesFilesOff: "Los archivos se quedan en su carpeta y Jellyfin la sigue mostrando.",
     deleteSeriesConfirm: "Borrar",
-    deleteSeriesFailed: "No se pudo borrar la serie.",
+    deleteSeriesFailed: "No se pudo borrar.",
     episodeStatus: {
       missing: "Falta",
       queued: "En cola",
@@ -287,9 +298,9 @@ const es = {
     inferred: "Inferido",
     actionFailed: "No se pudo completar la acción.",
     artwork: {
-      title: "Imágenes de la serie",
-      hint: "Se guardan en la carpeta de la serie, donde Jellyfin las lee.",
-      draftHint: "Se guardan en la carpeta de la serie al añadirla.",
+      title: "Imágenes",
+      hint: "Se guardan en su carpeta, donde Jellyfin las lee.",
+      draftHint: "Se guardan en su carpeta al añadirla.",
       edit: "Cambiar las imágenes",
       editPoster: "Cambiar el póster",
       close: "Cerrar",
@@ -310,12 +321,14 @@ const es = {
     },
     detail: {
       settings: "Ajustes de la serie",
+      settingsMovie: "Ajustes de la película",
       openSource: "Abrir en el sitio",
       addSource: "Añadir otra fuente",
       addSourceHint: "Otra temporada o lo que falta, desde otra dirección",
       sources: (n: number) => (n === 1 ? "1 fuente" : `${n} fuentes`),
       sourceSpan: (season: number, from: number, to: number, skips: string) =>
         `${season === 0 ? "Especiales" : `Temporada ${season}`}, ${from === to ? `episodio ${from}` : `episodios ${from} al ${to}`}${skips ? `, sin ${skips}` : ""}`,
+      movieSources: "La misma película en otros sitios",
       sourcesSummary: (open: number, closed: number) =>
         [
           open === 0
@@ -398,11 +411,12 @@ const es = {
     seriesDownloadedTitle: "Descargas terminadas",
     seriesDownloaded: (series: string, available: number, total: number) =>
       `${series}: ${available} de ${total} episodios disponibles`,
+    movieDownloaded: (movie: string) => `${movie} ya está disponible`,
     jobFailedTitle: "Un trabajo falló",
   },
   add: {
-    title: "Añadir serie",
-    subtitle: "Pega la dirección de la serie o de uno de sus episodios.",
+    title: "Añadir una serie o una película",
+    subtitle: "Pega la dirección de una serie, de uno de sus episodios o de una película.",
     url: "Dirección",
     urlPlaceholder: "https://…",
     urlOrSearchPlaceholder: "Pega una dirección o busca por título",
@@ -410,17 +424,17 @@ const es = {
     siteSearchShort: (min: number) => `Mínimo ${min} letras`,
     siteSearchFor: (query: string) => `En los sitios, para «${query}»`,
     siteSearchSome: (names: string) => `No respondió: ${names}`,
-    siteNoResults: (query: string) => `Ningún sitio tiene una serie llamada «${query}».`,
+    siteNoResults: (query: string) => `Ningún sitio tiene nada llamado «${query}».`,
     siteSearchAllFailed: "No se pudo buscar en los sitios; pega la dirección.",
     siteFoundOn: (name: string) => `En ${name}`,
     siteFoundYours: "Ya la tienes",
-    siteResults: (count: number) => (count === 1 ? "1 serie" : `${count} series`),
+    siteResults: (count: number) => (count === 1 ? "1 resultado" : `${count} resultados`),
     siteResultsLabel: "Resultados de los sitios",
     sitePages: "Páginas de resultados",
     sitePage: (page: number) => `Página ${page}`,
     sitePrevious: "Página anterior",
     siteNext: "Página siguiente",
-    searchAgain: "Buscar otra serie",
+    searchAgain: "Buscar otro título",
     matches: (name: string) => `Lo leerá el extractor ${name}.`,
     extractorChoice: "Leer con",
     autoExtractor: "Automático (por la dirección)",
@@ -435,12 +449,21 @@ const es = {
     noEpisodes: "No se encontraron episodios en esa dirección.",
     upstream: "El sitio de origen no respondió bien. Inténtalo más tarde.",
     expired:
-      "La previsualización había caducado y se volvió a leer. Revisa los datos y pulsa «Añadir serie» otra vez.",
+      "La previsualización había caducado y se volvió a leer. Revisa los datos y vuelve a añadirla.",
     alreadyAdded:
       "Choca con algo que ya existe (la dirección, la carpeta o unos episodios). Detalle del servidor:",
     addTo: "Añadir a",
     addToSearch: "Serie nueva, o busca una que ya tengas",
-    addToNone: "Ninguna serie con ese nombre",
+    addToSearchMovie: "Película nueva, o busca una que ya tengas",
+    addAs: "Añadir como",
+    asShow: "Serie",
+    asSpecials: "Especiales de una serie",
+    asMovie: "Película",
+    asSuggested: "Sugerido",
+    needsMovieVideo: "Elige el vídeo de la película.",
+    readyMovie: "Se añadirá como película.",
+    readyMovieSource: "Se añadirá como otra fuente de la película.",
+    addToNone: "Nada con ese nombre",
     inJellyfin: "En Jellyfin",
     cardSeasons: (n: number) => `${n} ${n === 1 ? "temporada" : "temporadas"}`,
     cardEpisodes: (available: number, total: number) =>
@@ -452,7 +475,9 @@ const es = {
     alreadyHave: (name: string) => `Ya tienes «${name}» con ese id.`,
     alreadyYours: "Ya la tienes:",
     addToIt: "Añadir a esta serie",
+    addToItMovie: "Añadir a esta película",
     dismissTwin: "Descartar, es otra serie",
+    dismissTwinMovie: "Descartar, es otra película",
     existingHas: (title: string, ranges: string) =>
       ranges === "" ? `«${title}» aún no tiene episodios.` : `«${title}» ya tiene ${ranges}.`,
     tmdbId: "Id de TMDB",
@@ -461,14 +486,15 @@ const es = {
       "Opcionales. Con uno de los dos, Jellyfin trae solo la descripción, las imágenes y los títulos de los episodios.",
     tmdbInvalid: "Un número, como en themoviedb.org/tv/12345.",
     imdbInvalid: "Como tt0123456.",
-    tmdbLooking: "Buscando la serie en TMDB…",
+    tmdbLooking: "Buscando en TMDB…",
     tmdbNotFound: "TMDB no tiene ninguna serie con ese id.",
+    tmdbNotFoundMovie: "TMDB no tiene ninguna película con ese id.",
     tmdbLookupFailed: "No se pudo buscar en TMDB; rellena el título a mano.",
     tmdbUnavailable: "Sin Jellyfin ni clave de TMDB no se puede buscar: rellena los datos a mano.",
     titlePlaceholder: "Título: escribe para buscarlo en TMDB",
     tmdbSearching: "Buscando en TMDB…",
     tmdbSearchFor: (query: string) => `En TMDB, para «${query}»`,
-    tmdbNoResults: (query: string) => `TMDB no tiene ninguna serie llamada «${query}».`,
+    tmdbNoResults: (query: string) => `TMDB no tiene nada llamado «${query}».`,
     tmdbSearchFailed: "No se pudo buscar en TMDB; escribe el título a mano.",
     tmdbOriginal: (title: string) => `Original: ${title}`,
     yearPlaceholder: "Año, p. ej. 1998",
@@ -506,7 +532,7 @@ const es = {
     },
     clashes: (codes: string) =>
       `Dos episodios quedarían como ${codes}: cambia la numeración o quita uno.`,
-    createFailed: "No se pudo añadir la serie.",
+    createFailed: "No se pudo añadir.",
     fieldTitle: "Título",
     fieldYear: "Año",
     yearInvalid: "Escribe un año válido.",
@@ -544,8 +570,8 @@ const es = {
       inferred: "Se dedujo la temporada o el número de algunos episodios: revísalos.",
       duplicate: "Hay episodios repetidos.",
       compilation: "Algunos archivos parecen recopilaciones de varios episodios.",
-      license: "La licencia no está clara o la serie es reciente.",
-      year: "No se pudo leer el año de la serie.",
+      license: "La licencia no está clara o el título es reciente.",
+      year: "No se pudo leer el año.",
       skipped: "Se omitieron archivos que no son un único vídeo.",
     },
     episodes: (included: number, total: number) => `Episodios (${included} de ${total})`,
@@ -562,6 +588,8 @@ const es = {
     followSeries: "Seguir la serie (buscar episodios nuevos)",
     downloadNow: "Descargar ahora",
     confirm: "Añadir serie",
+    confirmMovie: "Añadir película",
+    confirmMovieSource: "Añadir fuente",
     confirming: "Añadiendo…",
     needsEpisodes: "Elige al menos un episodio.",
     needsTitle: "Escribe un título.",
@@ -595,7 +623,7 @@ const es = {
     readyToAdd: (count: number, ranges: string) =>
       `${count} ${count === 1 ? "episodio" : "episodios"} · ${ranges}`,
     generalWarnings: (count: number) =>
-      `${count} ${count === 1 ? "aviso" : "avisos"} sobre la serie`,
+      `${count} ${count === 1 ? "aviso" : "avisos"} al leer el sitio`,
     tmdbAgrees: "Igual que TMDB",
     tmdbDiffers: "Distinto de TMDB",
     tmdbMatchTitle: "El sitio frente a TMDB",
@@ -692,6 +720,14 @@ const es = {
       jellyfinPath: "Ruta de la carpeta",
       jellyfinPathPlaceholder: "Como la ve Jellyfin",
     },
+    movies: {
+      title: "Carpeta de películas",
+      description:
+        "Donde H&M guarda las películas, cada una en su carpeta. Vacía: no se añaden películas.",
+      path: "Ruta de la carpeta de películas",
+      placeholder: "Donde H&M guarda las películas",
+      jellyfinPlaceholder: "Como la ve Jellyfin (una biblioteca de películas)",
+    },
     folders: {
       browse: "Elegir la carpeta",
       title: "Carpetas del servidor",
@@ -758,6 +794,7 @@ const es = {
     hints: {
       library: "La biblioteca de series de Jellyfin donde H&M deja los episodios que descarga.",
       mediaRoot: "La carpeta de este equipo donde H&M guarda las series; se crea si no existe.",
+      moviesRoot: "Aparte de la de series, ni dentro ni encima de ella; se crea si no existe.",
       jellyfinPath:
         "La carpeta tal como la ve Jellyfin. Si Jellyfin está en otro equipo, H&M tiene que poder escribir en esa misma ruta (por ejemplo, montándola).",
       tmdbKey:
@@ -868,15 +905,15 @@ const en: typeof es = {
   },
   dock: {
     label: "Shortcuts",
-    search: "Search the series",
-    searchField: "Search among the series",
-    searchPlaceholder: "Search for a series…",
+    search: "Search by title",
+    searchField: "Search by title",
+    searchPlaceholder: "Search by title…",
     clear: "Clear the search",
     close: "Close the search",
     startOver: "Start over",
-    add: "New series",
+    add: "Add",
     checkNow: "Look for new episodes now",
-    noMatch: (query: string) => `No series matches “${query}”.`,
+    noMatch: (query: string) => `Nothing matches “${query}”.`,
   },
   live: {
     open: "Live",
@@ -910,8 +947,14 @@ const en: typeof es = {
     },
   },
   home: {
-    seriesCount: (n: number) => (n === 1 ? "1 series" : `${n} series`),
-    seriesEmpty: "No series yet",
+    libraryCount: (shows: number, movies: number) =>
+      [
+        shows === 0 ? null : `${shows} series`,
+        movies === 0 ? null : movies === 1 ? "1 movie" : `${movies} movies`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    seriesEmpty: "Nothing yet",
     anyPage: "Any page",
   },
   dashboard: {
@@ -969,9 +1012,9 @@ const en: typeof es = {
   },
   series: {
     title: "Series",
-    add: "Add series",
-    empty: "No series yet.",
-    emptyHint: "Paste a series address to add it.",
+    add: "Add",
+    empty: "Nothing yet.",
+    emptyHint: "Paste the address of a show or a movie to add it.",
     available: (have: number, total: number) => `${have}/${total} available`,
     gaps: (count: number) => `${count} missing`,
     gapsTitle: "In TMDB, in no source",
@@ -1002,9 +1045,9 @@ const en: typeof es = {
     pausedLine: (n: number) => (n > 0 ? `Paused · ${n} waiting` : "Paused"),
     pause: "Pause",
     resume: "Resume",
-    pauseHint: "Stops this series' downloads; what was fetched is kept",
+    pauseHint: "Stops its downloads; what was fetched is kept",
     paused: "Paused",
-    notFound: "That series does not exist.",
+    notFound: "It does not exist.",
     back: "Back to series",
     sourceNumbering: (season: number | null, offset: number) =>
       [
@@ -1077,11 +1120,16 @@ const en: typeof es = {
     preferredHint: (season: number) =>
       `New episodes of season ${season} come only from this source while it is open.`,
     retryEpisode: "Retry",
+    movieVideo: "Video",
+    movieDownload: "Download",
+    movieDelete: "Delete the movie's file",
+    movieSource: "Source in use",
     deleteEpisode: (code: string) => `Delete the file of ${code}`,
     deleteEpisodeConfirm: "Delete",
     deleteEpisodeHint:
       "The video goes with its subtitles; the episode stays as missing and can be downloaded again.",
     deleteSeries: "Delete the series",
+    deleteMovie: "Delete the movie",
     deleteSeriesTitle: (title: string) => `Delete “${title}”?`,
     deleteSeriesHint:
       "H&M stops keeping it: its sources and episodes go, and its downloads are cancelled.",
@@ -1090,7 +1138,7 @@ const en: typeof es = {
       "Its whole folder is deleted from disk: videos, subtitles and artwork. This can't be undone.",
     deleteSeriesFilesOff: "The files stay in its folder, and Jellyfin keeps showing it.",
     deleteSeriesConfirm: "Delete",
-    deleteSeriesFailed: "The series couldn't be deleted.",
+    deleteSeriesFailed: "It couldn't be deleted.",
     episodeStatus: {
       missing: "Missing",
       queued: "Queued",
@@ -1101,9 +1149,9 @@ const en: typeof es = {
     inferred: "Inferred",
     actionFailed: "The action could not be completed.",
     artwork: {
-      title: "Series artwork",
-      hint: "Saved in the series' folder, where Jellyfin reads it.",
-      draftHint: "They are saved in the series' folder once it is added.",
+      title: "Artwork",
+      hint: "Saved in its folder, where Jellyfin reads it.",
+      draftHint: "They are saved in its folder once it is added.",
       edit: "Change the artwork",
       editPoster: "Change the poster",
       close: "Close",
@@ -1124,12 +1172,14 @@ const en: typeof es = {
     },
     detail: {
       settings: "Series settings",
+      settingsMovie: "Movie settings",
       openSource: "Open on the site",
       addSource: "Add another source",
       addSourceHint: "Another season or what is missing, from another address",
       sources: (n: number) => (n === 1 ? "1 source" : `${n} sources`),
       sourceSpan: (season: number, from: number, to: number, skips: string) =>
         `${season === 0 ? "Specials" : `Season ${season}`}, ${from === to ? `episode ${from}` : `episodes ${from} to ${to}`}${skips ? `, without ${skips}` : ""}`,
+      movieSources: "The same movie on other sites",
       sourcesSummary: (open: number, closed: number) =>
         [
           open === 0
@@ -1211,11 +1261,12 @@ const en: typeof es = {
     seriesDownloadedTitle: "Downloads finished",
     seriesDownloaded: (series: string, available: number, total: number) =>
       `${series}: ${available} of ${total} episodes are available`,
+    movieDownloaded: (movie: string) => `${movie} is available`,
     jobFailedTitle: "A job failed",
   },
   add: {
-    title: "Add series",
-    subtitle: "Paste the address of the series or of one of its episodes.",
+    title: "Add a show or a movie",
+    subtitle: "Paste the address of a show, of one of its episodes, or of a movie.",
     url: "Address",
     urlPlaceholder: "https://…",
     urlOrSearchPlaceholder: "Paste an address or search by title",
@@ -1223,17 +1274,17 @@ const en: typeof es = {
     siteSearchShort: (min: number) => `At least ${min} letters`,
     siteSearchFor: (query: string) => `On the sites, for “${query}”`,
     siteSearchSome: (names: string) => `No answer from ${names}`,
-    siteNoResults: (query: string) => `No site has a show called “${query}”.`,
+    siteNoResults: (query: string) => `No site has anything called “${query}”.`,
     siteSearchAllFailed: "Could not search the sites; paste the address.",
     siteFoundOn: (name: string) => `On ${name}`,
     siteFoundYours: "Already yours",
-    siteResults: (count: number) => (count === 1 ? "1 series" : `${count} series`),
+    siteResults: (count: number) => (count === 1 ? "1 result" : `${count} results`),
     siteResultsLabel: "Results from the sites",
     sitePages: "Result pages",
     sitePage: (page: number) => `Page ${page}`,
     sitePrevious: "Previous page",
     siteNext: "Next page",
-    searchAgain: "Search for another show",
+    searchAgain: "Search for another title",
     matches: (name: string) => `The ${name} extractor will read it.`,
     extractorChoice: "Read with",
     autoExtractor: "Automatic (by the address)",
@@ -1247,13 +1298,21 @@ const en: typeof es = {
     notFound: "Nothing was found at that address.",
     noEpisodes: "No episodes were found at that address.",
     upstream: "The source site did not answer properly. Try again later.",
-    expired:
-      "The preview had expired and was read again. Check the details and press “Add series” again.",
+    expired: "The preview had expired and was read again. Check the details and add it again.",
     alreadyAdded:
       "It clashes with something that exists (the address, the folder or some episodes). The server says:",
     addTo: "Add to",
     addToSearch: "New series, or find one you have",
-    addToNone: "No series by that name",
+    addToSearchMovie: "New movie, or find one you have",
+    addAs: "Add as",
+    asShow: "Series",
+    asSpecials: "Specials of a series",
+    asMovie: "Movie",
+    asSuggested: "Suggested",
+    needsMovieVideo: "Pick the movie's video.",
+    readyMovie: "It will be added as a movie.",
+    readyMovieSource: "It will be added as another source of the movie.",
+    addToNone: "Nothing by that name",
     inJellyfin: "In Jellyfin",
     cardSeasons: (n: number) => `${n} ${n === 1 ? "season" : "seasons"}`,
     cardEpisodes: (available: number, total: number) =>
@@ -1265,7 +1324,9 @@ const en: typeof es = {
     alreadyHave: (name: string) => `You already have “${name}” with that id.`,
     alreadyYours: "Already yours:",
     addToIt: "Add to this series",
+    addToItMovie: "Add to this movie",
     dismissTwin: "Dismiss, it's another series",
+    dismissTwinMovie: "Dismiss, it's another movie",
     existingHas: (title: string, ranges: string) =>
       ranges === "" ? `“${title}” has no episodes yet.` : `“${title}” already has ${ranges}.`,
     tmdbId: "TMDB id",
@@ -1274,15 +1335,16 @@ const en: typeof es = {
       "Optional. With either one, Jellyfin fetches the description, the images and the episode titles itself.",
     tmdbInvalid: "A number, as in themoviedb.org/tv/12345.",
     imdbInvalid: "Like tt0123456.",
-    tmdbLooking: "Looking the show up on TMDB…",
+    tmdbLooking: "Looking it up on TMDB…",
     tmdbNotFound: "TMDB has no show with that id.",
+    tmdbNotFoundMovie: "TMDB has no movie with that id.",
     tmdbLookupFailed: "Couldn't look it up on TMDB; fill in the title by hand.",
     tmdbUnavailable:
       "Without Jellyfin or a TMDB key it can't be looked up: fill in the details by hand.",
     titlePlaceholder: "Title: type to look it up on TMDB",
     tmdbSearching: "Searching TMDB…",
     tmdbSearchFor: (query: string) => `On TMDB, for “${query}”`,
-    tmdbNoResults: (query: string) => `TMDB has no show called “${query}”.`,
+    tmdbNoResults: (query: string) => `TMDB has nothing called “${query}”.`,
     tmdbSearchFailed: "Could not search TMDB; type the title by hand.",
     tmdbOriginal: (title: string) => `Original: ${title}`,
     yearPlaceholder: "Year, e.g. 1998",
@@ -1320,7 +1382,7 @@ const en: typeof es = {
     },
     clashes: (codes: string) =>
       `Two episodes would both be ${codes}: change the numbering or leave one out.`,
-    createFailed: "The series could not be added.",
+    createFailed: "It could not be added.",
     fieldTitle: "Title",
     fieldYear: "Year",
     yearInvalid: "Enter a valid year.",
@@ -1358,8 +1420,8 @@ const en: typeof es = {
       inferred: "The season or number of some episodes was guessed: check them.",
       duplicate: "Some episodes appear more than once.",
       compilation: "Some files look like compilations of several episodes.",
-      license: "The license is unclear or the show is recent.",
-      year: "The year of the series could not be read.",
+      license: "The license is unclear or the title is recent.",
+      year: "The year could not be read.",
       skipped: "Files that aren't a single video were left out.",
     },
     episodes: (included: number, total: number) => `Episodes (${included} of ${total})`,
@@ -1376,6 +1438,8 @@ const en: typeof es = {
     followSeries: "Follow the series (look for new episodes)",
     downloadNow: "Download now",
     confirm: "Add series",
+    confirmMovie: "Add movie",
+    confirmMovieSource: "Add source",
     confirming: "Adding…",
     needsEpisodes: "Pick at least one episode.",
     needsTitle: "Enter a title.",
@@ -1409,7 +1473,7 @@ const en: typeof es = {
     readyToAdd: (count: number, ranges: string) =>
       `${count} ${count === 1 ? "episode" : "episodes"} · ${ranges}`,
     generalWarnings: (count: number) =>
-      `${count} ${count === 1 ? "warning" : "warnings"} about the series`,
+      `${count} ${count === 1 ? "warning" : "warnings"} reading the site`,
     tmdbAgrees: "Matches TMDB",
     tmdbDiffers: "Differs from TMDB",
     tmdbMatchTitle: "The site against TMDB",
@@ -1507,6 +1571,14 @@ const en: typeof es = {
       jellyfinPath: "Folder path",
       jellyfinPathPlaceholder: "As Jellyfin sees it",
     },
+    movies: {
+      title: "Movies folder",
+      description:
+        "Where H&M keeps the movies, each in its own folder. Empty: no movies are added.",
+      path: "Movies folder path",
+      placeholder: "Where H&M keeps the movies",
+      jellyfinPlaceholder: "As Jellyfin sees it (a movies library)",
+    },
     folders: {
       browse: "Pick the folder",
       title: "The server's folders",
@@ -1573,6 +1645,8 @@ const en: typeof es = {
     hints: {
       library: "Jellyfin's shows library where H&M puts the episodes it downloads.",
       mediaRoot: "The folder on this machine where H&M keeps the shows; made if it isn't there.",
+      moviesRoot:
+        "Apart from the shows folder, neither inside it nor holding it; made if it isn't there.",
       jellyfinPath:
         "The folder as Jellyfin sees it. When Jellyfin is on another machine, H&M has to be able to write to that same path (by mounting it, for instance).",
       tmdbKey:

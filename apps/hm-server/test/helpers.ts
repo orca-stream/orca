@@ -29,6 +29,7 @@ export function testDatabase(clock = new ManualClock()) {
 export function aSeries(overrides: Partial<Series> = {}): Series {
   return {
     id: "series-1",
+    kind: "show",
     title: "The Beverly Hillbillies",
     year: 1962,
     plot: "A family strikes oil.",

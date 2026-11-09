@@ -7,14 +7,11 @@ import type { QueueEvents } from "./queue.ts";
 /** Turns job changes into the SSE events the panel listens to. */
 export function createJobEvents(deps: Pick<Deps, "series" | "events">) {
   async function publishJob(job: Job): Promise<void> {
-    const titles = job.seriesId
-      ? await deps.series.seriesTitles([job.seriesId])
-      : new Map<string, string>();
+    const of = job.seriesId
+      ? (await deps.series.seriesTitles([job.seriesId])).get(job.seriesId)
+      : null;
     const episode = job.episodeId ? await deps.series.getEpisode(job.episodeId) : null;
-    deps.events.publish({
-      type: "job.updated",
-      job: toJobDto(job, (job.seriesId && titles.get(job.seriesId)) || null, episode),
-    });
+    deps.events.publish({ type: "job.updated", job: toJobDto(job, of ?? null, episode) });
   }
 
   const queueEvents: QueueEvents = {

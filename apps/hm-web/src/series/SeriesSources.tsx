@@ -135,9 +135,12 @@ function SourceRow({
   spans,
   ended,
   children,
+  closable = true,
 }: {
   seriesId: string;
   source: Source;
+  /** A source checks read, that can be closed; a movie's never brings anything new. */
+  closable?: boolean;
   extractor: ExtractorDto | null;
   /** TMDB says the show won't air again: an open source is pointed out. */
   ended: "ended" | "canceled" | null;
@@ -148,8 +151,10 @@ function SourceRow({
 }) {
   const t = useT();
   // Which season and which episodes it holds; until those are known, how it numbers them.
-  const holds =
-    spans.length > 0
+  // A movie's source holds its one video: who reads it says it all.
+  const holds = !closable
+    ? (extractor?.name ?? "")
+    : spans.length > 0
       ? spans
           .map((span) =>
             t.series.detail.sourceSpan(span.season, span.from, span.to, numberRanges(span.gaps)),
@@ -212,7 +217,7 @@ function SourceRow({
         </span>
       </a>
       {children}
-      <CloseButton seriesId={seriesId} source={source} ended={ended} />
+      {closable && <CloseButton seriesId={seriesId} source={source} ended={ended} />}
     </div>
   );
 }
@@ -252,12 +257,14 @@ export function SeriesSources({
         extractor={extractorOf(lone)}
         spans={spansOf(lone)}
         ended={ended}
+        closable={series.kind !== "movie"}
       >
         <AddSourceButton href={addHref} />
       </SourceRow>
     );
   }
 
+  const movie = series.kind === "movie";
   const closed = series.sources.filter((source) => source.closed).length;
   const reading = series.sources.length - closed;
   const warn = ended !== null && reading > 0;
@@ -272,7 +279,12 @@ export function SeriesSources({
             <span className="truncate text-lg group-hover/head:underline underline-offset-3">
               {t.series.detail.sources(series.sources.length)}
             </span>
-            {warn ? (
+            {movie ? (
+              // Nothing to close or to check: the same movie on other sites, to take it from.
+              <span className="truncate text-sm text-muted-foreground">
+                {t.series.detail.movieSources}
+              </span>
+            ) : warn ? (
               <span
                 title={t.series.detail.sourceStillOpenHint(ended)}
                 className="flex min-w-0 items-center gap-1 text-sm font-medium text-amber-800"
@@ -326,6 +338,7 @@ export function SeriesSources({
               extractor={extractorOf(source)}
               spans={spansOf(source)}
               ended={ended}
+              closable={!movie}
             />
           ))}
         </div>

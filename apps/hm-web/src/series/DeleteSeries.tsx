@@ -39,8 +39,8 @@ export function DeleteSeries({ series, className }: { series: SeriesDto; classNa
       }}
     >
       <PopoverTrigger
-        aria-label={t.series.deleteSeries}
-        title={t.series.deleteSeries}
+        aria-label={series.kind === "movie" ? t.series.deleteMovie : t.series.deleteSeries}
+        title={series.kind === "movie" ? t.series.deleteMovie : t.series.deleteSeries}
         className={cn(
           className,
           "hover:bg-destructive hover:text-white data-popup-open:bg-destructive data-popup-open:text-white",

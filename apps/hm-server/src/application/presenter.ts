@@ -1,6 +1,7 @@
 import type { Extraction, ExtractionWarning } from "@orca/extractor-core";
 import type {
   EpisodeDto,
+  MediaKind,
   JobDto,
   NotificationDto,
   PreviewDto,
@@ -84,7 +85,12 @@ export function toPreviewDto(
 /** Where a source's site keeps what comes after it, as its extractor guesses it. */
 export type NextSourceUrl = (source: SeriesSource) => string | null;
 
-export function toSourceDto(source: SeriesSource, nextUrl: NextSourceUrl): SourceDto {
+/** `movie`: a movie's sources are never closed, whatever was stored (they are never checked). */
+export function toSourceDto(
+  source: SeriesSource,
+  nextUrl: NextSourceUrl,
+  movie = false,
+): SourceDto {
   return {
     id: source.id,
     extractorId: source.extractorId,
@@ -93,7 +99,7 @@ export function toSourceDto(source: SeriesSource, nextUrl: NextSourceUrl): Sourc
     season: source.season,
     episodeOffset: source.episodeOffset,
     adjustments: source.adjustments,
-    closed: source.closed,
+    closed: movie ? false : source.closed,
     nextUrl: nextUrl(source),
   };
 }
@@ -137,12 +143,13 @@ export function toSeriesDto(
     counts ?? ("episodeCount" in series ? series : { episodeCount: 0, availableCount: 0 });
   return {
     id: series.id,
+    kind: series.kind,
     title: series.title,
     year: series.year,
     plot: series.plot,
     tmdbId: series.tmdbId,
     imdbId: series.imdbId,
-    sources: sources.map((source) => toSourceDto(source, nextUrl)),
+    sources: sources.map((source) => toSourceDto(source, nextUrl, series.kind === "movie")),
     follow: series.follow,
     paused: series.paused,
     checkIntervalHours: series.checkIntervalHours,
@@ -188,15 +195,21 @@ export function toEpisodeDto(episode: Episode, job: Job | null = null): EpisodeD
   };
 }
 
-export function toJobDto(job: Job, seriesTitle: string | null, episode: Episode | null): JobDto {
+export function toJobDto(
+  job: Job,
+  of: { title: string; kind: MediaKind } | null,
+  episode: Episode | null,
+): JobDto {
   return {
     id: job.id,
     kind: job.kind,
     status: job.status,
     seriesId: job.seriesId,
-    seriesTitle,
+    seriesTitle: of?.title ?? null,
     episodeId: job.episodeId,
-    episodeCode: episode ? episodeCode(episode.season, episode.episode) : null,
+    // A movie's one video has no code: its title says it.
+    episodeCode:
+      episode && of?.kind !== "movie" ? episodeCode(episode.season, episode.episode) : null,
     progress: job.progress,
     progressDetail: job.progressDetail,
     attempts: job.attempts,

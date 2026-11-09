@@ -69,14 +69,14 @@ describe("HomeScreen", () => {
     expect(within(series).getByRole("link", { name: "Series" }).getAttribute("href")).toBe(
       "/series",
     );
-    expect(within(series).getByRole("link", { name: "Añadir serie" }).getAttribute("href")).toBe(
+    expect(within(series).getByRole("link", { name: "Añadir" }).getAttribute("href")).toBe(
       "/series/new",
     );
   });
 
   it("says when there are no series yet", async () => {
     renderApp(<HomeScreen />, { handler: handlerFor({}) });
-    expect(await within(await tile("Series")).findByText("Aún no hay series")).toBeTruthy();
+    expect(await within(await tile("Series")).findByText("Aún no hay nada")).toBeTruthy();
   });
 
   it("shows an extractor's sites and sends it to the add-series screen", async () => {

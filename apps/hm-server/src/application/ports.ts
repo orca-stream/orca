@@ -5,6 +5,7 @@ import type {
   EpisodeStatus,
   HmEvent,
   JobStatus,
+  MediaKind,
   ProgressDetail,
 } from "@orca/hm-contract";
 import type { HostLane, Job, NewJob } from "../domain/job.ts";
@@ -57,9 +58,16 @@ export interface SeriesRepository {
   get(id: string): Promise<Series | null>;
   /** Forgets a series with its sources and episodes; its jobs and notifications keep no link to it. */
   delete(id: string): Promise<void>;
-  findByFolder(folderName: string): Promise<Series | null>;
-  /** The series with that TMDB id, else the one with that IMDb id; null ids match nothing. */
-  findByProviderIds(ids: { tmdbId: string | null; imdbId: string | null }): Promise<Series | null>;
+  /** The show (or, with `kind`, the movie) in that folder. */
+  findByFolder(folderName: string, kind?: MediaKind): Promise<Series | null>;
+  /**
+   * The show (or, with `kind`, the movie) with that TMDB id, else the one with that IMDb id; null ids
+   * match nothing. TMDB numbers shows and movies apart, so a show's id never finds a movie.
+   */
+  findByProviderIds(
+    ids: { tmdbId: string | null; imdbId: string | null },
+    kind?: MediaKind,
+  ): Promise<Series | null>;
   /** The source an address of a site was already added as, in whichever series. */
   findSourceByExternal(extractorId: string, externalId: string): Promise<SeriesSource | null>;
   /** Oldest first. Without ids: the sources of every series. */
@@ -120,8 +128,8 @@ export interface SeriesRepository {
    * is from when it is not the new one.
    */
   switchEpisodeSources(changes: EpisodeSourceSwitch[]): Promise<void>;
-  /** Titles by series id, to label jobs. */
-  seriesTitles(ids: string[]): Promise<Map<string, string>>;
+  /** Titles (and whether each is a movie) by series id, to label jobs. */
+  seriesTitles(ids: string[]): Promise<Map<string, { title: string; kind: MediaKind }>>;
 }
 
 export interface EnqueueResult {
@@ -289,6 +297,8 @@ export interface Downloader {
 }
 
 export interface LibraryWriter {
+  /** Whether there is a movies folder: without one, no movie can be added. */
+  hasMovies(): boolean;
   /** Absolute path where an episode is staged while downloading. */
   stagingPath(episode: Episode): string;
   /** Absolute path of a series' folder. */
@@ -394,8 +404,13 @@ export interface LibraryShow {
   year: number | null;
   tmdbId: string | null;
   imdbId: string | null;
-  /** Its folder relative to MEDIA_ROOT; null when it is outside it, where this server can't write. */
+  /**
+   * Its folder relative to the series folder (a movie's, to the movies folder); null when it is
+   * outside it, where this server can't write.
+   */
   folderName: string | null;
+  /** A movie's video, absolute as this server sees it; null when it is outside the movies folder. */
+  file?: string | null;
 }
 
 export interface MediaServer {
@@ -417,15 +432,27 @@ export interface MediaServer {
    * The show with that TMDB id, looked up through Jellyfin's own TMDB provider (and its key); null
    * when TMDB has none. Throws AppError upstream when Jellyfin can't be asked.
    */
-  findShowByTmdbId(tmdbId: string, signal?: AbortSignal): Promise<ShowMatch | null>;
+  findShowByTmdbId(
+    tmdbId: string,
+    signal?: AbortSignal,
+    kind?: MediaKind,
+  ): Promise<ShowMatch | null>;
   /**
    * The shows TMDB has by that name (first aired in `year`, when given), best first, through
    * Jellyfin's own TMDB provider and in its preferred metadata language. Throws AppError upstream
    * when Jellyfin can't be asked.
    */
-  searchShows(query: string, year: number | undefined, signal?: AbortSignal): Promise<ShowFound[]>;
-  /** Every show in Jellyfin's libraries. Throws AppError upstream when Jellyfin can't be asked. */
-  listShows(signal?: AbortSignal): Promise<LibraryShow[]>;
+  searchShows(
+    query: string,
+    year: number | undefined,
+    signal?: AbortSignal,
+    kind?: MediaKind,
+  ): Promise<ShowFound[]>;
+  /**
+   * Every show in Jellyfin's libraries (every movie, with `kind` movie). Throws AppError upstream
+   * when Jellyfin can't be asked.
+   */
+  listShows(signal?: AbortSignal, kind?: MediaKind): Promise<LibraryShow[]>;
   /**
    * The files of a show's episodes that are under MEDIA_ROOT, one per file: a file holding several
    * episodes (`S01E01-E02`) is left out, as are episodes Jellyfin only knows of (no file).
@@ -488,13 +515,22 @@ export interface EpisodeGuide {
     language: string | undefined,
     signal?: AbortSignal,
   ): Promise<GuideEpisode[] | null>;
-  /** The show itself, beyond its seasons; null when TMDB has no such show. */
-  show(tmdbId: string, signal?: AbortSignal, language?: string): Promise<GuideShow | null>;
+  /**
+   * The show itself, beyond its seasons; null when TMDB has no such show. With `kind` "movie", the
+   * movie of that id (no status, no next episode). Same for the three below.
+   */
+  show(
+    tmdbId: string,
+    signal?: AbortSignal,
+    language?: string,
+    kind?: MediaKind,
+  ): Promise<GuideShow | null>;
   /** Every poster, backdrop and logo TMDB has for the show, best first; null when it has no such show. */
   artwork(
     tmdbId: string,
     language: string | undefined,
     signal?: AbortSignal,
+    kind?: MediaKind,
   ): Promise<ArtworkOptionsDto | null>;
   /** The shows TMDB has by that name (first aired in `year`, when given), best first. */
   search(
@@ -502,12 +538,14 @@ export interface EpisodeGuide {
     year: number | undefined,
     language: string | undefined,
     signal?: AbortSignal,
+    kind?: MediaKind,
   ): Promise<ShowFound[]>;
   /** The show itself (name, year, IMDb id, synopsis, poster), for a server without Jellyfin. */
   match(
     tmdbId: string,
     language: string | undefined,
     signal?: AbortSignal,
+    kind?: MediaKind,
   ): Promise<ShowMatch | null>;
 }
 

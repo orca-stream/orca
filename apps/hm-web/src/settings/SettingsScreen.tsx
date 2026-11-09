@@ -26,6 +26,7 @@ import {
   ExtrasSection,
   JellyfinSection,
   LibrarySection,
+  MoviesSection,
   ServerIssues,
   TracksSection,
 } from "./sections";
@@ -145,6 +146,7 @@ function Form({ view, extractors }: { view: SettingsView; extractors: ReactNode 
         libraries={libraries}
         during="settings"
       />
+      <MoviesSection draft={draft} set={set} errors={errors} during="settings" />
       <ExtrasSection
         draft={draft}
         set={set}

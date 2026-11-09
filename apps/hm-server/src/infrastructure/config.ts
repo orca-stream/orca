@@ -69,11 +69,15 @@ export interface Config {
   /** Offer the "Generic page" extractor. */
   genericExtractor: boolean;
   mediaRoot: string;
+  /** Null without a movies folder: no movies are added. */
+  moviesRoot: string | null;
   /** Null without a Jellyfin: nothing to sign in with, refresh or ask about the library. */
   jellyfin: {
     url: string;
     apiKey: string;
     /** The media root as Jellyfin sees it. */ mediaRoot: string;
+    /** The movies folder as Jellyfin sees it; null: the same path as here. */
+    moviesRoot: string | null;
   } | null;
   /** A v3 key or a v4 read token; undefined turns the episode guide off. */
   tmdbApiKey: string | undefined;
@@ -154,8 +158,14 @@ export function configFrom(settings: Settings, hasSites: boolean): Config {
       : null,
     genericExtractor: detectorOn && browser.genericDetector,
     mediaRoot: settings.mediaRoot,
+    moviesRoot: settings.moviesRoot ?? null,
     jellyfin: jellyfin
-      ? { url: jellyfin.url, apiKey: jellyfin.apiKey, mediaRoot: jellyfin.jellyfinMediaRoot }
+      ? {
+          url: jellyfin.url,
+          apiKey: jellyfin.apiKey,
+          mediaRoot: jellyfin.jellyfinMediaRoot,
+          moviesRoot: jellyfin.jellyfinMoviesRoot ?? null,
+        }
       : null,
     tmdbApiKey: settings.tmdbApiKey,
     contactEmail: settings.contactEmail,

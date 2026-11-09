@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { LicenseKindSchema } from "./common.ts";
+import { LicenseKindSchema, MediaKind } from "./common.ts";
 import { ProgressDetail } from "./jobs.ts";
 import {
   IMDB_ID_PATTERN,
@@ -84,6 +84,9 @@ export const TmdbId = z.string().trim().regex(TMDB_ID_PATTERN, "A TMDB id is a n
 export const ImdbId = z.string().trim().regex(IMDB_ID_PATTERN, "An IMDb id looks like tt0123456");
 
 export const ShowLookupParams = z.object({ tmdbId: TmdbId });
+/** Whether a TMDB id or a name is a show's (the default) or a movie's: TMDB numbers each apart. */
+export const LookupKindQuery = z.object({ kind: MediaKind.default("show") });
+export type LookupKindQuery = z.infer<typeof LookupKindQuery>;
 export type ShowLookupParams = z.infer<typeof ShowLookupParams>;
 
 /**
@@ -125,6 +128,8 @@ export const MAX_SHOW_QUERY_LENGTH = 200;
 /** A show searched on TMDB by name, optionally narrowed to the year it first aired. */
 export const ShowSearchQuery = z.object({
   query: z.string().trim().min(1).max(MAX_SHOW_QUERY_LENGTH),
+  /** Shows (the default) or movies. */
+  kind: MediaKind.default("show"),
   year: z.coerce.number().int().min(1000).max(9999).optional(),
 });
 export type ShowSearchQuery = z.infer<typeof ShowSearchQuery>;
@@ -219,6 +224,12 @@ export const CreateSeriesBody = z
   .object({
     previewId: z.string().min(1),
     /**
+     * A show (the default) or a movie: a movie is one video, in the movies folder; another address of
+     * it (`seriesId` of a movie) is another source of that video. `season`, `firstEpisode`,
+     * `adjustments` and `follow` don't apply to it.
+     */
+    kind: MediaKind.default("show"),
+    /**
      * Adds the address to this series (another season, or another part of one) instead of making a
      * new series; title, year and the ids are the series' own then and are left out.
      */
@@ -255,6 +266,10 @@ export const CreateSeriesBody = z
   .refine((body) => body.seriesId === undefined || body.jellyfinId === undefined, {
     message: "Add to a series or to a show in Jellyfin, not both",
     path: ["jellyfinId"],
+  })
+  .refine((body) => body.kind !== "movie" || body.episodeKeys.length === 1, {
+    message: "A movie is one video: choose one",
+    path: ["episodeKeys"],
   });
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 /** What a caller may send: the fields with a default can be left out. */
@@ -342,6 +357,8 @@ export type SourceDto = z.infer<typeof SourceDto>;
 
 export const SeriesDto = z.object({
   id: z.string(),
+  /** A show, or a movie (one episode, in the movies folder; never followed). */
+  kind: MediaKind,
   title: z.string(),
   year: z.number().int().nullable(),
   plot: z.string().nullable(),

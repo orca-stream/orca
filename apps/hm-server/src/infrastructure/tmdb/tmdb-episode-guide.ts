@@ -1,5 +1,10 @@
 import * as z from "zod";
-import type { ArtworkKind, ArtworkOptionDto, ArtworkOptionsDto } from "@orca/hm-contract";
+import type {
+  ArtworkKind,
+  ArtworkOptionDto,
+  ArtworkOptionsDto,
+  MediaKind,
+} from "@orca/hm-contract";
 import {
   MAX_SHOWS_FOUND,
   type AiringStatus,
@@ -80,6 +85,18 @@ const ShowBody = z.object({
     .default([]),
 });
 
+/** A movie as TMDB answers one (`/movie/{id}`): `title` and `release_date` where a show has `name`. */
+const MovieBody = z.object({
+  backdrop_path: z.string().nullish(),
+  images: ImagesBody.nullish(),
+  title: z.string().nullish(),
+  original_title: z.string().nullish(),
+  release_date: z.string().nullish(),
+  overview: z.string().nullish(),
+  poster_path: z.string().nullish(),
+  imdb_id: z.string().nullish(),
+});
+
 const MatchBody = z.object({
   name: z.string().nullish(),
   original_name: z.string().nullish(),
@@ -97,12 +114,20 @@ const SearchBody = z.object({
         name: z.string().nullish(),
         original_name: z.string().nullish(),
         first_air_date: z.string().nullish(),
+        // A movie's, in a search of movies.
+        title: z.string().nullish(),
+        original_title: z.string().nullish(),
+        release_date: z.string().nullish(),
         overview: z.string().nullish(),
         poster_path: z.string().nullish(),
       }),
     )
     .default([]),
 });
+
+/** TMDB's path for a show or a movie by its id: each is numbered on its own. */
+const itemPath = (kind: MediaKind, tmdbId: string) =>
+  `/${kind === "movie" ? "movie" : "tv"}/${encodeURIComponent(tmdbId)}`;
 
 const SeasonBody = z.object({
   episodes: z
@@ -227,15 +252,30 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
       .sort((a, b) => a.number - b.number);
   }
 
-  async show(tmdbId: string, signal?: AbortSignal, language?: string): Promise<GuideShow | null> {
+  async show(
+    tmdbId: string,
+    signal?: AbortSignal,
+    language?: string,
+    kind: MediaKind = "show",
+  ): Promise<GuideShow | null> {
     // Without a language TMDB picks the image it ranks best, text-free or not, and lists the images
     // of every language: the logo is chosen from them.
     const body = await this.get(
-      `/tv/${encodeURIComponent(tmdbId)}?append_to_response=images`,
+      `${itemPath(kind, tmdbId)}?append_to_response=images`,
       undefined,
       signal,
     );
     if (body === null) return null;
+    if (kind === "movie") {
+      const movie = this.parse(MovieBody, body);
+      const logo = rankArtwork("logo", movie.images?.logos ?? [], language)[0];
+      return {
+        backdropUrl: imageOf(TMDB_BACKDROP, movie.backdrop_path),
+        logoUrl: logo?.previewUrl ?? null,
+        status: null,
+        nextEpisode: null,
+      };
+    }
     const show = this.parse(ShowBody, body);
     const next = show.next_episode_to_air;
     const status = (show.status && STATUSES[show.status]) || null;
@@ -259,9 +299,10 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
     tmdbId: string,
     language: string | undefined,
     signal?: AbortSignal,
+    kind: MediaKind = "show",
   ): Promise<ArtworkOptionsDto | null> {
     // No language: TMDB then lists the images of every language.
-    const body = await this.get(`/tv/${encodeURIComponent(tmdbId)}/images`, undefined, signal);
+    const body = await this.get(`${itemPath(kind, tmdbId)}/images`, undefined, signal);
     if (body === null) return null;
     const images = this.parse(ImagesBody, body);
     return {
@@ -276,22 +317,27 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
     year: number | undefined,
     language: string | undefined,
     signal?: AbortSignal,
+    kind: MediaKind = "show",
   ): Promise<ShowFound[]> {
     const params = new URLSearchParams({ query, include_adult: "false" });
-    if (year !== undefined) params.set("first_air_date_year", String(year));
-    const body = await this.get(`/search/tv?${params.toString()}`, language, signal);
+    const movie = kind === "movie";
+    if (year !== undefined) {
+      params.set(movie ? "primary_release_year" : "first_air_date_year", String(year));
+    }
+    const path = `/search/${movie ? "movie" : "tv"}?${params.toString()}`;
+    const body = await this.get(path, language, signal);
     if (body === null) return [];
     return this.parse(SearchBody, body)
       .results.flatMap((show) => {
-        const original = show.original_name?.trim() || null;
-        const title = show.name?.trim() || original;
+        const original = (movie ? show.original_title : show.original_name)?.trim() || null;
+        const title = (movie ? show.title : show.name)?.trim() || original;
         if (!title) return [];
         return [
           {
             tmdbId: String(show.id),
             title,
             originalTitle: original !== null && original !== title ? original : null,
-            year: yearOf(show.first_air_date),
+            year: yearOf(movie ? show.release_date : show.first_air_date),
             overview: show.overview?.trim() || null,
             posterUrl: imageOf(TMDB_THUMB, show.poster_path),
           },
@@ -304,9 +350,25 @@ export class TmdbEpisodeGuide implements EpisodeGuide {
     tmdbId: string,
     language: string | undefined,
     signal?: AbortSignal,
+    kind: MediaKind = "show",
   ): Promise<ShowMatch | null> {
+    if (kind === "movie") {
+      // A movie answers its IMDb id itself.
+      const body = await this.get(itemPath(kind, tmdbId), language, signal);
+      if (body === null) return null;
+      const movie = this.parse(MovieBody, body);
+      const title = movie.title?.trim() || movie.original_title?.trim();
+      if (!title) return null;
+      return {
+        title,
+        year: yearOf(movie.release_date),
+        imdbId: movie.imdb_id || null,
+        overview: movie.overview?.trim() || null,
+        posterUrl: imageOf(TMDB_POSTER, movie.poster_path),
+      };
+    }
     const body = await this.get(
-      `/tv/${encodeURIComponent(tmdbId)}?append_to_response=external_ids`,
+      `${itemPath(kind, tmdbId)}?append_to_response=external_ids`,
       language,
       signal,
     );

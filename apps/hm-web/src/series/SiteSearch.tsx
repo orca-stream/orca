@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { FolderCheckIcon, Tv01Icon } from "@hugeicons/core-free-icons";
+import { Film01Icon, FolderCheckIcon, Tv01Icon } from "@hugeicons/core-free-icons";
 import type { SiteSearchResultDto } from "@orca/hm-contract";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
@@ -23,7 +23,7 @@ import { useDebounced } from "@/hooks/use-debounced";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
-import { isSiteSearch, pagesAround } from "./site-search";
+import { isSiteSearch, pagesAround, readableLabel } from "./site-search";
 
 /** How long the name has to stay put before the sites are asked. */
 const SEARCH_DELAY_MS = 400;
@@ -238,6 +238,9 @@ function ResultTile({
   const t = useT();
   const cover = item.posterUrl;
   const mine = item.seriesId !== null;
+  // What it is (a movie), or what the site calls it (an OVA, a special): a hint of what to add it
+  // as. A site's word for its own code (`tvshows`, `animes`) says nothing, so it is left out.
+  const kindWord = item.kind === "movie" ? t.add.asMovie : readableLabel(item.label);
   const facts = [
     item.year === null ? null : String(item.year),
     item.seasons === null ? null : t.add.cardSeasons(item.seasons),
@@ -245,6 +248,7 @@ function ResultTile({
   ].filter((fact) => fact !== null);
   const label = [
     item.title,
+    kindWord,
     ...facts,
     mine ? (yours ? `${t.add.siteFoundYours} · ${yours.title}` : t.add.siteFoundYours) : null,
     extractor ? t.add.siteFoundOn(extractor.name) : null,
@@ -285,6 +289,17 @@ function ResultTile({
             <HugeiconsIcon icon={FolderCheckIcon} className="size-3.5 shrink-0" />
             <span className="truncate">{t.add.siteFoundYours}</span>
           </span>
+        ) : kindWord ? (
+          <span
+            aria-hidden="true"
+            title={kindWord}
+            className="flex h-6 min-w-0 items-center gap-1 rounded-full bg-white/85 px-2.5 text-xs font-medium text-foreground shadow-xs ring-1 ring-black/5"
+          >
+            {item.kind === "movie" && (
+              <HugeiconsIcon icon={Film01Icon} className="size-3.5 shrink-0" />
+            )}
+            <span className="truncate">{kindWord}</span>
+          </span>
         ) : (
           <span />
         )}
@@ -318,7 +333,10 @@ function ResultTile({
         ) : (
           !cover && (
             <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
-              <HugeiconsIcon icon={Tv01Icon} className="size-10" />
+              <HugeiconsIcon
+                icon={item.kind === "movie" ? Film01Icon : Tv01Icon}
+                className="size-10"
+              />
             </span>
           )
         )}

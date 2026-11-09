@@ -1,3 +1,4 @@
+import type { MediaKind } from "./types";
 /** Query keys in one place, so SSE handling and mutations invalidate exactly what screens read. */
 export const keys = {
   me: ["auth", "me"] as const,
@@ -16,12 +17,24 @@ export const keys = {
   seriesDetail: (id: string) => ["series", "detail", id] as const,
   episodes: (id: string) => ["series", "episodes", id] as const,
   artworkOptions: (id: string) => ["series", "artwork", id] as const,
-  libraryShows: ["library", "shows"] as const,
+  // Jellyfin's movies apart from its shows: never under a show's id.
+  libraryShows: (kind: MediaKind = "show") =>
+    kind === "movie" ? (["library", "movies"] as const) : (["library", "shows"] as const),
   libraryEpisodes: (showId: string) => ["library", "shows", showId, "episodes"] as const,
-  showLookup: (tmdbId: string) => ["lookup", "tmdb", tmdbId] as const,
+  // A movie's TMDB id is another numbering than a show's: kept apart.
+  showLookup: (tmdbId: string, kind: MediaKind = "show") =>
+    kind === "movie"
+      ? (["lookup", "tmdb-movie", tmdbId] as const)
+      : (["lookup", "tmdb", tmdbId] as const),
   siteSearch: (query: string) => ["search", query] as const,
-  showSearch: (query: string) => ["lookup", "tmdb-search", query] as const,
-  showArtworkOptions: (tmdbId: string) => ["lookup", "tmdb-artwork", tmdbId] as const,
+  showSearch: (query: string, kind: MediaKind = "show") =>
+    kind === "movie"
+      ? (["lookup", "tmdb-movie-search", query] as const)
+      : (["lookup", "tmdb-search", query] as const),
+  showArtworkOptions: (tmdbId: string, kind: MediaKind = "show") =>
+    kind === "movie"
+      ? (["lookup", "tmdb-movie-artwork", tmdbId] as const)
+      : (["lookup", "tmdb-artwork", tmdbId] as const),
   guideSeasons: (tmdbId: string, language: string) =>
     ["lookup", "tmdb", tmdbId, "seasons", language] as const,
   guideEpisodes: (tmdbId: string, season: number, language: string) =>

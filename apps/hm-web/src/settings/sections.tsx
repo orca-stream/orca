@@ -686,6 +686,44 @@ export function LibrarySection({
 }
 
 /**
+ * Where the movies go, each in its own folder: a folder of one of Jellyfin's movie libraries (or only
+ * this server's, without Jellyfin), never the series folder. Empty: no movies are added.
+ */
+export function MoviesSection({
+  draft,
+  set,
+  errors,
+  during,
+}: SectionProps & { during: "setup" | "settings" }) {
+  const t = useT();
+  const jellyfin = draft.jellyfinOn || draft.signIn === "jellyfin";
+  const field = jellyfin ? "jellyfinMoviesRoot" : "moviesRoot";
+  return (
+    <Group title={t.settings.movies.title} description={t.settings.movies.description}>
+      <DraftRow
+        field={field}
+        icon={Video01Icon}
+        label={t.settings.movies.path}
+        placeholder={
+          jellyfin ? t.settings.movies.jellyfinPlaceholder : t.settings.movies.placeholder
+        }
+        hint={t.settings.hints.moviesRoot}
+        draft={draft}
+        set={set}
+        errors={errors}
+        action={
+          <FolderPicker
+            during={during}
+            value={draft[field]}
+            onPick={(path) => set({ [field]: path })}
+          />
+        }
+      />
+    </Group>
+  );
+}
+
+/**
  * TMDB's key: kept on the server once saved, so the form only takes a new one. The saved one is
  * removed from the row's trash (in the settings), at once, once asked twice.
  */
