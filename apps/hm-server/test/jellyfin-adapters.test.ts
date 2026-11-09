@@ -246,7 +246,7 @@ describe("JellyfinMediaServer", () => {
     });
   });
 
-  it("replaces the series' images when asked, so the ones in its folder win", async () => {
+  it("rereads the series' images when asked, never replacing the ones in its folder", async () => {
     const { server, requests } = mediaServer(jellyfinWith());
     await server.libraryUpdated("/media/tv/The Beverly Hillbillies (1962)", {
       replaceImages: true,
@@ -254,7 +254,6 @@ describe("JellyfinMediaServer", () => {
     expect(parts(refreshOf(requests)).query).toEqual({
       metadataRefreshMode: "FullRefresh",
       imageRefreshMode: "FullRefresh",
-      replaceAllImages: "true",
     });
   });
 

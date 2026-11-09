@@ -1054,7 +1054,19 @@ export function createUseCases(deps: Deps) {
     async artworkOf(seriesId: string, kind: ArtworkKind): Promise<string | null> {
       const series = await deps.series.get(seriesId);
       if (!series) throw new AppError("not_found", "No such series");
-      return deps.library.artworkPath(series, kind);
+      const path = await deps.library.artworkPath(series, kind);
+      if (!path && series[ARTWORK_FLAG[kind]]) {
+        // Gone from its folder behind this server's back (Jellyfin replacing it, or a hand): the
+        // series has none of its own any more, so the panel shows TMDB's instead of a broken one.
+        const { [kind]: _old, ...others } = series.artworkFrom;
+        await deps.series.update(seriesId, {
+          [ARTWORK_FLAG[kind]]: false,
+          artworkVersion: series.artworkVersion + 1,
+          artworkFrom: others,
+        });
+        deps.events.publish({ type: "series.updated", seriesId });
+      }
+      return path;
     },
 
     /** Every poster, backdrop and logo TMDB has for the series' show, to choose its own from. */

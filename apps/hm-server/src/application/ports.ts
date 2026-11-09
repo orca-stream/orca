@@ -387,7 +387,7 @@ export interface MediaServer {
   /**
    * Tells Jellyfin that something under `path` (an absolute path under MEDIA_ROOT) changed. With
    * `replaceMetadata` it rereads the series from scratch (its nfo first), not only what is new; with
-   * `replaceImages`, its images (the ones in its folder first). With `removed` the series' folder is
+   * `replaceImages`, the images in its folder again (TMDB's only for a kind it has none of). With `removed` the series' folder is
    * gone: the library holding it is looked at instead, so Jellyfin drops it.
    */
   libraryUpdated(

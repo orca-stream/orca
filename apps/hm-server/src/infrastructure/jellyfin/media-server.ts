@@ -109,12 +109,13 @@ export class JellyfinMediaServer implements MediaServer {
             }
           : options.replaceImages && isSeries
             ? {
-                // As Jellyfin's own "Replace existing images": the ones in its folder win over TMDB's,
-                // and one deleted from it is gone from Jellyfin too. The metadata is kept.
+                // Rereads the images in its folder: a new one there is taken, one deleted from it is
+                // gone, and only a kind left with none is fetched from TMDB. Never `replaceAllImages`:
+                // when Jellyfin saves artwork into media folders, replacing skips its folder and saves
+                // TMDB's over it (as `folder.jpg`, deleting the `poster.jpg` this server wrote).
                 itemId,
                 metadataRefreshMode: MetadataRefreshMode.FullRefresh,
                 imageRefreshMode: MetadataRefreshMode.FullRefresh,
-                replaceAllImages: true,
               }
             : {
                 itemId,

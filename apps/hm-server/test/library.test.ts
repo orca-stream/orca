@@ -232,6 +232,42 @@ describe("FsLibraryWriter", () => {
     expect(await writer.artworkPath(series, "backdrop")).toBeNull();
   });
 
+  it("clears Jellyfin's own files of a kind when one is written or removed, and no other", async () => {
+    const series = aSeries();
+    const folder = join(root, "The Beverly Hillbillies (1962)");
+    await writer.writeSeries(series);
+    // What Jellyfin's "Legacy" convention leaves in the folder, plus a backdrop of another tool's.
+    for (const name of [
+      "folder.jpg",
+      "backdrop1.jpg",
+      "backdrop2.jpeg",
+      "fanart.jpg",
+      "landscape.jpg",
+      "clearlogo.png",
+      "season01-poster.jpg",
+      "folder.txt",
+    ]) {
+      await writeFile(join(folder, name), "x");
+    }
+    await writer.writeArtwork(series, "poster", { bytes: new Uint8Array([1]), extension: ".jpg" });
+    await writer.writeArtwork(series, "backdrop", {
+      bytes: new Uint8Array([2]),
+      extension: ".jpg",
+    });
+    expect((await readdir(folder)).sort()).toEqual([
+      "backdrop.jpg",
+      "clearlogo.png",
+      "folder.txt",
+      "landscape.jpg",
+      "poster.jpg",
+      "season01-poster.jpg",
+      "tvshow.nfo",
+    ]);
+
+    await writer.removeArtwork(series, "logo");
+    expect(await readdir(folder)).not.toContain("clearlogo.png");
+  });
+
   it("removes a series folder it just made, but never one with episodes in it", async () => {
     const series = aSeries();
     await writer.writeSeries(series);

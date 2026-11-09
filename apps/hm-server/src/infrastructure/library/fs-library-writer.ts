@@ -22,6 +22,18 @@ const STAGING = ".hm-staging";
 const IMAGE_EXTENSIONS = [".jpg", ".png", ".webp", ".gif"];
 /** The names Jellyfin reads artwork by in a series' folder, one per kind this server manages. */
 const ARTWORK_KINDS: readonly ArtworkKind[] = ["poster", "backdrop", "logo"];
+/**
+ * The other names Jellyfin reads each kind by in a series' folder, and saves it under with its
+ * "Legacy" convention (`folder.jpg`, `backdrop1.jpg`). Writing or removing a kind clears these too:
+ * every one of them is another backdrop, and a stale `folder.jpg` would come back as the poster once
+ * the own one is gone — the image chosen in the panel has to be the only one of its kind there.
+ */
+const ARTWORK_ALIASES: Record<ArtworkKind, RegExp> = {
+  poster: /^(folder|cover|default|show)$/,
+  backdrop: /^(backdrop-?\d+|(fanart|background|art)(-?\d+)?)$/,
+  logo: /^clearlogo$/,
+};
+const ALIAS_EXTENSIONS = new Set([...IMAGE_EXTENSIONS, ".jpeg"]);
 const VIDEO_EXTENSIONS = new Set([".mkv", ".mp4", ".m4v", ".avi", ".webm", ".mov", ".ts"]);
 
 const isUnder = (path: string, folder: string) => path.startsWith(`${folder}${sep}`);
@@ -117,6 +129,19 @@ export class FsLibraryWriter implements LibraryWriter {
         await rm(join(this.seriesPath(series), `${kind}${extension}`), { force: true });
       }
     }
+    await this.removeAliases(series, kind);
+  }
+
+  /** Jellyfin's own files of that kind in the series' folder (see `ARTWORK_ALIASES`). */
+  private async removeAliases(series: Series, kind: ArtworkKind): Promise<void> {
+    const folder = this.seriesPath(series);
+    for (const file of await readdir(folder).catch(() => [])) {
+      const extension = extname(file).toLowerCase();
+      if (!ALIAS_EXTENSIONS.has(extension)) continue;
+      if (ARTWORK_ALIASES[kind].test(basename(file, extname(file)).toLowerCase())) {
+        await rm(join(folder, file), { force: true });
+      }
+    }
   }
 
   async artworkPath(series: Series, kind: ArtworkKind): Promise<string | null> {
@@ -131,6 +156,7 @@ export class FsLibraryWriter implements LibraryWriter {
     for (const extension of IMAGE_EXTENSIONS) {
       await rm(join(this.seriesPath(series), `${kind}${extension}`), { force: true });
     }
+    await this.removeAliases(series, kind);
   }
 
   async removeSeries(series: Series): Promise<void> {

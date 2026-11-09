@@ -532,6 +532,21 @@ describe("a series' artwork", () => {
     expect((await get(`/api/series/${series.id}/logo`)).status).toBe(404);
   });
 
+  it("forgets its own artwork once the file is gone from the folder, so TMDB's shows", async () => {
+    const { series } = await addBevhill(h);
+    await upload(`/api/series/${series.id}/poster`, JPEG, "image/jpeg");
+    // As Jellyfin did when told to replace its images: ours deleted, its own saved as folder.jpg.
+    const folder = join(h.root, "The Beverly Hillbillies (1962)");
+    await rm(join(folder, "poster.jpg"));
+    await writeFile(join(folder, "folder.jpg"), "theirs");
+
+    expect((await get(`/api/series/${series.id}/poster`)).status).toBe(404);
+    expect(await (await get(`/api/series/${series.id}`)).json()).toMatchObject({
+      hasPoster: false,
+      artworkVersion: 2,
+    });
+  });
+
   it("lists TMDB's images for a series with a TMDB id", async () => {
     const { series } = await addBevhill(h);
     expect((await get(`/api/series/${series.id}/artwork`)).status).toBe(409);
