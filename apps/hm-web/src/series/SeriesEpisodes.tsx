@@ -8,7 +8,7 @@ import {
   Clock01Icon,
   CloudOffIcon,
   Delete02Icon,
-  Download04Icon,
+  ArrowDown03Icon,
   PauseIcon,
   RefreshIcon,
   Tick02Icon,
@@ -274,7 +274,7 @@ export function SeriesEpisodes({
             {busy === "missing" ? (
               <Spinner aria-hidden="true" />
             ) : (
-              <HugeiconsIcon icon={Download04Icon} className="size-4" />
+              <HugeiconsIcon icon={ArrowDown03Icon} className="size-4" />
             )}
             {t.series.downloadMissing}
           </button>
@@ -374,7 +374,7 @@ export function SeriesEpisodes({
               {busy === "selected" ? (
                 <Spinner aria-hidden="true" />
               ) : (
-                <HugeiconsIcon icon={Download04Icon} className="size-4" />
+                <HugeiconsIcon icon={ArrowDown03Icon} className="size-4" />
               )}
               {t.series.downloadSelected(selection.size)}
             </button>
@@ -628,7 +628,7 @@ function EpisodeCard({
           )}
         >
           {picked ? (
-            <HugeiconsIcon icon={Download04Icon} className="size-4.5" />
+            <HugeiconsIcon icon={ArrowDown03Icon} className="size-4.5" />
           ) : boxState === "downloading" ? (
             <Spinner aria-hidden="true" className="size-4" />
           ) : (

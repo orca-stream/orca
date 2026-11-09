@@ -10,7 +10,7 @@ import {
   RefreshIcon,
   CheckmarkCircle02Icon,
   Clock01Icon,
-  Download04Icon,
+  ArrowDown03Icon,
   Globe02Icon,
   HashtagIcon,
   LeftToRightListNumberIcon,
@@ -372,7 +372,7 @@ function EpisodeCard({
   const title = tmdb?.name || episode.title;
   const server = serverOf(episode.source, t);
   const fateText = {
-    download: { label: t.add.willDownload, hint: t.add.downloadHint, icon: Download04Icon },
+    download: { label: t.add.willDownload, hint: t.add.downloadHint, icon: ArrowDown03Icon },
     wait: { label: t.add.willWait, hint: t.add.waitHint, icon: Tick02Icon },
     "left-out": { label: t.add.leftOut, hint: t.add.leftOutHint, icon: null },
     taken: { label: t.add.alreadyThere, hint: t.add.alreadyThereHint(code), icon: RefreshIcon },

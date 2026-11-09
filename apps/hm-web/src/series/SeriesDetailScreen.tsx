@@ -6,7 +6,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Link04Icon,
   ArrowLeft01Icon,
-  Download04Icon,
+  ArrowDown03Icon,
   Image02Icon,
   PauseIcon,
   PencilEdit02Icon,
@@ -272,7 +272,7 @@ function SeriesHero({
               ) : (
                 series.downloadingCount > 0 && (
                   <span className="flex items-center gap-1 text-primary">
-                    <HugeiconsIcon icon={Download04Icon} className="size-4" />
+                    <HugeiconsIcon icon={ArrowDown03Icon} className="size-4" />
                     {t.series.downloading(series.downloadingCount)}
                   </span>
                 )
@@ -571,7 +571,7 @@ export function SeriesDetailScreen() {
         />
         <DockButton
           label={t.series.downloadMissing}
-          icon={Download04Icon}
+          icon={ArrowDown03Icon}
           pending={bulk === "missing"}
           disabled={missing.length === 0 || bulk !== null}
           onClick={downloadMissing}

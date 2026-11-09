@@ -13,7 +13,7 @@ import {
   CheckmarkCircle02Icon,
   CodeIcon,
   ConnectIcon,
-  Download04Icon,
+  ArrowDown03Icon,
   FileAttachmentIcon,
   Film01Icon,
   Folder01Icon,
@@ -866,7 +866,7 @@ export function DownloadsSection(props: SectionProps) {
       <DraftNumber
         {...props}
         field="concurrency"
-        icon={Download04Icon}
+        icon={ArrowDown03Icon}
         label={t.settings.downloads.concurrency}
         hint={t.settings.hints.concurrency}
         min={1}

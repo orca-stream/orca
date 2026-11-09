@@ -1,7 +1,7 @@
 import {
   Cancel01Icon,
   Copy01Icon,
-  Download04Icon,
+  ArrowDown03Icon,
   MinusSignIcon,
   RefreshIcon,
   StopIcon,
@@ -73,7 +73,7 @@ function UpdateButton({ update, onInstall }: { update: UpdateOffer; onInstall: (
   }
   const button = (
     <Button onClick={onInstall} className={className}>
-      <HugeiconsIcon icon={Download04Icon} data-icon="inline-start" className="size-5" />
+      <HugeiconsIcon icon={ArrowDown03Icon} data-icon="inline-start" className="size-5" />
       {update.status === "failed" ? t.desktop.updateFailed : t.desktop.update(update.version)}
     </Button>
   );

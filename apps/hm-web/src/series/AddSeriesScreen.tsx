@@ -24,7 +24,7 @@ import {
   Alert02Icon,
   Cancel01Icon,
   Calendar03Icon,
-  Download04Icon,
+  ArrowDown03Icon,
   Film01Icon,
   Folder01Icon,
   Layers01Icon,
@@ -1277,7 +1277,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                     />
                   )}
                   <BarToggle
-                    icon={Download04Icon}
+                    icon={ArrowDown03Icon}
                     label={t.add.downloadNow}
                     hint={form.downloadNow ? t.add.downloadHint : t.add.downloadNowHint}
                     checked={form.downloadNow}
