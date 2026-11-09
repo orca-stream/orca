@@ -2,7 +2,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { FolderCheckIcon, Tv01Icon } from "@hugeicons/core-free-icons";
 import type { SiteSearchResultDto } from "@orca/hm-contract";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useApi } from "@/api/context";
 import { queries } from "@/api/queries";
 import type { ExtractorDto, SeriesDto } from "@/api/types";
@@ -104,8 +104,19 @@ export function SiteResults({
 }) {
   const t = useT();
   const { asked, found, status, waiting, fetching } = useSiteSearch(query, extractors);
-  const [measure, width] = useElementWidth<HTMLElement>();
+  // Wider than a scrollbar: its coming and going with a short page must not change the columns.
+  const [measure, width] = useElementWidth<HTMLElement>(SCROLLBAR_SLACK);
   const section = useRef<HTMLElement | null>(null);
+  // One ref for the life of the list: a new function each render would be attached again on every
+  // commit, measuring (and setting the width) each time — a loop once the width flips with the
+  // page's scrollbar (a short last page), which blanked the screen.
+  const sectionRef = useCallback(
+    (node: HTMLElement | null) => {
+      measure(node);
+      section.current = node;
+    },
+    [measure],
+  );
   const columns = Math.max(2, Math.floor((width + TILE_GAP) / (TILE_MIN + TILE_GAP)));
   const pageSize = columns * ROWS_PER_PAGE;
   // The first result shown, for the name it was shown for: a new name starts over, and a resize
@@ -125,10 +136,7 @@ export function SiteResults({
 
   return (
     <section
-      ref={(node) => {
-        measure(node);
-        section.current = node;
-      }}
+      ref={sectionRef}
       aria-label={t.add.siteResultsLabel}
       aria-busy={fetching || undefined}
       className="flex w-full scroll-mt-32 flex-col gap-4"
@@ -203,6 +211,9 @@ export function SiteResults({
     </section>
   );
 }
+
+/** More than a scrollbar takes: a width change smaller than this is the scrollbar, not a resize. */
+const SCROLLBAR_SLACK = 24;
 
 /** The series' own grid: the columns stretch to fill the row (see `FILL_TILE_GRID`). */
 const RESULT_GRID =
