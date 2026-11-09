@@ -1,9 +1,10 @@
 name: Release
 
 # Orca'H&M's desktop app: release-please keeps a release PR open from the commits that ship; merging
-# it tags a draft release, and the job below fills it — the .deb, and the APT repository around it —
-# before publishing it as the latest. Installed copies update from that repository (the .deb adds
-# it), so a release only goes out once everything it needs is there.
+# it tags a draft release, and the jobs below fill it — the .deb and the APT repository around it,
+# the Windows installer and its latest.yml — before the last one publishes it as the latest.
+# Installed copies update from that release (the .deb through its APT repository, Windows through
+# electron-updater), so a release only goes out once everything both need is there.
 on:
   push:
     branches: [main]
@@ -111,12 +112,73 @@ jobs:
           command -v apt-ftparchive >/dev/null || sudo apt-get install -y apt-utils
           apps/hm-desktop/scripts/apt-repo.sh apps/hm-desktop/release/orca-hm_*_amd64.deb "$RUNNER_TEMP/apt"
 
-      # Published only now: until then the release is a draft, which `latest` never points at, so
-      # apt never sees a release without its index.
-      - name: Upload the assets and publish the release
+      - name: Upload the assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh release upload "$TAG" "$RUNNER_TEMP"/apt/* --clobber
-          gh release edit "$TAG" --draft=false --latest
+        run: gh release upload "$TAG" "$RUNNER_TEMP"/apt/* --clobber
+
+  windows:
+    name: Windows installer
+    needs: release-please
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          VP_GIT_HOOKS: "0"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      # The publish option only writes where updates come from (app-update.yml, read by the
+      # installed app) and latest.yml beside the installer; nothing is uploaded by electron-builder.
+      - name: Build the installer
+        env:
+          HM_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
+        working-directory: apps/hm-desktop
+        run: pnpm dist:win -c.publish.provider=generic "-c.publish.url=$HM_UPDATE_URL"
+
+      - name: Upload the assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: apps/hm-desktop/release
+        run: gh release upload "$TAG" orca-hm_*_x64.exe orca-hm_*_x64.exe.blockmap latest.yml --clobber
+
+  publish:
+    name: Publish the release
+    needs: [release-please, linux, windows]
+    # Only once both packages are up: a failed one leaves the release a draft, to be rebuilt with
+    # workflow_dispatch.
+    if: ${{ always() && needs.linux.result == 'success' && needs.windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      # Published only now: until then the release is a draft, which `latest` never points at, so
+      # neither apt nor the Windows updater ever sees a release without its files.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
