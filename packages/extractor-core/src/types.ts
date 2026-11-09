@@ -169,7 +169,7 @@ export interface Mirror {
   framed?: boolean;
 }
 
-/** What a site holds: H&M reads series; movies are kept apart for when it reads them too. */
+/** What a site holds: a series (seasons of episodes) or a movie (one video). */
 export type SearchResultKind = "series" | "movie";
 
 /** Something a site's search found, at the address its extractor reads it from. */
@@ -177,6 +177,11 @@ export interface SearchResult {
   kind: SearchResultKind;
   /** An address `canHandle` claims, to be read the way a pasted one is. */
   url: string;
+  /**
+   * The site's own word for what it is (`OVA`, `Especial`, `MOVIE`), as it wrote it, when its search
+   * says: a hint of what it really is, since sites call a film an OVA and a TV special a movie.
+   */
+  label?: string;
   title: string;
   /** The name it first aired with, when the site gives one that differs from the title. */
   originalTitle?: string;

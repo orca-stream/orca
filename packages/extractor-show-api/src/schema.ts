@@ -20,6 +20,9 @@ export const ShowData = z.object({
   images: z.object({ poster: text }).partial().nullish(),
 });
 
+/** A movie answers as a show does: its id is also the post its players are listed under. */
+export const MovieData = ShowData;
+
 export const EpisodeListData = z.object({
   posts: z.array(
     z.object({

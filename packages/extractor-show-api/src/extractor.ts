@@ -13,7 +13,7 @@ import {
   type SiteExtractor,
 } from "@orca/extractor-core";
 import type * as z from "zod";
-import { envelope, EpisodeListData, PlayerData, ShowData } from "./schema.ts";
+import { envelope, EpisodeListData, MovieData, PlayerData, ShowData } from "./schema.ts";
 import type { ShowApiSite } from "./site.ts";
 
 /**
@@ -37,8 +37,9 @@ function yearOf(releaseDate: string | undefined, title: string | undefined): num
   return digits === undefined ? undefined : Number(digits);
 }
 
-/** What a pasted address asks for: a show, and maybe one of its seasons. */
+/** What a pasted address asks for: a show, and maybe one of its seasons; or a movie. */
 interface Address {
+  movie: boolean;
   slug: string;
   /** The show's address, without query, fragment or trailing slash. */
   show: URL;
@@ -53,11 +54,15 @@ function seasonUrl(show: URL, season: number): string {
   return url.href;
 }
 
+/** A movie's marker: it is one video, and never brings another. */
+const MOVIE_MARKER = "movie";
+
 /** Changes when the season gains or loses an episode. */
 const markerOf = (season: number, total: number): string => `${season}:${total}`;
 
 export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions): SiteExtractor {
   const showPath = new RegExp(site.showPath);
+  const moviePath = site.moviePath === undefined ? null : new RegExp(site.moviePath);
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
   const referer = `${new URL(site.example).origin}/`;
   /** An image path the API gave, under where the site serves its images. */
@@ -97,11 +102,21 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
   function addressOf(input: string): Address | null {
     const url = ownedUrl(site.hosts, input);
     if (!url) return null;
+    const movieSlug = moviePath?.exec(url.pathname)?.[1];
+    if (movieSlug) {
+      return {
+        movie: true,
+        slug: decodeURIComponent(movieSlug),
+        show: normalizeUrl(url),
+        season: null,
+      };
+    }
     const slug = showPath.exec(url.pathname)?.[1];
     if (!slug) return null;
     const asked = url.searchParams.get(SEASON_PARAM);
     if (asked !== null && !/^\d+$/.test(asked)) return null;
     return {
+      movie: false,
       slug: decodeURIComponent(slug),
       show: normalizeUrl(url),
       season: asked === null ? null : Number(asked),
@@ -147,6 +162,53 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
   }
 
   const canHandle = (input: string): boolean => addressOf(input) !== null;
+  const kindOf = (input: string) => (addressOf(input)?.movie ? ("movie" as const) : null);
+
+  /** A movie: one video, its players listed under the movie's own post. */
+  async function extractMovie(address: Address, signal?: AbortSignal): Promise<Extraction> {
+    const data = await get(
+      MovieData,
+      "/single/movies",
+      { slug: address.slug, postType: "movies" },
+      signal,
+    );
+    const sourceRef = String(data._id);
+    const title = data.original_title ?? (data.title ? withoutYear(data.title) : address.slug);
+    const year = yearOf(data.release_date, data.title);
+    const poster = data.images?.poster;
+    return {
+      series: {
+        externalId: `movie:${data._id}`,
+        sourceUrl: address.show.href,
+        title,
+        ...(year !== undefined ? { year } : {}),
+        ...(data.overview ? { plot: data.overview } : {}),
+        ...(poster ? { posterUrl: imageUrl(poster) } : {}),
+        remoteMarker: MOVIE_MARKER,
+      },
+      seasons: [{ number: 1, episodeCount: 1 }],
+      episodes: [
+        {
+          season: 1,
+          episode: 1,
+          title,
+          ...(data.overview ? { plot: data.overview } : {}),
+          inferred: false,
+          sourceRef,
+          media: {
+            kind: "mirrors",
+            url: `${site.api}/player?postId=${encodeURIComponent(sourceRef)}`,
+            fileName: "video",
+          },
+        },
+      ],
+      license: { kind: "unknown" },
+      warnings:
+        year === undefined
+          ? [{ code: "year-missing", message: "The site gives no year for this movie" }]
+          : [],
+    };
+  }
 
   return {
     id: site.id,
@@ -155,11 +217,12 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
     canHandle,
-    ...searchFields(site, http, canHandle),
+    ...searchFields(site, http, canHandle, kindOf),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const address = owned(input);
       const signal = options?.signal;
+      if (address.movie) return extractMovie(address, signal);
       const data = await show(address.slug, signal);
       const { season, all } = await pickSeason(address, data._id, signal);
 
@@ -242,11 +305,15 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
     nextSourceUrl(input: string): string | null {
       const address = addressOf(input);
       // Without a season, the one read is whichever the site lists first: no way to know the next.
-      return address?.season == null ? null : seasonUrl(address.show, address.season + 1);
+      return address?.season == null || address.movie
+        ? null
+        : seasonUrl(address.show, address.season + 1);
     },
 
     async seasonSources(input: string, options?: { signal?: AbortSignal }) {
       const address = owned(input);
+      // A movie has no seasons.
+      if (address.movie) return [];
       const { _id } = await show(address.slug, options?.signal);
       return (await seasonNumbers(_id, options?.signal)).map((season) => ({
         season,
@@ -256,6 +323,8 @@ export function createShowApiExtractor({ site, http }: ShowApiExtractorOptions):
 
     async remoteMarker(input: string, options?: { signal?: AbortSignal }): Promise<string> {
       const address = owned(input);
+      // A movie never changes: nothing to look for.
+      if (address.movie) return MOVIE_MARKER;
       const signal = options?.signal;
       const { _id } = await show(address.slug, signal);
       const season = address.season ?? (await pickSeason(address, _id, signal)).season;

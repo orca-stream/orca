@@ -16,6 +16,9 @@ import {
 import { parse, type HTMLElement } from "node-html-parser";
 import type { Pick, SiteConfig, TitlePick } from "./site.ts";
 
+/** A movie's marker: it is one video, and never brings another. */
+const MOVIE_MARKER = "movie";
+
 /** A season spread over more pages than this is a listing gone wrong, not a season. */
 const MAX_LISTING_PAGES = 100;
 
@@ -102,6 +105,8 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
   const showFrom = seasons ? new RegExp(seasons.show.from) : null;
   const seasonNumberPattern =
     seasons?.number === undefined ? LAST_NUMBER : new RegExp(seasons.number, "d");
+  const moviePath = site.movies ? new RegExp(site.movies.path) : null;
+  const isMovie = (url: URL): boolean => moviePath?.test(normalize(url).pathname) ?? false;
 
   async function load(url: URL, signal?: AbortSignal, referer?: URL): Promise<HTMLElement> {
     const html = await getText!(url.href, {
@@ -172,7 +177,48 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
   function canHandle(input: string): boolean {
     const url = parseUrl(input);
     if (!url || !ownsHost(site.hosts, url.hostname.toLowerCase())) return false;
-    return seasonPath === null || seasonPath.test(normalize(url).pathname) || isShow(url);
+    return (
+      seasonPath === null || seasonPath.test(normalize(url).pathname) || isShow(url) || isMovie(url)
+    );
+  }
+
+  /** What an address is, when its path says it is a movie's. */
+  const kindOf = (input: string) => {
+    const url = parseUrl(input);
+    return url && isMovie(url) ? ("movie" as const) : null;
+  };
+
+  /** A movie's page: one video, whose players it lists as an episode page does. */
+  async function extractMovie(page: URL, signal?: AbortSignal): Promise<Extraction> {
+    const root = await load(page, signal);
+    const movies = site.movies!;
+    const title = (movies.title ? titleOn(root, movies.title) : undefined) ?? titleFromPath(page);
+    const yearText = movies.year ? readAll(root, movies.year).join(" ") : "";
+    const year = /\d{4}/.exec(yearText)?.[0];
+    return {
+      series: {
+        externalId: page.pathname,
+        sourceUrl: page.href,
+        title,
+        ...(year ? { year: Number(year) } : {}),
+        remoteMarker: MOVIE_MARKER,
+      },
+      seasons: [{ number: 1, episodeCount: 1 }],
+      episodes: [
+        {
+          season: 1,
+          episode: 1,
+          title,
+          inferred: false,
+          sourceRef: page.pathname,
+          media: { kind: "mirrors", url: page.href, fileName: "video" },
+        },
+      ],
+      license: { kind: "unknown" },
+      warnings: year
+        ? []
+        : [{ code: "year-missing", message: "The page gives no year for this movie" }],
+    };
   }
 
   return {
@@ -182,7 +228,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
     example: site.example,
     ...(site.limits ? { limits: site.limits } : {}),
     canHandle,
-    ...searchFields(site, http, canHandle),
+    ...searchFields(site, http, canHandle, kindOf),
 
     async extract(input: string, options?: { signal?: AbortSignal }): Promise<Extraction> {
       const parsed = parseUrl(input);
@@ -190,6 +236,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
         throw new ExtractorError("unsupported-url", `${site.name} does not read this address`);
       }
       const signal = options?.signal;
+      if (isMovie(parsed)) return extractMovie(normalize(parsed), signal);
       let season = normalize(parsed);
       // A show stands for its first season: one source is always one season.
       if (isShow(season)) {
@@ -262,7 +309,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
       ? {
           nextSourceUrl(input: string): string | null {
             const url = parseUrl(input);
-            if (!url || !canHandle(input) || isShow(url)) return null;
+            if (!url || !canHandle(input) || isShow(url) || isMovie(url)) return null;
             const season = normalize(url);
             const at = numberIn(season.pathname, seasonNumberPattern);
             if (!at) return null;
@@ -273,7 +320,7 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
 
           showUrl(input: string): string | null {
             const url = parseUrl(input);
-            if (!url || !canHandle(input)) return null;
+            if (!url || !canHandle(input) || isMovie(url)) return null;
             return (isShow(url) ? normalize(url) : showOf(url))?.href ?? null;
           },
 
@@ -282,6 +329,8 @@ export function createHtmlExtractor({ site, http }: HtmlExtractorOptions): SiteE
             options?: { signal?: AbortSignal },
           ): Promise<SeasonSource[]> {
             const url = parseUrl(input);
+            // A movie has no seasons.
+            if (url && isMovie(url)) return [];
             const show =
               url && canHandle(input) ? (isShow(url) ? normalize(url) : showOf(url)) : null;
             if (!show) {

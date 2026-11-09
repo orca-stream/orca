@@ -22,6 +22,11 @@ export interface SearchOptions {
   http: HttpClient;
   /** The extractor's own test: a result it would not read is never offered. */
   canHandle: (url: string) => boolean;
+  /**
+   * What the extractor reads at an address, when the address alone says (a movie's page has its own
+   * path): it wins over what the search said. Null or absent: the search's word stands.
+   */
+  kindOf?: ((url: string) => SearchResultKind | null) | undefined;
 }
 
 /** The value at `path` (`images.poster`) inside `item`, or undefined. */
@@ -164,6 +169,7 @@ export function rankByTitle<T extends Pick<SearchResult, "title" | "originalTitl
 /** What one item of an answer says, as written, before it becomes a result. */
 interface ItemFields {
   kind: SearchResultKind | null;
+  label?: string | undefined;
   path: string | undefined;
   title: string | undefined;
   originalTitle?: string | undefined;
@@ -175,7 +181,7 @@ interface ItemFields {
 type Asked = { signal?: AbortSignal; headers?: Record<string, string> };
 
 /** A search described in the site's file, asked through its JSON API or read from its search page. */
-export function createSearch({ site, http, canHandle }: SearchOptions) {
+export function createSearch({ site, http, canHandle, kindOf }: SearchOptions) {
   const config = site.search;
   const origin = new URL(site.example).origin;
   const headers = site.userAgent ? { "user-agent": site.userAgent } : undefined;
@@ -186,19 +192,22 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
     if (!kind || !path || !title) return null;
     const url = parseUrl(new URL(path, origin).href);
     if (!url || !canHandle(url.href)) return null;
+    const read = kindOf?.(url.href) ?? kind;
     const originalTitle = readable(fields.originalTitle);
     const year = YEAR.exec(fields.year ?? "")?.[0];
     const plot = readable(fields.plot);
+    const label = readable(fields.label);
     const posterUrl =
       fields.poster === undefined ? null : parseUrl(new URL(fields.poster, origin).href);
     return {
-      kind,
+      kind: read,
       url: url.href,
       title,
       ...(originalTitle && plain(originalTitle) !== plain(title) ? { originalTitle } : {}),
       ...(year ? { year: Number(year) } : {}),
       ...(plot ? { plot } : {}),
       ...(posterUrl ? { posterUrl: posterUrl.href } : {}),
+      ...(label ? { label } : {}),
     };
   }
 
@@ -241,6 +250,7 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
       const kind = kindOf(item);
       return {
         kind,
+        label: config.type ? fill(config.type.from, item) : undefined,
         path: kind ? fill(config.result.url[kind], item) : undefined,
         title: fill(config.result.title, item),
         originalTitle: fill(config.result.originalTitle, item),
@@ -305,6 +315,12 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
     /** Spaces as one: a page writes its words across lines. */
     const words = (text: string | undefined) => text?.replace(/\s+/g, " ");
     const seriesWords = new Set(config.type?.series.map(words));
+    const movieWords = new Set(config.type?.movie?.map(words));
+    const kindOf = (word: string | undefined): SearchResultKind | null => {
+      if (!config.type) return "series";
+      if (seriesWords.has(words(word))) return "series";
+      return movieWords.has(words(word)) ? "movie" : null;
+    };
 
     return async function* (typed: string, asked: Asked): AsyncGenerator<ItemFields[]> {
       const getText = http.getText?.bind(http);
@@ -323,7 +339,8 @@ export function createSearch({ site, http, canHandle }: SearchOptions) {
         const html = await getText(address.replaceAll(PAGE_SLOT, String(page)), asked);
         const items = parse(html).querySelectorAll(config.items);
         yield items.map((item) => ({
-          kind: !type || seriesWords.has(words(pick(item, type))) ? ("series" as const) : null,
+          kind: kindOf(pick(item, type)),
+          label: type ? words(pick(item, type)) : undefined,
           path: pick(item, result.url),
           title: pick(item, result.title),
           originalTitle: pick(item, result.originalTitle),
@@ -347,11 +364,12 @@ export function searchFields(
   site: Pick<SiteBase, "name" | "example" | "userAgent" | "search">,
   http: HttpClient,
   canHandle: (url: string) => boolean,
+  kindOf?: (url: string) => SearchResultKind | null,
 ): Pick<SiteExtractor, "search" | "posterHosts"> {
   const config = site.search;
   if (!config) return {};
   return {
-    search: createSearch({ site: { ...site, search: config }, http, canHandle }),
+    search: createSearch({ site: { ...site, search: config }, http, canHandle, kindOf }),
     ...(config.posterHosts ? { posterHosts: config.posterHosts } : {}),
   };
 }

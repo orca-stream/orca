@@ -8,6 +8,11 @@ import * as z from "zod";
 export const ShowApiSite = SiteBase.extend({
   /** The path of a show's address; its first group is the show's slug. */
   showPath: CapturingPattern("the show's slug"),
+  /**
+   * The path of a movie's address; its first group is the movie's slug. A movie is read as one video.
+   * Absent: the site's movies are not read.
+   */
+  moviePath: CapturingPattern("the movie's slug").optional(),
   /** Where the API answers, without a trailing slash (`https://site.example/api/v1`). */
   api: z.url().transform((url) => url.replace(/\/+$/, "")),
   /**

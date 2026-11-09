@@ -117,8 +117,8 @@ const ItemPick = z.object({
 
 /**
  * How a site is searched through its own search page, the results written in its HTML. `{query}` in
- * `url` is what was typed. Every result is a series; one the extractor would not read (a movie's
- * page) is left out.
+ * `url` is what was typed. A result the extractor would not read (a page of another kind) is left
+ * out.
  */
 export const HtmlSearch = z.object({
   reads: z.literal("html"),
@@ -132,10 +132,14 @@ export const HtmlSearch = z.object({
   /** Each result on the page (`div.movie-item`); the picks below look inside it. */
   items: z.string().min(1),
   /**
-   * What each result is, when the page says it: the words (as written there) of what is a series.
-   * A result whose word is none of them is left out. Absent: every result is a series.
+   * What each result is, when the page says it: the words (as written there) of what is a series,
+   * and of what is a movie. A result whose word is in neither is left out. Absent: every result is a
+   * series.
    */
-  type: ItemPick.extend({ series: z.array(z.string().min(1)).min(1) }).optional(),
+  type: ItemPick.extend({
+    series: z.array(z.string().min(1)).min(1),
+    movie: z.array(z.string().min(1)).optional(),
+  }).optional(),
   result: z.object({
     /** Relative addresses are on the site's origin. */
     url: ItemPick.extend({ attribute: z.string().min(1).default("href") }),

@@ -87,7 +87,7 @@ describe("createSearch", () => {
   it("keeps the series, at the address the extractor reads, best match first", async () => {
     const { run } = setup();
     expect(await run("marea")).toEqual([
-      { kind: "series", url: `${ORIGIN}/series/marea`, title: "Marea" },
+      { kind: "series", url: `${ORIGIN}/series/marea`, title: "Marea", label: "animes" },
       {
         kind: "series",
         url: `${ORIGIN}/series/la-casa-del-mar`,
@@ -96,6 +96,7 @@ describe("createSearch", () => {
         year: 2006,
         plot: "A house.",
         posterUrl: `${ORIGIN}/wp-content/uploads/thumbs/b.webp`,
+        label: "tvshows",
       },
     ]);
   });
@@ -106,6 +107,20 @@ describe("createSearch", () => {
     expect(titles).not.toContain("Mar de fondo");
     expect(titles).not.toContain("Sin tipo");
     expect(titles).not.toContain("Sin dirección");
+  });
+
+  it("takes what the address says over the site's word, when the extractor knows its movies' path", async () => {
+    const http: HttpClient = { getJson: async () => answer };
+    const run = createSearch({
+      site: { name: "Site B", example: `${ORIGIN}/series/x`, search },
+      http,
+      canHandle: () => true,
+      // Marea's address is a movie's, whatever the site calls it.
+      kindOf: (url) => (url.endsWith("/marea") ? "movie" : null),
+    });
+    const found = await run("marea");
+    expect(found.find((result) => result.title === "Marea")?.kind).toBe("movie");
+    expect(found.find((result) => result.title === "La casa del mar")?.kind).toBe("series");
   });
 
   it("never offers what the extractor would not read", async () => {
@@ -308,6 +323,7 @@ describe("createSearch, by POST", () => {
         originalTitle: "Ai & Shi",
         plot: 'A family. (Source: Somewhere) "ok"',
         posterUrl: `${IMAGES}/1.jpg`,
+        label: "TV",
       },
     ]);
   });
@@ -488,6 +504,28 @@ describe("createSearch, on the site's search page", () => {
       return { run, asked };
     }
 
+    it("keeps the movies too when the page names their word, as movies", async () => {
+      const withMovies = SiteSearch.parse({
+        ...pagedSearch,
+        type: { selector: ".anime-card-type", series: ["TV Anime", "OVA"], movie: ["Película"] },
+      });
+      const run = createSearch({
+        site: { name: "Site A", example: `${ORIGIN}/anime/x`, search: withMovies },
+        http: {
+          getJson: async () => {
+            throw new Error("not asked");
+          },
+          getText: async (url) =>
+            `<main>${new URL(url).searchParams.get("page") === "1" ? pages[1] : ""}</main>`,
+        },
+        canHandle: (url) => new URL(url).pathname.startsWith("/anime/"),
+      });
+      expect((await run("black")).map((result) => [result.title, result.kind])).toEqual([
+        ["black-1", "series"],
+        ["black-2", "movie"],
+      ]);
+    });
+
     it("reads the pages one after another until one comes short, and keeps only series", async () => {
       const { run, asked } = pagedRun(3);
       const results = await run("black");
@@ -497,6 +535,13 @@ describe("createSearch, on the site's search page", () => {
         "black-3",
         "black-4",
         "black-5",
+      ]);
+      // The site's own word for each, as one line.
+      expect(results.map((result) => result.label)).toEqual([
+        "TV Anime",
+        "OVA",
+        "TV Anime",
+        "TV Anime",
       ]);
     });
 

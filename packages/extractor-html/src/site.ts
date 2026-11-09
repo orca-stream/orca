@@ -63,6 +63,20 @@ export const SiteConfig = SiteBase.extend({
       number: Pattern.optional(),
     })
     .optional(),
+  /**
+   * When the site has movies on pages of their own: the path of a movie's address, and its name and
+   * year on that page. A movie page lists its players as an episode page does (`mirrors`), and is
+   * read as one video. Absent: the site's movies are not read.
+   */
+  movies: z
+    .object({
+      path: Pattern,
+      /** Absent: taken from the address. */
+      title: TitlePick.optional(),
+      /** The first four digits in a row it reads are the year. */
+      year: Pick.optional(),
+    })
+    .optional(),
   /** On an episode page: each player's address. */
   mirrors: Pick.extend({
     attribute: z.string().min(1),

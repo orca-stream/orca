@@ -292,3 +292,46 @@ describe("a show API site's description", () => {
     expect(site.api).toBe(API);
   });
 });
+
+describe("show API extractor: a movie", () => {
+  const MOVIE = `${ORIGIN}/peliculas/a-film-2016`;
+  const movieSite = parseSite({ moviePath: "^/(?:peliculas|movies)/([^/]+)/?$" });
+  const movieAnswers = {
+    [`${API}/single/movies?slug=a-film-2016&postType=movies`]: ok({
+      _id: 900,
+      title: "A Film (2016)",
+      original_title: "A Film",
+      overview: "A plot.",
+      slug: "a-film-2016",
+      release_date: "2016-07-23",
+      images: { poster: "/thumbs/film.webp" },
+    }),
+  };
+
+  it("claims a movie's address only when the site says where its movies are", () => {
+    expect(createShowApiExtractor({ site, http: fakeApi({}).http }).canHandle(MOVIE)).toBe(false);
+    const extractor = createShowApiExtractor({ site: movieSite, http: fakeApi({}).http });
+    expect(extractor.canHandle(`${MOVIE}/`)).toBe(true);
+    expect(extractor.canHandle(`${ORIGIN}/movies/a-film-2016`)).toBe(true);
+    expect(extractor.nextSourceUrl!(MOVIE)).toBeNull();
+  });
+
+  it("reads a movie as one video whose players are its own post's", async () => {
+    const extractor = createShowApiExtractor({ site: movieSite, http: fakeApi(movieAnswers).http });
+    const extraction = await extractor.extract(`${MOVIE}/`);
+    expect(extraction.series).toEqual({
+      externalId: "movie:900",
+      sourceUrl: MOVIE,
+      title: "A Film",
+      year: 2016,
+      plot: "A plot.",
+      posterUrl: `${ORIGIN}/thumbs/film.webp`,
+      remoteMarker: "movie",
+    });
+    expect(extraction.episodes.map((e) => [e.season, e.episode, e.media.url])).toEqual([
+      [1, 1, `${API}/player?postId=900`],
+    ]);
+    expect(await extractor.seasonSources!(MOVIE)).toEqual([]);
+    expect(await extractor.remoteMarker!(MOVIE)).toBe("movie");
+  });
+});

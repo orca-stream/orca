@@ -328,3 +328,45 @@ describe("a site's description", () => {
     expect(parsed.error?.issues.map((issue) => issue.path.join("."))).toEqual(["seasonPath"]);
   });
 });
+
+describe("HTML extractor: a movie on a page of its own", () => {
+  const movieSite = SiteConfig.parse({
+    ...seasonsSite,
+    movies: {
+      path: "^/pelicula/[^/]+$",
+      title: { selector: "h1 [itemprop=name]", match: "^Ver Película (.+)$" },
+      year: { selector: "p.meta" },
+    },
+  });
+  const MOVIE = `${ORIGIN}/pelicula/a-film`;
+
+  it("claims a movie's address beside the show's and the seasons', and says it is a movie", () => {
+    const extractor = createHtmlExtractor({ site: movieSite, http: fakePages({}).http });
+    expect(extractor.canHandle(`${MOVIE}/`)).toBe(true);
+    expect(extractor.canHandle(`${SHOW}/`)).toBe(true);
+    // Without `movies`, a movie's page is not this extractor's.
+    const showsOnly = createHtmlExtractor({ site: seasonsSite, http: fakePages({}).http });
+    expect(showsOnly.canHandle(`${MOVIE}/`)).toBe(false);
+    // A movie has no show, no next season and no seasons to list.
+    expect(extractor.showUrl!(`${MOVIE}/`)).toBeNull();
+    expect(extractor.nextSourceUrl!(`${MOVIE}/`)).toBeNull();
+  });
+
+  it("reads a movie as one video, its name and year from the page, its players as an episode's", async () => {
+    const { http } = fakePages({
+      [MOVIE]: `<h1><span itemprop="name"> Ver Película A Film </span></h1>
+        <p class="meta"><span>1h 35min</span> · <span>2004</span></p>
+        <div class="tab-video-item"><ul><li role="presentation" data-server="${btoa("https://player.test/e/1")}"></li></ul></div>`,
+    });
+    const extractor = createHtmlExtractor({ site: movieSite, http });
+    const extraction = await extractor.extract(`${MOVIE}/`);
+    expect(extraction.series).toMatchObject({ title: "A Film", year: 2004, sourceUrl: MOVIE });
+    expect(extraction.episodes.map((e) => [e.season, e.episode, e.media.url])).toEqual([
+      [1, 1, MOVIE],
+    ]);
+    expect(await extractor.seasonSources!(`${MOVIE}/`)).toEqual([]);
+    expect(await extractor.resolveMirrors!(MOVIE)).toEqual([
+      { url: "https://player.test/e/1", referer: MOVIE },
+    ]);
+  });
+});
