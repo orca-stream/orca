@@ -343,10 +343,17 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       return;
     }
     // The name stays (and the results with it, the one picked spinning) until the address is read.
-    runPreview(undefined, { url: found.url, extractorId: found.extractorId });
+    runPreview(undefined, {
+      url: found.url,
+      extractorId: found.extractorId,
+      title: found.title,
+    });
   }
 
-  function runPreview(event?: FormEvent, picked?: { url: string; extractorId: string }) {
+  function runPreview(
+    event?: FormEvent,
+    picked?: { url: string; extractorId: string; title: string },
+  ) {
     event?.preventDefault();
     const address = picked?.url ?? url.trim();
     if (address === "" || previewMutation.isPending) return;
@@ -361,7 +368,10 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
     previewMutation.mutate(
       { url: address, ...(reader ? { extractorId: reader } : {}) },
       {
-        onSuccess: (next) => {
+        onSuccess: (read) => {
+          // The name the site's search wrote: the address's own may carry the site's suffixes
+          // (`some-show-zvjg` read as «some show zvjg 1»).
+          const next = picked ? { ...read, series: { ...read.series, title: picked.title } } : read;
           if (picked) {
             // The address picked is the series' from now on; the bar goes from the results to it.
             setUrl(picked.url);

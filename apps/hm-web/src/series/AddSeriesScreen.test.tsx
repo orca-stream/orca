@@ -700,6 +700,9 @@ describe("AddSeriesScreen", () => {
       extractorId: "site-b",
     });
     expect((input as HTMLInputElement).value).toBe("https://origin.test/series/la-casa");
+    // The name the search wrote, not the one the site's page or address gives (its suffixes).
+    expect(screen.queryByText("The Beverly Hillbillies")).toBeNull();
+    expect(screen.getAllByText("La casa").length).toBeGreaterThan(0);
 
     // Read: the address is the series' until it is searched again, which empties it.
     expect((input as HTMLInputElement).readOnly).toBe(true);
