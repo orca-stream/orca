@@ -8,11 +8,25 @@ import { cn } from "@/lib/utils";
  * with `relative z-10`. Nothing between the link and the card may be `relative`, or the link covers
  * only that box: layers under the text go `absolute -z-10` in an `isolate` card instead.
  */
-export function Tile({ children, className }: { children?: ReactNode; className?: string }) {
+export function Tile({
+  children,
+  className,
+  covered = false,
+}: {
+  children?: ReactNode;
+  className?: string;
+  /**
+   * An image fills the whole card: there is nothing to see through it, so it gets the glass' edge and
+   * shadow without its `backdrop-filter`. A long grid of blurring cards is more than Chromium can
+   * raster while scrolling: it paints some as flat dark boxes, bigger than the card, for a moment.
+   */
+  covered?: boolean;
+}) {
   return (
     <li
       className={cn(
-        "glass group/tile relative flex aspect-3/4 flex-col overflow-hidden rounded-3xl transition duration-300 ease-out has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-safe:hover:-translate-y-1 hover:shadow-[0_24px_60px_-24px_var(--glass-shadow)]",
+        covered ? "glass-edge" : "glass",
+        "group/tile relative flex aspect-3/4 flex-col overflow-hidden rounded-3xl transition duration-300 ease-out has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-safe:hover:-translate-y-1 hover:shadow-[0_24px_60px_-24px_var(--glass-shadow)]",
         className,
       )}
     >

@@ -156,6 +156,7 @@ function SeriesTile({ series }: { series: SeriesDto }) {
     // The cover and its shade lie under the text (-z-10 in its own stacking context), so nothing in
     // between needs `relative`: the title's link then covers the whole card, not just its bottom.
     <Tile
+      covered={cover !== null}
       className={cn(
         "isolate",
         cover ? "bg-black/80" : "bg-linear-to-b from-primary/10 to-transparent",

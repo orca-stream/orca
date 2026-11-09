@@ -81,6 +81,14 @@
  * Frosted glass: a translucent white that blurs and saturates what is behind it, a bright top edge
  * and a soft blue shadow. Without backdrop-filter it falls back to a more opaque white, still legible.
  */
+/* The glass' edge and shadow alone, for a card an image fills (nothing shows through it). */
+@utility glass-edge {
+  border: 1px solid var(--glass-edge);
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 80%),
+    0 16px 48px -20px var(--glass-shadow);
+}
+
 @utility glass {
   background-color: var(--glass-strong);
   border: 1px solid var(--glass-edge);
