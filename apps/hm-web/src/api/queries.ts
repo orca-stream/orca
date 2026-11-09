@@ -34,6 +34,9 @@ function jobsPath(statuses: string[], limit: number, cursor?: string): string {
 
 const id = encodeURIComponent;
 
+/** How long what TMDB says of a show is trusted before it is asked again. */
+const SHOW_LOOKUP_STALE_MS = 60 * 60_000;
+
 /** Every read of the API as query options, so screens and the live-event handler share the keys. */
 export const queries = {
   extractors: (api: ApiClient) =>
@@ -113,12 +116,15 @@ export const queries = {
       staleTime: 60_000,
     }),
 
-  /** What TMDB calls a show; a show's name doesn't change while the panel is open. */
+  /**
+   * What TMDB says of a show. Its name holds still, but whether it airs and its next episode change,
+   * and the server answers without them when TMDB fails it once: kept for an hour, not for good.
+   */
   showLookup: (api: ApiClient, tmdbId: string) =>
     queryOptions({
       queryKey: keys.showLookup(tmdbId),
       queryFn: ({ signal }) => api.get<ShowLookupDto>(`/lookup/tmdb/${id(tmdbId)}`, { signal }),
-      staleTime: Infinity,
+      staleTime: SHOW_LOOKUP_STALE_MS,
       // A 404 is the answer, not a hiccup; and nobody waits through retries while typing.
       retry: false,
     }),
