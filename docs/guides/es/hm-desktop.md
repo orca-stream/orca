@@ -4,17 +4,24 @@
 
 La app de escritorio (`apps/hm-desktop`) es el [servidor Orca'H&M](hm-server.md) y su
 [panel](hm-web.md) en un solo programa: arranca el servidor, muestra el panel en su propia ventana y
-se queda en la bandeja, así que las descargas siguen con la ventana cerrada. Por ahora solo en Linux,
-como `.deb` (Ubuntu, Debian y sus derivadas).
+se queda en la bandeja, así que las descargas siguen con la ventana cerrada. Para Linux, como `.deb`
+(Ubuntu, Debian y sus derivadas), y para Windows 10 y 11 (64 bits), como instalador.
 
 ## Instalar
 
-Descarga `orca-hm_<versión>_amd64.deb` de la última versión publicada y ábrelo (o
-`sudo apt install ./orca-hm_<versión>_amd64.deb`). La instalación pide tu contraseña una vez. En su
-primer arranque la app descarga el navegador y ffmpeg que usan sus descargas, mostrando el progreso;
+- **Linux:** descarga `orca-hm_<versión>_amd64.deb` de la última versión publicada y ábrelo (o
+  `sudo apt install ./orca-hm_<versión>_amd64.deb`). La instalación pide tu contraseña una vez.
+- **Windows:** descarga `orca-hm_<versión>_x64.exe` de la última versión publicada y ábrelo. Se instala
+  solo para tu cuenta, sin pedir administrador, y añade Orca'H&M al menú Inicio y al escritorio. El
+  instalador aún no está firmado, así que Windows puede avisar de que protegió tu equipo: elige
+  **Más información › Ejecutar de todas formas**.
+
+En su primer arranque la app descarga el navegador y ffmpeg que usan sus descargas, mostrando el progreso;
 después se abre el asistente de configuración del panel.
 
 ## Actualizaciones
+
+### Linux
 
 Al instalar el `.deb` se añade también el repositorio de paquetes propio de la app (como hacen Chrome
 o VS Code), así que las versiones nuevas llegan como cualquier otra actualización:
@@ -34,15 +41,26 @@ en el menú de la bandeja. Mientras se instala, el botón dice **Descargando… 
 (series, ajustes, el navegador y ffmpeg descargados) viven en `~/.config/orca-hm` y se conservan al
 actualizar.
 
+### Windows
+
+La app busca versiones nuevas igual (un minuto después de arrancar, luego cada seis horas, o con
+**Buscar actualizaciones**) y las ofrece con el mismo botón **Actualizar a X** y en la bandeja. Un clic
+la descarga (**Descargando… N %**); después la app se cierra, el instalador muestra su progreso y abre
+la versión nueva. Nada pide administrador. Tus datos viven en `%LOCALAPPDATA%\orca-hm` y se conservan
+al actualizar; la app en sí está en `%LOCALAPPDATA%\Programs\orca-hm`.
+
 ## Desinstalar
 
-`sudo apt remove orca-hm`. El repositorio de paquetes se va con ella. Tus datos se quedan en
-`~/.config/orca-hm`; borra esa carpeta para quitarlos también.
+- **Linux:** `sudo apt remove orca-hm`. El repositorio de paquetes se va con ella. Tus datos se quedan
+  en `~/.config/orca-hm`; borra esa carpeta para quitarlos también.
+- **Windows:** Configuración › Aplicaciones › Aplicaciones instaladas › Orca'H&M › Desinstalar. Tus
+  datos se quedan en `%LOCALAPPDATA%\orca-hm`; borra esa carpeta para quitarlos también.
 
 ## Compilarla tú
 
 ```sh
 pnpm --filter @orca/hm-desktop dist:linux   # apps/hm-desktop/release/orca-hm_<versión>_amd64.deb
+pnpm --filter @orca/hm-desktop dist:win     # apps/hm-desktop/release/orca-hm_<versión>_x64.exe
 pnpm --filter @orca/hm-desktop start        # arrancarla desde el repositorio, sin empaquetar
 pnpm try:hm                                  # cerrar la app abierta, recompilar y arrancarla desde el repositorio
 ```
@@ -57,15 +75,25 @@ publicada), así que nunca se actualiza sola. Para compilar una que sí, define 
 sirve el repositorio) y `HM_APT_KEY_FILE` (la clave pública que lo firma, tal como la escribe
 `gpg --export`): las dos o ninguna.
 
+`dist:win` compila en Windows, o en Linux con [Wine](https://www.winehq.org/) instalado. Una
+compilación local de Windows tampoco se actualiza sola; para compilar una que sí, indica de dónde
+vienen sus actualizaciones (ahí deben servirse `latest.yml` y el instalador):
+
+```sh
+cd apps/hm-desktop
+pnpm dist:win -c.publish.provider=generic -c.publish.url=https://<host>/<ruta>
+```
+
 ## Versiones (mantenimiento)
 
 Las versiones salen de [release-please](https://github.com/googleapis/release-please): cada commit
 `feat`, `fix` o `perf` que toca Orca'H&M (todo lo que no es Orca'JP) entra en un PR de versión abierto,
 que sube la versión (`0.x` mientras la app diga _Beta_) y el registro de cambios de `apps/hm-desktop`.
-Al fusionarlo se etiqueta una versión en borrador; el workflow `Release` compila el `.deb`, monta el
+Al fusionarlo se etiqueta una versión en borrador; el workflow `Release` compila el `.deb` y monta el
 repositorio de paquetes a su alrededor (`apps/hm-desktop/scripts/apt-repo.sh`: `Packages`, `Release`,
-`InRelease`, firmados), los sube como archivos de la versión y solo entonces la publica como la
-última. Las apps instaladas leen el repositorio en
+`InRelease`, firmados), compila el instalador de Windows en un runner de Windows (con su `latest.yml`
+y su `.blockmap`), lo sube todo como archivos de la versión y, solo cuando están los dos, la publica
+como la última. Las apps instaladas leen sus actualizaciones en
 `https://github.com/<owner>/<repo>/releases/latest/download/`.
 
 Necesita:

@@ -1,6 +1,6 @@
 // Orca'H&M's desktop shell: runs the server in a utility process, shows its panel in a window and
 // stays in the tray so downloads keep going with the window closed.
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   app,
@@ -24,6 +24,7 @@ import {
   type UpdateCheck,
   type UpdateOffer,
 } from "@orca/hm-contract/desktop";
+import electronUpdater from "electron-updater";
 import { localeFor, readPreferences, writePreferences } from "./preferences.ts";
 import { endStartupSequence } from "./startup-notification.ts";
 import { SERVER_PORT, ServerProcess, StartError } from "./server.ts";
@@ -31,9 +32,10 @@ import { setupView } from "./setup-view.ts";
 import { RETRY_URL, setupPage, shellPage, type SetupView } from "./shell-page.ts";
 import { stringsFor, type Strings } from "./strings.ts";
 import { ToolsSetup, type ToolState } from "./tools/index.ts";
+import { NsisUpdates } from "./updates/nsis.ts";
 import { PackageKitUpdates } from "./updates/packagekit.ts";
 import { repositoryUrlFrom } from "./updates/repository.ts";
-import { Updater } from "./updates/updater.ts";
+import { Updater, type UpdateSource } from "./updates/updater.ts";
 import { readWindowState, restoredBounds, writeWindowState } from "./window-state.ts";
 
 // On Linux the window goes through XWayland. Under native Wayland, GNOME only raises a window that
@@ -75,14 +77,32 @@ function aptRepositoryUrl(): string | undefined {
 /** How often the setup page is redrawn while something downloads. */
 const PUSH_MS = 150;
 
+/**
+ * Where a Windows build finds its updates: electron-builder writes it from the `publish` option the
+ * release passes (see package.json, `dist:win`). A local build carries none.
+ */
+function windowsUpdatesConfigured(): boolean {
+  return existsSync(join(process.resourcesPath, "app-update.yml"));
+}
+
+/** The app's id (electron-builder.yml, `appId`): Windows groups its windows and shortcut by it. */
+const APP_ID = "io.github.orcastream.orca.hm";
+
 /** The app's Debian package (electron-builder.yml, `deb.packageName`), which updates replace. */
 const DEB_PACKAGE = "orca-hm";
 /** The first look for an update, once the start is over, and then every few hours. */
 const UPDATE_FIRST_CHECK_MS = 60_000;
 const UPDATE_INTERVAL_MS = 6 * 60 * 60_000;
 
-// A fixed folder name: the product name has an apostrophe and an ampersand.
-app.setPath("userData", join(app.getPath("appData"), "orca-hm"));
+// A fixed folder name: the product name has an apostrophe and an ampersand. On Windows it goes in
+// AppData\Local, not Roaming: hundreds of MB of tools that can be fetched again have no place in a
+// profile that travels between computers.
+const dataRoot =
+  process.platform === "win32" && process.env.LOCALAPPDATA
+    ? process.env.LOCALAPPDATA
+    : app.getPath("appData");
+app.setPath("userData", join(dataRoot, "orca-hm"));
+if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 const preferencesFile = join(app.getPath("userData"), "preferences.json");
 const preferences = readPreferences(preferencesFile);
 // Drawing with the GPU is a choice in Settings: off saves the GPU process's memory (~60 MB in the
@@ -143,36 +163,62 @@ if (needsX11) {
   let trayUpdateStatus: UpdateOffer["status"] | undefined;
 
   // Installed from the .deb, the app updates through the system's packages (see
-  // updates/packagekit.ts); run from the repository, there is nothing to update.
-  const repositoryUrl = app.isPackaged ? aptRepositoryUrl() : undefined;
-  const updater =
-    repositoryUrl && process.platform === "linux"
-      ? new Updater({
-          source: new PackageKitUpdates(DEB_PACKAGE, {
-            repositoryUrl,
-            currentVersion: app.getVersion(),
-            log: (message) => console.error(message),
-          }),
-          firstCheckMs: UPDATE_FIRST_CHECK_MS,
-          intervalMs: UPDATE_INTERVAL_MS,
-          onChange: (offer) => {
-            window?.webContents.send(DESKTOP_CHANNELS.update, offer);
-            // The tray offers it too, so it is not missed with the window closed. Rebuilt only when
-            // the status changes, not on every percent.
-            if (offer?.status !== trayUpdateStatus) {
-              trayUpdateStatus = offer?.status;
-              buildTrayMenu();
-            }
-          },
-          onCheckChange: (check) => window?.webContents.send(DESKTOP_CHANNELS.updateCheck, check),
-          // The package manager replaced the app's files: restart into the new version.
-          onInstalled: () => {
-            app.relaunch();
-            app.quit();
-          },
-          log: (message) => console.error(message),
-        })
+  // updates/packagekit.ts); on Windows, through its installer (updates/nsis.ts). Run from the
+  // repository, or built locally, there is nothing to update.
+  const nsis =
+    app.isPackaged && process.platform === "win32" && windowsUpdatesConfigured()
+      ? new electronUpdater.NsisUpdater()
       : undefined;
+  if (nsis) nsis.logger = { info: () => {}, warn: console.error, error: console.error };
+  const source = ((): UpdateSource | undefined => {
+    if (nsis) return new NsisUpdates(nsis);
+    const repositoryUrl =
+      app.isPackaged && process.platform === "linux" ? aptRepositoryUrl() : undefined;
+    if (!repositoryUrl) return undefined;
+    return new PackageKitUpdates(DEB_PACKAGE, {
+      repositoryUrl,
+      currentVersion: app.getVersion(),
+      log: (message) => console.error(message),
+    });
+  })();
+  const updater = source
+    ? new Updater({
+        source,
+        firstCheckMs: UPDATE_FIRST_CHECK_MS,
+        intervalMs: UPDATE_INTERVAL_MS,
+        onChange: (offer) => {
+          window?.webContents.send(DESKTOP_CHANNELS.update, offer);
+          // The tray offers it too, so it is not missed with the window closed. Rebuilt only when
+          // the status changes, not on every percent.
+          if (offer?.status !== trayUpdateStatus) {
+            trayUpdateStatus = offer?.status;
+            buildTrayMenu();
+          }
+        },
+        onCheckChange: (check) => window?.webContents.send(DESKTOP_CHANNELS.updateCheck, check),
+        onInstalled: () => void restartIntoUpdate(),
+        log: (message) => console.error(message),
+      })
+    : undefined;
+
+  /**
+   * Restarts into the version just installed. On Linux the package manager has already replaced
+   * the app's files. On Windows the installer has only been downloaded: it runs once the server has
+   * stopped, closes the app, replaces its files and opens it again.
+   */
+  async function restartIntoUpdate(): Promise<void> {
+    if (!nsis) {
+      app.relaunch();
+      app.quit();
+      return;
+    }
+    quitting = true;
+    quitSignal.abort();
+    updater?.stop();
+    await server.stop();
+    // Not silent: the installer's own progress shows while the window is gone.
+    nsis.quitAndInstall(false, true);
+  }
 
   /** The app's own page: waiting for the server, or why it never answered. */
   function ownPage(message: string, detail?: string): string {
@@ -400,7 +446,9 @@ if (needsX11) {
   }
 
   function createTray(): void {
-    tray = new Tray(icon.resize({ width: 24, height: 24 }));
+    // GNOME draws tray icons at 24 px; Windows at 16 to 32 with the display scaling, from the larger.
+    const size = process.platform === "win32" ? 32 : 24;
+    tray = new Tray(icon.resize({ width: size, height: size }));
     tray.setToolTip("Orca'H&M");
     buildTrayMenu();
     tray.on("click", openFromTray);

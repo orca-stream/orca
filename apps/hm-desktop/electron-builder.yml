@@ -1,8 +1,13 @@
-# Packaging for Orca'H&M's desktop app. `pnpm stage:server` and `node scripts/deb.ts` must run first:
-# they fill build/hm-server, build/deb and build/apt (`pnpm dist:linux` runs all of it).
+# Packaging for Orca'H&M's desktop app. `pnpm stage:server` must run first, and for Linux
+# `node scripts/deb.ts` too: they fill build/hm-server, build/deb and build/apt (`pnpm dist:linux`
+# and `pnpm dist:win` run all of it).
 appId: io.github.orcastream.orca.hm
 # A path-safe name: it becomes /opt/orca-hm. People see Orca'H&M (desktop entry, window, tray).
 productName: orca-hm
+# The package's own name is @orca/hm-desktop, which Windows would show as the install folder
+# (AppData\Local\Programs\@orcahm-desktop) and the updater's cache: the app's name instead.
+extraMetadata:
+  name: orca-hm
 artifactName: orca-hm_${version}_${arch}.${ext}
 directories:
   output: release
@@ -15,18 +20,26 @@ extraResources:
   - from: build/hm-server
     to: hm-server
   # A folder's own top-level node_modules is always skipped by electron-builder, so it goes as its
-  # own entry.
+  # own entry. Without `.bin`: links to the CLIs, which the server never runs and Windows cannot keep.
   - from: build/hm-server/node_modules
     to: hm-server/node_modules
-  # The APT repository's source and key, which the .deb's after-install puts in place. Empty in a
-  # local build.
-  - from: build/apt
-    to: apt
+    filter:
+      - "**/*"
+      - "!.bin"
+# No update feed by default. Linux updates through its APT repository; a Windows release passes its
+# own (-c.publish.provider/url, see release.yml), which writes app-update.yml and latest.yml. Without
+# this, electron-updater among the dependencies makes electron-builder look for one, and fail.
+publish: null
 # The app has no runtime dependencies, and the server's native module is a Node-API prebuild.
 npmRebuild: false
 linux:
   target: deb
   executableName: orca-hm
+  extraResources:
+    # The APT repository's source and key, which the .deb's after-install puts in place. Empty in a
+    # local build.
+    - from: build/apt
+      to: apt
   icon: resources/icon.png
   category: AudioVideo
   synopsis: Downloads shows into your library
@@ -46,3 +59,16 @@ deb:
   # electron-builder's own scripts, plus adding and removing the APT repository.
   afterInstall: build/deb/after-install.tpl
   afterRemove: build/deb/after-remove.tpl
+win:
+  target: nsis
+  executableName: orca-hm
+  icon: resources/icon.png
+# One click, for this user only: no administrator to install or to update, and it lands in
+# AppData\Local\Programs\orca-hm. People see Orca'H&M in the Start menu and in Apps.
+nsis:
+  oneClick: true
+  perMachine: false
+  shortcutName: Orca'H&M
+  uninstallDisplayName: Orca'H&M
+  # The downloads, the library's database and the tools stay: reinstalling finds them.
+  deleteAppDataOnUninstall: false

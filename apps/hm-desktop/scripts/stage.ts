@@ -10,7 +10,12 @@ const repoRoot = resolve(desktopRoot, "../..");
 const out = resolve(desktopRoot, "build/hm-server");
 
 function pnpm(...args: string[]): void {
-  execFileSync("pnpm", args, { cwd: repoRoot, stdio: "inherit" });
+  // On Windows pnpm is a `.cmd`, which only a shell runs (the arguments here are all fixed).
+  execFileSync("pnpm", args, {
+    cwd: repoRoot,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
 }
 
 rmSync(out, { recursive: true, force: true });
