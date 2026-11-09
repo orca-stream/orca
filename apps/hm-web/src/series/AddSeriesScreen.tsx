@@ -31,7 +31,7 @@ import {
   FolderAddIcon,
   FolderCheckIcon,
   Link01Icon,
-  RotateLeft01Icon,
+  RefreshIcon,
   RssIcon,
   Search01Icon,
   Tick02Icon,
@@ -893,7 +893,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                       onClick={searchAgain}
                       className="size-14 rounded-full bg-white/90 text-muted-foreground shadow-xs ring-1 ring-black/5 hover:bg-white hover:text-foreground"
                     >
-                      <HugeiconsIcon icon={RotateLeft01Icon} className="size-6" />
+                      <HugeiconsIcon icon={RefreshIcon} className="size-6" />
                     </InputGroupButton>
                   ) : (
                     /* A circle that keeps the address wide; into an existing series it is that
@@ -1319,11 +1319,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
         {attached && (
           <>
             <DockSeparator />
-            <DockButton
-              label={t.dock.startOver}
-              icon={RotateLeft01Icon}
-              onClick={() => onStartOver()}
-            />
+            <DockButton label={t.dock.startOver} icon={RefreshIcon} onClick={() => onStartOver()} />
           </>
         )}
       </Dock>
