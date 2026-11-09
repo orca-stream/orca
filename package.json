@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vp -C apps/jp dev",
     "dev:hm": "pnpm --parallel --filter \"./apps/hm-*\" dev",
+    "try:hm": "pnpm --filter @orca/hm-desktop try",
     "preview": "vp -C apps/jp preview",
     "check": "vp check",
     "lint": "vp lint --deny-warnings",

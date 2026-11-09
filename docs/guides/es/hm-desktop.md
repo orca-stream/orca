@@ -44,7 +44,13 @@ actualizar.
 ```sh
 pnpm --filter @orca/hm-desktop dist:linux   # apps/hm-desktop/release/orca-hm_<versión>_amd64.deb
 pnpm --filter @orca/hm-desktop start        # arrancarla desde el repositorio, sin empaquetar
+pnpm try:hm                                  # cerrar la app abierta, recompilar y arrancarla desde el repositorio
 ```
+
+`pnpm try:hm` es la forma rápida de ver un cambio en la app: cierra el Orca'H&M que esté abierto (el
+instalado o una prueba anterior), recompila el server y el panel, y abre la app desde el repositorio en
+primer plano, con los datos de la app instalada y su registro en la terminal. Ctrl+C la cierra; después
+vuelve a abrir la instalada desde el menú. `start` a secas no recompila ni el server ni el panel.
 
 Una compilación local no añade ningún repositorio de paquetes (y quita el que añadió una versión
 publicada), así que nunca se actualiza sola. Para compilar una que sí, define `HM_APT_URL` (dónde se

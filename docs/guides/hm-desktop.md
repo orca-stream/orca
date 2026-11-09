@@ -42,7 +42,14 @@ delete that folder to remove it too.
 ```sh
 pnpm --filter @orca/hm-desktop dist:linux   # apps/hm-desktop/release/orca-hm_<version>_amd64.deb
 pnpm --filter @orca/hm-desktop start        # run it from the repository, without packaging
+pnpm try:hm                                  # quit the running app, rebuild, run it from the repository
 ```
+
+`pnpm try:hm` is the quick way to see a change in the app: it quits whichever Orca'H&M is running
+(the installed one or a previous try), rebuilds the server and the panel, and opens the app from the
+repository in the foreground, with the installed app's data and its log in the terminal. Ctrl+C
+quits it; open the installed app again from the menu afterwards. `start` alone rebuilds neither the
+server nor the panel.
 
 A local build adds no package repository (and removes the one a release added), so it never updates
 itself. To build one that does, set `HM_APT_URL` (where the repository is served) and

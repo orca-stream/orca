@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.scripts.json",
     "test": "vp test run",
     "stage:server": "node scripts/stage.ts",
+    "try": "node scripts/try.ts",
     "start": "pnpm build && electron . --no-sandbox",
     "dist:linux": "pnpm build && pnpm stage:server && node scripts/deb.ts && electron-builder --linux deb --publish never"
   },
