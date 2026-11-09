@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.3...orca-hm-v0.4.0) (2026-11-09)
+
+
+### ✨ Features
+
+* **hm-desktop:** choose hardware acceleration in Settings, with a restart button
+* **hm-desktop:** reopen the window where it was last closed
+* **hm-web:** choose a new series' artwork while adding it
+* **hm-web:** search TMDB by name from the new series' title
+
+
+### 🐛 Bug Fixes
+
+* **hm-server:** keep the chosen series artwork from being replaced by Jellyfin
+* **hm-web:** keep the desktop app's popups from being clipped
+* **hm-web:** refresh what TMDB says of a show after an hour
+
+
+### ⚡ Performance
+
+* **hm-web:** drop the backdrop blur from cards a cover fills
+
 ## [0.3.3](https://github.com/orca-stream/orca/compare/orca-hm-v0.3.2...orca-hm-v0.3.3) (2026-11-08)
 
 
