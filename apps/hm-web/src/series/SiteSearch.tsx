@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/pagination";
 import { Spinner } from "@/components/ui/spinner";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
+import { paletteOf } from "@/extractors/palette";
 import { useDebounced } from "@/hooks/use-debounced";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { useT } from "@/i18n/locale";
@@ -275,10 +276,22 @@ function ResultTile({
           <span />
         )}
         {extractor && (
-          <span title={extractor.name} className="shrink-0">
+          // Over the card's button, so the pointer finds it: the site's name slides out of its icon.
+          <span
+            aria-hidden="true"
+            style={paletteOf(extractor.id)}
+            className="group/source relative z-10 flex h-10 min-w-0 shrink-0 items-center rounded-full bg-linear-to-br from-(--from) to-(--to) text-white shadow-sm ring-1 ring-white/50"
+          >
+            <span className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-300 ease-out group-hover/source:grid-cols-[1fr] motion-reduce:transition-none">
+              <span className="min-w-0 overflow-hidden">
+                <span className="block max-w-40 truncate pr-1 pl-4 text-sm font-medium whitespace-nowrap">
+                  {extractor.name}
+                </span>
+              </span>
+            </span>
             <ExtractorMark
               extractor={extractor}
-              className="size-10 rounded-full shadow-sm"
+              className="size-10 rounded-full bg-none ring-0"
               iconClassName="size-5"
             />
           </span>
