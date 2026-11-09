@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.6.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.5.1...orca-hm-v0.6.0) (2026-11-09)
+
+
+### ✨ Features
+
+* **hm:** lock a read series' address and mark shows already added in the search ([b1336ca](https://github.com/orca-stream/orca/commit/b1336ca85ccb6da5abdc8e30448f0c52d8a03217))
+* **hm:** read a site's search page after page ([a958c0c](https://github.com/orca-stream/orca/commit/a958c0c425977cdcddc6521a9a1f6e99b643a518))
+* **hm:** read a site's search page by page and leave out what is not a series ([6d300d2](https://github.com/orca-stream/orca/commit/6d300d27f8fdb1258ffab238fa9af9e5c551517f))
+* **hm:** say a name is too short inside the add series bar ([1e9482e](https://github.com/orca-stream/orca/commit/1e9482e0236049fdd974ad673cbb010082236c44))
+* **hm:** search a site through a POST API with slugged result addresses ([f81b905](https://github.com/orca-stream/orca/commit/f81b90569bb361040afee1b2d3dc44c90f63aa32))
+* **hm:** search a site through the results written in its search page ([b82b17a](https://github.com/orca-stream/orca/commit/b82b17a25f4d7a47c91758f4ae8a2fb4205ed95c))
+* **hm:** search the sites by name from the add series address ([99c660d](https://github.com/orca-stream/orca/commit/99c660dbef823a47a310b7f823bd90bed05cde3c))
+* **hm:** show the sites' search results as a paged grid ([dd65389](https://github.com/orca-stream/orca/commit/dd653893724ecd20bbea6c339c614c7108dc74bd))
+* **hm:** slide a search result's site name out of its icon on hover ([d4c2036](https://github.com/orca-stream/orca/commit/d4c203679416a9ed7df0d1036dd6ccfd2ccfcd54))
+* **hm:** tell a site's results with the same title apart by their seasons ([37b956d](https://github.com/orca-stream/orca/commit/37b956df0414a51aa0890b6966a102709cdc108d))
+* **hm:** use a refresh icon to start adding a series over ([fccc8bd](https://github.com/orca-stream/orca/commit/fccc8bd519928d6d48d55f838cfc2b93d7fe60ba))
+
+
+### 🐛 Bug Fixes
+
+* **hm:** know a show added season by season in a site's search and read its name from the page ([9b586f8](https://github.com/orca-stream/orca/commit/9b586f8c88d5955b7d804ef9ec0e6066efffacd3))
+* **hm:** name a series picked from a site's search as the search wrote it ([67000a9](https://github.com/orca-stream/orca/commit/67000a9fb8171c392aa4c463acce4119e64619b9))
+* **hm:** recognize a show already added from another of its site's domains ([f51f424](https://github.com/orca-stream/orca/commit/f51f4247c89de9b32ad0a358cadc0d3b6af64fbb))
+
 ## [0.5.1](https://github.com/orca-stream/orca/compare/orca-hm-v0.5.0...orca-hm-v0.5.1) (2026-11-09)
 
 
