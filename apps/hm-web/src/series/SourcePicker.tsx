@@ -265,19 +265,22 @@ export function PreferredSourceSelect({
   const t = useT();
   const { patchSeries, switchSource } = useMutations();
   const key = String(season);
-  const chosen = series.preferredSources[key] ?? ANY;
+  const saved = series.preferredSources[key] ?? ANY;
+  // What was just picked shows at once, with a spinner for its mark, until the move is done.
+  const [pending, setPending] = useState<string | null>(null);
+  const chosen = pending ?? saved;
   // Only those that can bring the season's episodes (and the one chosen, whatever it brings now).
   const sources = useSources(series, episodes).filter(
     ({ source }) => source.id === chosen || offersSeason(source, episodes, season),
   );
-  const [saving, setSaving] = useState(false);
+  const saving = pending !== null;
   const preferred = sources.find(({ source }) => source.id === chosen) ?? null;
 
   async function pick(value: string) {
     const next = { ...series.preferredSources };
     if (value === ANY) delete next[key];
     else next[key] = value;
-    setSaving(true);
+    setPending(value);
     try {
       await patchSeries.mutateAsync({ seriesId: series.id, patch: { preferredSources: next } });
       // The season's episodes not on it yet; those it doesn't have, or being downloaded, stay.
@@ -300,14 +303,18 @@ export function PreferredSourceSelect({
     } catch {
       onFailed();
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   return (
-    <Select value={chosen} onValueChange={(value) => value !== null && void pick(value)}>
+    <Select
+      value={chosen}
+      onValueChange={(value) => !saving && value !== null && value !== saved && void pick(value)}
+    >
       <SelectTrigger
         aria-label={t.series.preferredSource(season)}
+        aria-busy={saving || undefined}
         title={preferred ? t.series.preferredHint(season) : t.series.preferredSource(season)}
         className={cn(
           "h-12 max-w-60 gap-2 rounded-full border-0 bg-white/55 pr-5 pl-1 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white",
@@ -318,7 +325,13 @@ export function PreferredSourceSelect({
           {() =>
             preferred ? (
               <span className="flex min-w-0 items-center gap-2">
-                <SourceMark extractor={preferred.extractor} className="size-10" />
+                {saving ? (
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-black/5">
+                    <Spinner aria-hidden="true" className="size-4" />
+                  </span>
+                ) : (
+                  <SourceMark extractor={preferred.extractor} className="size-10" />
+                )}
                 <span className="truncate">
                   {preferred.extractor?.name ?? tailOf(preferred.source)}
                 </span>

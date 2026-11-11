@@ -8,6 +8,7 @@ import {
   Clock01Icon,
   CloudOffIcon,
   Delete02Icon,
+  HelpSquareIcon,
   ArrowDown03Icon,
   PauseIcon,
   RefreshIcon,
@@ -39,6 +40,7 @@ import {
   SPLIT_HALF,
   SPLIT_PILL,
 } from "./bar";
+import { CHIP_HOVER_CARD } from "./AiringChip";
 import { downloadFraction, downloadLine } from "./download-line";
 import { GapCard } from "./EpisodeGrid";
 import { episodeCode, guideKey } from "./preview-form";
@@ -600,24 +602,25 @@ function EpisodeCard({
           className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/35 via-transparent to-black/45"
         />
 
-        <div className="absolute top-2 right-13 left-2 flex items-start gap-1.5">
+        {/* Marks only, so the row never reaches the box: what each one means is in its hover card. */}
+        <div className="absolute top-2 right-14 left-2 flex items-start gap-1.5">
           {source}
           <span className={cn(CHIP, "bg-black/45 font-mono text-white")}>{code}</span>
           {episode.inferred && (
-            <span title={t.add.inferredHint} className={cn(CHIP, "bg-warning/90 text-white")}>
-              {t.series.inferred}
-            </span>
+            <FrameBadge
+              icon={HelpSquareIcon}
+              label={t.series.inferred}
+              hint={t.add.inferredHint}
+              className="bg-warning/90"
+            />
           )}
           {episode.fileOutdated && (
-            <span
-              title={t.series.fileOutdatedHint}
-              className={cn(CHIP, "min-w-0 shrink bg-info/90 text-white")}
-            >
-              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3.5 shrink-0" />
-              <span className="truncate">
-                {fileFrom ? t.series.fileFrom(fileFrom) : t.series.fileOutdated}
-              </span>
-            </span>
+            <FrameBadge
+              icon={ArrowDataTransferHorizontalIcon}
+              label={fileFrom ? t.series.fileFrom(fileFrom) : t.series.fileOutdated}
+              hint={t.series.fileOutdatedHint}
+              className="bg-info/90"
+            />
           )}
         </div>
 
@@ -727,6 +730,45 @@ function EpisodeCard({
         {overview && <p className="line-clamp-2 text-sm text-foreground/70">{overview}</p>}
       </div>
     </article>
+  );
+}
+
+/**
+ * Something to know about an episode, as a round mark over its frame: what it is and what to do
+ * about it on hover. Named by its label, so it reads without the card.
+ */
+function FrameBadge({
+  icon,
+  label,
+  hint,
+  className,
+}: {
+  icon: IconSvgElement;
+  label: string;
+  hint: string;
+  className: string;
+}) {
+  return (
+    <HoverCard>
+      <HoverCardTrigger
+        delay={0}
+        closeDelay={100}
+        render={<span />}
+        aria-label={label}
+        // The card picks the episode on a click: reading a mark is not picking it.
+        onClick={(event) => event.stopPropagation()}
+        className={cn(
+          "flex size-7 shrink-0 cursor-help items-center justify-center rounded-full text-white shadow-md ring-1 ring-white/40 backdrop-blur-md",
+          className,
+        )}
+      >
+        <HugeiconsIcon icon={icon} className="size-3.5" />
+      </HoverCardTrigger>
+      <HoverCardContent side="bottom" align="start" sideOffset={6} className={CHIP_HOVER_CARD}>
+        <p className="font-medium">{label}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

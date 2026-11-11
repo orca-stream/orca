@@ -475,6 +475,9 @@ describe("SeriesDetailScreen", () => {
     };
     const series = makeSeries();
     const withTwo = { ...series, sources: [...series.sources, other] };
+    // The preference is held until the test lets it through, to see it on its way.
+    let letPatch = () => {};
+    const patchHeld = new Promise<void>((resolve) => (letPatch = resolve));
     const view = renderApp(
       <Route path="/series/:id">
         <SeriesDetailScreen />
@@ -483,6 +486,8 @@ describe("SeriesDetailScreen", () => {
         path: "/series/s1",
         handler: (request) => {
           const url = new URL(request.url);
+          if (url.pathname === "/api/series/s1" && request.method === "PATCH")
+            return patchHeld.then(() => jsonResponse(withTwo));
           if (url.pathname === "/api/series/s1") return jsonResponse(withTwo);
           if (url.pathname === "/api/series/s1/episodes")
             return jsonResponse([
@@ -505,9 +510,9 @@ describe("SeriesDetailScreen", () => {
     );
     // Its file is the old source's until it is downloaded again, and it says which.
     const two = (await screen.findByText("Dos")).closest("article")!;
-    expect(within(two).getByText(/^Descargado de /)).toBeTruthy();
+    expect(within(two).getByLabelText(/^Descargado de /)).toBeTruthy();
     expect(
-      within(screen.getByText("Uno").closest("article")!).queryByText(/^Descargado de /),
+      within(screen.getByText("Uno").closest("article")!).queryByLabelText(/^Descargado de /),
     ).toBeNull();
 
     await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E01" }));
@@ -529,6 +534,12 @@ describe("SeriesDetailScreen", () => {
 
     await user.click(screen.getByRole("combobox", { name: "Fuente preferida de la temporada 1" }));
     await user.click(await screen.findByRole("option", { name: /origin\.example\/show\/b/ }));
+    // It says at once that it is on it, until the season has moved.
+    const preferred = screen.getByRole("combobox", { name: "Fuente preferida de la temporada 1" });
+    expect(preferred.getAttribute("aria-busy")).toBe("true");
+    expect(within(preferred).queryByText("Cualquier fuente")).toBeNull();
+    letPatch();
+    await waitFor(() => expect(preferred.getAttribute("aria-busy")).toBeNull());
     const patch = () => view.requests.find((r) => r.method === "PATCH");
     await waitFor(() => expect(patch()).toBeTruthy());
     expect(await patch()!.json()).toEqual({ preferredSources: { "1": "b" } });

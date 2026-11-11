@@ -28,7 +28,7 @@ episodes and press **Change source** in the selection's bar: it lists the series
 one you choose again right then, and says which of the picked episodes it doesn't have (it lists only the sources that can bring the picked episodes' seasons, not one that brought only
 others or is set to another). With two or more sources, each episode shows the mark of the one it takes its video from;
 hovering it names the site, the address and what that source brought. Nothing is
-downloaded. A downloaded episode keeps its file and shows **Downloaded from** the source it came from; pick it and download it
+downloaded. A downloaded episode keeps its file and shows a mark (**Downloaded from** the source it came from, on hover); pick it and download it
 to replace that file — the old one is deleted only once the new one is complete, and stays if the
 download fails. Going back to the source the file came from clears the mark. **Download the missing
 ones** leaves those alone. With two or more sources, the episodes' header has each season's
