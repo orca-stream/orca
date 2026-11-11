@@ -146,7 +146,7 @@ cuenta en ámbar, contra los episodios de TMDB) y al elegir una se ven todos sus
 
 **Imágenes.** El botón de imagen del banner (o el propio póster) abre las imágenes de la serie:
 **Póster**, **Fondo** y **Logo**, cada una con todas las que TMDB tiene de la serie (primero las de tu
-idioma; en los fondos, primero los que no llevan texto, porque el logo va encima) y **Subir imagen**
+idioma; en los fondos, primero los que no llevan texto, porque el logo va encima; una fila de pestañas debajo deja solo un idioma, o **Sin texto**) y **Subir imagen**
 para una propia (JPEG, PNG o WebP de hasta 8 MB; un logo solo PNG o WebP, para que siga
 transparente). Lo que eliges se guarda al momento en la carpeta de la serie como `poster.*`,
 `backdrop.*` o `logo.*`, los nombres que lee Jellyfin, y se le pide a Jellyfin que vuelva a leer sus

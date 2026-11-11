@@ -1039,6 +1039,42 @@ describe("AddSeriesScreen", () => {
     expect(await put.json()).toEqual({ url: poster });
   });
 
+  it("filters a kind's images by their language, or those with no text", async () => {
+    const user = userEvent.setup();
+    const image = (name: string, language: string | null) => ({
+      url: `https://image.tmdb.org/t/p/original/${name}.jpg`,
+      previewUrl: `https://image.tmdb.org/t/p/w342/${name}.jpg`,
+      language,
+      width: 1,
+      height: 1,
+    });
+    setup({
+      shows: { "30991": { title: "Cowboy Bebop", year: 1998, imdbId: null } },
+      artwork: {
+        "30991": {
+          poster: [image("a", "es"), image("b", null), image("c", "en"), image("d", "es")],
+          backdrop: [],
+          logo: [],
+        },
+      },
+    });
+    await previewIt(user);
+    await user.type(screen.getByLabelText("Id de TMDB"), "30991");
+    await user.click(await screen.findByRole("button", { name: "Cambiar el póster" }));
+    const filter = await screen.findByRole("tablist", { name: "Idioma de las imágenes" });
+    expect(
+      within(filter)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Todas", "es2", "en1", "Sin texto1"]);
+    const tiles = () => screen.getAllByRole("button", { name: /^(es|en|Sin texto)$/ });
+    expect(tiles()).toHaveLength(4);
+    await user.click(within(filter).getByRole("tab", { name: /Sin texto/ }));
+    expect(tiles().map((tile) => tile.textContent)).toEqual(["Sin texto"]);
+    await user.click(within(filter).getByRole("tab", { name: /^es/ }));
+    expect(tiles()).toHaveLength(2);
+  });
+
   it("reads the address again when the preview expired (410), keeping what was edited", async () => {
     const user = userEvent.setup();
     const { requests } = setup({

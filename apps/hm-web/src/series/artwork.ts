@@ -1,4 +1,4 @@
-import type { ArtworkKind, SeriesDto, ShowLookupDto } from "@orca/hm-contract";
+import type { ArtworkKind, ArtworkOptionDto, SeriesDto, ShowLookupDto } from "@orca/hm-contract";
 import { artworkUrl } from "@/api/queries";
 
 /** The series field that says it has artwork of that kind of its own. */
@@ -40,4 +40,43 @@ export function draftArtwork(
   kind: ArtworkKind,
 ): string | null {
   return chosen[kind]?.previewUrl ?? tmdb[TMDB_DEFAULT[kind]];
+}
+
+/** A filter of a kind's images: every one, those in a language (its code), or those with no text. */
+export type LanguageFilter = "all" | "none" | `lang:${string}`;
+
+/** The filter an image falls under, besides "all". */
+export const filterOf = (option: Pick<ArtworkOptionDto, "language">): LanguageFilter =>
+  option.language === null ? "none" : `lang:${option.language}`;
+
+/**
+ * The filters a kind's images allow, with how many each keeps: the languages in the order TMDB
+ * lists them (the one asked for first), and those with no text last. Empty when there is only one,
+ * as there is nothing to filter then.
+ */
+export function languageFilters(
+  options: readonly Pick<ArtworkOptionDto, "language">[],
+): { filter: LanguageFilter; language: string | null; count: number }[] {
+  const counts = new Map<LanguageFilter, { language: string | null; count: number }>();
+  for (const option of options) {
+    const filter = filterOf(option);
+    const entry = counts.get(filter);
+    if (entry) entry.count += 1;
+    else counts.set(filter, { language: option.language, count: 1 });
+  }
+  if (counts.size < 2) return [];
+  const listed = [...counts].map(([filter, entry]) => ({ filter, ...entry }));
+  return [
+    ...listed.filter((entry) => entry.filter !== "none"),
+    ...listed.filter((entry) => entry.filter === "none"),
+  ];
+}
+
+/** The images a filter keeps; one no longer offered keeps them all. */
+export function filterOptions<T extends Pick<ArtworkOptionDto, "language">>(
+  options: readonly T[],
+  filter: LanguageFilter,
+): readonly T[] {
+  if (filter === "all" || !options.some((option) => filterOf(option) === filter)) return options;
+  return options.filter((option) => filterOf(option) === filter);
 }

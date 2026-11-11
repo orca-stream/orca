@@ -37,6 +37,9 @@ import { cn } from "@/lib/utils";
 import {
   currentArtwork,
   fileOf,
+  filterOptions,
+  languageFilters,
+  type LanguageFilter,
   OWN,
   TMDB_DEFAULT,
   type DraftArtwork,
@@ -231,6 +234,9 @@ function ArtworkPickerView({
   const file = useRef<HTMLInputElement>(null);
   const busy = pending !== null;
   const list = options.data?.[kind] ?? [];
+  // A filter for each kind, kept while switching between them.
+  const [filters, setFilters] = useState<Partial<Record<ArtworkKind, LanguageFilter>>>({});
+  const offered = languageFilters(list);
   const noTmdb = !hasTmdbId
     ? t.series.artwork.noTmdbId
     : options.error instanceof ApiError && options.error.status === 503
@@ -397,6 +403,31 @@ function ArtworkPickerView({
             />
           </div>
 
+          {offered.length > 0 && (
+            // Which language's images to show, those with no text last: a second row of tabs.
+            <Tabs
+              value={filters[kind] ?? "all"}
+              onValueChange={(value) =>
+                setFilters((now) => ({ ...now, [kind]: value as LanguageFilter }))
+              }
+            >
+              <TabsList
+                aria-label={t.series.artwork.languageFilter}
+                className="max-w-full overflow-x-auto [scrollbar-width:none]"
+              >
+                <TabsTab value="all">{t.series.artwork.allLanguages}</TabsTab>
+                {offered.map((entry) => (
+                  <TabsTab key={entry.filter} value={entry.filter} className="shrink-0">
+                    <span className={entry.language === null ? undefined : "uppercase"}>
+                      {entry.language ?? t.series.artwork.noText}
+                    </span>
+                    <span className="text-xs tabular-nums opacity-60">{entry.count}</span>
+                  </TabsTab>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
+
           {failed && (
             <div
               role="alert"
@@ -411,7 +442,7 @@ function ArtworkPickerView({
           )}
 
           {KINDS.map((k) => {
-            const listed = options.data?.[k] ?? [];
+            const listed = filterOptions(options.data?.[k] ?? [], filters[k] ?? "all");
             const { inUse, ownSrc } = state(k);
             return (
               <TabsPanel

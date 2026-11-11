@@ -140,7 +140,7 @@ well (their count in amber, against TMDB's episodes), and picking one shows all 
 
 **Artwork.** The image button on the banner (or the poster itself) opens the series' artwork:
 **Poster**, **Backdrop** and **Logo**, each with every image TMDB has for the show (yours, in your
-language, first; backdrops without text first, since the logo goes over them) and **Upload image**
+language, first; backdrops without text first, since the logo goes over them; a row of tabs below keeps one language, or **No text**) and **Upload image**
 for one of your own (JPEG, PNG or WebP up to 8 MB; a logo only PNG or WebP, to stay transparent).
 A pick is saved at once into the series' folder as `poster.*`, `backdrop.*` or `logo.*`, the names
 Jellyfin reads, and Jellyfin is told to read its images again, so Orca'JP shows them too. **Use
