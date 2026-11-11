@@ -86,10 +86,16 @@ card per episode. Each card has a frame (TMDB's, for where the episode lands, wh
 placeholder otherwise) and, over it, the code it will get (and the site's, when the numbering moves it),
 the server it comes from (a host, or "Mirrors" when the episode page lists several players and one is
 picked when it downloads), what happens to it ("Will download", "Not downloaded", "Left out", or
-"Changes source" when the chosen series has that code: that episode takes its video from this
-address from now on, keeping its file until you download it again) and the site's warnings
+for a code the chosen series already has, "Alternative" or "Changes source") and the site's warnings
 (inferred, gap…). Below it, TMDB's name, air date, length and synopsis. The round button in its corner,
-or the whole card, includes or leaves out the episode; "All" in the grid's header does every one.
+or the whole card, includes or leaves out the episode; "Include all" in the grid's header does every
+one the series doesn't have yet.
+
+An episode the chosen series already has keeps its source by default ("Alternative"): the address is
+kept as another source of the series, to switch to later with "Change source" on the series. Pick
+its card to make it "Changes source": it takes its video from this address from now on, keeping its
+file until you download it again. Episodes that failed or were never downloaded come picked. Added
+to a series that exists, the button says "Add source", and it adds even with no episode picked.
 
 A new series with the TMDB or IMDb id of one you already have is refused, and the panel says so as you
 type the id, with a button to add the address to that one instead.

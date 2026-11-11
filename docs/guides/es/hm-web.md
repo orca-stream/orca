@@ -89,11 +89,17 @@ una cuadrícula con una tarjeta por episodio. Cada tarjeta lleva una miniatura (
 donde quedará, si hay clave; si no, un marcador) y, encima, el código que tendrá (y el del sitio, si la
 numeración lo mueve), el servidor del que sale (un host, o «Espejos» cuando la página del episodio
 ofrece varios reproductores y se elige uno al descargar), qué le pasará («Se descargará», «Sin
-descargar», «Se omite», o «Cambia de fuente» si la serie elegida ya tiene ese código: ese episodio
-pasa a tomar su vídeo de esta dirección y conserva su archivo hasta que lo vuelvas a descargar)
-y los avisos del sitio (inferido, hueco…). Debajo, el nombre de TMDB, la fecha de emisión, la duración
-y la sinopsis. El botón redondo de su esquina, o la tarjeta entera, incluye u omite el episodio;
-«Todos», en la cabecera de la cuadrícula, los cambia todos.
+descargar», «Se omite», o, si la serie elegida ya tiene ese código, «Alternativa» o «Cambia de
+fuente») y los avisos del sitio (inferido, hueco…). Debajo, el nombre de TMDB, la fecha de emisión, la
+duración y la sinopsis. El botón redondo de su esquina, o la tarjeta entera, incluye u omite el
+episodio; «Incluir todos», en la cabecera de la cuadrícula, incluye todos los que la serie aún no tiene.
+
+Un episodio que la serie elegida ya tiene conserva su fuente por defecto («Alternativa»): la dirección
+queda como otra fuente de la serie, para cambiar a ella después con «Cambiar fuente» en la serie.
+Marca su tarjeta para que pase a «Cambia de fuente»: toma su vídeo de esta dirección desde ese momento
+y conserva su archivo hasta que lo vuelvas a descargar. Los episodios que fallaron o nunca se
+descargaron vienen marcados. Al añadir a una serie que ya existe, el botón dice «Añadir fuente» y
+añade aunque no haya ningún episodio marcado.
 
 Una serie nueva con el id de TMDB o IMDb de una que ya tienes se rechaza, y el panel lo avisa mientras
 escribes el id, con un botón para añadir la dirección a esa.

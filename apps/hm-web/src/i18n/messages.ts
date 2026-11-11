@@ -593,6 +593,8 @@ const es = {
     confirm: "Añadir serie",
     confirmMovie: "Añadir película",
     confirmMovieSource: "Añadir fuente",
+    confirmSource: "Añadir fuente",
+    readySourceOnly: "Se añade como otra fuente; ningún episodio cambia.",
     confirming: "Añadiendo…",
     needsEpisodes: "Elige al menos un episodio.",
     needsTitle: "Escribe un título.",
@@ -607,6 +609,9 @@ const es = {
     leftOutHint: "No se añade. Púlsalo para incluirlo.",
     alreadyThereHint: (code: string) =>
       `La serie ya tiene ${code}: pasa a tomar su vídeo de esta dirección. Su archivo se conserva hasta que lo vuelvas a descargar.`,
+    alternative: "Alternativa",
+    alternativeHint: (code: string) =>
+      `La serie ya tiene ${code}: sigue con su fuente y esta queda de alternativa. Púlsalo para cambiarlo a esta.`,
     keptInJellyfin: "Ya en Jellyfin",
     keptInJellyfinHint: (code: string) =>
       `Jellyfin ya tiene ${code}: se conserva su archivo (con el nombre de H&M) y no se vuelve a descargar.`,
@@ -1444,6 +1449,8 @@ const en: typeof es = {
     confirm: "Add series",
     confirmMovie: "Add movie",
     confirmMovieSource: "Add source",
+    confirmSource: "Add source",
+    readySourceOnly: "Added as another source; no episode changes.",
     confirming: "Adding…",
     needsEpisodes: "Pick at least one episode.",
     needsTitle: "Enter a title.",
@@ -1458,6 +1465,9 @@ const en: typeof es = {
     leftOutHint: "Not added. Press it to include it.",
     alreadyThereHint: (code: string) =>
       `The series already has ${code}: it takes its video from this address from now on. Its file stays until you download it again.`,
+    alternative: "Alternative",
+    alternativeHint: (code: string) =>
+      `The series already has ${code}: it keeps its source and this one stays as an alternative. Press it to change it to this one.`,
     keptInJellyfin: "In Jellyfin",
     keptInJellyfinHint: (code: string) =>
       `Jellyfin already has ${code}: its file is kept (under H&M's name) and not downloaded again.`,

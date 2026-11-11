@@ -78,6 +78,51 @@ export const jellyfinTarget = (showId: string) => `${JELLYFIN_TARGET}${showId}`;
 export const jellyfinShowOf = (addTo: string): string | null =>
   addTo.startsWith(JELLYFIN_TARGET) ? addTo.slice(JELLYFIN_TARGET.length) : null;
 
+/** An `addTo` that names a series of this server's: the address goes to it as another source. */
+export const addsToSeries = (addTo: string): boolean =>
+  addTo !== "" && jellyfinShowOf(addTo) === null;
+
+/** The keys of the preview's episodes that land on one of `codes` (the ones a series already has). */
+export function keysLandingOn(
+  preview: PreviewDto,
+  form: PreviewForm,
+  codes: ReadonlySet<string>,
+): Set<string> {
+  const number = numberer(preview, form);
+  return new Set(
+    preview.episodes
+      .filter((found) => {
+        const at = number(found);
+        return codes.has(episodeCode(at.season, at.episode));
+      })
+      .map((found) => found.key),
+  );
+}
+
+/**
+ * The episodes a series already has stay with their source unless picked: the address is kept as
+ * another one to switch to later. Ones that failed or were never downloaded come picked, since
+ * that's what a second address is usually for. `before` is what the series had last time, so an
+ * episode that stops landing on it (another series, another numbering) comes back in.
+ */
+export function settleAlternatives(
+  form: PreviewForm,
+  taken: ReadonlySet<string>,
+  broken: ReadonlySet<string>,
+  before: ReadonlySet<string>,
+): PreviewForm {
+  if (form.as === "movie") return form;
+  // Only what newly lands on the series is settled: a pick made by hand stays.
+  const kept = form.included.filter((key) => !taken.has(key) || broken.has(key) || before.has(key));
+  const back = [...before].filter((key) => !taken.has(key) && !form.included.includes(key));
+  const picked = [...broken].filter((key) => !kept.includes(key));
+  const included = [...kept, ...back, ...picked];
+  const same =
+    included.length === form.included.length &&
+    included.every((key) => form.included.includes(key));
+  return same ? form : { ...form, included };
+}
+
 /**
  * The episodes 0 of a site season numbered on from 1: an extra TMDB keeps among the specials (a
  * recap, a prologue), so they start there — numbered 1 on, and left out until someone picks them.
@@ -218,7 +263,8 @@ export function invalidFields(
 
 export function canConfirm(form: PreviewForm, clashes: readonly string[] = []): boolean {
   if (form.addTo === "" && form.title.trim() === "") return false;
-  if (form.included.length === 0) return false;
+  // Another address of a series may bring nothing: it's kept as another source.
+  if (form.included.length === 0 && !addsToSeries(form.addTo)) return false;
   if (form.as === "movie" && form.included.length !== 1) return false;
   if (clashes.length > 0) return false;
   return invalidFields(form).size === 0;
@@ -403,11 +449,23 @@ export function toggleEpisode(form: PreviewForm, key: string): PreviewForm {
   return { ...form, included: form.as === "movie" ? [key] : [...form.included, key] };
 }
 
-export function setAllIncluded(preview: PreviewDto, form: PreviewForm, on: boolean): PreviewForm {
+/** All in, or none; "all" leaves out what the series already has, unless it's picked already. */
+export function setAllIncluded(
+  preview: PreviewDto,
+  form: PreviewForm,
+  on: boolean,
+  taken: ReadonlySet<string> = new Set(),
+): PreviewForm {
   if (form.as === "movie") {
     return { ...form, included: on ? preview.episodes.slice(0, 1).map((e) => e.key) : [] };
   }
-  return { ...form, included: on ? preview.episodes.map((episode) => episode.key) : [] };
+  const keys = preview.episodes.map((episode) => episode.key);
+  // When the series has every one, "all" is all of them.
+  const fresh = keys.some((key) => !taken.has(key));
+  const included = on
+    ? keys.filter((key) => !fresh || !taken.has(key) || form.included.includes(key))
+    : [];
+  return { ...form, included };
 }
 
 export function warningsByEpisode(preview: PreviewDto): Map<string, PreviewWarning[]> {

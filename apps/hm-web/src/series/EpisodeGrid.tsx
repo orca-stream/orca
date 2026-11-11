@@ -44,13 +44,14 @@ import { BAR_POPUP, GLASS_PANEL, ISLAND } from "./bar";
 import { agrees, localToday, matchTmdb, numberRanges, type SeasonMatch } from "./tmdb-match";
 
 /** What happens to an episode when the series is added, which its card says on its frame. */
-type Fate = "download" | "wait" | "left-out" | "taken" | "kept";
+type Fate = "download" | "wait" | "left-out" | "taken" | "alternative" | "kept";
 
 const FATE_STYLE: Record<Fate, string> = {
   download: "bg-primary text-primary-foreground",
   wait: "bg-white/90 text-foreground",
   "left-out": "bg-black/45 text-white/85",
   taken: "bg-info text-white",
+  alternative: "bg-white/90 text-foreground",
   kept: "bg-white/90 text-foreground",
 };
 
@@ -71,6 +72,8 @@ interface EpisodeGridProps {
   guideSeasons: ReadonlyMap<number, readonly GuideEpisodeDto[]>;
   /** The codes the series it goes to already has; empty for a new one. */
   taken: ReadonlySet<string>;
+  /** The keys of the address's episodes that land on one of those. */
+  takenKeys: ReadonlySet<string>;
   /** The codes the Jellyfin show it goes to has as files: kept, not downloaded again. */
   kept: ReadonlySet<string>;
 }
@@ -83,6 +86,7 @@ export function EpisodeGrid({
   guide,
   guideSeasons,
   taken,
+  takenKeys,
   kept,
 }: EpisodeGridProps) {
   const t = useT();
@@ -91,7 +95,12 @@ export function EpisodeGrid({
   const warnings = warningsByEpisode(preview);
   // The warnings about the series as a whole; the ones about episodes go on their cards.
   const general = preview.warnings.filter((warning) => !warning.keys?.length);
-  const all = form.included.length === preview.episodes.length;
+  // "All" is every episode the series doesn't have yet; what it has changes source only when picked.
+  const fresh = preview.episodes.filter((episode) => !takenKeys.has(episode.key));
+  const all =
+    fresh.length > 0
+      ? fresh.every((episode) => included.has(episode.key))
+      : form.included.length === preview.episodes.length;
   // Where the address and TMDB disagree: what lands where TMDB lists nothing, and what TMDB lists
   // that nothing brings (the series having it already counts as brought).
   const matches = matchTmdb(
@@ -143,7 +152,7 @@ export function EpisodeGrid({
           <Switch
             size="lg"
             checked={all}
-            onCheckedChange={(on) => onChange(setAllIncluded(preview, form, on))}
+            onCheckedChange={(on) => onChange(setAllIncluded(preview, form, on, takenKeys))}
           />
         </label>
       </header>
@@ -162,7 +171,9 @@ export function EpisodeGrid({
           const code = episodeCode(mapped.season, mapped.episode);
           const isIn = included.has(episode.key);
           const fate: Fate = !isIn
-            ? "left-out"
+            ? taken.has(code)
+              ? "alternative"
+              : "left-out"
             : taken.has(code)
               ? "taken"
               : kept.has(code)
@@ -375,6 +386,7 @@ function EpisodeCard({
     wait: { label: t.add.willWait, hint: t.add.waitHint, icon: Tick02Icon },
     "left-out": { label: t.add.leftOut, hint: t.add.leftOutHint, icon: null },
     taken: { label: t.add.alreadyThere, hint: t.add.alreadyThereHint(code), icon: RefreshIcon },
+    alternative: { label: t.add.alternative, hint: t.add.alternativeHint(code), icon: null },
     kept: {
       label: t.add.keptInJellyfin,
       hint: t.add.keptInJellyfinHint(code),
@@ -454,7 +466,9 @@ function EpisodeCard({
           }}
           className={cn(
             "absolute top-2 right-2 flex size-10 items-center justify-center rounded-full shadow-md ring-1 ring-black/10 backdrop-blur-md transition-colors focus-visible:ring-3 focus-visible:ring-ring/60 focus-visible:outline-none",
-            fate === "left-out" ? "bg-black/30 ring-white/60 hover:bg-black/45" : FATE_STYLE[fate],
+            fate === "left-out" || fate === "alternative"
+              ? "bg-black/30 ring-white/60 hover:bg-black/45"
+              : FATE_STYLE[fate],
           )}
         >
           {fateText.icon && <HugeiconsIcon icon={fateText.icon} className="size-4.5" />}

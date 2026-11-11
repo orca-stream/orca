@@ -254,7 +254,11 @@ export const CreateSeriesBody = z
      * one from which the numbers move. The offset of `firstEpisode` is measured around them.
      */
     adjustments: z.array(EpisodeAdjustment).max(500).default([]),
-    episodeKeys: z.array(z.string()).min(1),
+    /**
+     * The episodes this address brings. To a series that exists it may bring none: the address is
+     * kept as another source, and an episode the series has changes to it only when chosen here.
+     */
+    episodeKeys: z.array(z.string()),
     follow: z.boolean().default(false),
     downloadNow: z.boolean().default(false),
   })
@@ -267,10 +271,17 @@ export const CreateSeriesBody = z
     message: "Add to a series or to a show in Jellyfin, not both",
     path: ["jellyfinId"],
   })
-  .refine((body) => body.kind !== "movie" || body.episodeKeys.length === 1, {
-    message: "A movie is one video: choose one",
+  .refine((body) => body.seriesId !== undefined || body.episodeKeys.length > 0, {
+    message: "Choose at least one episode",
     path: ["episodeKeys"],
-  });
+  })
+  .refine(
+    (body) =>
+      body.kind !== "movie" ||
+      body.episodeKeys.length === 1 ||
+      (body.seriesId !== undefined && body.episodeKeys.length === 0),
+    { message: "A movie is one video: choose one", path: ["episodeKeys"] },
+  );
 export type CreateSeriesBody = z.infer<typeof CreateSeriesBody>;
 /** What a caller may send: the fields with a default can be left out. */
 export type CreateSeriesInput = z.input<typeof CreateSeriesBody>;

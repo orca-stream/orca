@@ -160,8 +160,9 @@ async function previewIt(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByLabelText("Título");
 }
 
+/** "Add series", or "Add source" when the address goes to a series that exists. */
 const confirmButton = () =>
-  screen.getByRole("button", { name: "Añadir serie" }) as HTMLButtonElement;
+  screen.getByRole("button", { name: /^Añadir (serie|fuente)$/ }) as HTMLButtonElement;
 
 describe("AddSeriesScreen", () => {
   it("offers to start over in the dock once read, and starting over empties everything", async () => {
@@ -1076,8 +1077,14 @@ describe("AddSeriesScreen", () => {
 
   it("adds the address to a series that exists, after the last episode it has in the season", async () => {
     const user = userEvent.setup();
+    // Its first episode downloaded; the rest never were.
     const existing = Array.from({ length: 12 }, (_, i) =>
-      makeEpisode({ id: `x${i + 1}`, season: 1, episode: i + 1 }),
+      makeEpisode({
+        id: `x${i + 1}`,
+        season: 1,
+        episode: i + 1,
+        status: i === 0 ? "available" : "missing",
+      }),
     );
     const { requests, location } = setup({
       series: [makeSeries({ id: "s9", title: "Show", year: 2023 })],
@@ -1097,11 +1104,21 @@ describe("AddSeriesScreen", () => {
     expect(screen.getByTitle("en el sitio S01E01").textContent).toContain("S01E13");
     expect(screen.queryByText("Cambia de fuente")).toBeNull();
 
-    // Numbered by hand as the site does, it lands on what the series has: those take their video
-    // from this address, which doesn't stop it from being added.
+    expect(confirmButton().textContent).toBe("Añadir fuente");
+
+    // Numbered by hand as the site does, it lands on what the series has: the downloaded one keeps
+    // its source, this address its alternative; the ones never downloaded take their video from it.
     await user.clear(screen.getByLabelText("Primer episodio"));
     await user.type(screen.getByLabelText("Primer episodio"), "1");
+    expect(await screen.findAllByText("Cambia de fuente")).toHaveLength(2);
+    expect(screen.getAllByText("Alternativa")).toHaveLength(1);
+    expect(confirmButton()).toHaveProperty("disabled", false);
+    // With none picked it still adds, as another source. The series has all three: "all" picks
+    // them all first, then none.
+    await user.click(screen.getByRole("switch", { name: /Incluir todos/ }));
     expect(await screen.findAllByText("Cambia de fuente")).toHaveLength(3);
+    await user.click(screen.getByRole("switch", { name: /Incluir todos/ }));
+    expect(screen.getByText("Se añade como otra fuente; ningún episodio cambia.")).toBeTruthy();
     expect(confirmButton()).toHaveProperty("disabled", false);
 
     await user.clear(screen.getByLabelText("Primer episodio"));

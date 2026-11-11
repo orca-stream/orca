@@ -22,6 +22,7 @@ import {
   parseYear,
   setAdjustment,
   setAllIncluded,
+  settleAlternatives,
   shortRanges,
   jellyfinTarget,
   toCreateBody,
@@ -77,6 +78,42 @@ describe("canConfirm", () => {
     expect(canConfirm({ ...form, title: "   " })).toBe(false);
     expect(canConfirm({ ...form, included: [] })).toBe(false);
     expect(canConfirm({ ...form, year: "19" })).toBe(false);
+  });
+});
+
+describe("another address of a series that exists", () => {
+  const preview = makePreview();
+  const toSeries = { ...initialForm(preview), addTo: "s1" };
+
+  it("may bring no episode, as another source; a new series or a Jellyfin show may not", () => {
+    expect(canConfirm({ ...toSeries, included: [] })).toBe(true);
+    expect(
+      CreateSeriesBody.safeParse(toCreateBody(preview, { ...toSeries, included: [] })).success,
+    ).toBe(true);
+    expect(canConfirm({ ...toSeries, addTo: jellyfinTarget("jf1"), included: [] })).toBe(false);
+  });
+
+  it("leaves out what the series has, except what failed or was never downloaded", () => {
+    const settled = settleAlternatives(toSeries, new Set(["e1", "e2"]), new Set(["e2"]), new Set());
+    expect(settled.included).toEqual(["e2", "e4"]);
+    // Settled again with the same series, a pick made by hand stays.
+    const picked = { ...settled, included: [...settled.included, "e1"] };
+    expect(
+      settleAlternatives(picked, new Set(["e1", "e2"]), new Set(["e2"]), new Set(["e1", "e2"])),
+    ).toBe(picked);
+    // Going to a new series instead, they come back in.
+    expect(
+      settleAlternatives(settled, new Set(), new Set(), new Set(["e1", "e2"])).included,
+    ).toEqual(["e2", "e4", "e1"]);
+  });
+
+  it('"include all" turns on only what the series lacks, keeping what was picked', () => {
+    const none = { ...toSeries, included: ["e2"] };
+    expect(setAllIncluded(preview, none, true, new Set(["e1", "e2"])).included).toEqual([
+      "e2",
+      "e4",
+    ]);
+    expect(setAllIncluded(preview, none, false, new Set(["e1", "e2"])).included).toEqual([]);
   });
 });
 

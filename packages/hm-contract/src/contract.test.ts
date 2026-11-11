@@ -370,6 +370,24 @@ describe("seasons in parts", () => {
     expect(CreateSeriesBody.safeParse({ ...base, title: "x", season: -1 }).success).toBe(false);
   });
 
+  it("lets another address of a series that exists bring no episode, and nothing else", () => {
+    const none = { previewId: "p", episodeKeys: [] };
+    expect(CreateSeriesBody.safeParse({ ...none, seriesId: "s1" }).success).toBe(true);
+    expect(CreateSeriesBody.safeParse({ ...none, title: "x" }).success).toBe(false);
+    expect(CreateSeriesBody.safeParse({ ...none, jellyfinId: "jf1" }).success).toBe(false);
+    expect(CreateSeriesBody.safeParse({ ...none, seriesId: "s1", kind: "movie" }).success).toBe(
+      true,
+    );
+    expect(
+      CreateSeriesBody.safeParse({
+        ...none,
+        seriesId: "s1",
+        kind: "movie",
+        episodeKeys: ["a", "b"],
+      }).success,
+    ).toBe(false);
+  });
+
   it("adds to a show in Jellyfin without a title, but never to a series and a show at once", () => {
     const base = { previewId: "p", episodeKeys: ["a"] };
     expect(CreateSeriesBody.parse({ ...base, jellyfinId: "jf1" })).toMatchObject({

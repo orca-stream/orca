@@ -422,7 +422,8 @@ export function createUseCases(deps: Deps) {
           "There is no movies folder: choose one in Settings › Library to add movies",
         );
       }
-      if (movie && chosen.length !== 1) {
+      // Another address of a movie that exists may bring nothing: it's kept as another source.
+      if (movie && (chosen.length > 1 || (chosen.length === 0 && body.seriesId === undefined))) {
         throw new AppError("bad_request", "A movie is one video: choose one");
       }
       // Measured on everything the address lists, not only what was chosen: a check later on finds

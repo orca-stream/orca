@@ -76,6 +76,7 @@ import { BAR_POPUP, BAR_ROW, BarField, BarPicker, BarToggle, ErrorHint, GLASS_PA
 import { EpisodeGrid } from "./EpisodeGrid";
 import {
   addAs,
+  addsToSeries,
   canConfirm,
   clashingCodes,
   digitsOf,
@@ -83,6 +84,7 @@ import {
   guideKey,
   initialForm,
   invalidFields,
+  keysLandingOn,
   movieStill,
   jellyfinShowOf,
   jellyfinTarget,
@@ -91,6 +93,7 @@ import {
   nextOpenSeason,
   numberer,
   parseSeason,
+  settleAlternatives,
   shortRanges,
   suggestedAs,
   toCreateBody,
@@ -824,6 +827,30 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   const taken = new Set(
     (targetEpisodes.data ?? []).map((episode) => episodeCode(episode.season, episode.episode)),
   );
+  // What the series has stays with its source unless picked; what failed or was never downloaded
+  // comes picked. Settled again whenever what lands on the series changes.
+  const takenKeys =
+    preview && form && targetEpisodes.isSuccess && invalid.size === 0
+      ? keysLandingOn(preview, form, taken)
+      : new Set<string>();
+  const alternativesKey =
+    form && (targetSeriesId === "" || targetEpisodes.isSuccess)
+      ? `${targetSeriesId}|${[...takenKeys].join(",")}`
+      : null;
+  const [alternatives, setAlternatives] = useState<{ key: string; keys: Set<string> } | null>(null);
+  if (preview && form && alternativesKey !== null && alternativesKey !== alternatives?.key) {
+    const brokenCodes = new Set(
+      (targetEpisodes.data ?? [])
+        .filter((episode) => episode.status === "failed" || episode.status === "missing")
+        .map((episode) => episodeCode(episode.season, episode.episode)),
+    );
+    const broken = keysLandingOn(preview, form, brokenCodes);
+    const before = alternatives?.keys ?? new Set<string>();
+    setAlternatives({ key: alternativesKey, keys: takenKeys });
+    setForm((current) =>
+      current ? settleAlternatives(current, takenKeys, broken, before) : current,
+    );
+  }
   // A show of Jellyfin's keeps the episodes it has as files: those aren't downloaded again. So does
   // a series of this server's, for the files its folder has that it doesn't know of.
   const targetShowId = form
@@ -853,7 +880,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
     ? null
     : asksNew && form.title.trim() === ""
       ? t.add.needsTitle
-      : form.included.length === 0
+      : form.included.length === 0 && !(addsToSeries(form.addTo) && !movie)
         ? movie
           ? t.add.needsMovieVideo
           : t.add.needsEpisodes
@@ -1350,9 +1377,11 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                         ? asksNew
                           ? t.add.readyMovie
                           : t.add.readyMovieSource
-                        : numbered === ""
-                          ? null
-                          : t.add.readyToAdd(form.included.length, numbered))}
+                        : form.included.length === 0
+                          ? t.add.readySourceOnly
+                          : numbered === ""
+                            ? null
+                            : t.add.readyToAdd(form.included.length, numbered))}
                   </p>
                   <button
                     type="button"
@@ -1368,7 +1397,9 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                         ? asksNew
                           ? t.add.confirmMovie
                           : t.add.confirmMovieSource
-                        : t.add.confirm}
+                        : addsToSeries(form.addTo)
+                          ? t.add.confirmSource
+                          : t.add.confirm}
                   </button>
                 </div>
               </div>
@@ -1467,6 +1498,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
           guide={stills}
           guideSeasons={guideSeasons}
           taken={taken}
+          takenKeys={takenKeys}
           kept={kept}
         />
       )}

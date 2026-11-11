@@ -99,6 +99,29 @@ describe("changing the source of episodes", () => {
     expect(fileOutdated(back!)).toBe(false);
   });
 
+  it("keeps another address that brings no episode as a source, changing nothing", async () => {
+    site.season("a", "Show", range(1, 3)).season("b", "Show", range(1, 3));
+    const series = await add("a", { title: "Show" });
+    const before = await h.series.listEpisodes(series.id);
+    const preview = await h.useCases.previewSeries(seasonUrl("b"));
+    await h.useCases.addSeries({
+      previewId: preview.previewId,
+      seriesId: series.id,
+      episodeKeys: [],
+    });
+
+    const [a, b] = (await h.useCases.getSeries(series.id)).sources;
+    expect(b).toMatchObject({ closed: false });
+    expect(await h.series.listEpisodes(series.id)).toEqual(before);
+    expect(before.every((episode) => episode.sourceId === a!.id)).toBe(true);
+    // Later, one episode moves to it by hand.
+    const result = await h.useCases.switchSource(series.id, {
+      sourceId: b!.id,
+      episodeIds: [before[1]!.id],
+    });
+    expect(result).toEqual({ switched: 1, notListed: [], busy: [] });
+  });
+
   it("leaves an episode being downloaded alone, and settles what failed on the old source", async () => {
     site.season("a", "Show", range(1, 2)).season("b", "Show", [1, 2, 9]);
     const series = await add("a", { title: "Show" });

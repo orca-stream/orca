@@ -25,6 +25,7 @@ function renderGrid(season1: GuideEpisodeDto[]) {
       guide={new Map(season1.map((episode) => [`1:${episode.number}`, episode]))}
       guideSeasons={new Map([[1, season1]])}
       taken={new Set()}
+      takenKeys={new Set()}
       kept={new Set()}
     />,
   );
@@ -58,10 +59,31 @@ describe("EpisodeGrid against TMDB", () => {
         guide={new Map()}
         guideSeasons={new Map()}
         taken={new Set()}
+        takenKeys={new Set()}
         kept={new Set()}
       />,
     );
     expect(screen.queryByText("Igual que TMDB")).toBeNull();
     expect(screen.queryByText("Distinto de TMDB")).toBeNull();
+  });
+
+  it("keeps what the series has as an alternative unless picked to change source", () => {
+    const preview = makePreview();
+    renderApp(
+      <EpisodeGrid
+        preview={preview}
+        form={{ ...initialForm(preview), addTo: "s1", included: ["e2", "e4"] }}
+        onChange={() => undefined}
+        guide={new Map()}
+        guideSeasons={new Map()}
+        taken={new Set(["S01E01", "S01E02"])}
+        takenKeys={new Set(["e1", "e2"])}
+        kept={new Set()}
+      />,
+    );
+    expect(screen.getByText("Alternativa")).toBeTruthy();
+    expect(screen.getByText("Cambia de fuente")).toBeTruthy();
+    // Everything the series lacks is in: "include all" is on.
+    expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
   });
 });
