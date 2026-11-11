@@ -91,6 +91,10 @@ export class JellyfinMediaServer implements MediaServer {
    * Refreshes the series in that folder by its item id, or, when Jellyfin doesn't know it yet, the
    * library that holds it. Not `POST /Library/Media/Updated`: Jellyfin answers it 204 and may drop it
    * silently (a path under one it ignores while writing trickplay or images there).
+   *
+   * A library with nothing in it gets a full scan instead: Jellyfin skips a library whose folder was
+   * empty when it was created ("inaccessible or empty") and never watches it, and refreshing that
+   * library answers 204 and finds nothing, until a full scan picks the folder up.
    */
   async libraryUpdated(
     path: string,
@@ -105,12 +109,12 @@ export class JellyfinMediaServer implements MediaServer {
     const { jellyfinPath, kind } = this.toJellyfin(path);
     const api = jellyfin.createApi(serverUrl, apiKey, axiosInstance);
     try {
-      const { itemId, isSeries } = await this.findItem(
-        api,
-        jellyfinPath,
-        kind,
-        options.removed === true,
-      );
+      const found = await this.findItem(api, jellyfinPath, kind, options.removed === true);
+      if (found === "empty-library") {
+        await getLibraryApi(api).refreshLibrary();
+        return;
+      }
+      const { itemId, isSeries } = found;
       // Default: only what is new or changed. Replacing is for the series alone, never its library.
       await getLibraryApi(api).refreshItem(
         options.replaceMetadata && isSeries
@@ -346,15 +350,16 @@ export class JellyfinMediaServer implements MediaServer {
   }
 
   /**
-   * The series (or movie) whose folder is `path`, else the library whose folder holds it. With
-   * `libraryOnly`, always the library (the folder is gone).
+   * The series (or movie) whose folder is `path`, else the library whose folder holds it, or
+   * `"empty-library"` when that library has none at all yet. With `libraryOnly`, always the library
+   * (the folder is gone).
    */
   private async findItem(
     api: Api,
     path: string,
     kind: MediaKind,
     libraryOnly = false,
-  ): Promise<{ itemId: string; isSeries: boolean }> {
+  ): Promise<{ itemId: string; isSeries: boolean } | "empty-library"> {
     const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
     const library = libraries.find(
       (folder) =>
@@ -373,8 +378,10 @@ export class JellyfinMediaServer implements MediaServer {
       enableImages: false,
       enableTotalRecordCount: false,
     });
+    const items = data.Items ?? [];
+    if (items.length === 0) return "empty-library";
     const folderOf = (item: BaseItemDto) => (kind === "movie" ? parentOf(item.Path!) : item.Path!);
-    const series = (data.Items ?? []).find((item) => item.Path && samePath(folderOf(item), path));
+    const series = items.find((item) => item.Path && samePath(folderOf(item), path));
     return series?.Id
       ? { itemId: series.Id, isSeries: true }
       : { itemId: library.ItemId, isSeries: false };

@@ -277,6 +277,16 @@ describe("JellyfinMediaServer", () => {
     expect(parts(refreshOf(requests)).path).toBe("/Items/lib-tv/Refresh");
   });
 
+  it("scans every library when the one that holds the series has nothing yet", async () => {
+    // Jellyfin skips a library created over an empty folder; refreshing it finds nothing.
+    const { server, requests } = mediaServer(jellyfinWith(LIBRARIES, []));
+    await server.libraryUpdated("/media/tv/Brand New (2026)");
+    const refresh = refreshOf(requests);
+    expect(parts(refresh).path).toBe("/Library/Refresh");
+    expect(refresh?.method).toBe("post");
+    expect(requests.filter((r) => parts(r).path.endsWith("/Refresh"))).toHaveLength(1);
+  });
+
   it("refreshes the library, not the series, once the series' folder is gone", async () => {
     const { server, requests } = mediaServer(jellyfinWith());
     await server.libraryUpdated("/media/tv/The Beverly Hillbillies (1962)", { removed: true });
