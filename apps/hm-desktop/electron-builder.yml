@@ -61,10 +61,11 @@ deb:
   afterInstall: build/deb/after-install.tpl
   afterRemove: build/deb/after-remove.tpl
 # Apple Silicon only, macOS 14 and up (the floor of the Chromium that Playwright fetches; Electron
-# alone runs on 13). Not signed by Apple: an ad-hoc signature, which Apple Silicon needs to run the
-# app at all, without the hardened runtime, whose library validation rejects Electron's own
-# frameworks under an ad-hoc signature. The first launch asks for System Settings › Privacy &
+# alone runs on 13). Not signed by Apple: electron-builder signs nothing (`identity: null`) and
+# scripts/mac-sign.ts gives the app a plain ad-hoc signature, which Apple Silicon needs to run it at
+# all (see there why not electron-builder's). The first launch asks for System Settings › Privacy &
 # Security › Open Anyway.
+afterPack: ./scripts/mac-sign.ts
 mac:
   target:
     - target: dmg
@@ -72,8 +73,7 @@ mac:
   icon: resources/icon-mac.png
   category: public.app-category.video
   minimumSystemVersion: "14.0"
-  identity: "-"
-  hardenedRuntime: false
+  identity: null
   # Its name in the menu bar and the Dock (the bundle keeps the path-safe productName).
   extendInfo:
     CFBundleName: Orca'H&M
