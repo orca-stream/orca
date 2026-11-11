@@ -5,7 +5,8 @@
 La app de escritorio (`apps/hm-desktop`) es el [servidor Orca'H&M](hm-server.md) y su
 [panel](hm-web.md) en un solo programa: arranca el servidor, muestra el panel en su propia ventana y
 se queda en la bandeja, así que las descargas siguen con la ventana cerrada. Para Linux, como `.deb`
-(Ubuntu, Debian y sus derivadas), y para Windows 10 y 11 (64 bits), como instalador.
+(Ubuntu, Debian y sus derivadas), para Windows 10 y 11 (64 bits), como instalador, y para Mac con
+Apple Silicon (M1 en adelante) con macOS 14 Sonoma o posterior, como imagen de disco.
 
 ## Instalar
 
@@ -15,6 +16,14 @@ se queda en la bandeja, así que las descargas siguen con la ventana cerrada. Pa
   solo para tu cuenta, sin pedir administrador, y añade Orca'H&M al menú Inicio y al escritorio. El
   instalador aún no está firmado, así que Windows puede avisar de que protegió tu equipo: elige
   **Más información › Ejecutar de todas formas**.
+- **macOS:** descarga `orca-hm_<versión>_arm64.dmg` de la última versión publicada, ábrelo y arrastra
+  Orca'H&M a Aplicaciones. La app aún no está firmada por Apple, así que la primera vez que la abres
+  macOS se niega: ve a **Ajustes del Sistema › Privacidad y seguridad**, baja hasta el aviso sobre
+  Orca'H&M y elige **Abrir igualmente** (aparece durante una hora más o menos tras el intento), y
+  confirma con tu contraseña. Si en cambio macOS dice que la app «está dañada y no se puede abrir»,
+  ejecuta `xattr -dr com.apple.quarantine /Applications/orca-hm.app` en Terminal y vuelve a abrirla.
+  Después se abre con normalidad. Su icono vive en la barra de menús; cerrar la ventana la deja ahí
+  funcionando, y **Salir** desde ese icono (o ⌘Q) la detiene.
 
 En su primer arranque la app descarga el navegador y ffmpeg que usan sus descargas, mostrando el progreso;
 después se abre el asistente de configuración del panel.
@@ -49,18 +58,29 @@ la descarga (**Descargando… N %**); después la app se cierra, el instalador m
 la versión nueva. Nada pide administrador. Tus datos viven en `%LOCALAPPDATA%\orca-hm` y se conservan
 al actualizar; la app en sí está en `%LOCALAPPDATA%\Programs\orca-hm`.
 
+### macOS
+
+La app busca versiones nuevas igual y las ofrece con el mismo botón **Actualizar a X** y en la barra
+de menús, pero sin la firma de Apple no puede reemplazarse sola: el clic abre la descarga del `.dmg`
+nuevo en tu navegador. Ábrelo, arrastra Orca'H&M a Aplicaciones y elige **Reemplazar**; antes cierra
+la app abierta (su icono en la barra de menús › **Salir**). La versión nueva puede pedir otra vez
+**Abrir igualmente**. Tus datos viven en `~/Library/Application Support/orca-hm` y se conservan.
+
 ## Desinstalar
 
 - **Linux:** `sudo apt remove orca-hm`. El repositorio de paquetes se va con ella. Tus datos se quedan
   en `~/.config/orca-hm`; borra esa carpeta para quitarlos también.
 - **Windows:** Configuración › Aplicaciones › Aplicaciones instaladas › Orca'H&M › Desinstalar. Tus
   datos se quedan en `%LOCALAPPDATA%\orca-hm`; borra esa carpeta para quitarlos también.
+- **macOS:** cierra la app y llévala de Aplicaciones a la Papelera. Tus datos se quedan en
+  `~/Library/Application Support/orca-hm`; borra esa carpeta para quitarlos también.
 
 ## Compilarla tú
 
 ```sh
 pnpm --filter @orca/hm-desktop dist:linux   # apps/hm-desktop/release/orca-hm_<versión>_amd64.deb
 pnpm --filter @orca/hm-desktop dist:win     # apps/hm-desktop/release/orca-hm_<versión>_x64.exe
+pnpm --filter @orca/hm-desktop dist:mac     # apps/hm-desktop/release/orca-hm_<versión>_arm64.dmg (en un Mac)
 pnpm --filter @orca/hm-desktop start        # arrancarla desde el repositorio, sin empaquetar
 pnpm try:hm                                  # cerrar la app abierta, recompilar y arrancarla desde el repositorio
 ```
@@ -84,6 +104,11 @@ cd apps/hm-desktop
 pnpm dist:win -c.publish.provider=generic -c.publish.url=https://<host>/<ruta>
 ```
 
+`dist:mac` solo compila en un Mac (Apple Silicon). Las mismas opciones `-c.publish.…` dan una
+compilación que busca actualizaciones (ahí deben servirse `latest-mac.yml` y el `.dmg`). Sin Mac, el
+workflow `Package` compila el `.dmg` en el runner de macOS de GitHub y lo deja como artefacto de la
+ejecución: lánzalo a mano o sube una rama llamada `package/…`.
+
 ## Versiones (mantenimiento)
 
 Las versiones salen de [release-please](https://github.com/googleapis/release-please): cada commit
@@ -92,8 +117,9 @@ que sube la versión (`0.x` mientras la app diga _Beta_) y el registro de cambio
 Al fusionarlo se etiqueta una versión en borrador; el workflow `Release` compila el `.deb` y monta el
 repositorio de paquetes a su alrededor (`apps/hm-desktop/scripts/apt-repo.sh`: `Packages`, `Release`,
 `InRelease`, firmados), compila el instalador de Windows en un runner de Windows (con su `latest.yml`
-y su `.blockmap`), lo sube todo como archivos de la versión y, solo cuando están los dos, la publica
-como la última. Las apps instaladas leen sus actualizaciones en
+y su `.blockmap`) y la imagen de disco de macOS en un runner de macOS (con su `latest-mac.yml` y su
+`.blockmap`), lo sube todo como archivos de la versión y, solo cuando están los tres, la publica como
+la última. Las apps instaladas leen sus actualizaciones en
 `https://github.com/<owner>/<repo>/releases/latest/download/`.
 
 Necesita:

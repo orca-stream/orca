@@ -16,7 +16,8 @@
     "try": "node scripts/try.ts",
     "start": "pnpm build && electron . --no-sandbox",
     "dist:linux": "pnpm build && pnpm stage:server && node scripts/deb.ts && electron-builder --linux deb --publish never",
-    "dist:win": "pnpm build && pnpm stage:server && electron-builder --win nsis --x64 --publish never"
+    "dist:win": "pnpm build && pnpm stage:server && electron-builder --win nsis --x64 --publish never",
+    "dist:mac": "pnpm build && pnpm stage:server && electron-builder --mac dmg --arm64 --publish never"
   },
   "devDependencies": {
     "@hugeicons/core-free-icons": "^4.4.0",

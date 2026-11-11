@@ -1,6 +1,6 @@
 # Packaging for Orca'H&M's desktop app. `pnpm stage:server` must run first, and for Linux
-# `node scripts/deb.ts` too: they fill build/hm-server, build/deb and build/apt (`pnpm dist:linux`
-# and `pnpm dist:win` run all of it).
+# `node scripts/deb.ts` too: they fill build/hm-server, build/deb and build/apt (`pnpm dist:linux`,
+# `pnpm dist:win` and `pnpm dist:mac` run all of it).
 appId: io.github.orcastream.orca.hm
 # A path-safe name: it becomes /opt/orca-hm. People see Orca'H&M (desktop entry, window, tray).
 productName: orca-hm
@@ -26,8 +26,9 @@ extraResources:
     filter:
       - "**/*"
       - "!.bin"
-# No update feed by default. Linux updates through its APT repository; a Windows release passes its
-# own (-c.publish.provider/url, see release.yml), which writes app-update.yml and latest.yml. Without
+# No update feed by default. Linux updates through its APT repository; a Windows or macOS release
+# passes its own (-c.publish.provider/url, see release.yml), which writes app-update.yml and
+# latest.yml / latest-mac.yml. Without
 # this, electron-updater among the dependencies makes electron-builder look for one, and fail.
 publish: null
 # The app has no runtime dependencies, and the server's native module is a Node-API prebuild.
@@ -59,6 +60,26 @@ deb:
   # electron-builder's own scripts, plus adding and removing the APT repository.
   afterInstall: build/deb/after-install.tpl
   afterRemove: build/deb/after-remove.tpl
+# Apple Silicon only, macOS 14 and up (the floor of the Chromium that Playwright fetches; Electron
+# alone runs on 13). Not signed by Apple: an ad-hoc signature, which Apple Silicon needs to run the
+# app at all, without the hardened runtime, whose library validation rejects Electron's own
+# frameworks under an ad-hoc signature. The first launch asks for System Settings › Privacy &
+# Security › Open Anyway.
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  icon: resources/icon-mac.png
+  category: public.app-category.video
+  minimumSystemVersion: "14.0"
+  identity: "-"
+  hardenedRuntime: false
+  # Its name in the menu bar and the Dock (the bundle keeps the path-safe productName).
+  extendInfo:
+    CFBundleName: Orca'H&M
+    CFBundleDisplayName: Orca'H&M
+dmg:
+  title: Orca'H&M
 win:
   target: nsis
   executableName: orca-hm

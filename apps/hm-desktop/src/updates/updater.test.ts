@@ -10,13 +10,15 @@ import {
 /** A source the test steers: what `find` returns and how `install` ends. */
 function fakeSource() {
   let offered: AvailableUpdate | undefined;
-  let finish: { resolve: () => void; reject: (error: Error) => void } | undefined;
+  let finish:
+    | { resolve: (outcome?: "handed-over") => void; reject: (error: Error) => void }
+    | undefined;
   let progress: (progress: UpdateProgress) => void = () => {};
   const source = {
     find: vi.fn(async () => offered),
     install: vi.fn(
       (_update: AvailableUpdate, onProgress: (progress: UpdateProgress) => void) =>
-        new Promise<void>((resolve, reject) => {
+        new Promise<void | "handed-over">((resolve, reject) => {
           progress = onProgress;
           finish = { resolve, reject };
         }),
@@ -29,6 +31,7 @@ function fakeSource() {
     },
     progress: (value: UpdateProgress) => progress(value),
     succeed: () => finish?.resolve(),
+    handOver: () => finish?.resolve("handed-over"),
     fail: (message: string) => finish?.reject(new Error(message)),
   };
 }
@@ -101,6 +104,23 @@ describe("Updater", () => {
       { status: "installing", version: "0.2.0", step: "installing" },
       { status: "installing", version: "0.2.0", step: "installing", percent: 40 },
     ]);
+  });
+
+  it("keeps the offer, and the app running, when the update is finished outside it", async () => {
+    const { fake, seen, onInstalled, updater } = setup();
+    fake.offer("0.2.0");
+    await updater.check();
+    const installing = updater.install();
+    fake.handOver();
+    await installing;
+    expect(onInstalled).not.toHaveBeenCalled();
+    expect(updater.current).toEqual({ status: "available", version: "0.2.0" });
+    expect(seen.at(-2)).toEqual({ status: "installing", version: "0.2.0", step: "preparing" });
+    // Offered again: the download can be opened once more.
+    const again = updater.install();
+    expect(fake.source.install).toHaveBeenCalledTimes(2);
+    fake.handOver();
+    await again;
   });
 
   it("keeps the offer with the reason when installing fails, and can try again", async () => {

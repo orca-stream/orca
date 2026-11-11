@@ -158,10 +158,13 @@ function VersionBadge({ desktop, update }: { desktop: DesktopBridge; update: Upd
 /**
  * The desktop app's title bar, drawn by the panel because the window has no frame: the logo, the
  * version marked as a beta, an update when one is on offer, and the window's own buttons. 56px, its
- * 40px buttons 8px from the edges; the rest of it drags the window.
+ * 40px buttons 8px from the edges; the rest of it drags the window. On macOS the system draws its
+ * own buttons at the left (the app places them, see hm-desktop's main.ts): the logo starts 16px
+ * after them, and ours are left out.
  */
 export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
   const t = useT();
+  const mac = desktop.platform === "darwin";
   const [maximized, setMaximized] = useState(false);
   const [update, setUpdate] = useState<UpdateOffer | null>(null);
 
@@ -177,7 +180,11 @@ export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
             desktop.toggleMaximize();
           }
         }}
-        className="fixed inset-x-0 top-0 z-60 flex h-14 items-center gap-2 pr-2 pl-4 select-none [-webkit-app-region:drag]"
+        className={cn(
+          "fixed inset-x-0 top-0 z-60 flex h-14 items-center gap-2 pr-2 select-none [-webkit-app-region:drag]",
+          // The traffic lights: 20px in, 52px wide, then 16px.
+          mac ? "pl-22" : "pl-4",
+        )}
       >
         <img src={logo} alt="ORCA'H&M" className="pointer-events-none h-10" />
         <VersionBadge desktop={desktop} update={update} />
@@ -185,22 +192,26 @@ export function TitleBar({ desktop }: { desktop: DesktopBridge }) {
         <div className="flex-1 self-stretch" aria-hidden="true" />
 
         {update && <UpdateButton update={update} onInstall={() => desktop.installUpdate()} />}
-        <Control
-          label={t.desktop.minimize}
-          icon={MinusSignIcon}
-          onClick={() => desktop.minimize()}
-        />
-        <Control
-          label={maximized ? t.desktop.restore : t.desktop.maximize}
-          icon={maximized ? Copy01Icon : StopIcon}
-          onClick={() => desktop.toggleMaximize()}
-        />
-        <Control
-          label={t.desktop.close}
-          icon={Cancel01Icon}
-          onClick={() => desktop.close()}
-          className="hover:bg-destructive hover:text-white"
-        />
+        {!mac && (
+          <>
+            <Control
+              label={t.desktop.minimize}
+              icon={MinusSignIcon}
+              onClick={() => desktop.minimize()}
+            />
+            <Control
+              label={maximized ? t.desktop.restore : t.desktop.maximize}
+              icon={maximized ? Copy01Icon : StopIcon}
+              onClick={() => desktop.toggleMaximize()}
+            />
+            <Control
+              label={t.desktop.close}
+              icon={Cancel01Icon}
+              onClick={() => desktop.close()}
+              className="hover:bg-destructive hover:text-white"
+            />
+          </>
+        )}
       </header>
     </TooltipProvider>
   );

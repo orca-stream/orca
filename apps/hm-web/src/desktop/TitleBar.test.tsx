@@ -55,6 +55,15 @@ describe("TitleBar", () => {
     expect(screen.getByText("Beta 0.1.0")).toBeTruthy();
   });
 
+  it("leaves the window's buttons to macOS, which draws its own", () => {
+    const { bridge } = fakeBridge();
+    renderApp(<TitleBar desktop={{ ...bridge, platform: "darwin" }} />, { handler });
+    expect(screen.getByText("Beta 0.1.0")).toBeTruthy();
+    for (const name of ["Minimizar", "Maximizar", "Cerrar"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+  });
+
   it("drives the window through the bridge, with no arguments", async () => {
     const user = userEvent.setup();
     const { bridge } = fakeBridge();

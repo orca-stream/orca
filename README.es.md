@@ -12,7 +12,7 @@ pnpm viven cuatro apps; cada una funciona por separado y encajan entre sí:
 | Panel **Orca'H&M**      | El panel web de administración del servidor H&M; se entra con un administrador de Jellyfin o el administrador propio de H&M | [hm-web](docs/guides/es/hm-web.md)       |
 
 Orca'H&M como un solo programa instalable que se actualiza desde dentro:
-[la app de escritorio](docs/guides/es/hm-desktop.md) (Linux y Windows). Versiones instalables de Orca'JP: [Android (teléfono y TV)](docs/guides/es/android.md) ·
+[la app de escritorio](docs/guides/es/hm-desktop.md) (Linux, Windows y macOS con Apple Silicon). Versiones instalables de Orca'JP: [Android (teléfono y TV)](docs/guides/es/android.md) ·
 [Xbox y Windows](docs/guides/es/xbox.md). Cómo se combinan: [Usarlas juntas](docs/guides/es/together.md).
 
 > Proyecto privado y en fase temprana. Todavía no se publica nada en un registro ni en una tienda de apps.

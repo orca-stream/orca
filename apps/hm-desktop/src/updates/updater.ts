@@ -1,6 +1,7 @@
 // Keeps the app's update on offer: looks for a newer version now and then, and installs it when the
-// panel asks. Where updates come from changes by platform (PackageKit on Linux), so it sits behind
-// `UpdateSource`; this file is only the when and the what-to-show.
+// panel asks. Where updates come from changes by platform (PackageKit on Linux, the installer on
+// Windows, a download in the browser on macOS), so it sits behind `UpdateSource`; this file is only
+// the when and the what-to-show.
 import type { UpdateCheck, UpdateOffer, UpdateStep } from "@orca/hm-contract/desktop";
 
 /** A newer version of the app, passed back to the source to install it. */
@@ -18,8 +19,15 @@ export interface UpdateProgress {
 export interface UpdateSource {
   /** Refreshes what is on offer and returns the newer version, if there is one. */
   find(): Promise<AvailableUpdate | undefined>;
-  /** Installs it, reporting the progress (undefined while unknown); rejects with the reason. */
-  install(update: AvailableUpdate, onProgress: (progress: UpdateProgress) => void): Promise<void>;
+  /**
+   * Installs it, reporting the progress (undefined while unknown); rejects with the reason. Resolves
+   * with `handed-over` when the person finishes it outside the app (macOS: the download opens in the
+   * browser), and the update stays on offer.
+   */
+  install(
+    update: AvailableUpdate,
+    onProgress: (progress: UpdateProgress) => void,
+  ): Promise<void | "handed-over">;
 }
 
 export interface UpdaterOptions {
@@ -129,8 +137,9 @@ export class Updater {
     const found = this.found;
     if (!found || this.installing) return;
     this.set({ status: "installing", version: found.version, step: "preparing" });
+    let outcome: void | "handed-over";
     try {
-      await this.options.source.install(found, ({ step, percent }) => {
+      outcome = await this.options.source.install(found, ({ step, percent }) => {
         this.set(
           percent === undefined
             ? { status: "installing", version: found.version, step }
@@ -140,6 +149,10 @@ export class Updater {
     } catch (error) {
       this.options.log?.(`Could not install ${found.version}: ${reason(error)}`);
       this.set({ status: "failed", version: found.version, reason: reason(error) });
+      return;
+    }
+    if (outcome === "handed-over") {
+      this.set({ status: "available", version: found.version });
       return;
     }
     this.stop();

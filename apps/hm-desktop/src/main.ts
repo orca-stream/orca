@@ -29,9 +29,16 @@ import { localeFor, readPreferences, writePreferences } from "./preferences.ts";
 import { endStartupSequence } from "./startup-notification.ts";
 import { SERVER_PORT, ServerProcess, StartError } from "./server.ts";
 import { setupView } from "./setup-view.ts";
-import { RETRY_URL, setupPage, shellPage, type SetupView } from "./shell-page.ts";
+import {
+  RETRY_URL,
+  setupPage,
+  shellPage,
+  type SetupView,
+  type WindowLabels,
+} from "./shell-page.ts";
 import { stringsFor, type Strings } from "./strings.ts";
 import { ToolsSetup, type ToolState } from "./tools/index.ts";
+import { DmgUpdates, updateUrlFrom } from "./updates/dmg.ts";
 import { NsisUpdates } from "./updates/nsis.ts";
 import { PackageKitUpdates } from "./updates/packagekit.ts";
 import { repositoryUrlFrom } from "./updates/repository.ts";
@@ -78,12 +85,31 @@ function aptRepositoryUrl(): string | undefined {
 const PUSH_MS = 150;
 
 /**
- * Where a Windows build finds its updates: electron-builder writes it from the `publish` option the
- * release passes (see package.json, `dist:win`). A local build carries none.
+ * Where a Windows or macOS build finds its updates: electron-builder writes it from the `publish`
+ * option the release passes (see release.yml). A local build carries none.
  */
-function windowsUpdatesConfigured(): boolean {
-  return existsSync(join(process.resourcesPath, "app-update.yml"));
+const APP_UPDATE_FILE = "app-update.yml";
+
+function updatesConfigured(): boolean {
+  return existsSync(join(process.resourcesPath, APP_UPDATE_FILE));
 }
+
+/** The address of the release's files, from the build's app-update.yml; none in a local build. */
+function macUpdateUrl(): string | undefined {
+  try {
+    return updateUrlFrom(readFileSync(join(process.resourcesPath, APP_UPDATE_FILE), "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+const isMac = process.platform === "darwin";
+
+/**
+ * On macOS the window keeps the system's own buttons, centred in the panel's 56px title bar (they
+ * are 14px tall), which leaves them room on its left (see hm-web's TitleBar).
+ */
+const TRAFFIC_LIGHTS = { x: 20, y: 21 };
 
 /** The app's id (electron-builder.yml, `appId`): Windows groups its windows and shortcut by it. */
 const APP_ID = "io.github.orcastream.orca.hm";
@@ -159,19 +185,32 @@ if (needsX11) {
   let onSetupPage = false;
   let pushTimer: NodeJS.Timeout | undefined;
   let quitting = false;
+  /** Once the app is ready and its words are known. */
+  let started = false;
   /** The update's status the tray menu was last built with. */
   let trayUpdateStatus: UpdateOffer["status"] | undefined;
 
   // Installed from the .deb, the app updates through the system's packages (see
-  // updates/packagekit.ts); on Windows, through its installer (updates/nsis.ts). Run from the
-  // repository, or built locally, there is nothing to update.
+  // updates/packagekit.ts); on Windows, through its installer (updates/nsis.ts); on macOS it only
+  // opens the new .dmg (updates/dmg.ts). Run from the repository, or built locally, there is nothing
+  // to update.
   const nsis =
-    app.isPackaged && process.platform === "win32" && windowsUpdatesConfigured()
+    app.isPackaged && process.platform === "win32" && updatesConfigured()
       ? new electronUpdater.NsisUpdater()
       : undefined;
   if (nsis) nsis.logger = { info: () => {}, warn: console.error, error: console.error };
   const source = ((): UpdateSource | undefined => {
     if (nsis) return new NsisUpdates(nsis);
+    if (isMac) {
+      const url = app.isPackaged ? macUpdateUrl() : undefined;
+      return url
+        ? new DmgUpdates({
+            url,
+            currentVersion: app.getVersion(),
+            openExternal: (address) => shell.openExternal(address),
+          })
+        : undefined;
+    }
     const repositoryUrl =
       app.isPackaged && process.platform === "linux" ? aptRepositoryUrl() : undefined;
     if (!repositoryUrl) return undefined;
@@ -220,12 +259,17 @@ if (needsX11) {
     nsis.quitAndInstall(false, true);
   }
 
+  /** The window's buttons on the app's own pages; none on macOS, which draws its own. */
+  function windowLabels(): WindowLabels | null {
+    return isMac ? null : { minimize: strings.minimize, close: strings.close };
+  }
+
   /** The app's own page: waiting for the server, or why it never answered. */
   function ownPage(message: string, detail?: string): string {
     return shellPage({
       message,
       busy: detail === undefined,
-      labels: { minimize: strings.minimize, close: strings.close },
+      labels: windowLabels(),
       ...(detail === undefined ? {} : { detail }),
     });
   }
@@ -233,7 +277,7 @@ if (needsX11) {
   /** The page the window should show right now. */
   function currentPage(): string {
     if (failure) return ownPage(strings.failed, failure());
-    if (setup) return setupPage(setup, { minimize: strings.minimize, close: strings.close });
+    if (setup) return setupPage(setup, windowLabels());
     return ready ? server.url : ownPage(strings.starting);
   }
 
@@ -344,6 +388,8 @@ if (needsX11) {
   }
 
   function showWindow(): void {
+    // On macOS the app shows in the Dock only while its window is open (see the window's `closed`).
+    if (isMac) void app.dock?.show();
     if (window) {
       if (window.isMinimized()) window.restore();
       window.show();
@@ -365,8 +411,11 @@ if (needsX11) {
       // The panel's backdrop colour, so nothing flashes before it paints.
       backgroundColor: "#eef2f9",
       icon,
-      // The panel draws the title bar (logo, version, our own buttons) through the preload's bridge.
-      frame: false,
+      // The panel draws the title bar (logo, version, our own buttons) through the preload's bridge;
+      // on macOS it keeps the system's buttons in it.
+      ...(isMac
+        ? { titleBarStyle: "hidden" as const, trafficLightPosition: TRAFFIC_LIGHTS }
+        : { frame: false }),
       show: false,
       webPreferences: {
         preload: join(appRoot, "dist/preload.cjs"),
@@ -383,6 +432,8 @@ if (needsX11) {
     window.on("closed", () => {
       window = undefined;
       onSetupPage = false;
+      // Like any app that lives in the menu bar: with its window closed, out of the Dock.
+      if (isMac) app.dock?.hide();
     });
     for (const [event, maximized] of [
       ["maximize", true],
@@ -446,12 +497,34 @@ if (needsX11) {
   }
 
   function createTray(): void {
-    // GNOME draws tray icons at 24 px; Windows at 16 to 32 with the display scaling, from the larger.
-    const size = process.platform === "win32" ? 32 : 24;
-    tray = new Tray(icon.resize({ width: size, height: size }));
+    tray = new Tray(trayIcon());
     tray.setToolTip("Orca'H&M");
     buildTrayMenu();
-    tray.on("click", openFromTray);
+    // On macOS a click opens the menu, which has its own «Open».
+    if (!isMac) tray.on("click", openFromTray);
+  }
+
+  function trayIcon(): Electron.NativeImage {
+    // macOS: a template image (black and its transparency), which the menu bar tints for its theme;
+    // the @2x beside it is picked up on its own.
+    if (isMac) return nativeImage.createFromPath(join(appRoot, "resources/trayTemplate.png"));
+    // GNOME draws tray icons at 24 px; Windows at 16 to 32 with the display scaling, from the larger.
+    const size = process.platform === "win32" ? 32 : 24;
+    return icon.resize({ width: size, height: size });
+  }
+
+  /**
+   * macOS's menu bar: without one, neither ⌘C/⌘V in the panel's fields nor ⌘Q work. Elsewhere the
+   * window has none.
+   */
+  function applicationMenu(): Menu | null {
+    if (!isMac) return null;
+    return Menu.buildFromTemplate([
+      { role: "appMenu" },
+      { role: "editMenu" },
+      { role: "viewMenu" },
+      { role: "windowMenu" },
+    ]);
   }
 
   /**
@@ -575,6 +648,11 @@ if (needsX11) {
   });
   // The tray keeps the app alive: closing the last window is not quitting.
   app.on("window-all-closed", () => {});
+  // macOS: clicking the app in the Dock or in Applications while it runs brings the window back.
+  // It also fires on the first launch, before the start below has set things up.
+  app.on("activate", () => {
+    if (started) showWindow();
+  });
 
   app.on("before-quit", (event) => {
     if (quitting) return;
@@ -587,8 +665,9 @@ if (needsX11) {
 
   void app.whenReady().then(async () => {
     strings = stringsFor(displayLocale());
-    Menu.setApplicationMenu(null);
+    Menu.setApplicationMenu(applicationMenu());
     createTray();
+    started = true;
     showWindow();
     await prepareAndStart();
     updater?.start();

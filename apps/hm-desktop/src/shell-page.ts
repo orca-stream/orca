@@ -29,7 +29,14 @@ export interface ShellPageOptions {
   detail?: string;
   /** Shows the panel's spinner: the page is waiting, not reporting a failure. */
   busy?: boolean;
-  labels: { minimize: string; close: string };
+  /** The window's buttons; null where the system draws its own (macOS). */
+  labels: WindowLabels | null;
+}
+
+/** What the window's own buttons say. */
+export interface WindowLabels {
+  minimize: string;
+  close: string;
 }
 
 /** The looks every page of the app shares: the panel's backdrop and the title bar's buttons. */
@@ -54,10 +61,14 @@ function page(labels: ShellPageOptions["labels"], body: string, style = "", scri
 <div class="blob" style="top:-160px;left:-128px;width:576px;height:576px;background:rgb(0 102 255/.25)"></div>
 <div class="blob" style="top:25%;right:-160px;width:512px;height:512px;background:rgb(103 232 249/.35)"></div>
 <div class="blob" style="bottom:-192px;left:33%;width:640px;height:640px;background:rgb(196 181 253/.3)"></div>
-<div class="bar">
+<div class="bar">${
+    labels
+      ? `
   <button aria-label="${escape(labels.minimize)}" onclick="orcaDesktop.minimize()">${svg(MinusSignIcon)}</button>
   <button class="close" aria-label="${escape(labels.close)}" onclick="orcaDesktop.close()">${svg(Cancel01Icon)}</button>
-</div>
+`
+      : ""
+  }</div>
 ${body}${script ? `<script>${script}</script>` : ""}
 </body></html>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;

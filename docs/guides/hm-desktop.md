@@ -5,7 +5,8 @@
 The desktop app (`apps/hm-desktop`) is the [Orca'H&M server](hm-server.md) and its [panel](hm-web.md)
 in one program: it runs the server, shows the panel in its own window and stays in the tray, so
 downloads go on with the window closed. For Linux, as a `.deb` (Ubuntu, Debian and their
-derivatives), and for Windows 10 and 11 (64-bit), as an installer.
+derivatives), for Windows 10 and 11 (64-bit), as an installer, and for Macs with Apple Silicon (M1
+and later) on macOS 14 Sonoma or later, as a disk image.
 
 ## Installing
 
@@ -15,6 +16,14 @@ derivatives), and for Windows 10 and 11 (64-bit), as an installer.
   for your account only, without asking for an administrator, and adds Orca'H&M to the Start menu
   and the desktop. The installer is not signed yet, so Windows may warn that it protected your PC:
   choose **More info › Run anyway**.
+- **macOS:** download `orca-hm_<version>_arm64.dmg` from the latest release, open it and drag
+  Orca'H&M into Applications. The app is not signed by Apple yet, so the first time you open it macOS
+  refuses: go to **System Settings › Privacy & Security**, scroll down to the message about Orca'H&M
+  and choose **Open Anyway** (it shows for about an hour after the attempt), then confirm with your
+  password. If macOS instead says the app "is damaged and can't be opened", run
+  `xattr -dr com.apple.quarantine /Applications/orca-hm.app` in Terminal and open it again. After
+  that it opens normally. Its icon lives in the menu bar; closing the window keeps it running there,
+  and **Quit** from that icon (or ⌘Q) stops it.
 
 On its first start the app downloads the browser and ffmpeg its downloads use, showing their progress;
 then the panel's setup wizard opens.
@@ -47,18 +56,29 @@ downloads it (**Downloading… N%**); then the app closes, the installer shows i
 the new version. Nothing asks for an administrator. Your data lives in `%LOCALAPPDATA%\orca-hm` and is
 kept across updates; the app itself is in `%LOCALAPPDATA%\Programs\orca-hm`.
 
+### macOS
+
+The app looks for new versions the same way and offers them with the same **Update to X** button and
+menu bar entry, but it cannot replace itself without Apple's signature: the click opens the new
+`.dmg`'s download in your browser. Open it, drag Orca'H&M into Applications and choose **Replace**;
+quit the running app first (its icon in the menu bar › **Quit**). The new version may need **Open
+Anyway** again. Your data lives in `~/Library/Application Support/orca-hm` and is kept.
+
 ## Uninstalling
 
 - **Linux:** `sudo apt remove orca-hm`. The package repository goes with it. Your data stays in
   `~/.config/orca-hm`; delete that folder to remove it too.
 - **Windows:** Settings › Apps › Installed apps › Orca'H&M › Uninstall. Your data stays in
   `%LOCALAPPDATA%\orca-hm`; delete that folder to remove it too.
+- **macOS:** quit the app and move it from Applications to the Bin. Your data stays in
+  `~/Library/Application Support/orca-hm`; delete that folder to remove it too.
 
 ## Building it yourself
 
 ```sh
 pnpm --filter @orca/hm-desktop dist:linux   # apps/hm-desktop/release/orca-hm_<version>_amd64.deb
 pnpm --filter @orca/hm-desktop dist:win     # apps/hm-desktop/release/orca-hm_<version>_x64.exe
+pnpm --filter @orca/hm-desktop dist:mac     # apps/hm-desktop/release/orca-hm_<version>_arm64.dmg (on a Mac)
 pnpm --filter @orca/hm-desktop start        # run it from the repository, without packaging
 pnpm try:hm                                  # quit the running app, rebuild, run it from the repository
 ```
@@ -82,6 +102,11 @@ cd apps/hm-desktop
 pnpm dist:win -c.publish.provider=generic -c.publish.url=https://<host>/<path>
 ```
 
+`dist:mac` only builds on a Mac (Apple Silicon). The same `-c.publish.…` options make a build that
+looks for updates (`latest-mac.yml` and the `.dmg` served there). Without a Mac, the `Package`
+workflow builds the `.dmg` on GitHub's macOS runner and leaves it as the run's artifact: run it by
+hand, or push a branch named `package/…`.
+
 ## Releases (maintainers)
 
 Releases come from [release-please](https://github.com/googleapis/release-please): each `feat`, `fix`
@@ -89,8 +114,9 @@ or `perf` commit touching Orca'H&M (anything outside Orca'JP) goes into an open 
 bumps the version (`0.x` while the app says _Beta_) and the changelog in `apps/hm-desktop`. Merging
 it tags a draft release; the `Release` workflow builds the `.deb` and makes the package repository
 around it (`apps/hm-desktop/scripts/apt-repo.sh`: `Packages`, `Release`, `InRelease`, signed), builds
-the Windows installer on a Windows runner (with its `latest.yml` and `.blockmap`), uploads all of it as
-the release's assets, and only once both are up publishes it as the latest. Installed apps read their
+the Windows installer on a Windows runner (with its `latest.yml` and `.blockmap`) and the macOS disk
+image on a macOS runner (with its `latest-mac.yml` and `.blockmap`), uploads all of it as the
+release's assets, and only once all three are up publishes it as the latest. Installed apps read their
 updates at `https://github.com/<owner>/<repo>/releases/latest/download/`.
 
 It needs:
