@@ -1,0 +1,80 @@
+name: Package
+
+# Builds the desktop app's packages without releasing anything: the installers are left as the
+# run's artifacts, to be tried by hand. Runs on demand, and on any branch named `package/…`, so a
+# branch can be tried before it reaches main (workflow_dispatch only sees workflows already there).
+# A package built here carries no update feed: it never looks for updates.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["package/**"]
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS disk image
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # pnpm from corepack, pinned by `packageManager` — not pnpm/action-setup.
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          VP_GIT_HOOKS: "0"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      # Through the API: GitHub's release download URLs have failed for hours with 504s (see
+      # release.yml).
+      - name: Build the disk image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ELECTRON_MIRROR: http://127.0.0.1:8799/electron/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: http://127.0.0.1:8799/electron-userland/electron-builder-binaries/
+          ELECTRON_BUILDER_BINARIES_ALLOW_HTTP: "true"
+        working-directory: apps/hm-desktop
+        run: |
+          node scripts/release-mirror.ts 8799 &
+          mirror=$!
+          trap 'kill "$mirror"' EXIT
+          pnpm dist:mac
+
+      # What a person would download, checked before it is handed out: the app's architecture, its
+      # ad-hoc signature, the macOS it asks for, and that ffmpeg's and Chromium's fetchers are inside.
+      - name: Check the app
+        working-directory: apps/hm-desktop/release
+        run: |
+          set -euo pipefail
+          app=$(find . -maxdepth 2 -name '*.app' -type d | head -1)
+          echo "App: $app"
+          lipo -archs "$app/Contents/MacOS/"*
+          codesign --verify --deep --strict "$app"
+          codesign -dv "$app" 2>&1 | grep -E 'Signature|Identifier'
+          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app/Contents/Info.plist"
+          test -f "$app/Contents/Resources/hm-server/node_modules/better-sqlite3/prebuilds/darwin-arm64.node"
+          test -f "$app/Contents/Resources/hm-server/node_modules/playwright/cli.js"
+          ls -la *.dmg
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: orca-hm-macos
+          path: apps/hm-desktop/release/orca-hm_*_arm64.dmg
+          if-no-files-found: error
+          retention-days: 14

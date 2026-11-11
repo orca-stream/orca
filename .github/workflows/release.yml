@@ -2,9 +2,10 @@ name: Release
 
 # Orca'H&M's desktop app: release-please keeps a release PR open from the commits that ship; merging
 # it tags a draft release, and the jobs below fill it — the .deb and the APT repository around it,
-# the Windows installer and its latest.yml — before the last one publishes it as the latest.
-# Installed copies update from that release (the .deb through its APT repository, Windows through
-# electron-updater), so a release only goes out once everything both need is there.
+# the Windows installer and its latest.yml, the macOS .dmg and its latest-mac.yml — before the last
+# one publishes it as the latest. Installed copies update from that release (the .deb through its
+# APT repository, Windows through electron-updater, macOS by opening the new .dmg), so a release
+# only goes out once everything they need is there.
 on:
   push:
     branches: [main]
@@ -206,12 +207,78 @@ jobs:
         working-directory: apps/hm-desktop/release
         run: gh release upload "$TAG" orca-hm_*_x64.exe orca-hm_*_x64.exe.blockmap latest.yml --clobber
 
+  macos:
+    name: macOS disk image
+    needs: release-please
+    if: ${{ always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch') }}
+    # Apple Silicon: the .dmg is arm64, and only macOS makes one.
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      # The mirror comes from the workflow's own commit: an older tag rebuilt by hand may predate it.
+      - uses: actions/checkout@v7
+        with:
+          path: .release-tools
+          sparse-checkout: apps/hm-desktop/scripts/release-mirror.ts
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - run: corepack enable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          VP_GIT_HOOKS: "0"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      # As on Windows, the publish option only writes where updates come from (app-update.yml) and
+      # latest-mac.yml beside the .dmg. The installed app reads the version there and opens the new
+      # .dmg in the browser: it is not signed by Apple, so it cannot replace itself.
+      - name: Build the disk image
+        env:
+          HM_UPDATE_URL: ${{ github.server_url }}/${{ github.repository }}/releases/latest/download
+          GH_TOKEN: ${{ github.token }}
+          ELECTRON_MIRROR: http://127.0.0.1:8799/electron/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: http://127.0.0.1:8799/electron-userland/electron-builder-binaries/
+          ELECTRON_BUILDER_BINARIES_ALLOW_HTTP: "true"
+        working-directory: apps/hm-desktop
+        run: |
+          node ../../.release-tools/apps/hm-desktop/scripts/release-mirror.ts 8799 &
+          mirror=$!
+          trap 'kill "$mirror"' EXIT
+          for attempt in 1 2 3; do
+            pnpm dist:mac -c.publish.provider=generic "-c.publish.url=$HM_UPDATE_URL" && exit 0
+            echo "::warning::Building the disk image failed (attempt $attempt)."
+            sleep 30
+          done
+          exit 1
+
+      - name: Upload the assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: apps/hm-desktop/release
+        run: gh release upload "$TAG" orca-hm_*_arm64.dmg orca-hm_*_arm64.dmg.blockmap latest-mac.yml --clobber
+
   publish:
     name: Publish the release
-    needs: [release-please, linux, windows]
-    # Only once both packages are up: a failed one leaves the release a draft, to be rebuilt with
+    needs: [release-please, linux, windows, macos]
+    # Only once every package is up: a failed one leaves the release a draft, to be rebuilt with
     # workflow_dispatch.
-    if: ${{ always() && needs.linux.result == 'success' && needs.windows.result == 'success' }}
+    if: ${{ always() && needs.linux.result == 'success' && needs.windows.result == 'success' && needs.macos.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -219,7 +286,7 @@ jobs:
       TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
     steps:
       # Published only now: until then the release is a draft, which `latest` never points at, so
-      # neither apt nor the Windows updater ever sees a release without its files.
+      # neither apt nor the Windows and macOS apps ever see a release without its files.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
