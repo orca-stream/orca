@@ -101,11 +101,14 @@ function SourceLines({
   extractor,
   episodes,
   extra,
+  showClosed = true,
 }: {
   source: Source;
   extractor: ExtractorDto | null;
   episodes: readonly EpisodeDto[];
   extra?: string | null;
+  /** Whether a closed source says so: where it changes nothing, it doesn't. */
+  showClosed?: boolean;
 }) {
   const t = useT();
   const holds = holdsOf(t, source, episodes);
@@ -113,7 +116,12 @@ function SourceLines({
     <span className="flex min-w-0 flex-1 flex-col text-left leading-snug">
       <span className="truncate">{extractor?.name ?? addressOf(source)}</span>
       <span className="truncate text-xs text-muted-foreground">
-        {[extra, source.closed ? t.series.detail.sourceClosed : null, holds, tailOf(source)]
+        {[
+          extra,
+          showClosed && source.closed ? t.series.detail.sourceClosed : null,
+          holds,
+          tailOf(source),
+        ]
           .filter(Boolean)
           .join(" · ")}
       </span>
@@ -330,8 +338,14 @@ export function PreferredSourceSelect({
         {sources.map(({ source, extractor }) => (
           <SelectItem key={source.id} value={source.id} className="rounded-xl py-2 pl-2 text-base">
             <span className="flex min-w-0 items-center gap-3">
-              <SourceMark extractor={extractor} closed={source.closed} className="size-10" />
-              <SourceLines source={source} extractor={extractor} episodes={episodes} />
+              {/* Open or closed doesn't matter to which one is preferred: shown in its colour. */}
+              <SourceMark extractor={extractor} className="size-10" />
+              <SourceLines
+                source={source}
+                extractor={extractor}
+                episodes={episodes}
+                showClosed={false}
+              />
             </span>
           </SelectItem>
         ))}
