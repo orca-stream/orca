@@ -122,11 +122,16 @@ describe("SetupScreen", () => {
           : base(request),
     });
     await pastAccess(user);
+    // The folders of this step are not wrong before it is asked to go on.
+    expect(document.querySelector("[aria-invalid=true]")).toBeNull();
     await user.type(screen.getByLabelText("Dirección de Jellyfin"), "http://jf.test:8096");
     await user.type(screen.getByLabelText("Usuario administrador"), "sam");
     await user.click(screen.getByRole("button", { name: "Conectar" }));
     expect(await screen.findByDisplayValue("/media/tv")).toBeTruthy();
     expect(screen.getByText("Paso 2 de 4")).toBeTruthy();
+    expect(document.querySelector("[aria-invalid=true]")).toBeNull();
+    // The movies folder is asked here too, and may be left empty.
+    expect(screen.getByLabelText("Ruta de la carpeta de películas")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Siguiente" }));
     expect(screen.getByText("Paso 3 de 4")).toBeTruthy();
   });

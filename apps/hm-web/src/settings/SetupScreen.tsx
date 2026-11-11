@@ -31,6 +31,7 @@ import {
   ExtrasSection,
   JellyfinSection,
   LibrarySection,
+  MoviesSection,
   ServerIssues,
   TracksSection,
 } from "./sections";
@@ -47,6 +48,8 @@ const STEP_OF: Partial<Record<DraftField, Step>> = {
   jellyfinUrl: "jellyfin",
   jellyfinMediaRoot: "jellyfin",
   mediaRoot: "jellyfin",
+  moviesRoot: "jellyfin",
+  jellyfinMoviesRoot: "jellyfin",
   tmdbApiKey: "extras",
 };
 
@@ -94,7 +97,8 @@ export function SetupScreen() {
     const here = Object.keys(found).filter(
       (field) => (STEP_OF[field as DraftField] ?? "downloads") === step,
     );
-    setErrors(found);
+    // Only this step's: a later step's fields are not wrong yet, they haven't been asked.
+    setErrors(Object.fromEntries(here.map((field) => [field, found[field as DraftField]])));
     if (here.length > 0) return;
     setStep(steps[index + 1]!);
   }
@@ -188,13 +192,17 @@ export function SetupScreen() {
               }}
             />
             {canLeaveJellyfin && (
-              <LibrarySection
-                draft={draft}
-                set={set}
-                errors={errors}
-                libraries={libraries}
-                during="setup"
-              />
+              <>
+                <LibrarySection
+                  draft={draft}
+                  set={set}
+                  errors={errors}
+                  libraries={libraries}
+                  during="setup"
+                />
+                {/* Optional: without it, no movies are added. */}
+                <MoviesSection draft={draft} set={set} errors={errors} during="setup" />
+              </>
             )}
           </>
         )}
