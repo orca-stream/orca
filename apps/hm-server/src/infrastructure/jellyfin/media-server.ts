@@ -21,6 +21,7 @@ import {
 } from "../../application/ports.ts";
 import { AppError, PermanentError, RetryableError } from "../../domain/errors.ts";
 import { createJellyfinHttp } from "./http.ts";
+import { isUnder, moveBetween, parentOf, relativeTo, samePath } from "./paths.ts";
 
 /** Jellyfin's keys for those ids in `ProviderIds`, and the name of its TMDB provider. */
 const TMDB = "Tmdb";
@@ -63,9 +64,6 @@ function posterOf(url: string | null | undefined, size = TMDB_CARD_SIZE): string
     return null;
   }
 }
-
-const trimSlashes = (path: string) => path.replace(/\/+$/, "");
-const isUnder = (path: string, folder: string) => path === folder || path.startsWith(`${folder}/`);
 
 /** Why Jellyfin couldn't answer a question the panel is waiting on. */
 function upstream(error: unknown): never {
@@ -154,20 +152,14 @@ export class JellyfinMediaServer implements MediaServer {
   /** A path of this server's, as Jellyfin sees it, and which library folder holds it. */
   private toJellyfin(path: string): { jellyfinPath: string; kind: MediaKind } {
     const { mediaRoot, jellyfinMediaRoot, moviesRoot, jellyfinMoviesRoot } = this.options;
-    const root = trimSlashes(mediaRoot);
-    if (isUnder(path, root)) {
-      return {
-        jellyfinPath: trimSlashes(trimSlashes(jellyfinMediaRoot) + path.slice(root.length)),
-        kind: "show",
-      };
-    }
-    const movies = moviesRoot ? trimSlashes(moviesRoot) : null;
-    if (movies !== null && isUnder(path, movies)) {
-      const theirs = trimSlashes(jellyfinMoviesRoot ?? movies);
-      return { jellyfinPath: trimSlashes(theirs + path.slice(movies.length)), kind: "movie" };
-    }
+    const show = moveBetween(path, mediaRoot, jellyfinMediaRoot);
+    if (show !== null) return { jellyfinPath: show, kind: "show" };
+    const movie = moviesRoot
+      ? moveBetween(path, moviesRoot, jellyfinMoviesRoot ?? moviesRoot)
+      : null;
+    if (movie !== null) return { jellyfinPath: movie, kind: "movie" };
     throw new PermanentError(
-      `${path} is not under the series folder ${root} nor the movies folder`,
+      `${path} is not under the series folder ${mediaRoot} nor the movies folder`,
     );
   }
 
@@ -269,12 +261,13 @@ export class JellyfinMediaServer implements MediaServer {
     );
     const rootOf = movie ? this.options.moviesRoot : this.options.mediaRoot;
     // No movies folder: none of Jellyfin's movies is where this server writes.
-    const root = rootOf ? trimSlashes(rootOf) : null;
+    const root = rootOf ?? null;
     return items.flatMap((item) => {
       if (!item.Id || !item.Name) return [];
       const local = item.Path ? this.toLocal(item.Path, kind) : null;
       // A movie's item is its video: its folder is the one holding it.
-      const folder = local !== null && movie ? local.slice(0, local.lastIndexOf("/")) : local;
+      const folder = local !== null && movie ? parentOf(local) : local;
+      const relative = root !== null && folder !== null ? relativeTo(folder, root) : null;
       return [
         {
           id: item.Id,
@@ -283,10 +276,7 @@ export class JellyfinMediaServer implements MediaServer {
           tmdbId: item.ProviderIds?.[TMDB] || null,
           imdbId: item.ProviderIds?.[IMDB] || null,
           // The root itself is no series' (nor movie's) folder.
-          folderName:
-            root !== null && folder !== null && folder !== root && isUnder(folder, root)
-              ? folder.slice(root.length + 1)
-              : null,
+          folderName: relative === null || relative === "" ? null : relative,
           ...(movie ? { file: local } : {}),
         },
       ];
@@ -352,10 +342,7 @@ export class JellyfinMediaServer implements MediaServer {
     const local = kind === "movie" ? moviesRoot : mediaRoot;
     if (!local) return null;
     const theirs = kind === "movie" ? (jellyfinMoviesRoot ?? moviesRoot) : jellyfinMediaRoot;
-    const jellyfinRoot = trimSlashes(theirs ?? local);
-    const path = trimSlashes(jellyfinPath);
-    if (!isUnder(path, jellyfinRoot)) return null;
-    return trimSlashes(local) + path.slice(jellyfinRoot.length);
+    return moveBetween(jellyfinPath, theirs ?? local, local);
   }
 
   /**
@@ -371,8 +358,7 @@ export class JellyfinMediaServer implements MediaServer {
     const { data: libraries } = await getLibraryStructureApi(api).getVirtualFolders();
     const library = libraries.find(
       (folder) =>
-        folder.ItemId &&
-        (folder.Locations ?? []).some((location) => isUnder(path, trimSlashes(location))),
+        folder.ItemId && (folder.Locations ?? []).some((location) => isUnder(path, location)),
     );
     if (!library?.ItemId) {
       throw new PermanentError(`No Jellyfin library holds ${path}`);
@@ -387,11 +373,8 @@ export class JellyfinMediaServer implements MediaServer {
       enableImages: false,
       enableTotalRecordCount: false,
     });
-    const folderOf = (item: BaseItemDto) =>
-      kind === "movie"
-        ? trimSlashes(item.Path!.slice(0, item.Path!.lastIndexOf("/")))
-        : trimSlashes(item.Path!);
-    const series = (data.Items ?? []).find((item) => item.Path && folderOf(item) === path);
+    const folderOf = (item: BaseItemDto) => (kind === "movie" ? parentOf(item.Path!) : item.Path!);
+    const series = (data.Items ?? []).find((item) => item.Path && samePath(folderOf(item), path));
     return series?.Id
       ? { itemId: series.Id, isSeries: true }
       : { itemId: library.ItemId, isSeries: false };

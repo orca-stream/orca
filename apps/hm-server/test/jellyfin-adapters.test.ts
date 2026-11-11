@@ -295,6 +295,34 @@ describe("JellyfinMediaServer", () => {
     expect(parts(refreshOf(requests)).path).toBe("/Items/show/Refresh");
   });
 
+  it("refreshes a series and a movie on Windows, its paths written with backslashes", async () => {
+    const roots = {
+      mediaRoot: "C:\\Users\\orca\\Videos\\Shows",
+      jellyfinMediaRoot: "C:\\Users\\orca\\Videos\\Shows",
+      moviesRoot: "C:\\Users\\orca\\Videos\\Movies",
+      jellyfinMoviesRoot: "C:\\Users\\orca\\Videos\\Movies",
+    };
+    const shows = mediaServer(
+      jellyfinWith(
+        [{ ItemId: "lib-tv", Locations: ["C:\\Users\\orca\\Videos\\Shows"] }],
+        [{ Id: "show", Path: "C:\\Users\\orca\\Videos\\Shows\\Black Clover (2017)" }],
+      ),
+      roots,
+    );
+    await shows.server.libraryUpdated("C:\\Users\\orca\\Videos\\Shows\\Black Clover (2017)");
+    expect(parts(refreshOf(shows.requests)).path).toBe("/Items/show/Refresh");
+
+    const movies = mediaServer(
+      jellyfinWith(
+        [{ ItemId: "lib-movies", Locations: ["c:\\users\\orca\\videos\\movies\\"] }],
+        [{ Id: "film", Path: "C:\\Users\\orca\\Videos\\Movies\\F (2023)\\F (2023).mkv" }],
+      ),
+      roots,
+    );
+    await movies.server.libraryUpdated("C:\\Users\\orca\\Videos\\Movies\\F (2023)");
+    expect(parts(refreshOf(movies.requests)).path).toBe("/Items/film/Refresh");
+  });
+
   it("refuses a path outside the media root", async () => {
     const { server } = mediaServer(jellyfinWith());
     await expect(server.libraryUpdated("/etc/passwd")).rejects.toBeInstanceOf(PermanentError);
