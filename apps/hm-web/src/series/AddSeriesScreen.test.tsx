@@ -240,17 +240,36 @@ describe("AddSeriesScreen", () => {
     expect(tmdb.value).toBe("12");
   });
 
-  it("starts with where it goes empty, which makes a new series, and lists only the ones that exist", async () => {
+  it("starts with a new series chosen, and lists it first and then the ones that exist", async () => {
     const user = userEvent.setup();
     setup({ series: [makeSeries({ id: "s1", title: "Otra" })] });
     await previewIt(user);
     const addTo = screen.getByLabelText("Añadir a") as HTMLInputElement;
-    expect(addTo.value).toBe("");
-    expect(addTo.placeholder).toBe("Serie nueva, o busca una que ya tengas");
+    expect(addTo.value).toBe("Serie nueva");
+    expect(screen.getByLabelText("Título")).toBeTruthy();
     await user.click(addTo);
+    expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+      "Serie nueva",
+      "Otra1962",
+    ]);
+  });
+
+  it("finds a series once its field is emptied, and says what is chosen again when left half-typed", async () => {
+    const user = userEvent.setup();
+    setup({
+      series: [makeSeries({ id: "s1", title: "Otra" }), makeSeries({ id: "s2", title: "Más" })],
+    });
+    await previewIt(user);
+    const addTo = screen.getByLabelText("Añadir a") as HTMLInputElement;
+    await user.clear(addTo);
+    expect(addTo.value).toBe("");
+    await user.type(addTo, "otr");
+    expect(addTo.value).toBe("otr");
     expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
       "Otra1962",
     ]);
+    await user.click(screen.getByLabelText("Título"));
+    await waitFor(() => expect(addTo.value).toBe("Serie nueva"));
   });
 
   it("shows the chosen series' title with its year dimmed beside it, and its card beside the episodes", async () => {
@@ -345,6 +364,7 @@ describe("AddSeriesScreen", () => {
     await user.click(screen.getByLabelText("Añadir a"));
     await waitFor(async () =>
       expect((await screen.findAllByRole("option")).map((option) => option.textContent)).toEqual([
+        "Serie nueva",
         "Otra1962",
         "Mashle: Magic and Muscles2023 · En Jellyfin",
       ]),
@@ -388,7 +408,7 @@ describe("AddSeriesScreen", () => {
     await screen.findByText("Ya tienes «Otra (1962)» con ese id.");
     expect(screen.queryByLabelText("Añadir a")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Descartar, es otra serie" }));
-    expect((screen.getByLabelText("Añadir a") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Añadir a") as HTMLInputElement).value).toBe("Serie nueva");
     expect(screen.queryByText("Ya tienes «Otra (1962)» con ese id.")).toBeNull();
     expect(screen.getByLabelText("Título")).toBeTruthy();
   });
@@ -689,9 +709,7 @@ describe("AddSeriesScreen", () => {
     await screen.findByLabelText("Título");
     expect(screen.getByRole("combobox", { name: "Añadir como" }).textContent).toContain("Película");
     // Nothing of a show's: its season and numbers, following it. It may go to a movie already here.
-    expect((screen.getByLabelText("Añadir a") as HTMLInputElement).placeholder).toBe(
-      "Película nueva, o busca una que ya tengas",
-    );
+    expect((screen.getByLabelText("Añadir a") as HTMLInputElement).value).toBe("Película nueva");
     expect(screen.queryByLabelText("Temporada")).toBeNull();
     expect(screen.queryByText("Seguir la serie")).toBeNull();
     await user.type(screen.getByLabelText("Título"), "Un film");

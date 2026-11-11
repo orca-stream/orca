@@ -13,6 +13,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -110,6 +111,9 @@ const LOOKUP_DELAY_MS = 500;
 type LookupField = "title" | "year" | "imdbId";
 
 /** Where the address goes: a series that exists, or a show Jellyfin has (`jellyfinTarget`). */
+/** Why "Add to"'s text changed when the person typed it, emptying it included. */
+const BY_TYPING = new Set<string>(["input-change", "input-clear"]);
+
 interface AddTarget {
   value: string;
   /** The title alone, what the row shows and is searched by; the year goes beside it, dimmed. */
@@ -550,6 +554,26 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
         series: null,
       })),
   ];
+  // "New series" is a choice of the list like the others, first and chosen until another is: the
+  // field then reads as where the address goes, not as a box for the series' name.
+  // The same object while it means the same: a new one each render would read as another choice,
+  // and the field would put its label back over whatever is being typed.
+  const newLabel = movie ? t.add.addToNewMovie : t.add.addToNew;
+  const newTarget = useMemo<AddTarget>(
+    () => ({
+      value: "",
+      label: newLabel,
+      year: null,
+      name: newLabel,
+      inJellyfin: false,
+      tmdbId: null,
+      imdbId: null,
+      series: null,
+    }),
+    [newLabel],
+  );
+  const choices = [newTarget, ...targets];
+  const chosenChoice = choices.find((item) => item.value === form?.addTo) ?? newTarget;
   // A new series with the TMDB or IMDb id of one there already is: offered instead of a duplicate.
   const typedImdbId = asksNew ? form.imdbId.trim() : "";
   const twin = asksNew
@@ -598,6 +622,9 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
   // The card of the series it goes to, or of the one the TMDB id names: this server's own words
   // first, then TMDB's (asked through Jellyfin, and cached, so hovering costs nothing twice).
   const [listOpen, setListOpen] = useState(false);
+  // What is typed in "Add to" to find a series, or null to show the one chosen. Kept here because
+  // clearing the field chooses nothing, which is "New series", whose label would come back at once.
+  const [addToQuery, setAddToQuery] = useState<string | null>(null);
   const cardTmdbId = asksNew ? lookupId : (chosenTarget?.tmdbId ?? "");
   const cardLookup = useQuery({
     ...queries.showLookup(api, cardTmdbId, tmdbKind),
@@ -1076,17 +1103,31 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
               )}
               {attached && !offer && (
                 <Combobox
-                  items={targets}
-                  value={targets.find((item) => item.value === form.addTo) ?? null}
-                  onValueChange={(item) => setForm({ ...form, addTo: item?.value ?? "" })}
+                  items={choices}
+                  value={chosenChoice}
+                  onValueChange={(item) => {
+                    if (item !== null) setAddToQuery(null);
+                    setForm({ ...form, addTo: item?.value ?? "" });
+                  }}
+                  inputValue={addToQuery ?? chosenChoice.label}
+                  // Typed, or emptied by typing: a search. Anything else (a choice, the ✕, closing)
+                  // shows the one chosen again.
+                  onInputValueChange={(next, details) =>
+                    setAddToQuery(BY_TYPING.has(details.reason) ? next : null)
+                  }
                   isItemEqualToValue={(item, value) => item.value === value.value}
-                  onOpenChange={setListOpen}
+                  onOpenChange={(open, details) => {
+                    setListOpen(open);
+                    if (!open && !BY_TYPING.has(details.reason)) setAddToQuery(null);
+                  }}
                 >
                   <ComboboxInput
                     id="add-to"
                     aria-label={t.add.addTo}
                     placeholder={movie ? t.add.addToSearchMovie : t.add.addToSearch}
                     showClear={form.addTo !== ""}
+                    // Left half-typed, it goes back to saying where the address goes.
+                    onBlur={() => setAddToQuery(null)}
                     className={cn(
                       BAR_ROW,
                       "w-full rounded-none border-t border-t-(--glass-edge) pr-4 [&_input]:text-base",
@@ -1098,6 +1139,14 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
                         icon={form.addTo === "" ? FolderAddIcon : Folder01Icon}
                         className="size-5"
                       />
+                    </InputGroupAddon>
+                    {/* What the field is, before what it holds: "Añadir a: Serie nueva". */}
+                    <InputGroupAddon
+                      align="inline-start"
+                      aria-hidden="true"
+                      className="pr-0 pl-1.5 text-base text-muted-foreground"
+                    >
+                      {t.add.addTo}:
                     </InputGroupAddon>
                     {/* Dimmed beside the title, the way the lists below give their details. */}
                     {chosenTarget && chosenTarget.year !== null && !listOpen && (

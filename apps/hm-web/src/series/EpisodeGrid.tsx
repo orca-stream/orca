@@ -139,10 +139,9 @@ export function EpisodeGrid({
         {matches.length > 0 && <TmdbMatch matches={matches} />}
         {general.length > 0 && <GeneralWarnings warnings={general} />}
         <label className="ml-auto flex cursor-pointer items-center gap-2.5 text-sm">
-          {t.add.includeAllShort}
+          {t.add.includeAll}
           <Switch
             size="lg"
-            aria-label={t.add.includeAll}
             checked={all}
             onCheckedChange={(on) => onChange(setAllIncluded(preview, form, on))}
           />
