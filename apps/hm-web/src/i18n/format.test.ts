@@ -12,6 +12,8 @@ describe("formatBytes", () => {
     expect(formatBytes(512, "en")).toBe("512 B");
     expect(formatBytes(300 * 1024 * 1024, "en")).toBe("300 MB");
     expect(formatBytes(5 * 1024 ** 3, "en")).toBe("5 GB");
+    // Two decimals from GB up: a download there is still seen to move.
+    expect(formatBytes(1.34 * 1024 ** 3, "es")).toBe("1,34 GB");
   });
 
   it("shows a dash for values that are not a size", () => {

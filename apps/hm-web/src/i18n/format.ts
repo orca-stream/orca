@@ -11,7 +11,8 @@ export function formatBytes(bytes: number, locale: Locale): string {
     value /= 1024;
     unit += 1;
   }
-  const digits = unit === 0 || value >= 100 ? 0 : 1;
+  // From GB up, two decimals: one more is ~10 MB, so a download there is still seen to move.
+  const digits = unit === 0 || value >= 100 ? 0 : unit >= 3 ? 2 : 1;
   const number = new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
