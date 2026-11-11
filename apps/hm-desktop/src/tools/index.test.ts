@@ -44,7 +44,7 @@ describe("ToolsSetup", () => {
   });
 
   it("leaves ffmpeg to the system where there is no build for it", async () => {
-    const tools = new ToolsSetup({ toolsDir, serverDir, platform: "darwin", arch: "arm64" });
+    const tools = new ToolsSetup({ toolsDir, serverDir, platform: "darwin", arch: "x64" });
     expect(await tools.missing()).toEqual(["chromium"]);
     expect(tools.serverEnv({ PATH: "/usr/bin" })).toEqual({
       PATH: "/usr/bin",
