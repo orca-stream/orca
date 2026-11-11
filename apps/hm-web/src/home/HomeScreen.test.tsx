@@ -65,7 +65,7 @@ describe("HomeScreen", () => {
     });
     const series = await tile("Series");
     expect(await within(series).findByText("2 series")).toBeTruthy();
-    expect(within(series).getByRole("img", { name: "Descargando 3 · 40 %" })).toBeTruthy();
+    expect(within(series).getByRole("img", { name: "3 por descargar · 40 %" })).toBeTruthy();
     expect(within(series).getByRole("link", { name: "Series" }).getAttribute("href")).toBe(
       "/series",
     );

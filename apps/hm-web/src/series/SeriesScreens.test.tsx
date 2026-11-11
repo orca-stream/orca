@@ -36,7 +36,7 @@ describe("SeriesListScreen", () => {
     const card = link.closest("li")!;
     expect(within(card).getByText(/12\/36/)).toBeTruthy();
     expect(within(card).getByText("Siguiendo")).toBeTruthy();
-    expect(within(card).getByRole("img", { name: "Descargando 2 · 45 %" })).toBeTruthy();
+    expect(within(card).getByRole("img", { name: "2 por descargar · 45 %" })).toBeTruthy();
     // The count comes with the series: the list doesn't go and fetch the queue to work it out.
     expect(requests.some((r) => new URL(r.url).pathname === "/api/jobs")).toBe(false);
     expect(card.querySelector("img")?.getAttribute("src")).toBe("/api/series/s1/poster?v=0");
@@ -556,7 +556,7 @@ describe("SeriesDetailScreen", () => {
         },
       },
     );
-    expect(await screen.findByText("Descargando 1")).toBeTruthy();
+    expect(await screen.findByText("1 por descargar")).toBeTruthy();
     // Not a setting: it goes out alone, without waiting for Save.
     await user.click(screen.getByRole("button", { name: "Pausar" }));
     await waitFor(() => expect(view.requests.some((r) => r.method === "PATCH")).toBe(true));

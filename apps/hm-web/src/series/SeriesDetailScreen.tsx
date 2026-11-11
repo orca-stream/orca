@@ -267,9 +267,11 @@ function SeriesHero({
               {series.paused ? (
                 <span className="flex items-center gap-1 text-warning">
                   <HugeiconsIcon icon={PauseIcon} className="size-4" />
-                  {t.series.pausedLine(series.downloadingCount)}
+                  {movie ? t.series.paused : t.series.pausedLine(series.downloadingCount)}
                 </span>
               ) : (
+                // A movie's one video says whether it is queued or downloading in its own row.
+                !movie &&
                 series.downloadingCount > 0 && (
                   <span className="flex items-center gap-1 text-primary">
                     <HugeiconsIcon icon={ArrowDown03Icon} className="size-4" />

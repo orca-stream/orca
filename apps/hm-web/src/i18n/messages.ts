@@ -189,7 +189,8 @@ const es = {
       next: (season: number, episode: number, date: string | null) =>
         `Próximo episodio: T${season}E${episode}${date ? ` · ${date}` : ""}`,
     },
-    downloading: (n: number) => `Descargando ${n}`,
+    // Queued or downloading: what is still to come.
+    downloading: (n: number) => `${n} por descargar`,
     openSources: (n: number) => (n === 1 ? "1 fuente abierta" : `${n} fuentes abiertas`),
     pausedLine: (n: number) => (n > 0 ? `En pausa · ${n} en cola` : "En pausa"),
     pause: "Pausar",
@@ -1040,7 +1041,7 @@ const en: typeof es = {
       next: (season: number, episode: number, date: string | null) =>
         `Next episode: S${season}E${episode}${date ? ` · ${date}` : ""}`,
     },
-    downloading: (n: number) => `Downloading ${n}`,
+    downloading: (n: number) => `${n} to download`,
     openSources: (n: number) => (n === 1 ? "1 open source" : `${n} open sources`),
     pausedLine: (n: number) => (n > 0 ? `Paused · ${n} waiting` : "Paused"),
     pause: "Pause",
