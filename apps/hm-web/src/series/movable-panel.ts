@@ -61,16 +61,19 @@ export function stretchBy(
 export function useMovablePanel({
   open,
   placement,
-  anchoredRight,
+  leftAt,
+  anchoredBottom = false,
   limits,
 }: {
   open: boolean;
   placement: string;
   /**
-   * Placed by its right edge (below a button, its right edge with the button's): a wider panel
-   * would grow to the left, so it is moved right by as much to keep its left edge still.
+   * Where the panel's left edge lands, unmoved, at a given width: stretching it moves it back by
+   * as much as that changes, so its left edge stays still. Absent: placed by its left edge.
    */
-  anchoredRight: boolean;
+  leftAt?: (width: number) => number;
+  /** Placed by its bottom edge (above a button): a taller panel is moved down by as much. */
+  anchoredBottom?: boolean;
   limits: { min: { width: number; height: number }; max: { width: number; height: number } };
 }) {
   const panel = useRef<HTMLDivElement | null>(null);
@@ -135,33 +138,57 @@ export function useMovablePanel({
       const start = place.offset;
       follow(event, (rect, delta) => {
         const size = stretchBy(rect, delta, limits, view());
-        const offset = anchoredRight ? { x: start.x + size.width - rect.width, y: start.y } : start;
+        const offset = {
+          x: leftAt ? start.x + leftAt(rect.width) - leftAt(size.width) : start.x,
+          y: anchoredBottom ? start.y + size.height - rect.height : start.y,
+        };
         setPlace(() => ({ offset, size }));
       });
     },
   };
 }
 
-/** Whether a panel `width` wide fits beside `anchor` (`gap` out from it, and from the window's edge). */
-export function useFitsBeside(
+/**
+ * Where a panel opens: beside its anchor, above or below the button it opens from, or at the top
+ * of the window, centred, when neither has room enough.
+ */
+export type PanelPlacement = "beside" | "below" | "above" | "window";
+
+/** The least height a panel opened above or below a button is worth having there. */
+const ENOUGH_HEIGHT = 560;
+
+/**
+ * Beside `anchor` when a panel `width` wide fits there (`gap` out from it, and from the window's
+ * edge); else below `button`, or above it when there is more room there.
+ */
+export function usePanelPlacement(
   anchor: { current: Element | null },
+  button: { current: Element | null },
   open: boolean,
   width: number,
   gap: number,
-): boolean {
-  const [fits, setFits] = useState(true);
-  // Before the panel paints: it never shows beside the card only to jump below the button.
+): PanelPlacement {
+  // `gap` from the button and from the window's edge, on the side it opens.
+  const [placement, setPlacement] = useState<PanelPlacement>("beside");
+  // Before the panel paints: it never shows in one place only to jump to another.
   useLayoutEffect(() => {
     if (!open) return;
     const measure = () => {
-      const node = anchor.current;
-      if (!node) return;
-      const room = document.documentElement.clientWidth - node.getBoundingClientRect().right;
-      setFits(room - 2 * gap >= width);
+      const card = anchor.current;
+      if (!card) return;
+      const view = document.documentElement;
+      if (view.clientWidth - card.getBoundingClientRect().right - 2 * gap >= width) {
+        return setPlacement("beside");
+      }
+      const at = (button.current ?? card).getBoundingClientRect();
+      const below = view.clientHeight - at.bottom - 2 * gap;
+      const above = at.top - 2 * gap;
+      if (Math.max(below, above) < ENOUGH_HEIGHT) return setPlacement("window");
+      setPlacement(below >= above ? "below" : "above");
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [anchor, open, width, gap]);
-  return fits;
+  }, [anchor, button, open, width, gap]);
+  return placement;
 }

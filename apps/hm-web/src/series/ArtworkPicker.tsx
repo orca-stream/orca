@@ -43,7 +43,7 @@ import {
   type DraftArtworks,
 } from "./artwork";
 import { GLASS_PANEL, PILL_BUTTON, SECONDARY } from "./bar";
-import { useFitsBeside, useMovablePanel } from "./movable-panel";
+import { useMovablePanel, usePanelPlacement } from "./movable-panel";
 
 const KINDS: readonly ArtworkKind[] = ["poster", "backdrop", "logo"];
 
@@ -54,8 +54,31 @@ const PANEL = {
 } as const;
 /** From the card's edge to the panel beside it (the card is 1px in from its panel's edge). */
 const BESIDE_GAP = 17;
-/** From the button to the panel below it. */
+/** From the button to the panel below it (or from the window's top to it). */
 const BELOW_GAP = 16;
+/** How far from the window's edge Base UI keeps a panel it shifts to stay inside it. */
+const SHIFT_PADDING = 5;
+
+/**
+ * Where the panel's left edge lands at `width`, as Base UI places it: its right edge with the
+ * button's, shifted to stay in the window; or centred in the window.
+ */
+function leftAt(placement: string, button: Element | null, width: number): number {
+  const view = document.documentElement.clientWidth;
+  const ideal =
+    placement === "window" || !button
+      ? (view - width) / 2
+      : button.getBoundingClientRect().right - width;
+  return Math.min(Math.max(ideal, SHIFT_PADDING), view - SHIFT_PADDING - width);
+}
+
+/** The middle of the window's top edge, for a panel opened at the top of the window. */
+const WINDOW_TOP = {
+  getBoundingClientRect: () => {
+    const x = document.documentElement.clientWidth / 2;
+    return DOMRect.fromRect({ x, y: 0, width: 0, height: 0 });
+  },
+};
 
 /** What a file input offers for each kind; the server checks the bytes either way. */
 const ACCEPT: Record<ArtworkKind, string> = {
@@ -228,45 +251,62 @@ function ArtworkPickerView({
     ) : null);
 
   // Beside the card when all of it fits there, so each pick shows on the card as it is made; else
-  // below its button, over the card (which never moves). Either way it can be moved and stretched.
-  const beside = useFitsBeside(anchor, open, PANEL.max.width, BESIDE_GAP);
+  // over the card (which never moves), below its button or above it, where there is more room.
+  // Either way it can be moved and stretched.
+  const button = useRef<HTMLButtonElement | null>(null);
+  const placement = usePanelPlacement(anchor, button, open, PANEL.max.width, BESIDE_GAP);
+  const beside = placement === "beside";
   const { panel, place, onMoveStart, onResizeStart } = useMovablePanel({
     open,
-    placement: beside ? "beside" : "below",
-    anchoredRight: !beside,
+    placement,
+    leftAt: beside ? undefined : (width) => leftAt(placement, button.current, width),
+    anchoredBottom: placement === "above",
     limits: PANEL,
   });
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger render={trigger} />
-      {/* Beside: 16px out from the card's edge and level with its top. Below: 16px under the
-          button, its right edge with the button's, shifted only to stay in the window. */}
+      <PopoverTrigger ref={button} render={trigger} />
+      {/* Beside: 16px out from the card's edge and level with its top. Below (or above): 16px from
+          the button, its right edge with the button's, shifted only to stay in the window. */}
       <PopoverContent
         ref={panel}
-        {...(beside
+        {...(placement === "window"
           ? {
-              anchor,
-              side: "right" as const,
-              align: "start" as const,
-              sideOffset: BESIDE_GAP,
-              alignOffset: -1,
-              collisionAvoidance: {
-                side: "none",
-                align: "none",
-                fallbackAxisSide: "none",
-              } as const,
-            }
-          : {
+              // The top of the window, centred: as tall as it can be there.
+              anchor: WINDOW_TOP,
               side: "bottom" as const,
-              align: "end" as const,
+              align: "center" as const,
               sideOffset: BELOW_GAP,
               collisionAvoidance: {
                 side: "none",
                 align: "shift",
                 fallbackAxisSide: "none",
               } as const,
-            })}
+            }
+          : beside
+            ? {
+                anchor,
+                side: "right" as const,
+                align: "start" as const,
+                sideOffset: BESIDE_GAP,
+                alignOffset: -1,
+                collisionAvoidance: {
+                  side: "none",
+                  align: "none",
+                  fallbackAxisSide: "none",
+                } as const,
+              }
+            : {
+                side: placement === "above" ? ("top" as const) : ("bottom" as const),
+                align: "end" as const,
+                sideOffset: BELOW_GAP,
+                collisionAvoidance: {
+                  side: "none",
+                  align: "shift",
+                  fallbackAxisSide: "none",
+                } as const,
+              })}
         style={{
           translate: `${place.offset.x}px ${place.offset.y}px`,
           ...(place.size && {
