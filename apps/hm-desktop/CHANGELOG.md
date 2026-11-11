@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.7.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.6.0...orca-hm-v0.7.0) (2026-11-11)
+
+
+### ✨ Features
+
+* **extractors:** read a site's movies and tell them apart in its search ([1eef47a](https://github.com/orca-stream/orca/commit/1eef47afc0afdb2cc3cbbe72402b941fc548e85c))
+* **hm:** add movies, OVAs and specials as what they are ([bbaf4f6](https://github.com/orca-stream/orca/commit/bbaf4f648bcbe91f404a72f3e1e2d9f0ab236258))
+* **hm:** filter a kind of artwork by its language, or the images with no text ([296224c](https://github.com/orca-stream/orca/commit/296224c885b737c874d252fae28bb7c08d6a0dee))
+* **hm:** keep another address of a series as an alternative, switching only the episodes picked ([d61d888](https://github.com/orca-stream/orca/commit/d61d888d212d77e002d99349ac1f001deeb6eb4b))
+* **hm:** let the artwork panel be moved and resized, and open it below its button when narrow ([389eb2b](https://github.com/orca-stream/orca/commit/389eb2b0708c55b824c636c03812040ab6281a8e))
+* **hm:** move a season to its preferred source when picked, and name where a file came from ([d425213](https://github.com/orca-stream/orca/commit/d425213ddf4a102f9742764fb8029cc2222a9f6e))
+* **hm:** show every download with a plain down arrow ([6b2f639](https://github.com/orca-stream/orca/commit/6b2f639ac950dba41ddae4ece79680fc5cbfde1d))
+* **hm:** show where an address goes as a choice, New series first, and name Include all ([b2bea61](https://github.com/orca-stream/orca/commit/b2bea61b0be33de41acd8569a73f15ecebdf4e52))
+
+
+### 🐛 Bug Fixes
+
+* **hm:** keep a site's mark white inside a highlighted list item ([c32f590](https://github.com/orca-stream/orca/commit/c32f5901ae414a35f55e61b7fd3f8376675f09dd))
+* **hm:** keep the site result being read lifted and the rest out of reach, and fit Any source ([085fde2](https://github.com/orca-stream/orca/commit/085fde282d5e8ceef036a494c332a455411773f0))
+* **hm:** link a movie's TMDB id to its movie page ([4fbc817](https://github.com/orca-stream/orca/commit/4fbc8177a16d3ba1ffce461f9eb379809a196281))
+* **hm:** list the preferred source's choices in their colour, without saying which are closed ([66d04bc](https://github.com/orca-stream/orca/commit/66d04bce1632d0503e3d5b671fcb60c24c28776a))
+* **hm:** make the marks over an episode's frame one height, and give Missing its icon ([e6a98eb](https://github.com/orca-stream/orca/commit/e6a98ebc63e746ebfefb6f98edd09c97c7308df4))
+* **hm:** match Windows paths against Jellyfin's when refreshing the library ([1e8d5d0](https://github.com/orca-stream/orca/commit/1e8d5d00984ad9aec1c77b2942251ba003145c46))
+* **hm:** offer a source only for the seasons its address lists ([605a170](https://github.com/orca-stream/orca/commit/605a17071c7742464afd40a121f818d05001a6f7))
+* **hm:** open the artwork panel above its button or atop the window when there is no room below ([e092f02](https://github.com/orca-stream/orca/commit/e092f02cf79b73a25aaf4ed349b086ea1e49fedf))
+* **hm:** say how many are left to download, and not that a queued movie downloads ([07ec746](https://github.com/orca-stream/orca/commit/07ec7463cb155614e7c15dafa69d47404ef730f3))
+* **hm:** scan every Jellyfin library when the one that holds a new series has nothing yet ([e13d3cc](https://github.com/orca-stream/orca/commit/e13d3cc894187272088608387d77d60ebe0396b8))
+* **hm:** show an episode's notes as icons with a hover card, and a preferred source as it's picked ([529b75d](https://github.com/orca-stream/orca/commit/529b75d3581cffe82c1bc1fa119a64f0991bbbda))
+* **hm:** show only the current setup step's errors and ask for the movies folder ([bf7e922](https://github.com/orca-stream/orca/commit/bf7e92278a8006b25d95b8c84fd1c0de2221394e))
+* **hm:** show sizes from a gigabyte with two decimals so progress is felt ([9dd167e](https://github.com/orca-stream/orca/commit/9dd167e3f70f2afda17cc445a1fd3ea75684fecb))
+* **hm:** stop the site search from blanking the screen when a page brings the scrollbar ([b00bfd7](https://github.com/orca-stream/orca/commit/b00bfd7bb0c48f7fb2e14b29d7675ab67f6965fd))
+
 ## [0.6.0](https://github.com/orca-stream/orca/compare/orca-hm-v0.5.1...orca-hm-v0.6.0) (2026-11-09)
 
 
