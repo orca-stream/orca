@@ -72,6 +72,38 @@ jobs:
           test -f "$app/Contents/Resources/hm-server/node_modules/playwright/cli.js"
           ls -la *.dmg
 
+      # Opens it for real, as a person would, and fails if it dies: an app signed the wrong way passes
+      # every check above and still crashes at once on macOS 26 and later (scripts/mac-sign.ts). The
+      # same app signed as electron-builder signs it is opened first, to show the crash this avoids.
+      - name: Launch the app
+        working-directory: apps/hm-desktop/release
+        run: |
+          set -euo pipefail
+          app=$(find . -maxdepth 2 -name '*.app' -type d | head -1)
+          sw_vers
+          survives() {
+            "$1/Contents/MacOS/orca-hm" > "$RUNNER_TEMP/launch.log" 2>&1 &
+            local pid=$!
+            sleep 20
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid"; sleep 2; pkill -f orca-hm || true
+              return 0
+            fi
+            wait "$pid" || echo "exit status $?"
+            tail -20 "$RUNNER_TEMP/launch.log"
+            return 1
+          }
+          entitlements=$(find ../../../node_modules/.pnpm -path '*app-builder-lib/templates/entitlements.mac.plist' | head -1)
+          cp -R "$app" "$RUNNER_TEMP/builder-signed.app"
+          codesign --force --deep --sign - --entitlements "$entitlements" "$RUNNER_TEMP/builder-signed.app"
+          if survives "$RUNNER_TEMP/builder-signed.app"; then
+            echo "Signed as electron-builder signs it: survives"
+          else
+            echo "Signed as electron-builder signs it: dies"
+          fi
+          survives "$app"
+          echo "The app as shipped: survives"
+
       - uses: actions/upload-artifact@v7
         with:
           name: orca-hm-macos
