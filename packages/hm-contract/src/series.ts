@@ -439,6 +439,8 @@ export const EpisodeDto = z.object({
    * downloading it again replaces that file once the new one is complete.
    */
   fileOutdated: z.boolean(),
+  /** The source its file was downloaded from, while that isn't its source any more; else null. */
+  fileSourceId: z.string().nullable(),
   /** 0..1 while downloading, when the total size is known. */
   progress: z.number().nullable(),
   /** Bytes so far, total, speed and ETA of the download in progress. */

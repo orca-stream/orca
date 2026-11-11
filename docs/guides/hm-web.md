@@ -28,13 +28,15 @@ episodes and press **Change source** in the selection's bar: it lists the series
 one you choose again right then, and says which of the picked episodes it doesn't have (it lists only the sources that can bring the picked episodes' seasons, not one that brought only
 others or is set to another). With two or more sources, each episode shows the mark of the one it takes its video from;
 hovering it names the site, the address and what that source brought. Nothing is
-downloaded. A downloaded episode keeps its file and shows **Other source**; pick it and download it
+downloaded. A downloaded episode keeps its file and shows **Downloaded from** the source it came from; pick it and download it
 to replace that file — the old one is deleted only once the new one is complete, and stays if the
 download fails. Going back to the source the file came from clears the mark. **Download the missing
 ones** leaves those alone. With two or more sources, the episodes' header has each season's
-**preferred source** (**Any source** by default), among the sources that can bring that season:
-while it is open, new episodes of that season a search finds come only from it; closed, the others
-bring them again. It changes nothing you already have — for those, use **Change source**.
+**preferred source** (**Any source** by default), among the sources that can bring that season (as
+far as the sites listed when last read). Picking one moves the season's episodes it has to it, as
+**Change source** does (those being downloaded stay), and while it is open, new episodes of that
+season a search finds come only from it; closed, the others bring them again. Going back to **Any
+source** moves nothing.
 
 To delete a whole series, use the trash on its banner. It asks first: H&M forgets the series (its
 sources, its episodes, its searches for new ones) and cancels its downloads. Its files stay in its

@@ -261,12 +261,13 @@ const es = {
         .filter(Boolean)
         .join(" "),
     fileOutdated: "Otra fuente",
+    fileFrom: (source: string) => `Descargado de ${source}`,
     fileOutdatedHint:
       "El archivo es de la fuente anterior. Descárgalo para reemplazarlo: el actual se conserva hasta que el nuevo termine.",
     preferredSource: (season: number) => `Fuente preferida de la temporada ${season}`,
     preferredAny: "Cualquier fuente",
     preferredExplain: (season: number) =>
-      `Solo cuenta para los episodios nuevos de la temporada ${season} que encuentre la búsqueda: los que ya tienes no cambian (para eso, selecciónalos y usa «Cambiar fuente»).`,
+      `Los episodios de la temporada ${season} que tenga la fuente pasan a ella, y de ella llegan los nuevos. Los descargados conservan su archivo hasta que los vuelvas a descargar.`,
     preferredHint: (season: number) =>
       `Los episodios nuevos de la temporada ${season} llegan solo de esta fuente mientras esté abierta.`,
     retryEpisode: "Reintentar",
@@ -1118,12 +1119,13 @@ const en: typeof es = {
         .filter(Boolean)
         .join(" "),
     fileOutdated: "Other source",
+    fileFrom: (source: string) => `Downloaded from ${source}`,
     fileOutdatedHint:
       "The file is from the previous source. Download it to replace it: this one stays until the new one is done.",
     preferredSource: (season: number) => `Preferred source of season ${season}`,
     preferredAny: "Any source",
     preferredExplain: (season: number) =>
-      `Only for new episodes of season ${season} a search finds: the ones you have don't change (for those, pick them and use "Change source").`,
+      `The episodes of season ${season} the source has move to it, and new ones come from it. Downloaded ones keep their file until you download them again.`,
     preferredHint: (season: number) =>
       `New episodes of season ${season} come only from this source while it is open.`,
     retryEpisode: "Retry",

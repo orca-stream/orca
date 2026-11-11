@@ -1,4 +1,4 @@
-import type { EpisodeDto, SeriesDto } from "@orca/hm-contract";
+import type { EpisodeDto, ExtractorDto, SeriesDto } from "@orca/hm-contract";
 
 /** The episodes one source brought to one season: from the first number to the last. */
 export interface SourceSpan {
@@ -80,4 +80,26 @@ export function sourcesFor(
   return series.sources.filter((source) =>
     seasons.some((season) => offersSeason(source, episodes, season)),
   );
+}
+
+/** Its address without the scheme: what tells two apart is at their end. */
+export const addressOf = (source: Pick<SeriesDto["sources"][number], "sourceUrl">) =>
+  source.sourceUrl.replace(/^https?:\/\//, "");
+
+/** The last part of its address (`black-clover-2nd-season`): short, and what tells two apart. */
+export const tailOf = (source: Pick<SeriesDto["sources"][number], "sourceUrl">) =>
+  new URL(source.sourceUrl).pathname.split("/").filter(Boolean).at(-1) ?? addressOf(source);
+
+/**
+ * The name of the source an episode's file was downloaded from, while that isn't its source any
+ * more: the extractor's name, or the end of the address.
+ */
+export function fileSourceName(
+  series: SeriesDto,
+  extractors: readonly Pick<ExtractorDto, "id" | "name">[] | undefined,
+  episode: EpisodeDto,
+): string | null {
+  const source = series.sources.find((s) => s.id === episode.fileSourceId);
+  if (!source) return null;
+  return extractors?.find((e) => e.id === source.extractorId)?.name ?? tailOf(source);
 }

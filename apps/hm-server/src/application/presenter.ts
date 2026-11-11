@@ -190,6 +190,7 @@ export function toEpisodeDto(episode: Episode, job: Job | null = null): EpisodeD
     format: episode.format,
     status: episode.status,
     fileOutdated: fileOutdated(episode),
+    fileSourceId: fileOutdated(episode) ? episode.fileSourceId : null,
     progress: job?.status === "running" ? job.progress : null,
     progressDetail: job?.status === "running" ? job.progressDetail : null,
     player: job && isHostLane(job.resource) ? job.resource.slice(HOST_LANE_PREFIX.length) : null,

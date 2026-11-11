@@ -21,7 +21,15 @@ import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
 import { CHIP_HOVER_CARD } from "./AiringChip";
 import { BAR_POPUP, PILL_BUTTON, SECONDARY } from "./bar";
-import { offersSeason, sortBySpan, sourceSpans, sourcesFor } from "./source-spans";
+import {
+  addressOf,
+  fileSourceName,
+  offersSeason,
+  sortBySpan,
+  sourceSpans,
+  sourcesFor,
+  tailOf,
+} from "./source-spans";
 import { numberRanges } from "./tmdb-match";
 
 type Source = SeriesDto["sources"][number];
@@ -72,13 +80,6 @@ function SourceMark({
     </span>
   );
 }
-
-/** Its address without the scheme: what tells two apart is at their end. */
-const addressOf = (source: Source) => source.sourceUrl.replace(/^https?:\/\//, "");
-
-/** The last part of its address (`black-clover-2nd-season`): short, and what tells two apart. */
-const tailOf = (source: Source) =>
-  new URL(source.sourceUrl).pathname.split("/").filter(Boolean).at(-1) ?? addressOf(source);
 
 /** What a source holds, a season at a time; until it holds something, how it numbers. */
 function holdsOf(t: ReturnType<typeof useT>, source: Source, episodes: readonly EpisodeDto[]) {
@@ -240,25 +241,29 @@ export function SwitchSourceButton({
 const ANY = "";
 
 /**
- * The season's preferred source, in the episodes' header: while it is open, the new episodes of the
- * season come only from it. Saved as soon as it is picked.
+ * The season's preferred source, in the episodes' header: picking one moves the season's episodes it
+ * has to it, as "Change source" does, and while it is open the new episodes of the season come only
+ * from it. Back to any source, nothing moves. Saved as soon as it is picked.
  */
 export function PreferredSourceSelect({
   series,
   episodes,
   season,
+  onDone,
   onFailed,
   className,
 }: {
   series: SeriesDto;
   episodes: readonly EpisodeDto[];
   season: number;
+  /** What moving the season's episodes did. */
+  onDone: (message: string) => void;
   onFailed: () => void;
   /** Merged into the trigger's, as the half of a pill shared with the season. */
   className?: string;
 }) {
   const t = useT();
-  const { patchSeries } = useMutations();
+  const { patchSeries, switchSource } = useMutations();
   const key = String(season);
   const chosen = series.preferredSources[key] ?? ANY;
   // Only those that can bring the season's episodes (and the one chosen, whatever it brings now).
@@ -275,6 +280,23 @@ export function PreferredSourceSelect({
     setSaving(true);
     try {
       await patchSeries.mutateAsync({ seriesId: series.id, patch: { preferredSources: next } });
+      // The season's episodes not on it yet; those it doesn't have, or being downloaded, stay.
+      const moving = episodes
+        .filter((episode) => episode.season === season && episode.sourceId !== value)
+        .map((episode) => episode.id);
+      if (value !== ANY && moving.length > 0) {
+        const result = await switchSource.mutateAsync({
+          seriesId: series.id,
+          body: { sourceId: value, episodeIds: moving },
+        });
+        onDone(
+          t.series.switchSourceDone(
+            result.switched,
+            result.notListed.join(", "),
+            result.busy.join(", "),
+          ),
+        );
+      }
     } catch {
       onFailed();
     } finally {
@@ -368,9 +390,12 @@ export function EpisodeSourceMark({
   episode: EpisodeDto;
 }) {
   const t = useT();
+  const api = useApi();
+  const extractors = useQuery(queries.extractors(api));
   const found = useSources(series, episodes).find(({ source }) => source.id === episode.sourceId);
   if (!found) return null;
   const { source, extractor } = found;
+  const fileFrom = fileSourceName(series, extractors.data, episode);
   return (
     <HoverCard>
       <HoverCardTrigger
@@ -397,7 +422,12 @@ export function EpisodeSourceMark({
             .filter(Boolean)
             .join(" · ")}
         </p>
-        {episode.fileOutdated && <p className="mt-1 text-xs">{t.series.fileOutdatedHint}</p>}
+        {episode.fileOutdated && (
+          <p className="mt-1 text-xs">
+            {fileFrom ? `${t.series.fileFrom(fileFrom)}. ` : ""}
+            {t.series.fileOutdatedHint}
+          </p>
+        )}
       </HoverCardContent>
     </HoverCard>
   );

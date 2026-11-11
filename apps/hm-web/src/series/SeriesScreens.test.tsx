@@ -491,7 +491,9 @@ describe("SeriesDetailScreen", () => {
                 id: "e2",
                 episode: 2,
                 title: "Dos",
+                sourceId: "b",
                 fileOutdated: true,
+                fileSourceId: "s1",
                 status: "available",
               }),
             ]);
@@ -501,11 +503,11 @@ describe("SeriesDetailScreen", () => {
         },
       },
     );
-    // Its file is the old source's until it is downloaded again.
+    // Its file is the old source's until it is downloaded again, and it says which.
     const two = (await screen.findByText("Dos")).closest("article")!;
-    expect(within(two).getByText("Otra fuente")).toBeTruthy();
+    expect(within(two).getByText(/^Descargado de /)).toBeTruthy();
     expect(
-      within(screen.getByText("Uno").closest("article")!).queryByText("Otra fuente"),
+      within(screen.getByText("Uno").closest("article")!).queryByText(/^Descargado de /),
     ).toBeNull();
 
     await user.click(screen.getByRole("checkbox", { name: "Seleccionar S01E01" }));
@@ -530,6 +532,9 @@ describe("SeriesDetailScreen", () => {
     const patch = () => view.requests.find((r) => r.method === "PATCH");
     await waitFor(() => expect(patch()).toBeTruthy());
     expect(await patch()!.json()).toEqual({ preferredSources: { "1": "b" } });
+    // Preferring it moves the season's episodes to it: those not on it yet.
+    await waitFor(() => expect(sent()).toHaveLength(2));
+    expect(await sent()[1]!.json()).toEqual({ sourceId: "b", episodeIds: ["e1"] });
   });
 
   it("pauses the series' downloads at once, and shows a paused series as such", async () => {

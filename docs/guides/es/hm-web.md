@@ -28,14 +28,16 @@ selecciona los episodios y pulsa **Cambiar fuente** en la barra de selección: l
 serie, vuelve a leer en ese momento la que elijas y dice cuáles de los elegidos no tiene (solo lista las fuentes que pueden traer las temporadas de los elegidos, no una que solo trajo otras
 o está puesta en otra). Con dos o más fuentes, cada episodio lleva la marca de la fuente de la que toma su
 vídeo; al pasar el ratón dice el sitio, la dirección y lo que trajo esa fuente. No se
-descarga nada. Un episodio descargado conserva su archivo y muestra **Otra fuente**; selecciónalo y
+descarga nada. Un episodio descargado conserva su archivo y muestra **Descargado de** la fuente de la que vino; selecciónalo y
 descárgalo para reemplazar ese archivo: el viejo se borra solo cuando el nuevo está completo, y se
 queda si la descarga falla. Volver a la fuente de la que vino el archivo quita la marca. **Descargar
 los que faltan** no los toca. Con dos o más fuentes, la cabecera de episodios tiene la **fuente
 preferida** de cada temporada (**Cualquier fuente** por defecto), entre las fuentes que pueden traer
-esa temporada: mientras esté abierta, los episodios nuevos de esa temporada que encuentre la búsqueda
-llegan solo de ella; cerrada, vuelven a traerlos las demás. No cambia nada de lo que ya tienes: para
-eso, **Cambiar fuente**.
+esa temporada (según lo que listaban los sitios la última vez que se leyeron). Elegir una mueve a ella
+los episodios de la temporada que tenga, como **Cambiar fuente** (los que se están descargando se
+quedan), y mientras esté abierta, los episodios nuevos de esa temporada que encuentre la búsqueda
+llegan solo de ella; cerrada, vuelven a traerlos las demás. Volver a **Cualquier fuente** no mueve
+nada.
 
 Para borrar una serie entera, usa la papelera de su banner. Pregunta antes: H&M olvida la serie (sus
 fuentes, sus episodios, sus búsquedas de nuevos) y cancela sus descargas. Sus archivos se quedan en su

@@ -90,6 +90,7 @@ export function makeEpisode(over: Partial<EpisodeDto> = {}): EpisodeDto {
     format: "mp4",
     status: "missing",
     fileOutdated: false,
+    fileSourceId: null,
     progress: null,
     progressDetail: null,
     player: null,

@@ -120,6 +120,8 @@ interface SeriesEpisodesProps {
   selectionTools?: React.ReactNode;
   /** The mark of the source an episode takes its video from, over its frame. */
   sourceMark?: (episode: EpisodeDto) => React.ReactNode;
+  /** The name of the source a file came from, when it isn't the episode's source any more. */
+  fileSourceName?: (episode: EpisodeDto) => string | null;
 }
 
 /**
@@ -151,6 +153,7 @@ export function SeriesEpisodes({
   seasonTools,
   selectionTools,
   sourceMark,
+  fileSourceName,
 }: SeriesEpisodesProps) {
   const t = useT();
   const [chosen, setChosen] = useState<number | null>(null);
@@ -323,6 +326,7 @@ export function SeriesEpisodes({
                     {...(onDelete ? { onDelete: () => onDelete(episode.id) } : {})}
                     deleting={deletingId === episode.id}
                     source={sourceMark?.(episode)}
+                    fileFrom={fileSourceName?.(episode) ?? null}
                   />
                 </li>
               );
@@ -514,8 +518,11 @@ function EpisodeCard({
   onDelete,
   deleting = false,
   source,
+  fileFrom = null,
 }: {
   source?: React.ReactNode;
+  /** Where its file was downloaded from, when that isn't its source any more. */
+  fileFrom?: string | null;
   episode: EpisodeDto;
   picked: boolean;
   paused: boolean;
@@ -602,9 +609,14 @@ function EpisodeCard({
             </span>
           )}
           {episode.fileOutdated && (
-            <span title={t.series.fileOutdatedHint} className={cn(CHIP, "bg-info/90 text-white")}>
-              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3.5" />
-              {t.series.fileOutdated}
+            <span
+              title={t.series.fileOutdatedHint}
+              className={cn(CHIP, "min-w-0 shrink bg-info/90 text-white")}
+            >
+              <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3.5 shrink-0" />
+              <span className="truncate">
+                {fileFrom ? t.series.fileFrom(fileFrom) : t.series.fileOutdated}
+              </span>
             </span>
           )}
         </div>

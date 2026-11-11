@@ -38,7 +38,7 @@ import { AiringChip } from "./AiringChip";
 import { airingHint } from "./airing";
 import { SeriesEpisodes } from "./SeriesEpisodes";
 import { EpisodeSourceMark, PreferredSourceSelect, SwitchSourceButton } from "./SourcePicker";
-import { sourcesFor } from "./source-spans";
+import { fileSourceName, sourcesFor } from "./source-spans";
 import { addSourceHref } from "./add-source";
 import { SeriesSettings } from "./SeriesSettings";
 import { MovieVideo } from "./MovieVideo";
@@ -325,6 +325,7 @@ export function SeriesDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const series = useQuery(queries.seriesDetail(api, id));
   const episodesQuery = useQuery(queries.episodes(api, id));
+  const extractors = useQuery(queries.extractors(api));
   const { enqueue, checkSeries, deleteEpisodeFile } = useMutations();
   // Its own deletion: the live update may say it is gone before the answer does.
   const deleting = useIsMutating({ mutationKey: ["deleteSeries"] }) > 0;
@@ -514,6 +515,7 @@ export function SeriesDetailScreen() {
               <EpisodeSourceMark series={data} episodes={episodes} episode={episode} />
             )
           }
+          fileSourceName={(episode) => fileSourceName(data, extractors.data, episode)}
           seasonTools={(season, half) =>
             // A preference needs two sources that can bring the season.
             sourcesFor(data, episodes, [season]).length > 1 && (
@@ -521,7 +523,14 @@ export function SeriesDetailScreen() {
                 series={data}
                 episodes={episodes}
                 season={season}
-                onFailed={() => setSourceFailed(true)}
+                onDone={(message) => {
+                  setSourceFailed(false);
+                  setNotice(message);
+                }}
+                onFailed={() => {
+                  setNotice(null);
+                  setSourceFailed(true);
+                }}
                 className={half}
               />
             )
