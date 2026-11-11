@@ -74,9 +74,9 @@ mac:
   category: public.app-category.video
   minimumSystemVersion: "14.0"
   identity: null
-  # Its name in the menu bar and the Dock (the bundle keeps the path-safe productName).
+  # Its name in Finder and the Dock. Not CFBundleName: Electron finds its helper apps by it
+  # ("<CFBundleName> Helper.app"), and with any other name than productName it aborts on launch.
   extendInfo:
-    CFBundleName: Orca'H&M
     CFBundleDisplayName: Orca'H&M
 dmg:
   title: Orca'H&M

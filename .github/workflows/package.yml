@@ -67,7 +67,9 @@ jobs:
           codesign --verify --deep --strict "$app"
           codesign -dv "$app" 2>&1 | grep -E 'Signature|Identifier'
           /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app/Contents/Info.plist"
+          # Electron finds its helpers by the bundle's name: they must match, or it aborts on launch.
+          name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app/Contents/Info.plist")
+          test -d "$app/Contents/Frameworks/$name Helper.app"
           test -f "$app/Contents/Resources/hm-server/node_modules/better-sqlite3/prebuilds/darwin-arm64.node"
           test -f "$app/Contents/Resources/hm-server/node_modules/playwright/cli.js"
           ls -la *.dmg
