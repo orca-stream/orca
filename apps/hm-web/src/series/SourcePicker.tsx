@@ -420,7 +420,7 @@ export function EpisodeSourceMark({
         onClick={(event) => event.stopPropagation()}
         className="flex shrink-0 cursor-help rounded-full shadow-md ring-1 ring-white/40"
       >
-        <SourceMark extractor={extractor} className="size-7 [&_svg]:size-3.5" />
+        <SourceMark extractor={extractor} className="size-8 [&_svg]:size-4" />
       </HoverCardTrigger>
       <HoverCardContent side="bottom" align="start" sideOffset={6} className={CHIP_HOVER_CARD}>
         <div className="flex items-center gap-2">

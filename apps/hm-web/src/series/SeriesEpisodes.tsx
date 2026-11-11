@@ -62,6 +62,7 @@ const STATUS_STYLE: Record<EpisodeDto["status"], string> = {
 const STATUS_ICON: Partial<Record<EpisodeDto["status"], IconSvgElement>> = {
   available: Tick02Icon,
   queued: Clock01Icon,
+  missing: CloudOffIcon,
   failed: Alert02Icon,
 };
 
@@ -605,7 +606,15 @@ function EpisodeCard({
         {/* Marks only, so the row never reaches the box: what each one means is in its hover card. */}
         <div className="absolute top-2 right-14 left-2 flex items-start gap-1.5">
           {source}
-          <span className={cn(CHIP, "bg-black/45 font-mono text-white")}>{code}</span>
+          {/* As tall as the marks beside it, with their edge. */}
+          <span
+            className={cn(
+              CHIP,
+              "h-8 bg-black/45 font-mono text-white shadow-md ring-1 ring-white/40",
+            )}
+          >
+            {code}
+          </span>
           {episode.inferred && (
             <FrameBadge
               icon={HelpSquareIcon}
@@ -758,11 +767,11 @@ function FrameBadge({
         // The card picks the episode on a click: reading a mark is not picking it.
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          "flex size-7 shrink-0 cursor-help items-center justify-center rounded-full text-white shadow-md ring-1 ring-white/40 backdrop-blur-md",
+          "flex size-8 shrink-0 cursor-help items-center justify-center rounded-full text-white shadow-md ring-1 ring-white/40 backdrop-blur-md",
           className,
         )}
       >
-        <HugeiconsIcon icon={icon} className="size-3.5" />
+        <HugeiconsIcon icon={icon} className="size-4" />
       </HoverCardTrigger>
       <HoverCardContent side="bottom" align="start" sideOffset={6} className={CHIP_HOVER_CARD}>
         <p className="font-medium">{label}</p>
