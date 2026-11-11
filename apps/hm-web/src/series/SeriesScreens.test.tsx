@@ -469,6 +469,7 @@ describe("SeriesDetailScreen", () => {
       season: 1,
       episodeOffset: 0,
       adjustments: [],
+      listedSeasons: null,
       closed: false,
       nextUrl: null,
     };

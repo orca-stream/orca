@@ -56,6 +56,7 @@ export const seriesSources = sqliteTable(
       .default(sql`'[]'`),
     remoteMarker: text("remote_marker"),
     knownRefs: text("known_refs", { mode: "json" }).$type<string[]>(),
+    listedSeasons: text("listed_seasons", { mode: "json" }).$type<number[]>(),
     closed: integer("closed", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },

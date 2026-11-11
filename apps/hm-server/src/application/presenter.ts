@@ -99,6 +99,7 @@ export function toSourceDto(
     season: source.season,
     episodeOffset: source.episodeOffset,
     adjustments: source.adjustments,
+    listedSeasons: source.listedSeasons,
     closed: movie ? false : source.closed,
     nextUrl: nextUrl(source),
   };

@@ -55,16 +55,18 @@ export function sortBySpan<S extends { id: string; season: number | null }>(
 }
 
 /**
- * Whether a source can bring episodes of `season`: it brought some already, it is set to that
- * season, or it has brought nothing yet and keeps the site's seasons (it can't be ruled out).
+ * Whether a source can bring episodes of `season`: it brought some already, its address listed that
+ * season when last read, or, when what it lists isn't known yet, it is set to that season or it has
+ * brought nothing yet and keeps the site's seasons (it can't be ruled out).
  */
 export function offersSeason(
-  source: Pick<SeriesDto["sources"][number], "id" | "season">,
+  source: Pick<SeriesDto["sources"][number], "id" | "season" | "listedSeasons">,
   episodes: readonly EpisodeDto[],
   season: number,
 ): boolean {
   const spans = sourceSpans(episodes, source.id);
   if (spans.some((span) => span.season === season)) return true;
+  if (source.listedSeasons !== null) return source.listedSeasons.includes(season);
   if (source.season !== null) return source.season === season;
   return spans.length === 0;
 }

@@ -277,3 +277,43 @@ describe("a season's preferred source", () => {
     expect(kept.preferredSources).toEqual({ "1": one.sources[0]!.id });
   });
 });
+
+describe("the seasons a source lists", () => {
+  it("keeps them when an address is added, even one that brings no episode", async () => {
+    site.season("a", "Show", range(1, 3)).season("b", "Show", range(1, 3));
+    const series = await add("a", { title: "Show" });
+    const preview = await h.useCases.previewSeries(seasonUrl("b"));
+    await h.useCases.addSeries({
+      previewId: preview.previewId,
+      seriesId: series.id,
+      season: 2,
+      episodeKeys: [],
+    });
+
+    const [a, b] = (await h.useCases.getSeries(series.id)).sources;
+    expect(a).toMatchObject({ listedSeasons: [1] });
+    // Where its episodes would land, not the site's own number.
+    expect(b).toMatchObject({ listedSeasons: [2] });
+  });
+
+  it("learns them once for a closed source from before they were kept, and nothing else", async () => {
+    site.season("a", "Show", range(1, 3)).season("b", "Show", range(1, 3));
+    const series = await add("a", { title: "Show" });
+    const preview = await h.useCases.previewSeries(seasonUrl("b"));
+    await h.useCases.addSeries({
+      previewId: preview.previewId,
+      seriesId: series.id,
+      season: 2,
+      episodeKeys: [],
+    });
+    const [, b] = await h.series.listSources([series.id]);
+    await h.series.updateSource(b!.id, { closed: true, listedSeasons: null });
+    const before = await h.series.listEpisodes(series.id);
+
+    await createCheckSeries(h.deps)(series.id);
+
+    const after = await h.series.listSources([series.id]);
+    expect(after[1]).toMatchObject({ closed: true, listedSeasons: [2] });
+    expect(await h.series.listEpisodes(series.id)).toEqual(before);
+  });
+});

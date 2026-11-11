@@ -115,6 +115,7 @@ export function makeSeries(over: Partial<SeriesDto> = {}): SeriesDto {
         season: null,
         episodeOffset: 0,
         adjustments: [],
+        listedSeasons: null,
         closed: false,
         nextUrl: null,
       },

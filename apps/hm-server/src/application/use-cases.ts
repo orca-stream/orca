@@ -57,6 +57,7 @@ import {
   sourceOf,
   newEpisode,
   normalizeSeries,
+  listedSeasons,
   numberOf,
   placeOnDisk,
 } from "./episodes.ts";
@@ -454,6 +455,7 @@ export function createUseCases(deps: Deps) {
         adjustments: mapping.adjustments,
         remoteMarker: extraction.series.remoteMarker ?? null,
         knownRefs: extraction.episodes.map((episode) => episode.sourceRef),
+        listedSeasons: listedSeasons(mapping, extraction.episodes),
         closed: false,
         createdAt: now,
       });
@@ -1021,8 +1023,10 @@ export function createUseCases(deps: Deps) {
         // Nothing else knows these keys: a check of the source must not add them again.
         const refs = new Set(source.knownRefs ?? []);
         for (const change of switches) refs.add(change.sourceRef);
-        if (source.knownRefs !== null)
-          await deps.series.updateSource(source.id, { knownRefs: [...refs] });
+        await deps.series.updateSource(source.id, {
+          ...(source.knownRefs !== null ? { knownRefs: [...refs] } : {}),
+          listedSeasons: listedSeasons(source, extraction.episodes),
+        });
         return {
           switched: switches.length,
           notListed,

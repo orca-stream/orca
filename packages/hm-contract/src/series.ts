@@ -359,6 +359,11 @@ export const SourceDto = z.object({
   episodeOffset: z.number().int(),
   /** Its episodes numbered by hand; what it finds later is numbered around them too. */
   adjustments: z.array(EpisodeAdjustment),
+  /**
+   * The seasons what its address lists lands in, as it was last read; null when not known yet (a
+   * source from before it was kept, until it is read again).
+   */
+  listedSeasons: z.array(z.number().int()).nullable(),
   /** Marked as bringing nothing new: checks skip it. */
   closed: z.boolean(),
   /** Where its site most likely keeps what comes next (the next season); null when unknown. */

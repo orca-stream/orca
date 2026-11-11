@@ -9,7 +9,14 @@ import { PermanentError, RetryableError } from "../domain/errors.ts";
 import { uuidv7 } from "../domain/ids.ts";
 import type { Episode, Series, SeriesSource } from "../domain/series.ts";
 import type { Deps } from "./deps.ts";
-import { closeFinishedSources, newEpisode, numberOf, placeOnDisk, sourceOf } from "./episodes.ts";
+import {
+  closeFinishedSources,
+  listedSeasons,
+  newEpisode,
+  numberOf,
+  placeOnDisk,
+  sourceOf,
+} from "./episodes.ts";
 
 export interface CheckResult {
   /** Some source was read again (its marker moved, or its extractor has none). */
@@ -72,6 +79,23 @@ export function createCheckSeries(deps: Deps) {
       return { source, extraction: await extractor.extract(source.sourceUrl, options), marker };
     } catch (error) {
       throw toJobError(error);
+    }
+  }
+
+  /** Reads a source only for the seasons it lists; a site that fails leaves it unknown. */
+  async function learnSeasons(source: SeriesSource, signal?: AbortSignal): Promise<boolean> {
+    const extractor = deps.extractors.get(source.extractorId);
+    if (!extractor) return false;
+    try {
+      const extraction = await extractor.extract(source.sourceUrl, signal ? { signal } : undefined);
+      await deps.series.updateSource(source.id, {
+        listedSeasons: listedSeasons(source, extraction.episodes),
+      });
+      return true;
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // Unknown stays unknown: the source is offered for every season, as before.
+      return false;
     }
   }
 
@@ -157,6 +181,7 @@ export function createCheckSeries(deps: Deps) {
         adjustments,
         remoteMarker: extraction.series.remoteMarker ?? null,
         knownRefs: [],
+        listedSeasons: null,
         closed: false,
         createdAt: now,
       };
@@ -179,6 +204,7 @@ export function createCheckSeries(deps: Deps) {
       source.knownRefs = extraction.episodes
         .map((found) => found.sourceRef)
         .filter((ref) => kept.has(ref));
+      source.listedSeasons = listedSeasons(source, extraction.episodes);
       const placed = await placeOnDisk(deps.library, series, fresh);
       await deps.series.addSource(source, placed);
       if (series.kind !== "movie") {
@@ -196,15 +222,21 @@ export function createCheckSeries(deps: Deps) {
     if (!series) return UNCHANGED;
 
     const reads: SourceRead[] = [];
+    let seasonsLearned = false;
     const sources = await deps.series.listSources([series.id]);
     for (const source of sources) {
       // A closed source was marked as bringing nothing new: reading it would only cost requests.
-      if (source.closed) continue;
-      const found = await read(source, signal);
+      const found = source.closed ? null : await read(source, signal);
       if (found) reads.push(found);
+      // One from before the seasons it lists were kept, and not read now (closed, or its site said
+      // nothing changed), is read once to learn them, and nothing else.
+      else if (source.listedSeasons === null && (await learnSeasons(source, signal))) {
+        seasonsLearned = true;
+      }
     }
     if (reads.length === 0) {
       await deps.series.update(series.id, { lastCheckedAt: deps.clock.now() });
+      if (seasonsLearned) deps.events.publish({ type: "series.updated", seriesId: series.id });
       return UNCHANGED;
     }
 
@@ -224,7 +256,12 @@ export function createCheckSeries(deps: Deps) {
     let add: Episode[] = [];
     const skippedRefs: string[] = [];
     let learned = 0;
-    const sourcePatches: { id: string; remoteMarker: string | null; knownRefs: string[] }[] = [];
+    const sourcePatches: {
+      id: string;
+      remoteMarker: string | null;
+      knownRefs: string[];
+      listedSeasons: number[];
+    }[] = [];
 
     for (const { source, extraction, marker } of reads) {
       // A source from before `known_refs` has no list: what the site shows now is all "known", so
@@ -282,6 +319,7 @@ export function createCheckSeries(deps: Deps) {
             ...extraction.episodes.map((found) => found.sourceRef),
           ]),
         ].filter((ref) => !skippedHere.includes(ref) && !deferred.includes(ref)),
+        listedSeasons: listedSeasons(source, extraction.episodes),
       });
     }
     const skipped = skippedRefs.length;

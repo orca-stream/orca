@@ -74,7 +74,7 @@ export interface SeriesRepository {
   listSources(seriesIds?: string[]): Promise<SeriesSource[]>;
   updateSource(
     id: string,
-    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "closed">>,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "listedSeasons" | "closed">>,
   ): Promise<void>;
   list(): Promise<SeriesWithCounts[]>;
   /** When an episode of the series last finished downloading; null if none has. */

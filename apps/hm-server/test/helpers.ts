@@ -67,6 +67,7 @@ export function aSource(overrides: Partial<SeriesSource> = {}): SeriesSource {
     adjustments: [],
     remoteMarker: null,
     knownRefs: [],
+    listedSeasons: [],
     closed: false,
     createdAt: 1,
     ...overrides,

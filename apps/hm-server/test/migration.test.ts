@@ -58,6 +58,8 @@ describe("migrating to series with several sources", () => {
         adjustments: [],
         remoteMarker: "m1",
         knownRefs: ["a/e1.mp4", "a/e2.mp4"],
+        // Unknown until it is read again.
+        listedSeasons: null,
         // Every source from before the column is open: it was being checked.
         closed: false,
         createdAt: 5,

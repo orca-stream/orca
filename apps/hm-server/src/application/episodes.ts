@@ -37,6 +37,16 @@ export function numberOf(
   });
 }
 
+/** The seasons a source puts what its address lists in, lowest first. */
+export function listedSeasons(
+  source: Pick<SeriesSource, "season" | "episodeOffset" | "adjustments">,
+  listed: readonly Pick<ExtractedEpisode, "season" | "episode">[],
+): number[] {
+  return [...new Set(listed.map((found) => numberOf(source, found).season))].toSorted(
+    (a, b) => a - b,
+  );
+}
+
 /** A new, not yet downloaded episode row for something an extractor found on a source. */
 export function newEpisode(
   source: Pick<SeriesSource, "id" | "seriesId" | "season" | "episodeOffset" | "adjustments">,

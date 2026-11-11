@@ -19,7 +19,7 @@ function toSeries(row: SeriesRow): Series {
 }
 
 function toSource(row: SourceRow): SeriesSource {
-  return { ...row, knownRefs: row.knownRefs ?? null };
+  return { ...row, knownRefs: row.knownRefs ?? null, listedSeasons: row.listedSeasons ?? null };
 }
 
 /** The unique indexes are the last word when two submits slip past the lookups. */
@@ -102,7 +102,7 @@ export class DrizzleSeriesRepository implements SeriesRepository {
 
   async updateSource(
     id: string,
-    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "closed">>,
+    patch: Partial<Pick<SeriesSource, "remoteMarker" | "knownRefs" | "listedSeasons" | "closed">>,
   ): Promise<void> {
     const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (Object.keys(defined).length === 0) return;

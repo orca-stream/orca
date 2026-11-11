@@ -33,7 +33,7 @@ describe("sourceSpans", () => {
 describe("sortBySpan", () => {
   it("puts the sources in season and episode order, not the order they were added in", () => {
     const sources = [
-      { id: "s2", season: 2 },
+      { id: "s2", season: 2, listedSeasons: null },
       { id: "s1-late", season: 1 },
       { id: "empty", season: 3 },
       { id: "s1", season: 1 },
@@ -62,12 +62,21 @@ describe("offersSeason", () => {
   ];
 
   it("offers a season only from a source that brought it, is set to it, or can't be ruled out", () => {
-    expect(offersSeason({ id: "s1", season: null }, episodes, 2)).toBe(false);
-    expect(offersSeason({ id: "s1", season: null }, episodes, 1)).toBe(true);
-    expect(offersSeason({ id: "s2", season: 2 }, episodes, 2)).toBe(true);
-    expect(offersSeason({ id: "s3", season: 2 }, episodes, 2)).toBe(true);
-    expect(offersSeason({ id: "s3", season: 2 }, episodes, 1)).toBe(false);
+    expect(offersSeason({ id: "s1", season: null, listedSeasons: null }, episodes, 2)).toBe(false);
+    expect(offersSeason({ id: "s1", season: null, listedSeasons: null }, episodes, 1)).toBe(true);
+    expect(offersSeason({ id: "s2", season: 2, listedSeasons: null }, episodes, 2)).toBe(true);
+    expect(offersSeason({ id: "s3", season: 2, listedSeasons: null }, episodes, 2)).toBe(true);
+    expect(offersSeason({ id: "s3", season: 2, listedSeasons: null }, episodes, 1)).toBe(false);
     // Nothing brought and the site's own seasons: it might have any.
-    expect(offersSeason({ id: "s4", season: null }, episodes, 5)).toBe(true);
+    expect(offersSeason({ id: "s4", season: null, listedSeasons: null }, episodes, 5)).toBe(true);
+  });
+
+  it("goes by the seasons its address listed once they are known", () => {
+    // An alternative of seasons 1 and 2 that no episode uses yet: not offered for season 4.
+    const alternative = { id: "alt", season: null, listedSeasons: [1, 2] };
+    expect(offersSeason(alternative, episodes, 4)).toBe(false);
+    expect(offersSeason(alternative, episodes, 2)).toBe(true);
+    // What it brought counts even if the site no longer lists it.
+    expect(offersSeason({ id: "s1", season: null, listedSeasons: [] }, episodes, 1)).toBe(true);
   });
 });

@@ -83,6 +83,11 @@ export interface SeriesSource {
    * Null is a source from before the column existed: its first check only learns what is listed.
    */
   knownRefs: string[] | null;
+  /**
+   * The seasons its episodes land in, as the address listed them when last read (all of them, chosen
+   * or not). Null is a source from before the column existed, not yet read again.
+   */
+  listedSeasons: number[] | null;
   /** A source that will bring nothing new (a finished season): checks no longer read it. */
   closed: boolean;
   createdAt: number;
