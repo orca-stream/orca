@@ -20,7 +20,8 @@ import { runningFraction } from "@/series/download-line";
 const FANNED = 3;
 
 /**
- * Up to three covers fanned like cards in a hand; they open a little more on hover. A series' own
+ * Up to three covers fanned like cards in a hand; they open a little more on hover. Each one opens its
+ * series, and the one under the pointer comes to the front. A series' own
  * poster, else TMDB's (the same cached lookup its card and page ask for): with Jellyfin, which keeps
  * the images itself, a series seldom has one of its own.
  */
@@ -43,7 +44,7 @@ function Covers({ series }: { series: SeriesDto[] }) {
   const covers = candidates
     .flatMap((s) => {
       const src = s.hasPoster ? posterUrl(s) : tmdbPoster.get(s.tmdbId ?? "");
-      return src ? [{ id: s.id, src }] : [];
+      return src ? [{ id: s.id, title: s.title, src }] : [];
     })
     .slice(0, FANNED);
   if (covers.length === 0) {
@@ -59,19 +60,23 @@ function Covers({ series }: { series: SeriesDto[] }) {
   // room allows: the whole hand stays inside the tile, at most 12 px into its padding either side.
   const slots = covers.length === 3 ? [1, 0, 2] : covers.length === 2 ? [1, 0] : [0];
   const middle = (covers.length - 1) / 2;
+  // Above the tile's stretched link, but only the covers catch the pointer: the rest of the box
+  // still opens the list.
   return (
-    <div className="relative h-full w-full [container-type:size]">
+    <div className="pointer-events-none relative z-10 h-full w-full [container-type:size]">
       {covers.map((s, rank) => {
         const offset = (slots[rank] ?? 0) - middle;
         return (
-          <img
+          <Link
             key={s.id}
-            src={s.src}
-            alt=""
-            loading="lazy"
-            style={{ "--o": offset, zIndex: covers.length - rank } as CSSProperties}
-            className="absolute top-1/2 left-1/2 aspect-2/3 h-[min(84cqh,calc((100cqw+1.5rem)/1.36))] origin-[50%_180%] -translate-x-1/2 -translate-y-1/2 rotate-[calc(var(--o)*8deg)] rounded-xl object-cover shadow-xl ring-1 ring-white/70 transition-transform duration-300 ease-out group-hover/tile:rotate-[calc(var(--o)*11deg)]"
-          />
+            href={`/series/${encodeURIComponent(s.id)}`}
+            aria-label={s.title}
+            title={s.title}
+            style={{ "--o": offset, "--z": covers.length - rank } as CSSProperties}
+            className="pointer-events-auto absolute top-1/2 left-1/2 z-(--z) aspect-2/3 h-[min(84cqh,calc((100cqw+1.5rem)/1.36))] origin-[50%_180%] -translate-x-1/2 -translate-y-1/2 rotate-[calc(var(--o)*8deg)] overflow-hidden rounded-xl shadow-xl ring-1 ring-white/70 transition-transform duration-300 ease-out outline-none group-hover/tile:rotate-[calc(var(--o)*11deg)] hover:z-10 focus-visible:z-10 focus-visible:ring-3 focus-visible:ring-ring"
+          >
+            <img src={s.src} alt="" loading="lazy" className="size-full object-cover" />
+          </Link>
         );
       })}
     </div>
