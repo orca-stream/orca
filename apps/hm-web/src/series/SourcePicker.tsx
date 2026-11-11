@@ -280,7 +280,7 @@ export function PreferredSourceSelect({
         aria-label={t.series.preferredSource(season)}
         title={preferred ? t.series.preferredHint(season) : t.series.preferredSource(season)}
         className={cn(
-          "h-12 max-w-48 gap-2 rounded-full border-0 bg-white/55 pr-5 pl-1 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white",
+          "h-12 max-w-60 gap-2 rounded-full border-0 bg-white/55 pr-5 pl-1 text-sm ring-1 ring-black/5 hover:bg-white focus-visible:ring-3 focus-visible:ring-ring/40 data-[size=default]:h-12 data-popup-open:bg-white",
           className,
         )}
       >
@@ -294,8 +294,8 @@ export function PreferredSourceSelect({
                 </span>
               </span>
             ) : (
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <span className="flex size-10 items-center justify-center">
+              <span className="flex items-center gap-2 whitespace-nowrap text-muted-foreground">
+                <span className="flex size-10 shrink-0 items-center justify-center">
                   {saving ? (
                     <Spinner aria-hidden="true" className="size-4" />
                   ) : (

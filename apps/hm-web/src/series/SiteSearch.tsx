@@ -262,7 +262,9 @@ function ResultTile({
       className={cn(
         "isolate has-[button:focus-visible]:ring-3 has-[button:focus-visible]:ring-ring/50",
         cover ? "bg-black/80" : "bg-linear-to-b from-primary/10 to-transparent",
-        disabled && !reading && "opacity-60",
+        // The one being read stays lifted and ringed; the rest step back, out of reach until it's read.
+        reading && "pointer-events-none -translate-y-1 ring-3 ring-primary",
+        disabled && !reading && "pointer-events-none opacity-40 grayscale",
       )}
     >
       {cover && (
@@ -326,19 +328,13 @@ function ResultTile({
         )}
       </div>
       <div className="flex flex-1 items-center justify-center">
-        {reading ? (
-          <span className="flex size-20 items-center justify-center rounded-3xl bg-white/85 text-primary shadow-lg">
-            <Spinner className="size-8" />
+        {!cover && (
+          <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
+            <HugeiconsIcon
+              icon={item.kind === "movie" ? Film01Icon : Tv01Icon}
+              className="size-10"
+            />
           </span>
-        ) : (
-          !cover && (
-            <span className="flex size-20 items-center justify-center rounded-3xl bg-linear-to-br from-sky-400 to-primary text-white shadow-lg shadow-primary/30">
-              <HugeiconsIcon
-                icon={item.kind === "movie" ? Film01Icon : Tv01Icon}
-                className="size-10"
-              />
-            </span>
-          )
         )}
       </div>
       <div className={cn("min-w-0 p-4 sm:p-5", cover && "text-white")}>
@@ -356,15 +352,29 @@ function ResultTile({
             {item.title}
           </button>
         </h3>
-        {facts.length > 0 && (
+        {reading ? (
+          // Where its year and seasons go: it's being read.
           <p
+            role="status"
             className={cn(
-              "mt-0.5 truncate text-xs tabular-nums sm:text-sm",
-              cover ? "text-white/75" : "text-muted-foreground",
+              "mt-1 flex items-center gap-1.5 text-xs font-medium sm:text-sm",
+              cover ? "text-white" : "text-primary",
             )}
           >
-            {facts.join(" · ")}
+            <Spinner className="size-4" />
+            {t.add.previewing}
           </p>
+        ) : (
+          facts.length > 0 && (
+            <p
+              className={cn(
+                "mt-0.5 truncate text-xs tabular-nums sm:text-sm",
+                cover ? "text-white/75" : "text-muted-foreground",
+              )}
+            >
+              {facts.join(" · ")}
+            </p>
+          )
         )}
       </div>
     </Tile>
