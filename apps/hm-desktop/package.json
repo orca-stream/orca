@@ -23,12 +23,12 @@
     "@orca/hm-contract": "workspace:*",
     "@types/node": "catalog:",
     "dbus-native": "0.16.3",
-    "electron": "45.2.3",
+    "electron": "45.3.2",
     "electron-builder": "26.18.0",
     "electron-updater": "6.8.11",
     "typescript": "~7.0.2",
     "vite-plus": "catalog:",
-    "x11": "4.3.3"
+    "x11": "4.4.0"
   },
   "desktopName": "orca-hm.desktop"
 }
