@@ -19,6 +19,8 @@ const JOB: JobDto = {
   seriesTitle: "Show",
   episodeId: "e1",
   episodeCode: "S01E01",
+  extractorId: null,
+  player: null,
   progress: 0,
   progressDetail: null,
   attempts: 1,

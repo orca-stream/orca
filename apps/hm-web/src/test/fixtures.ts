@@ -9,6 +9,8 @@ export function makeJob(over: Partial<JobDto> = {}): JobDto {
     seriesTitle: "Beverly Hillbillies",
     episodeId: "e1",
     episodeCode: "S01E01",
+    extractorId: null,
+    player: null,
     progress: null,
     progressDetail: null,
     attempts: 0,

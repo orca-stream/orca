@@ -23,6 +23,10 @@ export const JobDto = z.object({
   episodeId: z.string().nullable(),
   /** `S01E02`, for the jobs that are about one episode. */
   episodeCode: z.string().nullable(),
+  /** The extractor of the source its episode's video comes from; null for a job about no episode. */
+  extractorId: z.string().nullable(),
+  /** The host of the video player it downloads (or downloaded) from; null for a direct file. */
+  player: z.string().nullable(),
   progress: z.number().nullable(),
   progressDetail: ProgressDetail.nullable(),
   attempts: z.number().int(),

@@ -64,6 +64,7 @@ import {
 import { createEnqueueCheck } from "./checks.ts";
 import {
   toEpisodeDto,
+  jobSourceId,
   toJobDto,
   toNotificationDto,
   toPreviewDto,
@@ -205,13 +206,20 @@ export function createUseCases(deps: Deps) {
       ...new Set(jobs.flatMap((job) => (job.episodeId ? [job.episodeId] : []))),
     ]);
     const byId = new Map(episodes.map((episode) => [episode.id, episode]));
-    return jobs.map((job) =>
-      toJobDto(
+    const seriesIds = [...new Set(episodes.map((episode) => episode.seriesId))];
+    const sources = new Map(
+      (seriesIds.length > 0 ? await deps.series.listSources(seriesIds) : []).map((s) => [s.id, s]),
+    );
+    return jobs.map((job) => {
+      const episode = (job.episodeId && byId.get(job.episodeId)) || null;
+      const sourceId = jobSourceId(job, episode);
+      return toJobDto(
         job,
         (job.seriesId && titles.get(job.seriesId)) || null,
-        (job.episodeId && byId.get(job.episodeId)) || null,
-      ),
-    );
+        episode,
+        (sourceId && sources.get(sourceId)) || null,
+      );
+    });
   }
 
   /**

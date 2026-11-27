@@ -1,7 +1,7 @@
 import type { ProgressDetail } from "@orca/hm-contract";
 import type { Job } from "../domain/job.ts";
 import type { Deps } from "./deps.ts";
-import { toJobDto } from "./presenter.ts";
+import { jobSourceId, toJobDto } from "./presenter.ts";
 import type { QueueEvents } from "./queue.ts";
 
 /** Turns job changes into the SSE events the panel listens to. */
@@ -11,7 +11,15 @@ export function createJobEvents(deps: Pick<Deps, "series" | "events">) {
       ? (await deps.series.seriesTitles([job.seriesId])).get(job.seriesId)
       : null;
     const episode = job.episodeId ? await deps.series.getEpisode(job.episodeId) : null;
-    deps.events.publish({ type: "job.updated", job: toJobDto(job, of ?? null, episode) });
+    const sourceId = jobSourceId(job, episode);
+    const source =
+      sourceId && job.seriesId
+        ? (await deps.series.listSources([job.seriesId])).find((s) => s.id === sourceId)
+        : null;
+    deps.events.publish({
+      type: "job.updated",
+      job: toJobDto(job, of ?? null, episode, source ?? null),
+    });
   }
 
   const queueEvents: QueueEvents = {

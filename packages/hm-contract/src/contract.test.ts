@@ -148,6 +148,8 @@ describe("isHmEvent", () => {
     seriesTitle: "S",
     episodeId: "e1",
     episodeCode: "S01E01",
+    extractorId: "site-a",
+    player: "player.example",
     progress: 0.5,
     progressDetail: null,
     attempts: 1,

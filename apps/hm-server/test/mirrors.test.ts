@@ -97,6 +97,31 @@ describe("an episode with several players", () => {
     expect(await h.series.getEpisode(episode!.id)).toMatchObject({ status: "available" });
   });
 
+  it("says, once downloaded, which site and which player's host it came from", async () => {
+    episodesOn(1, [P1]);
+    await addShow();
+    await h.queue.settle();
+
+    const done = await h.useCases.listJobs({ limit: 50, status: ["done"] });
+    expect(done.items.find((job) => job.kind === "download_episode")).toMatchObject({
+      extractorId: site.extractor.id,
+      player: P1,
+    });
+    // The same in what the panel hears live.
+    const heard = h.events.flatMap((event) =>
+      event.type === "job.updated" && event.job.status === "done" ? [event.job] : [],
+    );
+    expect(heard.find((job) => job.kind === "download_episode")).toMatchObject({
+      extractorId: site.extractor.id,
+      player: P1,
+    });
+    // A job about no episode comes from nowhere.
+    expect(done.items.find((job) => job.kind === "refresh_library") ?? null).toSatisfy(
+      (job: { extractorId: unknown; player: unknown } | null) =>
+        job === null || (job.extractorId === null && job.player === null),
+    );
+  });
+
   it("opens in an iframe the players the extractor says only play framed", async () => {
     await h.cleanup();
     const framing = {

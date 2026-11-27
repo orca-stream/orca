@@ -197,10 +197,18 @@ export function toEpisodeDto(episode: Episode, job: Job | null = null): EpisodeD
   };
 }
 
+/** The id of the source a job's episode takes its file from: the downloaded one, else its own. */
+export function jobSourceId(job: Job, episode: Episode | null): string | null {
+  if (!episode) return null;
+  return job.status === "done" ? (episode.fileSourceId ?? episode.sourceId) : episode.sourceId;
+}
+
 export function toJobDto(
   job: Job,
   of: { title: string; kind: MediaKind } | null,
   episode: Episode | null,
+  /** The source the episode's file comes from (the one it was downloaded from, once it has one). */
+  source: SeriesSource | null = null,
 ): JobDto {
   return {
     id: job.id,
@@ -212,6 +220,8 @@ export function toJobDto(
     // A movie's one video has no code: its title says it.
     episodeCode:
       episode && of?.kind !== "movie" ? episodeCode(episode.season, episode.episode) : null,
+    extractorId: source?.extractorId ?? null,
+    player: isHostLane(job.resource) ? job.resource.slice(HOST_LANE_PREFIX.length) : null,
     progress: job.progress,
     progressDetail: job.progressDetail,
     attempts: job.attempts,
