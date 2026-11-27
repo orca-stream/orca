@@ -2,23 +2,23 @@ import {
   Add01Icon,
   Activity01Icon,
   Home01Icon,
+  LibraryIcon,
   Settings01Icon,
-  Tv01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import {
   type CSSProperties,
   createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type FocusEvent,
-  type MouseEvent,
-  type PointerEvent,
   type ReactElement,
   type ReactNode,
+  type RefObject,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
@@ -28,151 +28,166 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DownloadsPanel } from "@/downloads/DownloadsPanel";
-import { ExtractorMark } from "@/extractors/ExtractorMark";
-import { extractorHref } from "@/extractors/href";
 import { useT } from "@/i18n/locale";
+import { NotificationBell } from "@/notifications/NotificationBell";
 import { toPercent } from "@/lib/percent";
 import { cn } from "@/lib/utils";
 import { BAR_POPUP } from "@/series/bar";
 import { runningFraction } from "@/series/download-line";
 
-/** Lets an action keep the dock up while something of its own is open (the add menu, say). */
-const HoldContext = createContext<(held: boolean) => void>(() => {});
+/** Where the frame sits: the bottom centre, above everything, letting clicks through its gaps. */
+const FRAME =
+  "pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center px-4 pb-4";
+/** What rests on the dock: squared below, with no gap, so it reads as sitting on it. */
+const ABOVE = "pointer-events-auto relative z-10 -mb-px max-w-full";
+/** The bar itself: glass, round, one row of circles, sideways scroll on a narrow window. */
+const BAR =
+  "glass pointer-events-auto flex h-16 max-w-full items-center gap-1.5 overflow-x-auto rounded-full p-2 shadow-[0_24px_60px_-20px_var(--glass-shadow)] [scrollbar-width:none]";
 
-/** Whether focus landed from the keyboard, not from a click (a click keeps the dock open otherwise). */
-function focusVisible(element: Element) {
-  try {
-    return element.matches(":focus-visible");
-  } catch {
-    return true;
-  }
-}
+/** How long the bar takes to stretch to, or shrink from, the actions a screen adds. */
+const RESIZE_MS = 320;
 
-/** How long the pointer may stray before the dock lowers, so a shaky hand does not flicker it. */
-const LEAVE_DELAY_MS = 250;
+type Host = {
+  bar: HTMLElement | null;
+  above: HTMLElement | null;
+  /** The bar's width as last seen settled, to stretch from when the screen changes. */
+  width: RefObject<number | null>;
+};
+
+const DockHostContext = createContext<Host | null>(null);
 
 /**
- * The glass dock at the bottom centre of a screen, the way Astro's dev toolbar sits: shrunk and half
- * below the window's edge until the pointer comes near, then it rises to its full size with its
- * actions. `pinned` keeps it up (while it is a search bar, say). On a touch screen the first tap only
- * raises it, so nothing fires by accident; a tap elsewhere lowers it again.
+ * The dock's one frame for the whole panel: it stays put from screen to screen, and each screen's
+ * `Dock` only fills it. When a screen brings an action more, or one less, the bar stretches or
+ * shrinks to it instead of being drawn anew.
+ */
+export function DockHost({ children }: { children: ReactNode }) {
+  const t = useT();
+  const [bar, setBar] = useState<HTMLElement | null>(null);
+  const [above, setAbove] = useState<HTMLElement | null>(null);
+  const width = useRef<number | null>(null);
+  const host = useMemo(() => ({ bar, above, width }), [bar, above]);
+
+  // A window resized narrower than the bar clamps it: keep the width to stretch from up to date.
+  useEffect(() => {
+    if (!bar || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!resizing(bar)) width.current = bar.getBoundingClientRect().width || null;
+    });
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [bar]);
+
+  return (
+    <DockHostContext.Provider value={host}>
+      {children}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div className={FRAME}>
+            <div ref={setAbove} className={cn(ABOVE, "empty:hidden")} />
+            <nav ref={setBar} aria-label={t.dock.label} className={cn(BAR, "empty:hidden")} />
+          </div>,
+          document.body,
+        )}
+    </DockHostContext.Provider>
+  );
+}
+
+function resizing(bar: HTMLElement) {
+  return typeof bar.getAnimations === "function" && bar.getAnimations().length > 0;
+}
+
+/**
+ * Stretches the bar from the width it had to the one its new actions take. Mid-stretch, it starts
+ * from where it has got to, so quick steps from screen to screen never jump.
+ */
+function settle(bar: HTMLElement, width: RefObject<number | null>) {
+  const moving = resizing(bar);
+  const from = moving ? bar.getBoundingClientRect().width : width.current;
+  if (moving) for (const animation of bar.getAnimations()) animation.cancel();
+  const to = bar.getBoundingClientRect().width;
+  width.current = to || null;
+  if (!from || !to || Math.abs(from - to) < 1 || typeof bar.animate !== "function") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  bar.animate([{ width: `${from}px` }, { width: `${to}px` }], {
+    duration: RESIZE_MS,
+    easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  });
+}
+
+/**
+ * The glass dock at the bottom centre of every screen: always up, round and small, each action a
+ * circle named in a tooltip. It scrolls sideways on a window too narrow for all of it. `above` sits
+ * on top of it, with no gap (the library's tabs, say): squared below, so it reads as resting on it.
  *
- * The pointer is watched by a zone that never moves: a strip along the bottom, wider than the dock,
- * while it is down, and the whole space the risen dock takes (with the gap below it) once it is up.
- * The dock itself moving under a still pointer would otherwise lower and raise it again and again.
- *
- * It is portalled to the body: a glass ancestor's backdrop-filter would otherwise trap its `fixed`.
+ * Inside the panel it fills the one frame of `DockHost`, so it is never drawn anew from screen to
+ * screen; on its own (a screen rendered alone) it brings its own. Either way it lives in the body
+ * (a glass ancestor's backdrop-filter would otherwise trap its `fixed`), and where it is written it
+ * leaves a spacer as tall as itself, so the end of the screen can always be scrolled out from under it.
  */
 export function Dock({
   label,
-  pinned = false,
+  above,
   children,
 }: {
   label: string;
-  pinned?: boolean;
+  above?: ReactNode;
   children: ReactNode;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [touched, setTouched] = useState(false);
-  const [held, setHeld] = useState(false);
-  const swallow = useRef(false);
-  const leaving = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const self = useRef<HTMLDivElement>(null);
-  const open = pinned || held || hovered || focused || touched;
+  const host = useContext(DockHostContext);
 
-  // A tap outside lowers a dock a tap raised.
-  useEffect(() => {
-    if (!touched) return;
-    const away = (event: globalThis.PointerEvent) => {
-      if (!self.current?.contains(event.target as Node)) setTouched(false);
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [touched]);
-
-  useEffect(() => () => clearTimeout(leaving.current), []);
-
-  // Unpinned, it holds only what is still focused: an element that held focus and was taken away
-  // (the search field, once the search closes) never fires a blur, and would keep it up for good.
-  useEffect(() => {
-    if (pinned) return;
-    const active = document.activeElement;
-    setFocused(
-      !!active &&
-        active !== document.body &&
-        !!self.current?.contains(active) &&
-        focusVisible(active),
-    );
-  }, [pinned]);
-
-  function onPointerEnter(event: PointerEvent) {
-    if (event.pointerType !== "mouse") return;
-    clearTimeout(leaving.current);
-    setHovered(true);
-  }
-
-  function onPointerLeave(event: PointerEvent) {
-    if (event.pointerType !== "mouse") return;
-    clearTimeout(leaving.current);
-    leaving.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS);
-  }
-
-  function onPointerDown(event: PointerEvent) {
-    if (event.pointerType === "mouse" || open) return;
-    setTouched(true);
-    swallow.current = true;
-  }
-
-  function onClickCapture(event: MouseEvent) {
-    if (!swallow.current) return;
-    swallow.current = false;
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  function onBlur(event: FocusEvent) {
-    if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
-  }
+  // Every commit: whatever this screen changed in the bar, it stretches to it.
+  useLayoutEffect(() => {
+    if (host?.bar) settle(host.bar, host.width);
+  });
 
   if (typeof document === "undefined") return null;
-  return createPortal(
+  const spacer = (
     <div
-      ref={self}
-      data-open={open || undefined}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-      onPointerDown={onPointerDown}
-      onClickCapture={onClickCapture}
-      onFocus={(event) => focusVisible(event.target) && setFocused(true)}
-      onBlur={onBlur}
+      aria-hidden="true"
       className={cn(
-        // Down, only the strip catches the pointer; up, the whole zone does.
-        "fixed bottom-0 left-1/2 z-40 -translate-x-1/2 px-12 pt-6 pb-4 sm:pb-6",
-        open ? "pointer-events-auto" : "pointer-events-none",
+        "w-full shrink-0",
+        above
+          ? "h-[calc(var(--dock-space)+var(--dock-above)-2rem)]"
+          : "h-[calc(var(--dock-space)-2rem)]",
       )}
-    >
-      <span aria-hidden="true" className="pointer-events-auto absolute inset-x-0 bottom-0 h-12" />
-      <nav
-        aria-label={label}
-        className={cn(
-          "glass group/dock pointer-events-auto relative flex h-16 origin-bottom items-center gap-1.5 rounded-full p-2",
-          "transition-[translate,scale,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
-          open
-            ? "translate-y-0 scale-100 shadow-[0_24px_60px_-20px_var(--glass-shadow)]"
-            : "translate-y-[calc(50%+1rem)] scale-[0.6] sm:translate-y-[calc(50%+1.5rem)]",
-        )}
-      >
-        <HoldContext.Provider value={setHeld}>{children}</HoldContext.Provider>
-      </nav>
-    </div>,
-    document.body,
+    />
+  );
+  if (host) {
+    return (
+      <>
+        {spacer}
+        {host.bar && createPortal(children, host.bar)}
+        {above &&
+          host.above &&
+          createPortal(
+            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2">
+              {above}
+            </div>,
+            host.above,
+          )}
+      </>
+    );
+  }
+  return (
+    <>
+      {spacer}
+      {createPortal(
+        <div className={FRAME}>
+          {above && <div className={ABOVE}>{above}</div>}
+          <nav aria-label={label} className={BAR}>
+            {children}
+          </nav>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
 /** The look every action of the dock shares: one circle, one size. */
 const ITEM =
-  "relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/60 text-muted-foreground ring-1 ring-black/5 outline-none transition hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 aria-[current=page]:bg-white aria-[current=page]:text-primary";
+  "relative isolate flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/60 text-muted-foreground ring-1 ring-black/5 outline-none transition hover:bg-white hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60 aria-[current=page]:bg-white aria-[current=page]:text-primary data-popup-open:bg-white data-popup-open:text-foreground";
 
 /** A dock action with its name in a tooltip above it. */
 function Labelled({ label, render }: { label: string; render: ReactElement }) {
@@ -192,20 +207,18 @@ export function DockLink({
   label,
   icon,
   current = false,
-  children,
 }: {
   href: string;
   label: string;
-  icon?: IconSvgElement;
+  icon: IconSvgElement;
   current?: boolean;
-  children?: ReactNode;
 }) {
   return (
     <Labelled
       label={label}
       render={
         <Link href={href} aria-current={current ? "page" : undefined} className={ITEM}>
-          {icon ? <HugeiconsIcon icon={icon} className="size-5.5" /> : children}
+          <HugeiconsIcon icon={icon} className="size-5.5" />
         </Link>
       }
     />
@@ -260,15 +273,20 @@ export function DockSeparator() {
 }
 
 /**
- * Home, the series and the settings: the same three, in the same places, on every screen, so the
+ * Home, the library and the settings: the same three, in the same places, on every screen, so the
  * hand learns them. The one you are on is lit, never taken away (that shifted everything after it).
  */
-export function DockPlaces({ here }: { here?: "home" | "series" | "settings" }) {
+export function DockPlaces({ here }: { here?: "home" | "library" | "settings" }) {
   const t = useT();
   return (
     <>
       <DockLink href="/" label={t.nav.home} icon={Home01Icon} current={here === "home"} />
-      <DockLink href="/series" label={t.nav.series} icon={Tv01Icon} current={here === "series"} />
+      <DockLink
+        href="/series"
+        label={t.nav.library}
+        icon={LibraryIcon}
+        current={here === "library"}
+      />
       <DockLink
         href="/settings"
         label={t.settings.open}
@@ -279,89 +297,32 @@ export function DockPlaces({ here }: { here?: "home" | "series" | "settings" }) 
   );
 }
 
-/** One row of the add menu: a mark (or an icon) and its name. */
-const MENU_ITEM =
-  "flex items-center gap-3 rounded-xl p-2 pr-4 text-sm font-medium text-foreground outline-none transition hover:bg-white/70 focus-visible:bg-white/70 focus-visible:ring-3 focus-visible:ring-ring/50";
-
 /**
- * After a separator, one "+" to add a series: it opens, above it, a menu with every extractor on its
- * own colour (only checked ones exist, so there is no "any link"). One circle instead of a row of
- * same-looking colours. `current` lights it on the add screen itself. The downloads follow it, on
- * every screen, so the queue is always one click away.
+ * After a separator, one "+" to add a series or a movie: straight to the add screen, which searches
+ * every site by name or reads an address. `current` lights it on the add screen itself. The
+ * downloads and the notifications follow it, on every screen, so the queue and what happened
+ * meanwhile (new episodes found, a download that failed) are always one click away.
  */
 export function DockAdd({ current = false }: { current?: boolean }) {
   const t = useT();
-  const api = useApi();
-  const hold = useContext(HoldContext);
-  const extractors = useQuery(queries.extractors(api));
-  const [open, setOpen] = useState(false);
-
-  function toggle(next: boolean) {
-    setOpen(next);
-    hold(next);
-  }
-
-  useEffect(() => () => hold(false), [hold]);
-
   return (
     <>
       <DockSeparator />
-      {extractors.data?.length ? (
-        <Popover open={open} onOpenChange={toggle}>
-          <Tooltip disabled={open}>
-            <TooltipTrigger
-              aria-label={t.dock.add}
-              render={
-                <PopoverTrigger
-                  aria-current={current ? "page" : undefined}
-                  className={cn(ITEM, "data-popup-open:bg-white data-popup-open:text-foreground")}
-                />
-              }
-            >
-              <HugeiconsIcon icon={Add01Icon} className="size-5.5" />
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={10}>
-              {t.dock.add}
-            </TooltipContent>
-          </Tooltip>
-          <PopoverContent
-            side="top"
-            sideOffset={20}
-            aria-label={t.dock.add}
-            className={cn(BAR_POPUP, "w-max min-w-56 gap-0.5 p-2")}
-          >
-            {extractors.data?.map((extractor) => (
-              <Link
-                key={extractor.id}
-                href={extractorHref(extractor)}
-                onClick={() => toggle(false)}
-                className={MENU_ITEM}
-              >
-                <ExtractorMark
-                  extractor={extractor}
-                  className="size-9 rounded-full"
-                  iconClassName="size-4.5"
-                />
-                {extractor.name}
-              </Link>
-            ))}
-          </PopoverContent>
-        </Popover>
-      ) : null}
+      <DockLink href="/series/new" label={t.dock.add} icon={Add01Icon} current={current} />
       <DockDownloads />
+      <NotificationBell className={ITEM} popupClassName={BAR_POPUP} />
     </>
   );
 }
 
 /**
  * The downloads: a circle that fills from the bottom as far as what runs has come (and breathes
- * while that is unknown), opening above it, like the "+", a list of everything on its way, sized
- * to what it holds and scrolling once it is taller than the window allows.
+ * while that is unknown), opening above it a list of everything on its way, sized to what it holds
+ * and scrolling once it is taller than the window allows.
  */
 function DockDownloads() {
   const t = useT();
   const api = useApi();
-  const hold = useContext(HoldContext);
   // The series already carry how many of theirs are on the way and how far: the jobs themselves are
   // only asked for once the list opens.
   const series = useQuery(queries.seriesList(api)).data ?? [];
@@ -370,28 +331,12 @@ function DockDownloads() {
   const running = series.reduce((sum, s) => sum + s.running.length, 0);
   const percent = toPercent(runningFraction(series));
 
-  function toggle(next: boolean) {
-    setOpen(next);
-    hold(next);
-  }
-
-  useEffect(() => () => hold(false), [hold]);
-
-  const label = t.nav.activity(count);
   return (
-    <Popover open={open} onOpenChange={toggle}>
+    <Popover open={open} onOpenChange={setOpen}>
       <Tooltip disabled={open}>
         <TooltipTrigger
-          aria-label={label}
-          render={
-            <PopoverTrigger
-              className={cn(
-                ITEM,
-                "isolate data-popup-open:bg-white data-popup-open:text-foreground",
-                running > 0 && "text-primary",
-              )}
-            />
-          }
+          aria-label={t.nav.activity(count)}
+          render={<PopoverTrigger className={cn(ITEM, running > 0 && "text-primary")} />}
         >
           {running > 0 && (
             <span
@@ -406,7 +351,7 @@ function DockDownloads() {
           <HugeiconsIcon icon={Activity01Icon} className="size-5.5" />
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10}>
-          {label}
+          {t.nav.activity(count)}
         </TooltipContent>
       </Tooltip>
       <PopoverContent

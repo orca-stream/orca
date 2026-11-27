@@ -32,7 +32,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import { isLanguageChoice } from "@orca/hm-contract/desktop";
 import { LANGUAGE_CODE_PATTERN, SETTING_LIMITS } from "@orca/hm-contract/rules";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/api/client";
+import { useApi } from "@/api/context";
+import { queries } from "@/api/queries";
+import { ExtractorMark } from "@/extractors/ExtractorMark";
 import type { JellyfinConnection } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { useLanguageChoice, useT } from "@/i18n/locale";
@@ -47,6 +51,7 @@ import {
   adminFromDraft,
   emptyAdmin,
   extractorNames,
+  extractorSites,
   type AdminDraft,
   type AdminErrors,
   type Draft,
@@ -778,8 +783,11 @@ export function ExtractorsSection({
 }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
+  const api = useApi();
+  const extractors = useQuery(queries.extractors(api));
   const [problem, setProblem] = useState<ExtractorsFileProblem | null>(null);
   const names = extractorNames(text);
+  const sites = extractorSites(text) ?? [];
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -823,9 +831,34 @@ export function ExtractorsSection({
           </>
         }
       >
-        <p role="status">
-          {some ? t.settings.extractors.sites(names.join(", ")) : t.settings.extractors.title}
-        </p>
+        {some ? (
+          // Every site, on its own colour once the server has read it: where "Add" searches.
+          <div role="status">
+            <span className="sr-only">{t.settings.extractors.sites(names.join(", "))}</span>
+            <ul aria-hidden="true" className="flex flex-wrap gap-2">
+              {sites.map(({ id, name }) => {
+                const known = extractors.data?.find((extractor) => extractor.id === id);
+                return (
+                  <li
+                    key={id}
+                    className="flex h-8 items-center gap-2 rounded-full bg-white/70 pr-3 pl-1 text-sm ring-1 ring-black/5"
+                  >
+                    {known && (
+                      <ExtractorMark
+                        extractor={known}
+                        className="size-6 rounded-full"
+                        iconClassName="size-3.5"
+                      />
+                    )}
+                    <span className={cn(!known && "pl-2")}>{name}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <p role="status">{t.settings.extractors.title}</p>
+        )}
       </NoteRow>
       {problem && (
         <NoteRow icon={Alert02Icon} tone="warning">

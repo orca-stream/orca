@@ -42,7 +42,7 @@ const es = {
   nav: {
     label: "Navegación principal",
     home: "Inicio",
-    series: "Series",
+    library: "Biblioteca",
     downloads: "Descargas",
     activity: (n: number) => (n === 0 ? "Actividad" : `Actividad: ${n} descargas en marcha`),
     account: "Cuenta",
@@ -101,8 +101,47 @@ const es = {
       ]
         .filter(Boolean)
         .join(" · "),
-    seriesEmpty: "Aún no hay nada",
-    anyPage: "Cualquier página",
+    searchLabel: "Buscar una serie o una película para añadirla",
+    searchPlaceholder: "Busca una serie o una película, o pega su dirección…",
+    searchSubmit: "Buscar",
+    stats: {
+      shows: "Series",
+      movies: "Películas",
+      episodes: "Episodios descargados",
+      following: "Siguiendo",
+    },
+    downloadingTitle: "Descargando ahora",
+    downloadingEmpty: "Nada descargándose",
+    downloadingEmptyHint: "Cuando pidas episodios o películas, aquí verás cómo avanzan.",
+    addSomething: "Añadir algo",
+    moreQueued: (n: number) => (n === 1 ? "y 1 más en cola" : `y ${n} más en cola`),
+    errorsTitle: "Descargas con error",
+    retryAll: "Reintentar todas",
+    notDownloadedTitle: "Sin descargar",
+    allClear: "Todo descargado.",
+    notDownloaded: (n: number) => (n === 1 ? "1 sin descargar" : `${n} sin descargar`),
+    upcomingTitle: "Próximos episodios",
+    upcomingEmpty: "Ninguna serie que sigues tiene un episodio anunciado.",
+    upcoming: (season: number, episode: number, date: string | null) =>
+      `T${season}E${episode}${date ? ` · ${date}` : ""}`,
+    recentTitle: "Recientes",
+    previous: "Anteriores",
+    next: "Siguientes",
+    seeLibrary: "Ver la biblioteca",
+    lastDownloadsTitle: "Últimas descargas",
+    newEpisodesTitle: "Episodios nuevos",
+    newEpisodes: (count: number, codes: string) =>
+      `${count} ${count === 1 ? "episodio nuevo" : "episodios nuevos"} (${codes})`,
+    download: "Descargar",
+    downloadNew: (series: string) => `Descargar los episodios nuevos de ${series}`,
+    emptyTitle: "Tu biblioteca está vacía",
+    emptyHint: "Busca una serie o una película por su nombre para empezar.",
+  },
+  library: {
+    filter: "Qué mostrar",
+    all: "Todo",
+    shows: "Series",
+    movies: "Películas",
   },
   dashboard: {
     title: "Descargas",
@@ -141,6 +180,8 @@ const es = {
     loadMore: "Ver más",
     loadingMore: "Cargando…",
     finished: (when: string) => `Terminó ${when}`,
+    origin: (site: string | null, player: string | null) =>
+      site && player ? `de ${site} (${player})` : site || player ? `de ${site ?? player}` : null,
     kinds: {
       download_episode: "Descarga",
       refresh_library: "Actualizar biblioteca",
@@ -159,7 +200,7 @@ const es = {
     moreQueued: (n: number) => (n === 1 ? "y 1 más en cola" : `y ${n} más en cola`),
   },
   series: {
-    title: "Series",
+    title: "Biblioteca",
     add: "Añadir",
     empty: "Todavía no hay nada.",
     emptyHint: "Pega la dirección de una serie o de una película para añadirla.",
@@ -654,7 +695,6 @@ const es = {
     notAiredHint: (code: string) => `TMDB lista ${code}, pero aún no se ha emitido.`,
   },
   extractors: {
-    tryIt: "Probar",
     explicitOnly: "Solo si lo eliges",
     empty: "No hay extractores.",
   },
@@ -904,7 +944,7 @@ const en: typeof es = {
   nav: {
     label: "Main navigation",
     home: "Home",
-    series: "Series",
+    library: "Library",
     downloads: "Downloads",
     activity: (n: number) =>
       n === 0 ? "Activity" : `Activity: ${n} ${n === 1 ? "download" : "downloads"} in progress`,
@@ -964,8 +1004,47 @@ const en: typeof es = {
       ]
         .filter(Boolean)
         .join(" · "),
-    seriesEmpty: "Nothing yet",
-    anyPage: "Any page",
+    searchLabel: "Search for a show or a movie to add",
+    searchPlaceholder: "Search for a show or a movie, or paste its address…",
+    searchSubmit: "Search",
+    stats: {
+      shows: "Shows",
+      movies: "Movies",
+      episodes: "Episodes downloaded",
+      following: "Following",
+    },
+    downloadingTitle: "Downloading now",
+    downloadingEmpty: "Nothing downloading",
+    downloadingEmptyHint: "Once you ask for episodes or movies, you'll see them come in here.",
+    addSomething: "Add something",
+    moreQueued: (n: number) => `and ${n} more queued`,
+    errorsTitle: "Downloads with an error",
+    retryAll: "Retry them all",
+    notDownloadedTitle: "Not downloaded",
+    allClear: "Everything is downloaded.",
+    notDownloaded: (n: number) => `${n} not downloaded`,
+    upcomingTitle: "Upcoming episodes",
+    upcomingEmpty: "No show you follow has an episode announced.",
+    upcoming: (season: number, episode: number, date: string | null) =>
+      `S${season}E${episode}${date ? ` · ${date}` : ""}`,
+    recentTitle: "Recent",
+    previous: "Previous",
+    next: "Next",
+    seeLibrary: "See the library",
+    lastDownloadsTitle: "Latest downloads",
+    newEpisodesTitle: "New episodes",
+    newEpisodes: (count: number, codes: string) =>
+      `${count} new ${count === 1 ? "episode" : "episodes"} (${codes})`,
+    download: "Download",
+    downloadNew: (series: string) => `Download the new episodes of ${series}`,
+    emptyTitle: "Your library is empty",
+    emptyHint: "Search for a show or a movie by its name to start.",
+  },
+  library: {
+    filter: "What to show",
+    all: "All",
+    shows: "Shows",
+    movies: "Movies",
   },
   dashboard: {
     title: "Downloads",
@@ -1003,6 +1082,12 @@ const en: typeof es = {
     loadMore: "Load more",
     loadingMore: "Loading…",
     finished: (when: string) => `Finished ${when}`,
+    origin: (site: string | null, player: string | null) =>
+      site && player
+        ? `from ${site} (${player})`
+        : site || player
+          ? `from ${site ?? player}`
+          : null,
     kinds: {
       download_episode: "Download",
       refresh_library: "Refresh library",
@@ -1021,7 +1106,7 @@ const en: typeof es = {
     moreQueued: (n: number) => `and ${n} more queued`,
   },
   series: {
-    title: "Series",
+    title: "Library",
     add: "Add",
     empty: "Nothing yet.",
     emptyHint: "Paste the address of a show or a movie to add it.",
@@ -1513,7 +1598,6 @@ const en: typeof es = {
     notAiredHint: (code: string) => `TMDB lists ${code}, but it hasn't aired yet.`,
   },
   extractors: {
-    tryIt: "Try it",
     explicitOnly: "Only when you choose it",
     empty: "No extractors.",
   },

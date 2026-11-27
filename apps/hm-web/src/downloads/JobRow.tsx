@@ -1,8 +1,11 @@
 import type { JobDto } from "@orca/hm-contract";
 import { Video01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link } from "wouter";
+import { useApi } from "@/api/context";
+import { queries } from "@/api/queries";
 import { Progress } from "@/components/ui/progress";
 import { formatBytes, formatDuration, formatSpeed } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
@@ -90,9 +93,23 @@ function JobTitle({ job, title }: { job: JobDto; title: string | null }) {
   );
 }
 
+/** Where a finished download came from: its site and, when it has one, the player's host. */
+function useJobOrigin(job: JobDto): string | null {
+  const t = useT();
+  const api = useApi();
+  const done = job.status === "done" && job.kind === "download_episode";
+  const extractors = useQuery({
+    ...queries.extractors(api),
+    enabled: done && job.extractorId !== null,
+  });
+  if (!done) return null;
+  const site = extractors.data?.find((e) => e.id === job.extractorId)?.name ?? null;
+  return t.dashboard.origin(site, job.player);
+}
+
 /**
  * One job as a row: its frame on the left, the series and episode beside it, and below what the
- * job is doing (how far, how fast, how long; why it failed; when it finished). `action` is the
+ * job is doing (how far, how fast, how long; why it failed; when it finished and where from). `action` is the
  * round 40px button at its end (cancel, retry), if any.
  */
 export function JobRow({
@@ -112,6 +129,7 @@ export function JobRow({
   const locale = useLocale();
   const running = job.status === "running";
   const art = useJobArt(job, { withPlayer: running });
+  const origin = useJobOrigin(job);
   const percent = toPercent(job.progress);
   const { bytesPerSecond, etaSeconds } = jobSpeedAndEta(job);
   const { bytes, total } = job.progressDetail ?? {};
@@ -156,7 +174,12 @@ export function JobRow({
             <p className="truncate text-xs text-muted-foreground">{line}</p>
           </>
         )}
-        {detail && <div className="text-xs text-muted-foreground">{detail}</div>}
+        {detail && (
+          <div className="truncate text-xs text-muted-foreground">
+            {detail}
+            {origin && ` · ${origin}`}
+          </div>
+        )}
       </div>
     </li>
   );

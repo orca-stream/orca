@@ -2,14 +2,22 @@
 
 **English** · [Español](es/hm-web.md) · [All guides](../../README.md)
 
-The panel (`apps/hm-web`) is the web interface of the [Orca'H&M server](hm-server.md). Home is a grid of
-cards: your series first, then one card per available extractor (with a shortcut to try its example).
-From there: the list of series, adding a series from an address (with a preview of what will be
+The panel (`apps/hm-web`) is the web interface of the [Orca'H&M server](hm-server.md). Home is a
+dashboard: on top, one search to add a show or a movie (a name searches every site, an address is read
+by its own site, both on the add screen with the text already in); below it, what is downloading now
+and what is pending (failed downloads, with a way to retry them, and shows with episodes not
+downloaded yet); and the latest of the library as a row of its cards. Above them, the library in figures and, across the whole width, every download that failed (with why,
+and a way to retry it) and the new episodes the checks found that you have not looked at yet (each one click from being downloaded); beside what is downloading, the next episode announced of each show you
+follow; the latest come as a carousel with arrows, and the downloads that finished last (each with the site and the player host it came from) close the
+page. The dock at the bottom is always up: Home, Library, Settings, Add (straight to the add screen)
+Downloads and Notifications (a bell with how many are unread), each named on hover; in the library, its All · Shows · Movies tabs rest on it. The extractors themselves are listed in Settings › Extractors.
+From there: the library, adding a series from an address (with a preview of what will be
 downloaded, the season, the first episode number, TMDB/IMDb ids and track choices), each series' sources
 and episodes, the downloads (a list over the dock: queue, errors and the last finished; hovering a card's download badge shows what it is fetching) and notifications (live, over
 server-sent events).
 
-The list of series looks like home, with no top bar or title: a card to add one more, then a card per
+The library (series and movies, with the tabs on the dock once it holds both) has no top bar
+or title: a card to add one more, then a card per
 series whose whole background is its cover (TMDB's, by its id, when the server has none), darkened
 towards the bottom under its name, year and how many episodes are here (`24/24`). On a series' own screen, the **+** button by its addresses opens
 adding a series with that one already chosen as "Add to" (`/series/new?into=<id>`): another season,

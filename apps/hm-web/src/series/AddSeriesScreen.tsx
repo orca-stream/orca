@@ -310,7 +310,11 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
       : null;
   // The sites' results take the screen: the address moves up and widens, and they fill the rest.
   // Set by typing (not derived from it) so the change can be animated from where the bar was.
-  const [searching, setSearching] = useState(false);
+  // Coming from home's search with a name already typed, its results open at once.
+  const [searching, setSearching] = useState(() => {
+    const typed = (params.get("url") ?? "").trim();
+    return !params.get("extractor") && isSiteSearch(typed) && !isWebAddress(typed);
+  });
   const showResults = searching && searchQuery !== null && isSiteSearch(searchQuery);
   const form$ = useRef<HTMLFormElement>(null);
   const barWas = useRef<DOMRect | null>(null);
@@ -932,7 +936,7 @@ function AddSeries({ onStartOver }: { onStartOver: (into?: string) => void }) {
         className={cn(
           "flex min-w-0 flex-col gap-4",
           attached &&
-            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
+            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-var(--dock-space)))]",
         )}
       >
         {/* The address floats as it is while the page scrolls, always clear of the window's top. */}

@@ -28,7 +28,7 @@ export function CurrentDownloads({
   return (
     <section
       aria-label={t.series.detail.nowDownloading}
-      className={cn(ISLAND, "bottom-4 mx-4 mb-4 flex-col items-stretch")}
+      className={cn(ISLAND, "bottom-(--dock-space) mx-4 mb-4 flex-col items-stretch")}
     >
       {downloading.map((episode) => (
         <CurrentDownload

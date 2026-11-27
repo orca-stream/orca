@@ -2,14 +2,24 @@
 
 [English](../hm-web.md) · **Español** · [Todas las guías](../../../README.es.md)
 
-El panel (`apps/hm-web`) es la interfaz web del [servidor Orca'H&M](hm-server.md). El inicio es una
-cuadrícula de tarjetas: primero tus series y después una por cada extractor disponible (con un atajo para
-probar su ejemplo). Desde ahí: la lista de series, agregar una serie desde una dirección (con vista previa
+El panel (`apps/hm-web`) es la interfaz web del [servidor Orca'H&M](hm-server.md). El inicio es un
+panel: arriba, una búsqueda para añadir una serie o una película (un nombre busca en todos los sitios,
+una dirección la lee su propio sitio, las dos en la pantalla de añadir con el texto ya puesto); debajo,
+lo que se descarga ahora y lo pendiente (descargas fallidas, con la forma de reintentarlas, y series con
+episodios aún sin descargar); y lo último de la biblioteca como una fila de sus tarjetas. Encima, la biblioteca en cifras y, a todo
+el ancho, cada descarga que falló (con el motivo y la forma de reintentarla) y los episodios nuevos que encontraron las revisiones y aún no has visto (cada uno a un clic de descargarse); junto a lo que se
+descarga, el próximo episodio anunciado de cada serie que sigues; lo último llega como un carrusel
+con flechas, y las últimas descargas terminadas (cada una con el sitio y el servidor del reproductor de donde salió) cierran la página. El dock de abajo está siempre a
+la vista: Inicio, Biblioteca, Ajustes, Añadir (directo a la pantalla de añadir), Descargas y Notificaciones (una campana con cuántas hay sin leer), cada uno
+con su nombre al pasar el ratón; en la biblioteca, sus pestañas Todo · Series · Películas se apoyan
+en él. Los extractores se listan en Ajustes ›
+Extractores. Desde ahí: la biblioteca, agregar una serie desde una dirección (con vista previa
 de lo que se descargará, la temporada, el número del primer episodio, ids de TMDB/IMDb y elección de
 pistas), las fuentes y episodios de cada serie, las descargas (una lista sobre el dock: cola, errores y las últimas terminadas; al pasar por el indicador de descarga de una tarjeta se ve qué baja) y las
 notificaciones (en vivo, por server-sent events).
 
-La lista de series se ve como el inicio, sin barra ni título: una tarjeta para agregar otra y después una
+La biblioteca (series y películas, con las pestañas sobre el dock cuando tiene de las dos) va
+sin barra ni título: una tarjeta para agregar otra y después una
 por serie cuyo fondo entero es su carátula (la de TMDB, por su id, si el servidor no tiene), oscurecida
 hacia abajo bajo su nombre, año y cuántos episodios hay (`24/24`). En la pantalla de una serie, el botón **+** junto a sus direcciones abre
 agregar una serie con esa ya elegida en «Añadir a» (`/series/new?into=<id>`): otra temporada, o la parte

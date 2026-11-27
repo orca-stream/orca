@@ -308,18 +308,24 @@ function optional<K extends string>(key: K, value: number | undefined): Partial<
   return value === undefined ? {} : ({ [key]: value } as Record<K, number>);
 }
 
-/** The names of the sites an extractors file describes, or null when it is not one. */
-export function extractorNames(textValue: string): string[] | null {
+/** The sites an extractors file describes (each id and name), or null when it is not one. */
+export function extractorSites(textValue: string): { id: string; name: string }[] | null {
   if (textValue.trim() === "") return [];
   try {
     const parsed: unknown = JSON.parse(textValue);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-    return Object.entries(parsed as Record<string, { name?: unknown }>).map(([id, entry]) =>
-      typeof entry?.name === "string" ? entry.name : id,
-    );
+    return Object.entries(parsed as Record<string, { name?: unknown }>).map(([id, entry]) => ({
+      id,
+      name: typeof entry?.name === "string" ? entry.name : id,
+    }));
   } catch {
     return null;
   }
+}
+
+/** The names of the sites an extractors file describes, or null when it is not one. */
+export function extractorNames(textValue: string): string[] | null {
+  return extractorSites(textValue)?.map((site) => site.name) ?? null;
 }
 
 /** The server's own administrator as the form holds it: the password typed twice. */

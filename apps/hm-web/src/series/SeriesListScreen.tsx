@@ -6,7 +6,6 @@ import {
   Alert02Icon,
   ArrowUpRight01Icon,
   Cancel01Icon,
-  Home01Icon,
   Link01Icon,
   Search01Icon,
   Tv01Icon,
@@ -14,8 +13,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { useApi } from "@/api/context";
-import { posterUrl, queries } from "@/api/queries";
+import { queries } from "@/api/queries";
 import { Dock, DockAdd, DockButton, DockPlaces, DockSeparator } from "@/components/dock";
+import { Tabs, TabsList, TabsTab } from "@/components/ui/tabs";
 import { Loading } from "@/components/loading";
 import { ExtractorMark } from "@/extractors/ExtractorMark";
 import {
@@ -33,30 +33,10 @@ import { DownloadingBadge } from "@/components/downloading-badge";
 import { AiringChip, CHIP_HOVER_CARD } from "./AiringChip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { runningFraction } from "./download-line";
-import { airingHint, finishedStatus } from "./airing";
+import { useShow } from "./use-show";
 
 /** The chips along a tile's top edge, all 24px tall: the open sources' pill sets it with its marks. */
 const CHIP = "flex h-6 items-center rounded-full px-2.5 text-xs font-medium ring-1";
-
-/**
- * What TMDB tells of a series for its card (the same cached lookup its page asks for): the cover,
- * its own when the server has one, and whether the show still airs.
- */
-function useShow(series: SeriesDto) {
-  const api = useApi();
-  const tmdbId = series.tmdbId ?? "";
-  const lookup = useQuery({
-    ...queries.showLookup(api, tmdbId, series.kind),
-    enabled: tmdbId !== "",
-  });
-  const show = lookup.data?.tmdbId === tmdbId ? lookup.data : null;
-  return {
-    cover: series.hasPoster ? posterUrl(series) : (show?.posterUrl ?? null),
-    hint: airingHint(series.follow, show?.status ?? null),
-    ended: finishedStatus(show?.status),
-    nextEpisode: show?.nextEpisode ?? null,
-  };
-}
 
 /**
  * The sources a series is still read from (the closed ones left out), as a chip in the card's top
@@ -151,7 +131,7 @@ function OpenSources({ series, ended }: { series: SeriesDto; ended: "ended" | "c
  * A series as a home card: its cover is the whole card, darkened towards the bottom so the name and
  * how many of its episodes are here read over it.
  */
-function SeriesTile({ series }: { series: SeriesDto }) {
+export function SeriesTile({ series }: { series: SeriesDto }) {
   const t = useT();
   const { cover, hint, ended, nextEpisode } = useShow(series);
   const downloading = series.downloadingCount;
@@ -242,25 +222,6 @@ function SeriesTile({ series }: { series: SeriesDto }) {
   );
 }
 
-/** The very first card: the way back home, where the series and the extractors are. */
-function HomeTile() {
-  const t = useT();
-  return (
-    <Tile>
-      <div className="flex flex-1 items-center justify-center p-4 pb-1 sm:p-6 sm:pb-2">
-        <span className="flex size-20 items-center justify-center rounded-3xl bg-white/80 text-primary shadow-lg ring-1 shadow-black/5 ring-black/5 transition-transform duration-300 motion-safe:group-hover/tile:scale-105">
-          <HugeiconsIcon icon={Home01Icon} className="size-10" />
-        </span>
-      </div>
-      <div className="flex items-end gap-2 p-4 pt-2 sm:gap-3 sm:p-5 sm:pt-3">
-        <h2 className="min-w-0 flex-1 text-base leading-tight font-semibold tracking-tight sm:text-lg">
-          <TileLink href="/">{t.nav.home}</TileLink>
-        </h2>
-      </div>
-    </Tile>
-  );
-}
-
 /** A tile's narrowest column and the gap between them, from sm up (see FILL_TILE_GRID). */
 const TILE_MIN = 248;
 const TILE_GAP = 24;
@@ -282,6 +243,15 @@ function AddTile() {
       </div>
     </Tile>
   );
+}
+
+/** What the library shows: everything, only the shows, or only the movies. */
+const KINDS = ["all", "shows", "movies"] as const;
+type Kind = (typeof KINDS)[number];
+
+function isKind(series: SeriesDto, kind: Kind) {
+  if (kind === "all") return true;
+  return (series.kind === "movie") === (kind === "movies");
 }
 
 /** Whether a key pressed on this goes into it as text. */
@@ -319,7 +289,7 @@ function SearchBar({
   const empty = query === "";
 
   return (
-    <div className="flex w-[min(32rem,calc(100vw-2.5rem))] items-center gap-1 duration-200 animate-in fade-in-0 zoom-in-95">
+    <div className="flex h-18 w-[min(32rem,calc(100vw-3rem))] items-center gap-1 duration-200 animate-in fade-in-0 zoom-in-95">
       <span
         aria-hidden="true"
         className="flex size-12 shrink-0 items-center justify-center text-primary"
@@ -378,12 +348,17 @@ export function SeriesListScreen() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
+  const [kind, setKind] = useState<Kind>("all");
   const needle = folded(query.trim());
-  const shown = list.data?.filter((series) => folded(series.title).includes(needle)) ?? [];
+  const ofKind = list.data?.filter((series) => isKind(series, kind)) ?? [];
+  const shown = ofKind.filter((series) => folded(series.title).includes(needle));
+  const hasBoth =
+    list.data?.some((series) => series.kind === "movie") &&
+    list.data?.some((series) => series.kind !== "movie");
   const [measure, width] = useElementWidth<HTMLDivElement>();
   // Fewer tiles than a row holds would sit to the left of a filling grid: they go in the middle,
   // at home's size, until there are enough to fill the row.
-  const fillsARow = 2 + shown.length >= Math.floor((width + TILE_GAP) / (TILE_MIN + TILE_GAP));
+  const fillsARow = 1 + shown.length >= Math.floor((width + TILE_GAP) / (TILE_MIN + TILE_GAP));
 
   return (
     <div ref={measure} className="flex w-full flex-col items-center gap-6">
@@ -397,12 +372,7 @@ export function SeriesListScreen() {
       {list.isSuccess && (
         <ul className={needle !== "" ? CENTRED_TILE_GRID : fillsARow ? FILL_TILE_GRID : TILE_GRID}>
           {/* While a search narrows the list, only the series that match are left. */}
-          {needle === "" && (
-            <>
-              <HomeTile />
-              <AddTile />
-            </>
-          )}
+          {needle === "" && <AddTile />}
           {shown.map((series) => (
             <SeriesTile key={series.id} series={series} />
           ))}
@@ -418,7 +388,26 @@ export function SeriesListScreen() {
           {t.dock.noMatch(query.trim())}
         </p>
       )}
-      <Dock label={t.dock.label} pinned={searching}>
+      <Dock
+        label={t.dock.label}
+        above={
+          // Only worth a choice when the library holds both: resting on the dock, squared below.
+          hasBoth && (
+            <Tabs value={kind} onValueChange={(value) => setKind(value as Kind)}>
+              <TabsList
+                aria-label={t.library.filter}
+                className="glass h-12 gap-1 rounded-t-3xl rounded-b-none border-b-0 bg-(--glass-strong) px-2 pt-1.5 pb-1.5 shadow-none"
+              >
+                {KINDS.map((one) => (
+                  <TabsTab key={one} value={one} className="h-9 px-5">
+                    {t.library[one]}
+                  </TabsTab>
+                ))}
+              </TabsList>
+            </Tabs>
+          )
+        }
+      >
         {searching ? (
           <SearchBar
             input={searchInput}
@@ -430,8 +419,8 @@ export function SeriesListScreen() {
             }}
           />
         ) : (
-          <div className="flex items-center gap-1 duration-200 animate-in fade-in-0 zoom-in-95">
-            <DockPlaces here="series" />
+          <div className="flex items-start gap-1 duration-200 animate-in fade-in-0 zoom-in-95">
+            <DockPlaces here="library" />
             <DockAdd />
             <DockSeparator />
             <DockButton

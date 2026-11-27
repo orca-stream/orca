@@ -735,6 +735,46 @@ describe("AddSeriesScreen", () => {
     });
   });
 
+  it("opens with the sites' results for a name typed on home", async () => {
+    setup({
+      path: "/series/new?url=la%20casa",
+      extractors: [
+        ...EXTRACTORS,
+        {
+          id: "site-b",
+          name: "Site B",
+          hosts: ["origin.test"],
+          example: "https://origin.test/series/x",
+          explicit: false,
+          searchable: true,
+        },
+      ],
+      siteFound: {
+        "la casa": [
+          {
+            extractorId: "site-b",
+            failed: false,
+            results: [
+              {
+                url: "https://origin.test/series/la-casa",
+                title: "La casa",
+                originalTitle: null,
+                year: 2006,
+                plot: null,
+                posterUrl: null,
+                seriesId: null,
+                seasons: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(((await screen.findByLabelText("Dirección")) as HTMLInputElement).value).toBe("la casa");
+    const results = await screen.findByRole("region", { name: "Resultados de los sitios" });
+    expect(await within(results).findByRole("button", { name: /^La casa, 2006/ })).toBeTruthy();
+  });
+
   it("searches the sites by a name typed in the address, and reads the one picked", async () => {
     const user = userEvent.setup();
     const site = {

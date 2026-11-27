@@ -119,6 +119,13 @@
  */
 :root {
   --title-bar-h: 0px;
+  /*
+   * What the dock (components/dock.tsx) takes from the window's bottom, with the 16px before
+   * whatever sticks above it: its 64px, its 16px off the edge and that gap. `--dock-above` is what
+   * may rest on it (the library's tabs).
+   */
+  --dock-space: 6rem;
+  --dock-above: 3rem;
 }
 :root.desktop {
   --title-bar-h: 3.5rem;

@@ -4,7 +4,6 @@ import { type CSSProperties, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Link04Icon,
   ArrowLeft01Icon,
   ArrowDown03Icon,
   Image02Icon,
@@ -17,7 +16,7 @@ import {
 import { ApiError } from "@/api/client";
 import { useApi } from "@/api/context";
 import { useMutations } from "@/api/mutations";
-import { Dock, DockButton, DockAdd, DockLink, DockPlaces, DockSeparator } from "@/components/dock";
+import { Dock, DockButton, DockAdd, DockPlaces, DockSeparator } from "@/components/dock";
 import { queries } from "@/api/queries";
 import { EmptyState } from "@/components/empty-state";
 import { Loading } from "@/components/loading";
@@ -39,7 +38,6 @@ import { airingHint } from "./airing";
 import { SeriesEpisodes } from "./SeriesEpisodes";
 import { EpisodeSourceMark, PreferredSourceSelect, SwitchSourceButton } from "./SourcePicker";
 import { fileSourceName, sourcesFor } from "./source-spans";
-import { addSourceHref } from "./add-source";
 import { SeriesSettings } from "./SeriesSettings";
 import { MovieVideo } from "./MovieVideo";
 import { ShowBackdrop } from "./ShowBackdrop";
@@ -404,12 +402,21 @@ export function SeriesDetailScreen() {
     );
   }
   if (!series.data || !episodes) {
-    return !deleting && (series.isError || episodesQuery.isError) ? (
-      <p role="alert" className="text-sm text-warning">
-        {t.dashboard.loadFailed}
-      </p>
-    ) : (
-      <Loading />
+    return (
+      <>
+        {!deleting && (series.isError || episodesQuery.isError) ? (
+          <p role="alert" className="text-sm text-warning">
+            {t.dashboard.loadFailed}
+          </p>
+        ) : (
+          <Loading />
+        )}
+        {/* The dock stays while it loads: it only stretches once the series brings its own action. */}
+        <Dock label={t.dock.label}>
+          <DockPlaces here="library" />
+          <DockAdd />
+        </Dock>
+      </>
     );
   }
 
@@ -461,7 +468,7 @@ export function SeriesDetailScreen() {
           GLASS_PANEL,
           "min-w-0 overflow-clip",
           !isMovie &&
-            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-1rem))]",
+            "xl:sticky xl:top-[min(1rem,calc(100svh-var(--title-bar-h)-var(--panel-h)-var(--dock-space)))]",
         )}
       >
         <SeriesHero series={data} tmdb={tmdb} seasons={seasonCount} />
@@ -572,30 +579,20 @@ export function SeriesDetailScreen() {
         />
       )}
       <Dock label={t.dock.label}>
-        <DockPlaces here="series" />
+        <DockPlaces here="library" />
         <DockAdd />
-        <DockSeparator />
-        <DockLink
-          href={addSourceHref(data, episodes ?? [])}
-          label={t.series.detail.addSource}
-          icon={Link04Icon}
-        />
-        <DockButton
-          label={t.series.downloadMissing}
-          icon={ArrowDown03Icon}
-          pending={bulk === "missing"}
-          disabled={missing.length === 0 || bulk !== null}
-          onClick={downloadMissing}
-        />
         {/* A movie brings nothing new to check for. */}
         {!isMovie && (
-          <DockButton
-            label={t.dock.checkNow}
-            icon={RefreshIcon}
-            tone="primary"
-            pending={checkSeries.isPending}
-            onClick={() => checkSeries.mutate(data.id)}
-          />
+          <>
+            <DockSeparator />
+            <DockButton
+              label={t.dock.checkNow}
+              icon={RefreshIcon}
+              tone="primary"
+              pending={checkSeries.isPending}
+              onClick={() => checkSeries.mutate(data.id)}
+            />
+          </>
         )}
       </Dock>
     </div>

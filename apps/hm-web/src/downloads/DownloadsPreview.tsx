@@ -14,7 +14,14 @@ const QUEUED_SHOWN = 3;
  * few that wait behind them. Of one series with `seriesId`, of all of them without. Only to look
  * at: cancelling and retrying live in the dock's downloads.
  */
-export function DownloadsPreview({ seriesId }: { seriesId?: string }) {
+export function DownloadsPreview({
+  seriesId,
+  titled = true,
+}: {
+  seriesId?: string;
+  /** Without its own heading, inside a card that already says what it is. */
+  titled?: boolean;
+}) {
   const t = useT();
   const api = useApi();
   const active = useQuery(queries.jobsActive(api));
@@ -31,10 +38,12 @@ export function DownloadsPreview({ seriesId }: { seriesId?: string }) {
   }
   return (
     <div className="flex flex-col gap-1">
-      <p className="flex min-h-10 items-center gap-2 px-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {t.series.detail.nowDownloading}
-        <span className="font-normal tabular-nums">{jobs.length}</span>
-      </p>
+      {titled && (
+        <p className="flex min-h-10 items-center gap-2 px-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          {t.series.detail.nowDownloading}
+          <span className="font-normal tabular-nums">{jobs.length}</span>
+        </p>
+      )}
       <ul className="flex flex-col gap-1">
         {running.map((job) => (
           <JobRow key={job.id} job={job} />

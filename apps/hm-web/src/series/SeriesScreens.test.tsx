@@ -169,18 +169,16 @@ describe("SeriesListScreen", () => {
     const dock = screen.getByRole("navigation", { name: "Atajos" });
     expect(within(dock).getByRole("link", { name: "Inicio" }).getAttribute("href")).toBe("/");
     // The same three places on every screen, the one you are on lit rather than gone.
-    expect(within(dock).getByRole("link", { name: "Series" }).getAttribute("aria-current")).toBe(
-      "page",
-    );
+    expect(
+      within(dock).getByRole("link", { name: "Biblioteca" }).getAttribute("aria-current"),
+    ).toBe("page");
     expect(within(dock).getByRole("link", { name: "Ajustes" }).getAttribute("href")).toBe(
       "/settings",
     );
-    // One "+" opens the extractors to add a series with.
-    await user.click(await within(dock).findByRole("button", { name: "Añadir" }));
-    expect((await screen.findByRole("link", { name: "TV Anime" })).getAttribute("href")).toBe(
-      "/series/new?extractor=tv-anime",
+    // One "+" goes straight to adding, which searches every site: no extractor to pick first.
+    expect(within(dock).getByRole("link", { name: "Añadir" }).getAttribute("href")).toBe(
+      "/series/new",
     );
-    await user.keyboard("{Escape}");
 
     await user.click(within(dock).getByRole("button", { name: "Buscar por título" }));
     const field = screen.getByRole("searchbox", { name: "Buscar por título" });
@@ -659,7 +657,9 @@ describe("SeriesDetailScreen", () => {
     const { requests } = detailSetup();
     await screen.findByRole("heading", { name: "Beverly Hillbillies" });
     const dock = screen.getByRole("navigation", { name: "Atajos" });
-    expect(within(dock).getByRole("link", { name: "Series" }).getAttribute("href")).toBe("/series");
+    expect(within(dock).getByRole("link", { name: "Biblioteca" }).getAttribute("href")).toBe(
+      "/series",
+    );
     await user.click(within(dock).getByRole("button", { name: "Buscar episodios nuevos ahora" }));
     await waitFor(() =>
       expect(
@@ -672,20 +672,13 @@ describe("SeriesDetailScreen", () => {
     expect((await screen.findAllByText("Búsqueda en cola.")).length).toBeGreaterThan(0);
   });
 
-  it("offers one more source and the missing episodes from the dock", async () => {
-    const user = userEvent.setup();
-    const { requests } = detailSetup();
+  it("leaves another source and the missing episodes to the page, not the dock", async () => {
+    detailSetup();
     await screen.findByRole("heading", { name: "Beverly Hillbillies" });
     const dock = screen.getByRole("navigation", { name: "Atajos" });
-    expect(
-      within(dock).getByRole("link", { name: "Añadir otra fuente" }).getAttribute("href"),
-    ).toBe(page().getByRole("link", { name: "Añadir otra fuente" }).getAttribute("href"));
-    await user.click(within(dock).getByRole("button", { name: "Descargar los que faltan" }));
-    await waitFor(() =>
-      expect(
-        requests.some((r) => r.method === "POST" && new URL(r.url).pathname === "/api/jobs"),
-      ).toBe(true),
-    );
+    expect(within(dock).queryByRole("link", { name: "Añadir otra fuente" })).toBeNull();
+    expect(within(dock).queryByRole("button", { name: "Descargar los que faltan" })).toBeNull();
+    expect(page().getByRole("link", { name: "Añadir otra fuente" })).toBeTruthy();
   });
 
   it("does not promise a next check for a series that is not followed", async () => {

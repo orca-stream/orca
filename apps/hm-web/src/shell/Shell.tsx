@@ -4,13 +4,13 @@ import type { ReactNode } from "react";
 import { Link, useLocation, useRoute } from "wouter";
 import logotype from "@/assets/logotype.svg";
 import { useLogout, useMe } from "@/auth/session";
+import { DockHost } from "@/components/dock";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SseStatus } from "@/events/sse";
 import { useT } from "@/i18n/locale";
 import { cn } from "@/lib/utils";
-import { NotificationBell } from "@/notifications/NotificationBell";
 
 const LIVE_TONE: Record<SseStatus, string> = {
   // Softer than the success/warning tokens: a status light, not a label to read.
@@ -134,50 +134,51 @@ export function Shell({ live, children }: { live?: SseStatus; children: ReactNod
 
   return (
     <TooltipProvider>
-      <div className="isolate flex min-h-app flex-col">
-        <Backdrop />
-        {/* Home, the series and adding one have no bar: just their content, centred on the screen. */}
-        {panelled && (
-          <header className="sticky top-0 z-20 px-4 pt-4">
-            <nav
-              aria-label={t.nav.label}
-              className={cn(
-                "glass mx-auto flex h-14 max-w-6xl items-center gap-2 rounded-full pr-2 pl-5",
-              )}
-            >
-              <Link
-                href="/"
-                aria-current={home ? "page" : undefined}
-                className="flex shrink-0 items-center rounded-md outline-ring focus-visible:outline-2"
+      <DockHost>
+        <div className="isolate flex min-h-app flex-col">
+          <Backdrop />
+          {/* Home, the series and adding one have no bar: just their content, centred on the screen. */}
+          {panelled && (
+            <header className="sticky top-0 z-20 px-4 pt-4">
+              <nav
+                aria-label={t.nav.label}
+                className={cn(
+                  "glass mx-auto flex h-14 max-w-6xl items-center gap-2 rounded-full pr-2 pl-5",
+                )}
               >
-                <img src={logotype} alt={t.brand} className="h-5 w-auto" />
-              </Link>
-              {live && <LiveDot live={live} />}
-              <div className="ml-auto flex items-center gap-1">
-                <NotificationBell />
-                <Account />
-              </div>
-            </nav>
-          </header>
-        )}
-        <main
-          className={cn(
-            "flex-1",
-            // Centred while it fits; once it is taller than the window it starts at the top instead
-            // of spilling above it.
-            bare && location !== "/series/new"
-              ? "flex items-center-safe justify-center p-3 sm:p-6" // the tile grid's gap
-              : // Every form page: the panels' own 16px.
-                cn("p-4", bare && "flex items-center-safe justify-center"),
+                <Link
+                  href="/"
+                  aria-current={home ? "page" : undefined}
+                  className="flex shrink-0 items-center rounded-md outline-ring focus-visible:outline-2"
+                >
+                  <img src={logotype} alt={t.brand} className="h-5 w-auto" />
+                </Link>
+                {live && <LiveDot live={live} />}
+                <div className="ml-auto flex items-center gap-1">
+                  <Account />
+                </div>
+              </nav>
+            </header>
           )}
-        >
-          {panelled ? (
-            <div className="glass mx-auto max-w-6xl rounded-3xl p-4">{children}</div>
-          ) : (
-            children
-          )}
-        </main>
-      </div>
+          <main
+            className={cn(
+              "flex-1",
+              // Centred while it fits; once it is taller than the window it starts at the top instead
+              // of spilling above it.
+              location === "/series"
+                ? "flex items-center-safe justify-center p-3 sm:p-6" // the tile grid's gap
+                : // Home and every form page: the panels' own 16px.
+                  cn("p-4", bare && !home && "flex items-center-safe justify-center"),
+            )}
+          >
+            {panelled ? (
+              <div className="glass mx-auto max-w-6xl rounded-3xl p-4">{children}</div>
+            ) : (
+              children
+            )}
+          </main>
+        </div>
+      </DockHost>
     </TooltipProvider>
   );
 }

@@ -31,7 +31,8 @@ describe("Shell", () => {
     "has no bar on %s: only the screen itself",
     (path) => {
       renderApp(<Shell>contenido</Shell>, { handler, path });
-      expect(screen.queryByRole("navigation")).toBeNull();
+      // The top bar; the dock's empty frame is hidden by CSS, which jsdom does not apply.
+      expect(screen.queryByRole("navigation", { name: "Navegación principal" })).toBeNull();
       expect(screen.getByText("contenido")).toBeTruthy();
     },
   );

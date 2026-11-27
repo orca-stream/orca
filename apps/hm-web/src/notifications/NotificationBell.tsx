@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Notification03Icon } from "@hugeicons/core-free-icons";
+import { Notification01Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { Link } from "wouter";
 import { useApi } from "@/api/context";
 import { useMutations } from "@/api/mutations";
 import { queries } from "@/api/queries";
 import { PendingButton } from "@/components/pending-button";
-import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNow } from "@/hooks/use-now";
 import { formatRelative } from "@/i18n/format";
 import { useLocale, useT } from "@/i18n/locale";
@@ -17,8 +17,17 @@ import { cn } from "@/lib/utils";
 import { notificationText } from "./notification-text";
 import { useUnreadTitle } from "./use-unread-title";
 
-/** The bell in the top bar: unread count, the recent notifications and "mark as read". */
-export function NotificationBell() {
+/**
+ * The bell on the dock: unread count, and above it the recent notifications and "mark as read".
+ * `className` is the dock's circle and `popupClassName` its glass, so it looks like its neighbours.
+ */
+export function NotificationBell({
+  className,
+  popupClassName,
+}: {
+  className?: string;
+  popupClassName?: string;
+}) {
   const t = useT();
   const locale = useLocale();
   const api = useApi();
@@ -33,30 +42,34 @@ export function NotificationBell() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="ghost"
-            size="icon-lg"
-            aria-label={t.notifications.bell(unread)}
-            className="relative rounded-full text-muted-foreground hover:bg-white/70 hover:text-foreground"
-          />
-        }
-      >
-        <HugeiconsIcon icon={Notification03Icon} className="size-5" />
-        {unread > 0 && (
-          <span
-            aria-hidden="true"
-            className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-amber-400 px-1 text-center text-[10px] leading-4 font-semibold text-black"
-          >
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </PopoverTrigger>
+      <Tooltip disabled={open}>
+        <TooltipTrigger
+          aria-label={t.notifications.bell(unread)}
+          // The count sits on the circle's edge, so nothing of it is cut off.
+          render={<PopoverTrigger className={cn(className, "overflow-visible")} />}
+        >
+          <HugeiconsIcon icon={Notification01Icon} className="size-5.5" />
+          {unread > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-amber-400 px-1 text-center text-[10px] leading-4 font-semibold text-black"
+            >
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={10}>
+          {t.notifications.bell(unread)}
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent
-        align="end"
+        side="top"
+        sideOffset={20}
         aria-label={t.notifications.title}
-        className="max-h-96 w-80 max-w-[calc(100vw-2rem)] overflow-y-auto"
+        className={cn(
+          popupClassName,
+          "max-h-[min(32rem,var(--available-height))] w-[min(24rem,var(--available-width))] gap-2 overflow-y-auto p-4 overscroll-contain [scrollbar-width:thin]",
+        )}
       >
         <div className="flex items-center gap-2">
           <PopoverTitle className="mr-auto">{t.notifications.title}</PopoverTitle>

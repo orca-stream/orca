@@ -343,7 +343,7 @@ export function SeriesEpisodes({
         <div
           role="toolbar"
           aria-label={t.series.selected(selection.size)}
-          className={cn(ISLAND, "bottom-4 mx-4 mb-4")}
+          className={cn(ISLAND, "bottom-(--dock-space) mx-4 mb-4")}
         >
           {/* On the left what changes the selection, on the right what acts on it. */}
           <div className="flex items-center gap-2">
